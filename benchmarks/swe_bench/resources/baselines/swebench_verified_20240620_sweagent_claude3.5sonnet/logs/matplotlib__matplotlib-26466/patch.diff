@@ -1,0 +1,83 @@
+
+diff --git a/bug_fix_test.png b/bug_fix_test.png
+new file mode 100644
+index 0000000000..451b3b0f7b
+Binary files /dev/null and b/bug_fix_test.png differ
+diff --git a/bug_reproduction.png b/bug_reproduction.png
+new file mode 100644
+index 0000000000..7b140b8a3e
+Binary files /dev/null and b/bug_reproduction.png differ
+diff --git a/lib/matplotlib/text.py b/lib/matplotlib/text.py
+index d4922fc517..8f663396d2 100644
+--- a/lib/matplotlib/text.py
++++ b/lib/matplotlib/text.py
+@@ -1456,7 +1456,7 @@ class _AnnotationBase:
+                  xycoords='data',
+                  annotation_clip=None):
+ 
+-        self.xy = xy
++        self.xy = xy.copy() if hasattr(xy, 'copy') else tuple(xy)
+         self.xycoords = xycoords
+         self.set_annotation_clip(annotation_clip)
+ 
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..a44c4a47f2
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,26 @@
++import matplotlib.pyplot as plt
++import numpy as np
++
++fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
++
++# Test case 1: Should be fixed
++xy_0 = np.array((-4, 1))
++xy_f = np.array((-1, 1))
++ax1.annotate('', xy=xy_0, xytext=xy_f, arrowprops=dict(arrowstyle='<->'))
++xy_0[1] = 3  # This should not affect the annotation now
++print(f"Test case 1 annotation position: {ax1.texts[0].get_position()}")
++
++# Test case 2: Should not be affected
++xy_0 = np.array((1, 1))
++xy_f = np.array((4, 1))
++ax2.annotate('', xy=xy_0.copy(), xytext=xy_f, arrowprops=dict(arrowstyle='<->'))
++xy_0[1] = 3  # This should not affect the annotation
++print(f"Test case 2 annotation position: {ax2.texts[0].get_position()}")
++
++ax1.set_xlim(-5, 5)
++ax1.set_ylim(-3, 3)
++ax2.set_xlim(-5, 5)
++ax2.set_ylim(-3, 3)
++
++plt.savefig('bug_fix_test.png')
++print("Script completed successfully. Check bug_fix_test.png for the result.")
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..8cb8c1381f
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,23 @@
++import matplotlib.pyplot as plt
++import numpy as np
++
++fig = plt.figure("test")
++
++ax = fig.add_axes([0.13, 0.15, .8, .8])
++ax.set_xlim(-5, 5)
++ax.set_ylim(-3, 3)
++
++xy_0 = np.array((-4, 1))
++xy_f = np.array((-1, 1))
++# this annotation is messed by later changing the array passed as xy kwarg
++ax.annotate('', xy=xy_0, xytext=xy_f, arrowprops=dict(arrowstyle='<->'))
++xy_0[1] = 3  # <--this updates the arrow position
++
++xy_0 = np.array((1, 1))
++xy_f = np.array((4, 1))
++# using a copy of the array helps spotting where the problem is
++ax.annotate('', xy=xy_0.copy(), xytext=xy_f, arrowprops=dict(arrowstyle='<->'))
++xy_0[1] = 3
++
++plt.savefig('bug_reproduction.png')
++print("Script completed successfully. Check bug_reproduction.png for the result.")

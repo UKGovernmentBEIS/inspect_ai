@@ -1,0 +1,97 @@
+{
+    "django__django-12741": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "test_execute_sql_flush_statements (backends.base.test_operations.SqlFlushTests)",
+                    "test_sequence_name_length_limits_flush (backends.tests.LongNameTest)"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_parameter_escaping (backends.tests.EscapingChecksDebug)",
+                    "test_paramless_no_escaping (backends.tests.EscapingChecksDebug)",
+                    "test_django_date_extract (backends.tests.DateQuotingTest)",
+                    "test_django_date_trunc (backends.tests.DateQuotingTest)",
+                    "test_parameter_escaping (backends.tests.EscapingChecks)",
+                    "test_paramless_no_escaping (backends.tests.EscapingChecks)",
+                    "An executemany call with too many/not enough parameters will raise an exception (Refs #12612)",
+                    "test_distinct_on_fields (backends.base.test_operations.DatabaseOperationTests)",
+                    "Sequence names are correct when resetting generic relations (Ref #13941)",
+                    "test_can_reference_existent (backends.tests.DBConstraintTestCase)",
+                    "test_can_reference_non_existent (backends.tests.DBConstraintTestCase)",
+                    "test_many_to_many (backends.tests.DBConstraintTestCase)",
+                    "test_debug_sql (backends.tests.LastExecutedQueryTest)",
+                    "test_last_executed_query (backends.tests.LastExecutedQueryTest)",
+                    "test_last_executed_query_without_previous_query (backends.tests.LastExecutedQueryTest)",
+                    "last_executed_query() returns a string.",
+                    "test_sql_flush_no_tables (backends.base.test_operations.SqlFlushTests)",
+                    "Test creation of model with long name and long pk name doesn't error. Ref #8901",
+                    "test_sequence_name_length_limits_m2m (backends.tests.LongNameTest)",
+                    "test_closing_non_shared_connections (backends.tests.ThreadTests)",
+                    "test_connections_thread_local (backends.tests.ThreadTests)",
+                    "test_default_connection_thread_local (backends.tests.ThreadTests)",
+                    "test_pass_connection_between_threads (backends.tests.ThreadTests)",
+                    "test_thread_sharing_count (backends.tests.ThreadTests)",
+                    "test_check_constraints (backends.tests.FkConstraintsTests)",
+                    "test_disable_constraint_checks_context_manager (backends.tests.FkConstraintsTests)",
+                    "test_disable_constraint_checks_manually (backends.tests.FkConstraintsTests)",
+                    "test_integrity_checks_on_creation (backends.tests.FkConstraintsTests)",
+                    "test_integrity_checks_on_update (backends.tests.FkConstraintsTests)",
+                    "test_cached_db_features (backends.tests.BackendTestCase)",
+                    "test_cursor_contextmanager (backends.tests.BackendTestCase)",
+                    "test_cursor_executemany (backends.tests.BackendTestCase)",
+                    "test_cursor_executemany_with_empty_params_list (backends.tests.BackendTestCase)",
+                    "test_cursor_executemany_with_iterator (backends.tests.BackendTestCase)",
+                    "test_database_operations_helper_class (backends.tests.BackendTestCase)",
+                    "test_database_operations_init (backends.tests.BackendTestCase)",
+                    "Creating an existing table returns a DatabaseError",
+                    "test_queries (backends.tests.BackendTestCase)",
+                    "test_timezone_none_use_tz_false (backends.tests.BackendTestCase)",
+                    "test_unicode_fetches (backends.tests.BackendTestCase)",
+                    "test_unicode_password (backends.tests.BackendTestCase)",
+                    "test_adapt_datetimefield_value (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_adapt_timefield_value (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_adapt_timefield_value_none (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_adapt_timefield_value_unaware (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_adapt_unknown_value_date (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_adapt_unknown_value_decimal (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_adapt_unknown_value_time (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_date_extract_sql (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_date_interval_sql (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_date_trunc_sql (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_datetime_cast_date_sql (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_datetime_cast_time_sql (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_datetime_extract_sql (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_datetime_trunc_sql (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_deferrable_sql (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_end_transaction_rollback (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_no_limit_value (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_pk_default_value (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_quote_name (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_regex_lookup (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_sequence_reset_by_name_sql (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_set_time_zone_sql (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_sql_flush (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_tablespace_sql (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_time_extract_sql (backends.base.test_operations.SimpleDatabaseOperationTests)",
+                    "test_time_trunc_sql (backends.base.test_operations.SimpleDatabaseOperationTests)"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

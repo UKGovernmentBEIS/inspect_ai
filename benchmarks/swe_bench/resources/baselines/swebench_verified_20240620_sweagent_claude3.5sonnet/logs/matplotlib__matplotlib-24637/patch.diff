@@ -1,0 +1,81 @@
+
+diff --git a/example.svg b/example.svg
+new file mode 100644
+index 0000000000..00d2cad7ee
+Binary files /dev/null and b/example.svg differ
+diff --git a/lib/matplotlib/offsetbox.py b/lib/matplotlib/offsetbox.py
+index efa34dd078..4561593773 100644
+--- a/lib/matplotlib/offsetbox.py
++++ b/lib/matplotlib/offsetbox.py
+@@ -1457,8 +1457,21 @@ or callable, default: value of *xycoords*
+             if self.arrow_patch.figure is None and self.figure is not None:
+                 self.arrow_patch.figure = self.figure
+             self.arrow_patch.draw(renderer)
++        
++        # Get the gid
++        gid = self.get_gid()
++        
++        # Create a group with the gid
++        if gid is not None:
++            renderer.open_group(gid)
++        
+         self.patch.draw(renderer)
+         self.offsetbox.draw(renderer)
++        
++        # Close the group
++        if gid is not None:
++            renderer.close_group(gid)
++        
+         self.stale = False
+ 
+ 
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..254dbd7ff5
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,44 @@
++import matplotlib.pyplot as plt
++from matplotlib.offsetbox import OffsetImage, AnnotationBbox
++import numpy as np
++import xml.etree.ElementTree as ET
++
++fig, ax = plt.subplots()
++
++# Create a simple 10x10 numpy array with random values
++arr_img = np.random.rand(10, 10)
++
++xy = [0.3, 0.55]
++
++imagebox = OffsetImage(arr_img, zoom=5)
++imagebox.image.axes = ax
++
++ab = AnnotationBbox(imagebox, xy,
++                    xybox=(120., -80.),
++                    xycoords='data',
++                    boxcoords="offset points",
++                    pad=0.5,
++                    arrowprops=dict(
++                        arrowstyle="->",
++                        connectionstyle="angle,angleA=0,angleB=90,rad=3")
++                    )
++ab.set_gid('My_label')
++ax.add_artist(ab)
++
++print(f"GID = {ab.get_gid()}")
++
++fig.savefig("example.svg", format="svg")
++
++# Check if the gid is present in the SVG file
++tree = ET.parse('example.svg')
++root = tree.getroot()
++
++gid_found = False
++for elem in root.iter():
++    if 'id' in elem.attrib and elem.attrib['id'].startswith('My_label'):
++        gid_found = True
++        break
++
++print(f"GID found in SVG: {gid_found}")
++
++print("Script completed successfully, no errors.")

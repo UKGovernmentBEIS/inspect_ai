@@ -1,0 +1,25 @@
+
+diff --git a/ISSUE_TEMPLATE.md b/ISSUE_TEMPLATE.md
+index c8ce3e490..f33a57523 100644
+--- a/ISSUE_TEMPLATE.md
++++ b/ISSUE_TEMPLATE.md
+@@ -51,6 +51,7 @@ import sys; print("Python", sys.version)
+ import numpy; print("NumPy", numpy.__version__)
+ import scipy; print("SciPy", scipy.__version__)
+ import sklearn; print("Scikit-Learn", sklearn.__version__)
++import joblib; print("Joblib", joblib.__version__)
+ -->
+ 
+ 
+diff --git a/sklearn/utils/_show_versions.py b/sklearn/utils/_show_versions.py
+index e5d3141bf..ecba9ec68 100644
+--- a/sklearn/utils/_show_versions.py
++++ b/sklearn/utils/_show_versions.py
+@@ -48,6 +48,7 @@ def _get_deps_info():
+         "Cython",
+         "pandas",
+         "matplotlib",
++        "joblib",
+     ]
+ 
+     def get_version(module):

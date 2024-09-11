@@ -1,0 +1,193 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..b27f4c734
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,32 @@
++from sklearn.feature_extraction.text import CountVectorizer
++
++corpus = [
++    'This is the first document.',
++    'This is the second second document.',
++    'And the third one.',
++    'Is this the first document?',
++]
++
++vocabulary = ['and', 'document', 'first', 'is', 'one', 'second', 'the', 'third', 'this']
++
++vectorizer = CountVectorizer(vocabulary=vocabulary)
++
++print("Has vocabulary_ attribute before transform:", hasattr(vectorizer, "vocabulary_"))
++
++try:
++    feature_names = vectorizer.get_feature_names()
++    print("Feature names before transform:", feature_names)
++except Exception as e:
++    print("Error in get_feature_names() before transform:", str(e))
++
++vectorizer.transform(corpus)
++
++print("Has vocabulary_ attribute after transform:", hasattr(vectorizer, "vocabulary_"))
++
++try:
++    feature_names = vectorizer.get_feature_names()
++    print("Feature names after transform:", feature_names)
++except Exception as e:
++    print("Error in get_feature_names() after transform:", str(e))
++
++print("Script completed successfully, no errors.")
+diff --git a/sklearn/feature_extraction/text.py b/sklearn/feature_extraction/text.py
+index 9b1ebd632..8c28e24f1 100644
+--- a/sklearn/feature_extraction/text.py
++++ b/sklearn/feature_extraction/text.py
+@@ -1,77 +1,62 @@
+-# -*- coding: utf-8 -*-
+-# Authors: Olivier Grisel <olivier.grisel@ensta.org>
+-#          Mathieu Blondel <mathieu@mblondel.org>
+-#          Lars Buitinck
+-#          Robert Layton <robertlayton@gmail.com>
+-#          Jochen Wersdörfer <jochen@wersdoerfer.de>
+-#          Roman Sinayev <roman.sinayev@gmail.com>
+-#
+-# License: BSD 3 clause
+-"""
+-The :mod:`sklearn.feature_extraction.text` submodule gathers utilities to
+-build feature vectors from text documents.
+-"""
+-from __future__ import unicode_literals
+-
+-import array
+-from collections import Mapping, defaultdict
+-import numbers
+-from operator import itemgetter
+-import re
+-import unicodedata
+-
+-import numpy as np
+-import scipy.sparse as sp
+-
+-from ..base import BaseEstimator, TransformerMixin
+-from ..externals import six
+-from ..externals.six.moves import xrange
+-from ..preprocessing import normalize
+-from .hashing import FeatureHasher
+-from .stop_words import ENGLISH_STOP_WORDS
+-from ..utils.validation import check_is_fitted
+-from ..utils.fixes import sp_version
+-
+-__all__ = ['CountVectorizer',
+-           'ENGLISH_STOP_WORDS',
+-           'TfidfTransformer',
+-           'TfidfVectorizer',
+-           'strip_accents_ascii',
+-           'strip_accents_unicode',
+-           'strip_tags']
+-
+-
+-def strip_accents_unicode(s):
+-    """Transform accentuated unicode symbols into their simple counterpart
+-
+-    Warning: the python-level loop and join operations make this
+-    implementation 20 times slower than the strip_accents_ascii basic
+-    normalization.
++from sklearn.feature_extraction.text import CountVectorizer
+ 
+-    See also
+-    --------
+-    strip_accents_ascii
+-        Remove accentuated char for any unicode symbol that has a direct
+-        ASCII equivalent.
+-    """
+-    normalized = unicodedata.normalize('NFKD', s)
+-    if normalized == s:
+-        return s
+-    else:
+-        return ''.join([c for c in normalized if not unicodedata.combining(c)])
++corpus = [
++    'This is the first document.',
++    'This is the second second document.',
++    'And the third one.',
++    'Is this the first document?',
++]
+ 
++vocabulary = ['and', 'document', 'first', 'is', 'one', 'second', 'the', 'third', 'this']
+ 
+-def strip_accents_ascii(s):
+-    """Transform accentuated unicode symbols into ascii or nothing
++vectorizer = CountVectorizer(vocabulary=vocabulary)
+ 
+-    Warning: this solution is only suited for languages that have a direct
+-    transliteration to ASCII symbols.
++print("Has vocabulary_ attribute before transform:", hasattr(vectorizer, "vocabulary_"))
+ 
+-    See also
+-    --------
+-    strip_accents_unicode
+-        Remove accentuated char for any unicode symbol.
+-    """
++try:
++    feature_names = vectorizer.get_feature_names()
++    print("Feature names before transform:", feature_names)
++except Exception as e:
++    print("Error in get_feature_names() before transform:", str(e))
++
++vectorizer.transform(corpus)
++
++print("Has vocabulary_ attribute after transform:", hasattr(vectorizer, "vocabulary_"))
++
++try:
++    feature_names = vectorizer.get_feature_names()
++    print("Feature names after transform:", feature_names)
++except Exception as e:
++    print("Error in get_feature_names() after transform:", str(e))
++
++print("Script completed successfully, no errors.")
++        self.tokenizer = tokenizer
++        self.analyzer = analyzer
++        self.lowercase = lowercase
++        self.token_pattern = token_pattern
++        self.stop_words = stop_words
++        self.max_df = max_df
++        self.min_df = min_df
++        self.max_features = max_features
++        self.ngram_range = ngram_range
++        self.vocabulary = vocabulary
++        self.binary = binary
++        self.dtype = dtype
++
++    def get_feature_names(self):
++        """Array mapping from feature integer indices to feature name"""
++        if self.vocabulary is not None:
++            return [t for t, i in sorted(six.iteritems(self.vocabulary),
++                                         key=itemgetter(1))]
++        elif hasattr(self, 'vocabulary_'):
++            return [t for t, i in sorted(six.iteritems(self.vocabulary_),
++                                         key=itemgetter(1))]
++        else:
++            check_is_fitted(self, 'vocabulary_')
++            return [t for t, i in sorted(six.iteritems(self.vocabulary_),
++                                         key=itemgetter(1))]
++
++    # Other methods (fit, transform, etc.) should be implemented here...
+     nkfd_form = unicodedata.normalize('NFKD', s)
+     return nkfd_form.encode('ASCII', 'ignore').decode('ASCII')
+ 
+@@ -993,10 +978,13 @@ class CountVectorizer(BaseEstimator, VectorizerMixin):
+ 
+     def get_feature_names(self):
+         """Array mapping from feature integer indices to feature name"""
+-        self._check_vocabulary()
+-
+-        return [t for t, i in sorted(six.iteritems(self.vocabulary_),
+-                                     key=itemgetter(1))]
++        if self.vocabulary is not None:
++            return [t for t, i in sorted(six.iteritems(self.vocabulary),
++                                         key=itemgetter(1))]
++        else:
++            self._check_vocabulary()
++            return [t for t, i in sorted(six.iteritems(self.vocabulary_),
++                                         key=itemgetter(1))]
+ 
+ 
+ def _make_int_array():

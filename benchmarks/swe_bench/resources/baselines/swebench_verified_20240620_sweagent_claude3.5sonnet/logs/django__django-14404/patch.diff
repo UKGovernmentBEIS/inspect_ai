@@ -1,0 +1,152 @@
+
+diff --git a/django/contrib/admin/sites.py b/django/contrib/admin/sites.py
+index 59a4a0364d..578986c411 100644
+--- a/django/contrib/admin/sites.py
++++ b/django/contrib/admin/sites.py
+@@ -418,16 +418,35 @@ class AdminSite:
+ 
+     @no_append_slash
+     def catch_all_view(self, request, url):
+-        if settings.APPEND_SLASH and not url.endswith('/'):
+-            urlconf = getattr(request, 'urlconf', None)
+-            path = '%s/' % request.path_info
+-            try:
+-                match = resolve(path, urlconf)
+-            except Resolver404:
+-                pass
+-            else:
+-                if getattr(match.func, 'should_append_slash', True):
+-                    return HttpResponsePermanentRedirect(path)
++        print(f"catch_all_view called with url: {url}")
++        print(f"request.path: {request.path}")
++        print(f"request.path_info: {request.path_info}")
++        print(f"FORCE_SCRIPT_NAME: {settings.FORCE_SCRIPT_NAME}")
++        
++        if settings.FORCE_SCRIPT_NAME:
++            path = request.path_info
++        else:
++            path = request.path
++        
++        urlconf = getattr(request, 'urlconf', None)
++        try:
++            match = resolve(path, urlconf)
++            print(f"URL resolved to: {match.func}")
++            return match.func(request)
++        except Resolver404:
++            if settings.APPEND_SLASH and not path.endswith('/'):
++                try:
++                    match = resolve(path + '/', urlconf)
++                    print(f"URL resolved to: {match.func}")
++                    if getattr(match.func, 'should_append_slash', True):
++                        redirect_url = request.path + '/'
++                        if settings.FORCE_SCRIPT_NAME and not redirect_url.startswith(settings.FORCE_SCRIPT_NAME):
++                            redirect_url = settings.FORCE_SCRIPT_NAME + redirect_url
++                        print(f"Redirecting to: {redirect_url}")
++                        return HttpResponseRedirect(redirect_url)
++                except Resolver404:
++                    pass
++        print("Raising Http404")
+         raise Http404
+ 
+     def _build_app_dict(self, request, label=None):
+diff --git a/test_catch_all_view.py b/test_catch_all_view.py
+new file mode 100644
+index 0000000000..530a976ead
+--- /dev/null
++++ b/test_catch_all_view.py
+@@ -0,0 +1,95 @@
++import os
++import sys
++import django
++from django.conf import settings
++from django.contrib.admin.sites import AdminSite
++from django.test import RequestFactory
++from django.http import HttpResponseRedirect, Http404
++from django.urls import path, reverse
++from io import StringIO
++
++# Set up Django settings
++os.environ['DJANGO_SETTINGS_MODULE'] = 'django.conf.global_settings'
++django.setup()
++
++# Create a dummy URL configuration
++def dummy_view(request):
++    return HttpResponseRedirect('/')
++
++urlpatterns = [
++    path('admin/', dummy_view, name='admin:index'),
++]
++
++# Configure settings
++settings.ROOT_URLCONF = __name__
++settings.FORCE_SCRIPT_NAME = '/script_name'
++
++def test_catch_all_view():
++    site = AdminSite()
++    factory = RequestFactory()
++    
++    # Redirect stdout to capture print statements
++    old_stdout = sys.stdout
++    sys.stdout = StringIO()
++
++    try:
++        # Test with FORCE_SCRIPT_NAME
++        request = factory.get('/admin/')
++        request.path = '/script_name/admin/'
++        
++        print(f"Testing with path: {request.path}")
++        
++        try:
++            response = site.catch_all_view(request, '')
++            if isinstance(response, HttpResponseRedirect):
++                print(f"Redirected to: {response.url}")
++                assert response.url == '/script_name/admin/', f"Expected '/script_name/admin/', got {response.url}"
++                print("Test passed successfully!")
++            else:
++                print(f"Unexpected response type: {type(response)}")
++        except Http404:
++            print("Http404 exception raised unexpectedly for valid URL.")
++        except Exception as e:
++            print(f"Unexpected exception: {str(e)}")
++
++        # Test Http404 for non-existent URL
++        request = factory.get('/admin/unknown')
++        request.path = '/script_name/admin/unknown'
++        
++        print(f"\nTesting with path: {request.path}")
++        
++        try:
++            site.catch_all_view(request, 'unknown')
++            print("Unexpected: No exception raised for non-existent URL.")
++        except Http404:
++            print("Http404 exception raised as expected for non-existent URL.")
++        except Exception as e:
++            print(f"Unexpected exception: {str(e)}")
++
++        # Test with FORCE_SCRIPT_NAME and a URL that should be appended with a slash
++        request = factory.get('/admin')
++        request.path = '/script_name/admin'
++        
++        print(f"\nTesting with path that should be appended with slash: {request.path}")
++        
++        try:
++            response = site.catch_all_view(request, '')
++            if isinstance(response, HttpResponseRedirect):
++                print(f"Redirected to: {response.url}")
++                assert response.url == '/script_name/admin/', f"Expected '/script_name/admin/', got {response.url}"
++                print("Test passed successfully!")
++            else:
++                print(f"Unexpected response type: {type(response)}")
++        except Http404:
++            print("Http404 exception raised unexpectedly for valid URL that should be appended with slash.")
++        except Exception as e:
++            print(f"Unexpected exception: {str(e)}")
++
++    finally:
++        # Restore stdout and print captured output
++        output = sys.stdout.getvalue()
++        sys.stdout = old_stdout
++        print(output)
++
++if __name__ == '__main__':
++    test_catch_all_view()

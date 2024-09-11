@@ -1,0 +1,41 @@
+{
+    "django__django-10999": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "test_negative (utils_tests.test_dateparse.DurationParseTests)",
+                    "test_parse_postgresql_format (utils_tests.test_dateparse.DurationParseTests)"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_parse_date (utils_tests.test_dateparse.DateParseTests)",
+                    "test_parse_datetime (utils_tests.test_dateparse.DateParseTests)",
+                    "test_parse_time (utils_tests.test_dateparse.DateParseTests)",
+                    "test_days (utils_tests.test_dateparse.DurationParseTests)",
+                    "test_fractions_of_seconds (utils_tests.test_dateparse.DurationParseTests)",
+                    "test_hours_minutes_seconds (utils_tests.test_dateparse.DurationParseTests)",
+                    "test_iso_8601 (utils_tests.test_dateparse.DurationParseTests)",
+                    "test_minutes_seconds (utils_tests.test_dateparse.DurationParseTests)"
+                ],
+                "failure": [
+                    "test_parse_python_format (utils_tests.test_dateparse.DurationParseTests)",
+                    "test_seconds (utils_tests.test_dateparse.DurationParseTests)"
+                ]
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

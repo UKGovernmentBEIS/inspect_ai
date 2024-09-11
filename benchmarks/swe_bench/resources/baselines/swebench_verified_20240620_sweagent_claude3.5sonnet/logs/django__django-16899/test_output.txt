@@ -1,0 +1,503 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/contrib/admin/checks.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit d3d173425fc0a1107836da5b4567f1c88253191b
+Author: Mariusz Felisiak <felisiak.mariusz@gmail.com>
+Date:   Fri May 26 12:16:26 2023 +0200
+
+    Optimized @condition decorator a bit.
+    
+    This removes unnecessary get_last_modified() hook.
+
+diff --git a/django/views/decorators/http.py b/django/views/decorators/http.py
+index 6d88a633eb..4ad520fb25 100644
+--- a/django/views/decorators/http.py
++++ b/django/views/decorators/http.py
+@@ -86,19 +86,15 @@ def condition(etag_func=None, last_modified_func=None):
+         @wraps(func)
+         def inner(request, *args, **kwargs):
+             # Compute values (if any) for the requested resource.
+-            def get_last_modified():
+-                if last_modified_func:
+-                    dt = last_modified_func(request, *args, **kwargs)
+-                    if dt:
+-                        if not timezone.is_aware(dt):
+-                            dt = timezone.make_aware(dt, datetime.timezone.utc)
+-                        return int(dt.timestamp())
+-
++            res_last_modified = None
++            if last_modified_func:
++                if dt := last_modified_func(request, *args, **kwargs):
++                    if not timezone.is_aware(dt):
++                        dt = timezone.make_aware(dt, datetime.timezone.utc)
++                    res_last_modified = int(dt.timestamp())
+             # The value from etag_func() could be quoted or unquoted.
+             res_etag = etag_func(request, *args, **kwargs) if etag_func else None
+             res_etag = quote_etag(res_etag) if res_etag is not None else None
+-            res_last_modified = get_last_modified()
+-
+             response = get_conditional_response(
+                 request,
+                 etag=res_etag,
++ git diff d3d173425fc0a1107836da5b4567f1c88253191b
+diff --git a/django/contrib/admin/checks.py b/django/contrib/admin/checks.py
+index c395b0bde2..4c8ccc9e6e 100644
+--- a/django/contrib/admin/checks.py
++++ b/django/contrib/admin/checks.py
+@@ -771,13 +771,15 @@ class BaseModelAdminChecks:
+             except FieldDoesNotExist:
+                 return [
+                     checks.Error(
+-                        "The value of '%s' is not a callable, an attribute of "
+-                        "'%s', or an attribute of '%s'."
+-                        % (
+-                            label,
+-                            obj.__class__.__name__,
+-                            obj.model._meta.label,
+-                        ),
++                        "The value of '%(label)s' refers to '%(field_name)s', which is "
++                        "not a callable, an attribute of '%(class_name)s', or an attribute of "
++                        "'%(model_name)s'."
++                        % {
++                            'label': label,
++                            'field_name': field_name,
++                            'class_name': obj.__class__.__name__,
++                            'model_name': obj.model._meta.label,
++                        },
+                         obj=obj.__class__,
+                         id="admin.E035",
+                     )
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.6.0 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from Django==5.0.dev20230526101626) (3.8.1)
+Requirement already satisfied: sqlparse>=0.3.1 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from Django==5.0.dev20230526101626) (0.5.1)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-5.0.dev20230526101626-0.editable-py3-none-any.whl size=27431 sha256=0af55151fcc58794ada8901ddfc398f15b182e47fb7cd32f57bb85adc802dc67
+  Stored in directory: /tmp/pip-ephem-wheel-cache-aqtrfm72/wheels/49/5f/4f/01b7d31ea6ddac9643da788242d33e5fd3467d95d17b032c6b
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 5.0.dev20230526101626
+    Uninstalling Django-5.0.dev20230526101626:
+      Successfully uninstalled Django-5.0.dev20230526101626
+Successfully installed Django-5.0.dev20230526101626
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout d3d173425fc0a1107836da5b4567f1c88253191b tests/admin_checks/tests.py
+Updated 0 paths from a4a4c7a1bf
++ git apply -v -
+Checking patch tests/admin_checks/tests.py...
+Applied patch tests/admin_checks/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 admin_checks.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application admin_checks
+Found 56 test(s).
+Operations to perform:
+  Synchronize unmigrated apps: admin_checks, auth, contenttypes, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table admin_checks_album
+    Creating table admin_checks_song
+    Creating table admin_checks_twoalbumfkandane
+    Creating table admin_checks_author
+    Creating table admin_checks_book
+    Creating table admin_checks_authorsbooks
+    Creating table admin_checks_state
+    Creating table admin_checks_city
+    Creating table admin_checks_influence
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+Creating test database for alias 'other' ('file:memorydb_other?mode=memory&cache=shared')...
+Operations to perform:
+  Synchronize unmigrated apps: admin_checks, auth, contenttypes, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table admin_checks_album
+    Creating table admin_checks_song
+    Creating table admin_checks_twoalbumfkandane
+    Creating table admin_checks_author
+    Creating table admin_checks_book
+    Creating table admin_checks_authorsbooks
+    Creating table admin_checks_state
+    Creating table admin_checks_city
+    Creating table admin_checks_influence
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+test_admin_check_ignores_import_error_in_middleware (admin_checks.tests.SystemChecksTestCase.test_admin_check_ignores_import_error_in_middleware) ... ok
+test_allows_checks_relying_on_other_modeladmins (admin_checks.tests.SystemChecksTestCase.test_allows_checks_relying_on_other_modeladmins) ... ok
+test_app_label_in_admin_checks (admin_checks.tests.SystemChecksTestCase.test_app_label_in_admin_checks) ... ok
+test_apps_dependencies (admin_checks.tests.SystemChecksTestCase.test_apps_dependencies) ... ok
+test_cannot_include_through (admin_checks.tests.SystemChecksTestCase.test_cannot_include_through) ... ok
+test_check_fieldset_sublists_for_duplicates (admin_checks.tests.SystemChecksTestCase.test_check_fieldset_sublists_for_duplicates) ... ok
+test_check_sublists_for_duplicates (admin_checks.tests.SystemChecksTestCase.test_check_sublists_for_duplicates) ... ok
+test_checks_are_performed (admin_checks.tests.SystemChecksTestCase.test_checks_are_performed) ... ok
+test_context_processor_dependencies (admin_checks.tests.SystemChecksTestCase.test_context_processor_dependencies) ... ok
+test_context_processor_dependencies_model_backend_subclass (admin_checks.tests.SystemChecksTestCase.test_context_processor_dependencies_model_backend_subclass) ... ok
+test_custom_adminsite (admin_checks.tests.SystemChecksTestCase.test_custom_adminsite) ... ok
+test_custom_get_form_with_fieldsets (admin_checks.tests.SystemChecksTestCase.test_custom_get_form_with_fieldsets)
+The fieldsets checks are skipped when the ModelAdmin.get_form() method ... ok
+test_custom_modelforms_with_fields_fieldsets (admin_checks.tests.SystemChecksTestCase.test_custom_modelforms_with_fields_fieldsets)
+# Regression test for #8027: custom ModelForms with fields/fieldsets ... ok
+test_editable (admin_checks.tests.SystemChecksTestCase.test_editable) ... ok
+test_exclude_duplicate_values (admin_checks.tests.SystemChecksTestCase.test_exclude_duplicate_values) ... ok
+test_exclude_in_inline (admin_checks.tests.SystemChecksTestCase.test_exclude_in_inline) ... ok
+test_exclude_inline_model_admin (admin_checks.tests.SystemChecksTestCase.test_exclude_inline_model_admin)
+Regression test for #9932 - exclude in InlineModelAdmin should not ... ok
+test_exclude_values (admin_checks.tests.SystemChecksTestCase.test_exclude_values)
+Tests for basic system checks of 'exclude' option values (#12689) ... ok
+test_explicit_through_override (admin_checks.tests.SystemChecksTestCase.test_explicit_through_override)
+Regression test for #12209 -- If the explicitly provided through model ... ok
+test_extra (admin_checks.tests.SystemChecksTestCase.test_extra) ... ok
+test_field_name_not_in_list_display (admin_checks.tests.SystemChecksTestCase.test_field_name_not_in_list_display) ... ok
+test_fieldsets_fields_non_tuple (admin_checks.tests.SystemChecksTestCase.test_fieldsets_fields_non_tuple)
+The first fieldset's fields must be a list/tuple. ... ok
+test_fk_exclusion (admin_checks.tests.SystemChecksTestCase.test_fk_exclusion)
+Regression test for #11709 - when testing for fk excluding (when exclude is ... ok
+test_generic_inline_model_admin_bad_ct_field (admin_checks.tests.SystemChecksTestCase.test_generic_inline_model_admin_bad_ct_field)
+A GenericInlineModelAdmin errors if the ct_field points to a ... ok
+test_generic_inline_model_admin_bad_fk_field (admin_checks.tests.SystemChecksTestCase.test_generic_inline_model_admin_bad_fk_field)
+A GenericInlineModelAdmin errors if the ct_fk_field points to a ... ok
+test_generic_inline_model_admin_non_generic_model (admin_checks.tests.SystemChecksTestCase.test_generic_inline_model_admin_non_generic_model)
+A model without a GenericForeignKey raises problems if it's included ... ok
+test_generic_inline_model_admin_non_gfk_ct_field (admin_checks.tests.SystemChecksTestCase.test_generic_inline_model_admin_non_gfk_ct_field)
+A GenericInlineModelAdmin raises problems if the ct_field points to a ... ok
+test_generic_inline_model_admin_non_gfk_fk_field (admin_checks.tests.SystemChecksTestCase.test_generic_inline_model_admin_non_gfk_fk_field)
+A GenericInlineModelAdmin raises problems if the ct_fk_field points to ... ok
+test_graceful_m2m_fail (admin_checks.tests.SystemChecksTestCase.test_graceful_m2m_fail)
+Regression test for #12203/#12237 - Fail more gracefully when a M2M field that ... ok
+test_inline_self_check (admin_checks.tests.SystemChecksTestCase.test_inline_self_check) ... ok
+test_inline_with_specified (admin_checks.tests.SystemChecksTestCase.test_inline_with_specified) ... ok
+test_inlines_property (admin_checks.tests.SystemChecksTestCase.test_inlines_property) ... ok
+test_list_editable_missing_field (admin_checks.tests.SystemChecksTestCase.test_list_editable_missing_field) ... ok
+test_list_editable_not_a_list_or_tuple (admin_checks.tests.SystemChecksTestCase.test_list_editable_not_a_list_or_tuple) ... ok
+test_list_filter_works_on_through_field_even_when_apps_not_ready (admin_checks.tests.SystemChecksTestCase.test_list_filter_works_on_through_field_even_when_apps_not_ready)
+Ensure list_filter can access reverse fields even when the app registry ... ok
+test_middleware_dependencies (admin_checks.tests.SystemChecksTestCase.test_middleware_dependencies) ... ok
+test_middleware_subclasses (admin_checks.tests.SystemChecksTestCase.test_middleware_subclasses) ... ok
+test_nested_fields (admin_checks.tests.SystemChecksTestCase.test_nested_fields) ... ok
+test_nested_fieldsets (admin_checks.tests.SystemChecksTestCase.test_nested_fieldsets) ... ok
+test_no_template_engines (admin_checks.tests.SystemChecksTestCase.test_no_template_engines) ... ok
+test_non_model_fields (admin_checks.tests.SystemChecksTestCase.test_non_model_fields)
+Regression for ensuring ModelAdmin.fields can contain non-model fields ... ok
+test_non_model_first_field (admin_checks.tests.SystemChecksTestCase.test_non_model_first_field)
+Regression for ensuring ModelAdmin.field can handle first elem being a ... ok
+test_nonexistent_field (admin_checks.tests.SystemChecksTestCase.test_nonexistent_field) ... ok
+test_nonexistent_field_on_inline (admin_checks.tests.SystemChecksTestCase.test_nonexistent_field_on_inline) ... ok
+test_nonfirst_fieldset (admin_checks.tests.SystemChecksTestCase.test_nonfirst_fieldset)
+The second fieldset's fields must be a list/tuple. ... ok
+test_pk_not_editable (admin_checks.tests.SystemChecksTestCase.test_pk_not_editable) ... ok
+test_readonly (admin_checks.tests.SystemChecksTestCase.test_readonly) ... ok
+test_readonly_and_editable (admin_checks.tests.SystemChecksTestCase.test_readonly_and_editable) ... ok
+test_readonly_dynamic_attribute_on_modeladmin (admin_checks.tests.SystemChecksTestCase.test_readonly_dynamic_attribute_on_modeladmin) ... ok
+test_readonly_fields_not_list_or_tuple (admin_checks.tests.SystemChecksTestCase.test_readonly_fields_not_list_or_tuple) ... ok
+test_readonly_lambda (admin_checks.tests.SystemChecksTestCase.test_readonly_lambda) ... ok
+test_readonly_method_on_model (admin_checks.tests.SystemChecksTestCase.test_readonly_method_on_model) ... ok
+test_readonly_on_method (admin_checks.tests.SystemChecksTestCase.test_readonly_on_method) ... ok
+test_readonly_on_modeladmin (admin_checks.tests.SystemChecksTestCase.test_readonly_on_modeladmin) ... ok
+test_several_templates_backends (admin_checks.tests.SystemChecksTestCase.test_several_templates_backends) ... ok
+test_valid_generic_inline_model_admin (admin_checks.tests.SystemChecksTestCase.test_valid_generic_inline_model_admin)
+Regression test for #22034 - check that generic inlines don't look for ... ok
+
+----------------------------------------------------------------------
+Ran 56 tests in 0.088s
+
+OK
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Destroying test database for alias 'other' ('file:memorydb_other?mode=memory&cache=shared')...
++ git checkout d3d173425fc0a1107836da5b4567f1c88253191b tests/admin_checks/tests.py
+Updated 1 path from a4a4c7a1bf

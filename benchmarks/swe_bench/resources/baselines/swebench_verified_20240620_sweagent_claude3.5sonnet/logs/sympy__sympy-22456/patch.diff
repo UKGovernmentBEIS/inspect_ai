@@ -1,0 +1,101 @@
+
+diff --git a/sympy/codegen/ast.py b/sympy/codegen/ast.py
+index a02714b174..40eb011698 100644
+--- a/sympy/codegen/ast.py
++++ b/sympy/codegen/ast.py
+@@ -870,43 +870,40 @@ def _construct_iterable(cls, itr):
+ 
+ 
+ class String(Token):
+-    """ SymPy object representing a string.
+-
+-    Atomic object which is not an expression (as opposed to Symbol).
++    """ Represents a string
+ 
+     Parameters
+     ==========
+ 
+     text : str
+-
+-    Examples
+-    ========
+-
+-    >>> from sympy.codegen.ast import String
+-    >>> f = String('foo')
+-    >>> f
+-    foo
+-    >>> str(f)
+-    'foo'
+-    >>> f.text
+-    'foo'
+-    >>> print(repr(f))
+-    String('foo')
++        The string value.
+ 
+     """
+-    __slots__ = ('text',)
+-    not_in_args = ['text']
+-    is_Atom = True
++    __slots__ = ['text']
++    defaults = {'text': ''}
+ 
+     @classmethod
+-    def _construct_text(cls, text):
+-        if not isinstance(text, str):
+-            raise TypeError("Argument text is not a string type.")
+-        return text
++    def _new(cls, text=None):
++        if text is None:
++            text = ''
++        obj = super().__new__(cls)
++        obj.text = str(text)
++        return obj
++
++    def __new__(cls, text=''):
++        return cls._new(text)
+ 
+     def _sympystr(self, printer, *args, **kwargs):
+         return self.text
+ 
++    def __eq__(self, other):
++        if isinstance(other, String):
++            return self.text == other.text
++        return NotImplemented
++
++    @property
++    def args(self):
++        return (self.text,)
+ 
+ class QuotedString(String):
+     """ Represents a string which should be printed with quotes. """
+diff --git a/sympy/codegen/tests/test_string_invariance.py b/sympy/codegen/tests/test_string_invariance.py
+new file mode 100644
+index 0000000000..3ef7207814
+--- /dev/null
++++ b/sympy/codegen/tests/test_string_invariance.py
+@@ -0,0 +1,25 @@
++from sympy.codegen.ast import String
++from sympy.testing.pytest import raises
++
++def test_string_invariance():
++    s = String('test')
++    assert s.func(*s.args) == s
++    assert s == String('test')
++    assert s != String('other')
++    
++    # Test that comparison with non-String objects returns NotImplemented
++    assert s.__eq__(5) is NotImplemented
++
++    # Test String() without arguments
++    empty_string = String()
++    assert empty_string.text == ''
++    assert empty_string.func(*empty_string.args) == empty_string
++
++    # Test String with non-string argument
++    num_string = String(42)
++    assert num_string.text == '42'
++    assert num_string.func(*num_string.args) == num_string
++
++if __name__ == "__main__":
++    test_string_invariance()
++    print("All tests passed successfully.")

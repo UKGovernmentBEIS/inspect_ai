@@ -1,0 +1,35 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..6b50ada846
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,15 @@
++import sympy
++
++# Test scalar (rank-0) array
++a = sympy.Array(3)
++print("Scalar array:")
++print("len(a):", len(a))
++print("len(list(a)):", len(list(a)))
++
++# Test higher-rank array
++b = sympy.Array([1, 2, 3, 4], (2, 2))
++print("\nHigher-rank array:")
++print("len(b):", len(b))
++print("len(list(b)):", len(list(b)))
++
++print("Script completed successfully, no errors.")
+diff --git a/sympy/tensor/array/ndim_array.py b/sympy/tensor/array/ndim_array.py
+index 099b291167..2699da4aad 100644
+--- a/sympy/tensor/array/ndim_array.py
++++ b/sympy/tensor/array/ndim_array.py
+@@ -175,6 +175,8 @@ def __len__(self):
+         9
+ 
+         """
++        if self._rank == 0:
++            return 1
+         return self._loop_size
+ 
+     @property

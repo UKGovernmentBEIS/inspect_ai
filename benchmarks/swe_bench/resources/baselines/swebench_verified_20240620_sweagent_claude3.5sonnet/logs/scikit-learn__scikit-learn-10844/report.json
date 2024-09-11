@@ -1,0 +1,45 @@
+{
+    "scikit-learn__scikit-learn-10844": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "sklearn/metrics/cluster/tests/test_supervised.py::test_int_overflow_mutual_info_fowlkes_mallows_score"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "sklearn/metrics/cluster/tests/test_supervised.py::test_error_messages_on_wrong_input",
+                    "sklearn/metrics/cluster/tests/test_supervised.py::test_perfect_matches",
+                    "sklearn/metrics/cluster/tests/test_supervised.py::test_homogeneous_but_not_complete_labeling",
+                    "sklearn/metrics/cluster/tests/test_supervised.py::test_complete_but_not_homogeneous_labeling",
+                    "sklearn/metrics/cluster/tests/test_supervised.py::test_not_complete_and_not_homogeneous_labeling",
+                    "sklearn/metrics/cluster/tests/test_supervised.py::test_non_consicutive_labels",
+                    "sklearn/metrics/cluster/tests/test_supervised.py::test_adjustment_for_chance",
+                    "sklearn/metrics/cluster/tests/test_supervised.py::test_adjusted_mutual_info_score",
+                    "sklearn/metrics/cluster/tests/test_supervised.py::test_expected_mutual_info_overflow",
+                    "sklearn/metrics/cluster/tests/test_supervised.py::test_entropy",
+                    "sklearn/metrics/cluster/tests/test_supervised.py::test_contingency_matrix",
+                    "sklearn/metrics/cluster/tests/test_supervised.py::test_contingency_matrix_sparse",
+                    "sklearn/metrics/cluster/tests/test_supervised.py::test_exactly_zero_info_score",
+                    "sklearn/metrics/cluster/tests/test_supervised.py::test_v_measure_and_mutual_information",
+                    "sklearn/metrics/cluster/tests/test_supervised.py::test_fowlkes_mallows_score",
+                    "sklearn/metrics/cluster/tests/test_supervised.py::test_fowlkes_mallows_score_properties"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

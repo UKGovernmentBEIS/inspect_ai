@@ -1,0 +1,89 @@
+{
+    "pytest-dev__pytest-7324": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "testing/test_mark_expression.py::test_valid_idents[True]",
+                    "testing/test_mark_expression.py::test_valid_idents[False]",
+                    "testing/test_mark_expression.py::test_valid_idents[None]"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "testing/test_mark_expression.py::test_empty_is_false",
+                    "testing/test_mark_expression.py::test_basic[true-True0]",
+                    "testing/test_mark_expression.py::test_basic[true-True1]",
+                    "testing/test_mark_expression.py::test_basic[false-False]",
+                    "testing/test_mark_expression.py::test_basic[not",
+                    "testing/test_mark_expression.py::test_basic[true",
+                    "testing/test_mark_expression.py::test_basic[false",
+                    "testing/test_mark_expression.py::test_basic[(not",
+                    "testing/test_mark_expression.py::test_syntax_oddeties[",
+                    "testing/test_mark_expression.py::test_syntax_oddeties[(",
+                    "testing/test_mark_expression.py::test_syntax_oddeties[not",
+                    "testing/test_mark_expression.py::test_syntax_errors[(-2-expected",
+                    "testing/test_mark_expression.py::test_syntax_errors[",
+                    "testing/test_mark_expression.py::test_syntax_errors[)-1-expected",
+                    "testing/test_mark_expression.py::test_syntax_errors[)",
+                    "testing/test_mark_expression.py::test_syntax_errors[not-4-expected",
+                    "testing/test_mark_expression.py::test_syntax_errors[not",
+                    "testing/test_mark_expression.py::test_syntax_errors[(not)-5-expected",
+                    "testing/test_mark_expression.py::test_syntax_errors[and-1-expected",
+                    "testing/test_mark_expression.py::test_syntax_errors[ident",
+                    "testing/test_mark_expression.py::test_valid_idents[.]",
+                    "testing/test_mark_expression.py::test_valid_idents[...]",
+                    "testing/test_mark_expression.py::test_valid_idents[:::]",
+                    "testing/test_mark_expression.py::test_valid_idents[a:::c]",
+                    "testing/test_mark_expression.py::test_valid_idents[a+-b]",
+                    "testing/test_mark_expression.py::test_valid_idents[\\u05d0\\u05d1\\u05d2\\u05d3]",
+                    "testing/test_mark_expression.py::test_valid_idents[aa\\u05d0\\u05d1\\u05d2\\u05d3cc]",
+                    "testing/test_mark_expression.py::test_valid_idents[a[bcd]]",
+                    "testing/test_mark_expression.py::test_valid_idents[1234]",
+                    "testing/test_mark_expression.py::test_valid_idents[1234abcd]",
+                    "testing/test_mark_expression.py::test_valid_idents[1234and]",
+                    "testing/test_mark_expression.py::test_valid_idents[notandor]",
+                    "testing/test_mark_expression.py::test_valid_idents[not_and_or]",
+                    "testing/test_mark_expression.py::test_valid_idents[not[and]or]",
+                    "testing/test_mark_expression.py::test_valid_idents[1234+5678]",
+                    "testing/test_mark_expression.py::test_valid_idents[123.232]",
+                    "testing/test_mark_expression.py::test_valid_idents[if]",
+                    "testing/test_mark_expression.py::test_valid_idents[else]",
+                    "testing/test_mark_expression.py::test_valid_idents[while]",
+                    "testing/test_mark_expression.py::test_invalid_idents[/]",
+                    "testing/test_mark_expression.py::test_invalid_idents[\\\\]",
+                    "testing/test_mark_expression.py::test_invalid_idents[^]",
+                    "testing/test_mark_expression.py::test_invalid_idents[*]",
+                    "testing/test_mark_expression.py::test_invalid_idents[=]",
+                    "testing/test_mark_expression.py::test_invalid_idents[&]",
+                    "testing/test_mark_expression.py::test_invalid_idents[%]",
+                    "testing/test_mark_expression.py::test_invalid_idents[$]",
+                    "testing/test_mark_expression.py::test_invalid_idents[#]",
+                    "testing/test_mark_expression.py::test_invalid_idents[@]",
+                    "testing/test_mark_expression.py::test_invalid_idents[!]",
+                    "testing/test_mark_expression.py::test_invalid_idents[~]",
+                    "testing/test_mark_expression.py::test_invalid_idents[{]",
+                    "testing/test_mark_expression.py::test_invalid_idents[}]",
+                    "testing/test_mark_expression.py::test_invalid_idents[\"]",
+                    "testing/test_mark_expression.py::test_invalid_idents[']",
+                    "testing/test_mark_expression.py::test_invalid_idents[|]",
+                    "testing/test_mark_expression.py::test_invalid_idents[;]",
+                    "testing/test_mark_expression.py::test_invalid_idents[\\u2190]"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

@@ -1,0 +1,116 @@
+
+diff --git a/pylint/checkers/variables.py b/pylint/checkers/variables.py
+index 3ddafd599..23c4cd696 100644
+--- a/pylint/checkers/variables.py
++++ b/pylint/checkers/variables.py
+@@ -1,6 +1,9 @@
+-# Copyright (c) 2006-2014 LOGILAB S.A. (Paris, FRANCE) <contact@logilab.fr>
+-# Copyright (c) 2009 Mads Kiilerich <mads@kiilerich.com>
+-# Copyright (c) 2010 Daniel Harding <dharding@gmail.com>
++import astroid
++from pylint.checkers import BaseChecker, utils
++from pylint.interfaces import IAstroidChecker
++
++DEBUG = False  # Set this to True to enable debug prints
++
+ # Copyright (c) 2011-2014, 2017 Google, Inc.
+ # Copyright (c) 2012 FELD Boris <lothiraldan@gmail.com>
+ # Copyright (c) 2013-2020 Claudiu Popa <pcmanticore@gmail.com>
+@@ -1629,6 +1632,41 @@ class VariablesChecker(BaseChecker):
+             elements = getattr(inferred, "elts", getattr(inferred, "items", []))
+             if not elements:
+                 self.add_message("undefined-loop-variable", args=name, node=node)
++    def _is_used_in_type_annotations_or_comments(self, node, name):
++        """Check if the name is used in type annotations or comments in the node or its children."""
++        import sys
++        sys.stderr.write(f"Checking node: {node}, name: {name}\n")
++        for child in node.get_children():
++            sys.stderr.write(f"Checking child: {child}\n")
++            if isinstance(child, astroid.AnnAssign):
++                sys.stderr.write(f"Found AnnAssign: {child.annotation}\n")
++                if isinstance(child.annotation, astroid.Name) and child.annotation.name == name:
++                    sys.stderr.write(f"Found in AnnAssign: {child}\n")
++                    return True
++                if isinstance(child.annotation, astroid.Attribute) and child.annotation.expr.name == name:
++                    sys.stderr.write(f"Found in AnnAssign attribute: {child}\n")
++                    return True
++            if isinstance(child, astroid.Assign):
++                for target in child.targets:
++                    if isinstance(target, astroid.AssignName) and target.type_annotation:
++                        sys.stderr.write(f"Found Assign with type annotation: {target.type_annotation}\n")
++                        if name in str(target.type_annotation):
++                            sys.stderr.write(f"Found in Assign type annotation: {target}\n")
++                            return True
++            if isinstance(child, astroid.Expr) and isinstance(child.value, astroid.Const):
++                if isinstance(child.value.value, str) and child.value.value.startswith("type:"):
++                    sys.stderr.write(f"Found type comment: {child.value.value}\n")
++                    if name in child.value.value:
++                        sys.stderr.write(f"Found in type comment: {child}\n")
++                        return True
++            if hasattr(child, 'type_comment') and child.type_comment:
++                sys.stderr.write(f"Found type_comment: {child.type_comment}\n")
++                if name in child.type_comment:
++                    sys.stderr.write(f"Found in type_comment: {child}\n")
++                    return True
++            if self._is_used_in_type_annotations_or_comments(child, name):
++                return True
++        return False
+ 
+     def _check_is_unused(self, name, node, stmt, global_names, nonlocal_names):
+         # pylint: disable=too-many-branches
+@@ -1662,9 +1700,11 @@ class VariablesChecker(BaseChecker):
+             ):
+                 if name in nonlocal_names:
+                     return
+-
+             qname = asname = None
+             if isinstance(stmt, (astroid.Import, astroid.ImportFrom)):
++                # Check if the import is used in type annotations or comments
++                if self._is_used_in_type_annotations_or_comments(node, name):
++                    return
+                 # Need the complete name, which we don't have in .locals.
+                 if len(stmt.names) > 1:
+                     import_names = next(
+@@ -1676,24 +1716,19 @@ class VariablesChecker(BaseChecker):
+                     qname, asname = import_names
+                     name = asname or qname
+ 
+-            if _has_locals_call_after_node(stmt, node.scope()):
+-                message_name = "possibly-unused-variable"
+-            else:
+                 if isinstance(stmt, astroid.Import):
+                     if asname is not None:
+                         msg = f"{qname} imported as {asname}"
+                     else:
+-                        msg = "import %s" % name
+-                    self.add_message("unused-import", args=msg, node=stmt)
+-                    return
+-                if isinstance(stmt, astroid.ImportFrom):
++                        msg = f"import {name}"
++                elif isinstance(stmt, astroid.ImportFrom):
+                     if asname is not None:
+                         msg = f"{qname} imported from {stmt.modname} as {asname}"
+                     else:
+                         msg = f"{name} imported from {stmt.modname}"
+-                    self.add_message("unused-import", args=msg, node=stmt)
+-                    return
+-                message_name = "unused-variable"
++                self.add_message("unused-import", args=msg, node=stmt)
++                return
++            message_name = "unused-variable"
+ 
+             if isinstance(stmt, astroid.FunctionDef) and stmt.decorators:
+                 return
+diff --git a/test_unused_import.py b/test_unused_import.py
+new file mode 100644
+index 000000000..0df881939
+--- /dev/null
++++ b/test_unused_import.py
+@@ -0,0 +1,7 @@
++"""Docstring."""
++
++import abc
++from abc import ABC
++
++X = ...  # type: abc.ABC
++Y = ...  # type: ABC

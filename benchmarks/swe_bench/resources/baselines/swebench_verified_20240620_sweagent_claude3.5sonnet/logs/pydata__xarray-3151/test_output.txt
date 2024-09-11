@@ -1,0 +1,825 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libarrow_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libarrow_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh
++++ '[' -n '' ']'
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh
++++ '[' -n /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh
++++ '[' -n '' ']'
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/gdal ']'
++++ export GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ export GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ '[' '!' -d /opt/miniconda3/envs/testbed/lib/gdalplugins ']'
++++ export CPL_ZIP_ENCODING=UTF-8
++++ CPL_ZIP_ENCODING=UTF-8
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/epsg_csv ']'
++++ '[' -d /opt/miniconda3/envs/testbed/Library/share/epsg_csv ']'
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libarrow_activate.sh
++++ _la_log 'Beginning libarrow activation.'
++++ '[' '' = 1 ']'
++++ _la_gdb_prefix=/opt/miniconda3/envs/testbed/share/gdb/auto-load
++++ '[' '!' -w /opt/miniconda3/envs/testbed/share/gdb/auto-load ']'
++++ _la_placeholder=replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX
++++ _la_symlink_dir=/opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib
++++ _la_orig_install_dir=/opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib
++++ _la_log '          _la_gdb_prefix: /opt/miniconda3/envs/testbed/share/gdb/auto-load'
++++ '[' '' = 1 ']'
++++ _la_log '         _la_placeholder: replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX'
++++ '[' '' = 1 ']'
++++ _la_log '         _la_symlink_dir: /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib'
++++ '[' '' = 1 ']'
++++ _la_log '    _la_orig_install_dir: /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib'
++++ '[' '' = 1 ']'
++++ _la_log '  content of that folder:'
++++ '[' '' = 1 ']'
+++++ ls -al /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib
+++++ sed 's/^/      /'
++++ _la_log '      total 4
+      drwxr-xr-x. 2 root root  41 Jul 24 16:04 .
+      drwxr-xr-x. 3 root root  17 Jul 24 16:04 ..
+      -rw-r--r--. 1 root root 971 Jul 24 16:04 libarrow.so.1700.0.0-gdb.py'
++++ '[' '' = 1 ']'
++++ for _la_target in "$_la_orig_install_dir/"*.py
++++ '[' '!' -e /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py ']'
+++++ basename /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py
++++ _la_symlink=/opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py
++++ _la_log '   _la_target: /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py'
++++ '[' '' = 1 ']'
++++ _la_log '  _la_symlink: /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py'
++++ '[' '' = 1 ']'
++++ '[' -L /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py ']'
+++++ readlink /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py
++++ '[' /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py = /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py ']'
++++ _la_log 'symlink $_la_symlink already exists and points to $_la_target, skipping.'
++++ '[' '' = 1 ']'
++++ continue
++++ _la_log 'Libarrow activation complete.'
++++ '[' '' = 1 ']'
++++ unset _la_gdb_prefix
++++ unset _la_log
++++ unset _la_orig_install_dir
++++ unset _la_placeholder
++++ unset _la_symlink
++++ unset _la_symlink_dir
++++ unset _la_target
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/proj ']'
++++ export PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ '[' -f /opt/miniconda3/envs/testbed/share/proj/copyright_and_licenses.csv ']'
++++ export PROJ_NETWORK=ON
++++ PROJ_NETWORK=ON
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/udunits ']'
++++ export UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++++ UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   xarray/core/combine.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_bug.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 118f4d996e7711c9aced916e6049af9f28d5ec66
+Author: Maximilian Roos <5635139+max-sixty@users.noreply.github.com>
+Date:   Fri Jul 19 13:52:42 2019 -0400
+
+    missing 'about' field (#3146)
+
+diff --git a/.github/ISSUE_TEMPLATE/bug_report.md b/.github/ISSUE_TEMPLATE/bug_report.md
+index 105a9b02..f24884c6 100644
+--- a/.github/ISSUE_TEMPLATE/bug_report.md
++++ b/.github/ISSUE_TEMPLATE/bug_report.md
+@@ -1,6 +1,6 @@
+ ---
+ name: Bug report / Feature request
+-about: ''
++about: 'Post a problem or idea'
+ title: ''
+ labels: ''
+ assignees: ''
++ git diff 118f4d996e7711c9aced916e6049af9f28d5ec66
+diff --git a/xarray/core/combine.py b/xarray/core/combine.py
+index 37ae903b..4d0f2d0f 100644
+--- a/xarray/core/combine.py
++++ b/xarray/core/combine.py
+@@ -504,11 +504,12 @@ def combine_by_coords(datasets, compat='no_conflicts', data_vars='all',
+         for dim in concatenated.dims:
+             if dim in concatenated:
+                 indexes = concatenated.indexes.get(dim)
+-                if not (indexes.is_monotonic_increasing
+-                        or indexes.is_monotonic_decreasing):
+-                    raise ValueError("Resulting object does not have monotonic"
+-                                     " global indexes along dimension {}"
+-                                     .format(dim))
++                if len(set(map(tuple, [ds.indexes.get(dim) for ds in datasets_with_same_vars]))) > 1:
++                    if not (indexes.is_monotonic_increasing
++                            or indexes.is_monotonic_decreasing):
++                        raise ValueError("Resulting object does not have monotonic"
++                                         " global indexes along dimension {}"
++                                         .format(dim))
+         concatenated_grouped_by_data_vars.append(concatenated)
+ 
+     return merge(concatenated_grouped_by_data_vars, compat=compat,
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/udunits2-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/proj4-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/geotiff-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/gdal-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmpy-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmf-deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval '. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/udunits2-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/proj4-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/geotiff-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/gdal-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmpy-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmf-deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/udunits2-deactivate.sh
+++++ unset UDUNITS2_XML_PATH
+++++ '[' -n '' ']'
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/proj4-deactivate.sh
+++++ unset PROJ_DATA
+++++ unset PROJ_NETWORK
+++++ '[' -n '' ']'
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh
+++++ test -n ''
+++++ unset XML_CATALOG_FILES
+++++ unset xml_catalog_files_libxml2
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh
+++++ export GSETTINGS_SCHEMA_DIR=
+++++ GSETTINGS_SCHEMA_DIR=
+++++ unset GSETTINGS_SCHEMA_DIR_CONDA_BACKUP
+++++ '[' -z ']'
+++++ unset GSETTINGS_SCHEMA_DIR
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/geotiff-deactivate.sh
+++++ unset GEOTIFF_CSV
+++++ '[' -n '' ']'
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/gdal-deactivate.sh
+++++ unset GDAL_DATA
+++++ '[' -n '' ']'
+++++ unset GDAL_DRIVER_PATH
+++++ '[' -n '' ']'
+++++ unset CPL_ZIP_ENCODING
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmpy-deactivate.sh
+++++ unset ESMFMKFILE
+++++ '[' -n /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
+++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++++ unset _CONDA_SET_ESMFMKFILE
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmf-deactivate.sh
+++++ unset ESMFMKFILE
+++++ '[' -n '' ']'
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libarrow_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libarrow_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh
++++ '[' -n '' ']'
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh
++++ '[' -n /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh
++++ '[' -n '' ']'
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/gdal ']'
++++ export GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ export GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ '[' '!' -d /opt/miniconda3/envs/testbed/lib/gdalplugins ']'
++++ export CPL_ZIP_ENCODING=UTF-8
++++ CPL_ZIP_ENCODING=UTF-8
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/epsg_csv ']'
++++ '[' -d /opt/miniconda3/envs/testbed/Library/share/epsg_csv ']'
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libarrow_activate.sh
++++ _la_log 'Beginning libarrow activation.'
++++ '[' '' = 1 ']'
++++ _la_gdb_prefix=/opt/miniconda3/envs/testbed/share/gdb/auto-load
++++ '[' '!' -w /opt/miniconda3/envs/testbed/share/gdb/auto-load ']'
++++ _la_placeholder=replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX
++++ _la_symlink_dir=/opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib
++++ _la_orig_install_dir=/opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib
++++ _la_log '          _la_gdb_prefix: /opt/miniconda3/envs/testbed/share/gdb/auto-load'
++++ '[' '' = 1 ']'
++++ _la_log '         _la_placeholder: replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX'
++++ '[' '' = 1 ']'
++++ _la_log '         _la_symlink_dir: /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib'
++++ '[' '' = 1 ']'
++++ _la_log '    _la_orig_install_dir: /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib'
++++ '[' '' = 1 ']'
++++ _la_log '  content of that folder:'
++++ '[' '' = 1 ']'
+++++ ls -al /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib
+++++ sed 's/^/      /'
++++ _la_log '      total 4
+      drwxr-xr-x. 2 root root  41 Jul 24 16:04 .
+      drwxr-xr-x. 3 root root  17 Jul 24 16:04 ..
+      -rw-r--r--. 1 root root 971 Jul 24 16:04 libarrow.so.1700.0.0-gdb.py'
++++ '[' '' = 1 ']'
++++ for _la_target in "$_la_orig_install_dir/"*.py
++++ '[' '!' -e /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py ']'
+++++ basename /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py
++++ _la_symlink=/opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py
++++ _la_log '   _la_target: /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py'
++++ '[' '' = 1 ']'
++++ _la_log '  _la_symlink: /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py'
++++ '[' '' = 1 ']'
++++ '[' -L /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py ']'
+++++ readlink /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py
++++ '[' /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py = /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py ']'
++++ _la_log 'symlink $_la_symlink already exists and points to $_la_target, skipping.'
++++ '[' '' = 1 ']'
++++ continue
++++ _la_log 'Libarrow activation complete.'
++++ '[' '' = 1 ']'
++++ unset _la_gdb_prefix
++++ unset _la_log
++++ unset _la_orig_install_dir
++++ unset _la_placeholder
++++ unset _la_symlink
++++ unset _la_symlink_dir
++++ unset _la_target
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/proj ']'
++++ export PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ '[' -f /opt/miniconda3/envs/testbed/share/proj/copyright_and_licenses.csv ']'
++++ export PROJ_NETWORK=ON
++++ PROJ_NETWORK=ON
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/udunits ']'
++++ export UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++++ UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: numpy>=1.12 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from xarray==0.12.3+21.g118f4d99.dirty) (1.23.0)
+Requirement already satisfied: pandas>=0.19.2 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from xarray==0.12.3+21.g118f4d99.dirty) (1.5.3)
+Requirement already satisfied: python-dateutil>=2.8.1 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from pandas>=0.19.2->xarray==0.12.3+21.g118f4d99.dirty) (2.8.2)
+Requirement already satisfied: pytz>=2020.1 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from pandas>=0.19.2->xarray==0.12.3+21.g118f4d99.dirty) (2023.3)
+Requirement already satisfied: six>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from python-dateutil>=2.8.1->pandas>=0.19.2->xarray==0.12.3+21.g118f4d99.dirty) (1.16.0)
+Installing collected packages: xarray
+  Attempting uninstall: xarray
+    Found existing installation: xarray 0.12.3+21.g118f4d99
+    Uninstalling xarray-0.12.3+21.g118f4d99:
+      Successfully uninstalled xarray-0.12.3+21.g118f4d99
+  Running setup.py develop for xarray
+Successfully installed xarray-0.12.3+21.g118f4d99.dirty
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 118f4d996e7711c9aced916e6049af9f28d5ec66 xarray/tests/test_combine.py
+Updated 0 paths from 088330d4
++ git apply -v -
+Checking patch xarray/tests/test_combine.py...
+Applied patch xarray/tests/test_combine.py cleanly.
++ pytest -rA xarray/tests/test_combine.py
+============================= test session starts ==============================
+platform linux -- Python 3.10.14, pytest-7.4.0, pluggy-1.5.0
+rootdir: /testbed
+configfile: setup.cfg
+plugins: hypothesis-6.108.4, cov-5.0.0, env-1.1.3, xdist-3.6.1
+collected 68 items
+
+xarray/tests/test_combine.py ..................................x........ [ 63%]
+............F............                                                [100%]
+
+=================================== FAILURES ===================================
+______________ TestCombineAuto.test_check_for_impossible_ordering ______________
+
+self = <xarray.tests.test_combine.TestCombineAuto object at 0x7f4c21046b90>
+
+    def test_check_for_impossible_ordering(self):
+        ds0 = Dataset({'x': [0, 1, 5]})
+        ds1 = Dataset({'x': [2, 3]})
+>       with raises_regex(ValueError, "does not have monotonic global indexes"
+                                      " along dimension x"):
+
+xarray/tests/test_combine.py:636: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <contextlib._GeneratorContextManager object at 0x7f4c210a2740>
+typ = None, value = None, traceback = None
+
+    def __exit__(self, typ, value, traceback):
+        if typ is None:
+            try:
+>               next(self.gen)
+E               Failed: DID NOT RAISE <class 'ValueError'>
+
+/opt/miniconda3/envs/testbed/lib/python3.10/contextlib.py:142: Failed
+=============================== warnings summary ===============================
+xarray/core/dask_array_ops.py:11
+xarray/core/dask_array_ops.py:11
+  /testbed/xarray/core/dask_array_ops.py:11: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(dask.__version__) <= LooseVersion('0.18.2'):
+
+xarray/core/npcompat.py:135
+xarray/core/npcompat.py:135
+  /testbed/xarray/core/npcompat.py:135: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(np.__version__) >= LooseVersion('1.13'):
+
+xarray/core/dask_array_compat.py:43
+xarray/core/dask_array_compat.py:43
+  /testbed/xarray/core/dask_array_compat.py:43: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(dask_version) > LooseVersion('0.19.2'):
+
+xarray/plot/utils.py:17
+xarray/plot/utils.py:17
+  /testbed/xarray/plot/utils.py:17: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(nc_time_axis.__version__) < LooseVersion('1.2.0'):
+
+xarray/plot/plot.py:243
+  /testbed/xarray/plot/plot.py:243: SyntaxWarning: "is" with a literal. Did you mean "=="?
+    if args is ():
+
+xarray/core/pdcompat.py:46
+  /testbed/xarray/core/pdcompat.py:46: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(pd.__version__) < '0.25.0':
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/setuptools/_distutils/version.py:345
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/setuptools/_distutils/version.py:345
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/setuptools/_distutils/version.py:345: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    other = LooseVersion(other)
+
+xarray/tests/__init__.py:57: 15 warnings
+  /testbed/xarray/tests/__init__.py:57: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    return version.LooseVersion(vstring)
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pydap/lib.py:5
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pydap/lib.py:5: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+    from pkg_resources import get_distribution
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap.responses')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2350
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2350
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2350
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2350: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(parent)
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap.handlers')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap.tests')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+xarray/tests/test_combine.py: 14 warnings
+  /testbed/xarray/core/alignment.py:125: FutureWarning: Index.__or__ operating as a set operation is deprecated, in the future this will be a logical operation matching Series.__or__.  Use index.union(other) instead.
+    index = joiner(matching_indexes)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED xarray/tests/test_combine.py::TestTileIDsFromNestedList::test_1d
+PASSED xarray/tests/test_combine.py::TestTileIDsFromNestedList::test_2d
+PASSED xarray/tests/test_combine.py::TestTileIDsFromNestedList::test_3d
+PASSED xarray/tests/test_combine.py::TestTileIDsFromNestedList::test_single_dataset
+PASSED xarray/tests/test_combine.py::TestTileIDsFromNestedList::test_redundant_nesting
+PASSED xarray/tests/test_combine.py::TestTileIDsFromNestedList::test_ignore_empty_list
+PASSED xarray/tests/test_combine.py::TestTileIDsFromNestedList::test_uneven_depth_input
+PASSED xarray/tests/test_combine.py::TestTileIDsFromNestedList::test_uneven_length_input
+PASSED xarray/tests/test_combine.py::TestTileIDsFromNestedList::test_infer_from_datasets
+PASSED xarray/tests/test_combine.py::TestTileIDsFromCoords::test_1d
+PASSED xarray/tests/test_combine.py::TestTileIDsFromCoords::test_2d
+PASSED xarray/tests/test_combine.py::TestTileIDsFromCoords::test_no_dimension_coords
+PASSED xarray/tests/test_combine.py::TestTileIDsFromCoords::test_coord_not_monotonic
+PASSED xarray/tests/test_combine.py::TestTileIDsFromCoords::test_coord_monotonically_decreasing
+PASSED xarray/tests/test_combine.py::TestTileIDsFromCoords::test_no_concatenation_needed
+PASSED xarray/tests/test_combine.py::TestTileIDsFromCoords::test_2d_plus_bystander_dim
+PASSED xarray/tests/test_combine.py::TestTileIDsFromCoords::test_string_coords
+PASSED xarray/tests/test_combine.py::TestTileIDsFromCoords::test_lexicographic_sort_string_coords
+PASSED xarray/tests/test_combine.py::TestTileIDsFromCoords::test_datetime_coords
+PASSED xarray/tests/test_combine.py::TestNewTileIDs::test_new_tile_id[old_id0-new_id0]
+PASSED xarray/tests/test_combine.py::TestNewTileIDs::test_new_tile_id[old_id1-new_id1]
+PASSED xarray/tests/test_combine.py::TestNewTileIDs::test_new_tile_id[old_id2-new_id2]
+PASSED xarray/tests/test_combine.py::TestNewTileIDs::test_new_tile_id[old_id3-new_id3]
+PASSED xarray/tests/test_combine.py::TestNewTileIDs::test_new_tile_id[old_id4-new_id4]
+PASSED xarray/tests/test_combine.py::TestNewTileIDs::test_get_new_tile_ids
+PASSED xarray/tests/test_combine.py::TestCombineND::test_concat_once[dim1]
+PASSED xarray/tests/test_combine.py::TestCombineND::test_concat_once[new_dim]
+PASSED xarray/tests/test_combine.py::TestCombineND::test_concat_only_first_dim
+PASSED xarray/tests/test_combine.py::TestCombineND::test_concat_twice[dim1]
+PASSED xarray/tests/test_combine.py::TestCombineND::test_concat_twice[new_dim]
+PASSED xarray/tests/test_combine.py::TestCheckShapeTileIDs::test_check_depths
+PASSED xarray/tests/test_combine.py::TestCheckShapeTileIDs::test_check_lengths
+PASSED xarray/tests/test_combine.py::TestManualCombine::test_manual_concat
+PASSED xarray/tests/test_combine.py::TestManualCombine::test_empty_input
+PASSED xarray/tests/test_combine.py::TestManualCombine::test_manual_concat_along_new_dim
+PASSED xarray/tests/test_combine.py::TestManualCombine::test_manual_merge
+PASSED xarray/tests/test_combine.py::TestManualCombine::test_concat_multiple_dims
+PASSED xarray/tests/test_combine.py::TestManualCombine::test_concat_name_symmetry
+PASSED xarray/tests/test_combine.py::TestManualCombine::test_concat_one_dim_merge_another
+PASSED xarray/tests/test_combine.py::TestManualCombine::test_auto_combine_2d
+PASSED xarray/tests/test_combine.py::TestManualCombine::test_manual_combine_missing_data_new_dim
+PASSED xarray/tests/test_combine.py::TestManualCombine::test_invalid_hypercube_input
+PASSED xarray/tests/test_combine.py::TestManualCombine::test_merge_one_dim_concat_another
+PASSED xarray/tests/test_combine.py::TestManualCombine::test_combine_concat_over_redundant_nesting
+PASSED xarray/tests/test_combine.py::TestManualCombine::test_manual_combine_but_need_auto_combine
+PASSED xarray/tests/test_combine.py::TestManualCombine::test_combine_nested_fill_value[fill_value0]
+PASSED xarray/tests/test_combine.py::TestManualCombine::test_combine_nested_fill_value[2]
+PASSED xarray/tests/test_combine.py::TestManualCombine::test_combine_nested_fill_value[2.0]
+PASSED xarray/tests/test_combine.py::TestCombineAuto::test_combine_by_coords
+PASSED xarray/tests/test_combine.py::TestCombineAuto::test_infer_order_from_coords
+PASSED xarray/tests/test_combine.py::TestCombineAuto::test_combine_leaving_bystander_dimensions
+PASSED xarray/tests/test_combine.py::TestCombineAuto::test_combine_by_coords_previously_failed
+PASSED xarray/tests/test_combine.py::TestCombineAuto::test_combine_by_coords_still_fails
+PASSED xarray/tests/test_combine.py::TestCombineAuto::test_combine_by_coords_no_concat
+PASSED xarray/tests/test_combine.py::TestAutoCombineOldAPI::test_auto_combine
+PASSED xarray/tests/test_combine.py::TestAutoCombineOldAPI::test_auto_combine_previously_failed
+PASSED xarray/tests/test_combine.py::TestAutoCombineOldAPI::test_auto_combine_still_fails
+PASSED xarray/tests/test_combine.py::TestAutoCombineOldAPI::test_auto_combine_no_concat
+PASSED xarray/tests/test_combine.py::TestAutoCombineOldAPI::test_auto_combine_order_by_appearance_not_coords
+PASSED xarray/tests/test_combine.py::TestAutoCombineOldAPI::test_auto_combine_fill_value[fill_value0]
+PASSED xarray/tests/test_combine.py::TestAutoCombineOldAPI::test_auto_combine_fill_value[2]
+PASSED xarray/tests/test_combine.py::TestAutoCombineOldAPI::test_auto_combine_fill_value[2.0]
+PASSED xarray/tests/test_combine.py::TestAutoCombineDeprecation::test_auto_combine_with_concat_dim
+PASSED xarray/tests/test_combine.py::TestAutoCombineDeprecation::test_auto_combine_with_merge_and_concat
+PASSED xarray/tests/test_combine.py::TestAutoCombineDeprecation::test_auto_combine_with_coords
+PASSED xarray/tests/test_combine.py::TestAutoCombineDeprecation::test_auto_combine_without_coords
+XFAIL xarray/tests/test_combine.py::TestManualCombine::test_manual_concat_too_many_dims_at_once
+FAILED xarray/tests/test_combine.py::TestCombineAuto::test_check_for_impossible_ordering
+============= 1 failed, 66 passed, 1 xfailed, 49 warnings in 7.50s =============
++ git checkout 118f4d996e7711c9aced916e6049af9f28d5ec66 xarray/tests/test_combine.py
+Updated 1 path from 088330d4

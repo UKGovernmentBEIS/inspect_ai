@@ -1,0 +1,510 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/contrib/staticfiles/storage.py
+	modified:   tests/staticfiles_tests/test_storage.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 179ee13eb37348cd87169a198aec18fedccc8668
+Author: David Smith <smithdc@gmail.com>
+Date:   Fri Jan 29 19:21:26 2021 +0000
+
+    Refs #24121 -- Added __repr__() to FilterExpression, Lexer, Parser, and Token.
+
+diff --git a/django/template/base.py b/django/template/base.py
+index 85ce3c2abd..b1eec99655 100644
+--- a/django/template/base.py
++++ b/django/template/base.py
+@@ -308,7 +308,7 @@ class Token:
+         self.lineno = lineno
+         self.position = position
+ 
+-    def __str__(self):
++    def __repr__(self):
+         token_name = self.token_type.name.capitalize()
+         return ('<%s token: "%s...">' %
+                 (token_name, self.contents[:20].replace('\n', '')))
+@@ -334,6 +334,13 @@ class Lexer:
+         self.template_string = template_string
+         self.verbatim = False
+ 
++    def __repr__(self):
++        return '<%s template_string="%s...", verbatim=%s>' % (
++            self.__class__.__qualname__,
++            self.template_string[:20].replace('\n', ''),
++            self.verbatim,
++        )
++
+     def tokenize(self):
+         """
+         Return a list of tokens from a given template_string.
+@@ -423,6 +430,9 @@ class Parser:
+             self.add_library(builtin)
+         self.origin = origin
+ 
++    def __repr__(self):
++        return '<%s tokens=%r>' % (self.__class__.__qualname__, self.tokens)
++
+     def parse(self, parse_until=None):
+         """
+         Iterate through the parser tokens and compiles each one into a node.
+@@ -723,6 +733,9 @@ class FilterExpression:
+     def __str__(self):
+         return self.token
+ 
++    def __repr__(self):
++        return "<%s %r>" % (self.__class__.__qualname__, self.token)
++
+ 
+ class Variable:
+     """
+diff --git a/tests/template_tests/test_parser.py b/tests/template_tests/test_parser.py
+index 2370e0263e..6c8b70d16f 100644
+--- a/tests/template_tests/test_parser.py
++++ b/tests/template_tests/test_parser.py
+@@ -3,7 +3,7 @@ Testing some internals of the template processing. These are *not* examples to b
+ """
+ from django.template import Library, TemplateSyntaxError
+ from django.template.base import (
+-    FilterExpression, Parser, Token, TokenType, Variable,
++    FilterExpression, Lexer, Parser, Token, TokenType, Variable,
+ )
+ from django.template.defaultfilters import register as filter_library
+ from django.test import SimpleTestCase
+@@ -19,6 +19,22 @@ class ParserTests(SimpleTestCase):
+         split = token.split_contents()
+         self.assertEqual(split, ["sometag", '_("Page not found")', 'value|yesno:_("yes,no")'])
+ 
++    def test_repr(self):
++        token = Token(TokenType.BLOCK, 'some text')
++        self.assertEqual(repr(token), '<Block token: "some text...">')
++        parser = Parser([token], builtins=[filter_library])
++        self.assertEqual(
++            repr(parser),
++            '<Parser tokens=[<Block token: "some text...">]>',
++        )
++        filter_expression = FilterExpression('news|upper', parser)
++        self.assertEqual(repr(filter_expression), "<FilterExpression 'news|upper'>")
++        lexer = Lexer('{% for i in 1 %}{{ a }}\n{% endfor %}')
++        self.assertEqual(
++            repr(lexer),
++            '<Lexer template_string="{% for i in 1 %}{{ a...", verbatim=False>',
++        )
++
+     def test_filter_parsing(self):
+         c = {"article": {"section": "News"}}
+         p = Parser("", builtins=[filter_library])
++ git diff 179ee13eb37348cd87169a198aec18fedccc8668
+diff --git a/django/contrib/staticfiles/storage.py b/django/contrib/staticfiles/storage.py
+index 494890cc23..1c95bb5ab2 100644
+--- a/django/contrib/staticfiles/storage.py
++++ b/django/contrib/staticfiles/storage.py
+@@ -226,17 +226,25 @@ class HashedFilesMixin:
+             path for path in paths
+             if matches_patterns(path, self._patterns)
+         ]
++
++        # Set to keep track of yielded files
++        # This ensures each file is only yielded once, even if it's processed multiple times
++        yielded_files = set()
+         # Do a single pass first. Post-process all files once, then repeat for
+         # adjustable files.
+         for name, hashed_name, processed, _ in self._post_process(paths, adjustable_paths, hashed_files):
+-            yield name, hashed_name, processed
++            if name not in yielded_files:
++                yielded_files.add(name)
++                yield name, hashed_name, processed
+ 
+         paths = {path: paths[path] for path in adjustable_paths}
+ 
+         for i in range(self.max_post_process_passes):
+             substitutions = False
+             for name, hashed_name, processed, subst in self._post_process(paths, adjustable_paths, hashed_files):
+-                yield name, hashed_name, processed
++                if name not in yielded_files:
++                    yielded_files.add(name)
++                    yield name, hashed_name, processed
+                 substitutions = substitutions or subst
+ 
+             if not substitutions:
+diff --git a/tests/staticfiles_tests/test_storage.py b/tests/staticfiles_tests/test_storage.py
+index dc45a0b839..5ef6b3cdb7 100644
+--- a/tests/staticfiles_tests/test_storage.py
++++ b/tests/staticfiles_tests/test_storage.py
+@@ -567,4 +567,35 @@ class TestCollectionHashedFilesCache(CollectionTestCase):
+             with storage.staticfiles_storage.open(relpath) as relfile:
+                 content = relfile.read()
+                 self.assertIn(b'foo.57a5cb9ba68d.png', content)
+-                self.assertIn(b'xyz.57a5cb9ba68d.png', content)
++    def test_post_process_yields_each_file_once(self):
++        """
++        Test that post_process yields each file only once.
++        """
++        class TestStorage(storage.ManifestStaticFilesStorage):
++            def _post_process(self, paths, adjustable_paths, hashed_files):
++                yield 'file1.css', 'file1.123.css', True, False
++                yield 'file2.js', 'file2.456.js', True, False
++                yield 'file3.png', 'file3.789.png', True, False
++                yield 'file1.css', 'file1.123.css', True, True  # Duplicate yield
++                yield 'file2.js', 'file2.456.js', True, True  # Duplicate yield
++
++        test_storage = TestStorage()
++        collected_files = {
++            'file1.css': ('file1.css', None),
++            'file2.js': ('file2.js', None),
++            'file3.png': ('file3.png', None),
++        }
++        processed_files = []
++
++        for name, hashed_name, processed in test_storage.post_process(collected_files):
++            processed_files.append(name)
++
++        # Assert that each original file is in the processed_files list
++        self.assertTrue(set(collected_files.keys()).issubset(set(processed_files)))
++        
++        # Assert that each file from collected_files is only in the processed_files list once
++        for file in collected_files.keys():
++            self.assertEqual(processed_files.count(file), 1)
++
++        # Print processed_files for debugging
++        print("Processed files:", processed_files)
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.2.10 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0) (3.8.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from asgiref>=3.2.10->Django==4.0) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.0-0.editable-py3-none-any.whl size=25586 sha256=4800c545a9e78f39d85c671be1776405bcb9a82a5dd08408e2a3b1b834dedf4e
+  Stored in directory: /tmp/pip-ephem-wheel-cache-zg1dvd3i/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.0
+    Uninstalling Django-4.0:
+      Successfully uninstalled Django-4.0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+Successfully installed Django-4.0
++ git checkout 179ee13eb37348cd87169a198aec18fedccc8668 tests/staticfiles_tests/test_storage.py
+Updated 1 path from b7fb8bd4e8
++ git apply -v -
+Checking patch tests/staticfiles_tests/test_storage.py...
+Applied patch tests/staticfiles_tests/test_storage.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 staticfiles_tests.test_storage
+Testing against Django installed in '/testbed/django'
+Importing application staticfiles_tests
+Skipping setup of unused database(s): default, other.
+System check identified no issues (0 silenced).
+test_file_change_after_collectstatic (staticfiles_tests.test_storage.TestCollectionHashedFilesCache) ... ok
+test_clear_empties_manifest (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_css_import_case_insensitive (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_import_loop (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_import_replacement (staticfiles_tests.test_storage.TestCollectionManifestStorage)
+See #18050 ... ok
+test_intermediate_files (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_loaded_cache (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_manifest_does_not_exist (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_manifest_does_not_ignore_permission_error (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_manifest_exists (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_missing_entry (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_parse_cache (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_path_ignored_completely (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_path_with_fragment (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_path_with_querystring (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_path_with_querystring_and_fragment (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_post_processing (staticfiles_tests.test_storage.TestCollectionManifestStorage)
+post_processing behaves correctly. ... ok
+test_post_processing_failure (staticfiles_tests.test_storage.TestCollectionManifestStorage)
+post_processing indicates the origin of the error when it fails. ... ok
+test_template_tag_absolute (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_template_tag_absolute_root (staticfiles_tests.test_storage.TestCollectionManifestStorage)
+Like test_template_tag_absolute, but for a file in STATIC_ROOT (#26249). ... ok
+test_template_tag_deep_relative (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_template_tag_relative (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_template_tag_return (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_template_tag_simple_content (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_template_tag_url (staticfiles_tests.test_storage.TestCollectionManifestStorage) ... ok
+test_hashed_name (staticfiles_tests.test_storage.TestCollectionNoneHashStorage) ... ok
+test_template_tag_return (staticfiles_tests.test_storage.TestCollectionSimpleStorage) ... ok
+test_template_tag_simple_content (staticfiles_tests.test_storage.TestCollectionSimpleStorage) ... ok
+test_multi_extension_patterns (staticfiles_tests.test_storage.TestExtraPatternsStorage)
+With storage classes having several file extension patterns, only the ... ok
+test_collect_static_files_default_permissions (staticfiles_tests.test_storage.TestStaticFilePermissions) ... ok
+test_collect_static_files_permissions (staticfiles_tests.test_storage.TestStaticFilePermissions) ... ok
+test_collect_static_files_subclass_of_static_storage (staticfiles_tests.test_storage.TestStaticFilePermissions) ... ok
+
+----------------------------------------------------------------------
+Ran 32 tests in 2.108s
+
+OK
++ git checkout 179ee13eb37348cd87169a198aec18fedccc8668 tests/staticfiles_tests/test_storage.py
+Updated 1 path from b7fb8bd4e8

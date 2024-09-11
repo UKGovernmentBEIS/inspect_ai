@@ -1,0 +1,99 @@
+
+diff --git a/astropy/io/fits/card.py b/astropy/io/fits/card.py
+index 8c1ac5d73..528e6ba2a 100644
+--- a/astropy/io/fits/card.py
++++ b/astropy/io/fits/card.py
+@@ -547,13 +547,15 @@ class Card(_Verify):
+     @classmethod
+     def fromstring(cls, image):
+         """
+-        Construct a `Card` object from a (raw) string. It will pad the string
++        Construct a `Card` object from a (raw) string or bytes. It will pad the string
+         if it is not the length of a card image (80 columns).  If the card
+         image is longer than 80 columns, assume it contains ``CONTINUE``
+         card(s).
+         """
+ 
+         card = cls()
++        if isinstance(image, bytes):
++            image = image.decode('ascii')
+         card._image = _pad(image)
+         card._verified = False
+         return card
+diff --git a/astropy/io/fits/header.py b/astropy/io/fits/header.py
+index ad07e6d52..c477eeb4a 100644
+--- a/astropy/io/fits/header.py
++++ b/astropy/io/fits/header.py
+@@ -329,13 +329,13 @@ class Header:
+     @classmethod
+     def fromstring(cls, data, sep=''):
+         """
+-        Creates an HDU header from a byte string containing the entire header
++        Creates an HDU header from a byte string or unicode string containing the entire header
+         data.
+ 
+         Parameters
+         ----------
+-        data : str
+-           String containing the entire header.
++        data : str or bytes
++           String or bytes containing the entire header.
+ 
+         sep : str, optional
+             The string separating cards from each other, such as a newline.  By
+@@ -348,6 +348,9 @@ class Header:
+             A new `Header` instance.
+         """
+ 
++        if isinstance(data, bytes):
++            data = data.decode('ascii')
++
+         cards = []
+ 
+         # If the card separator contains characters that may validly appear in
+diff --git a/astropy/io/fits/tests/test_header.py b/astropy/io/fits/tests/test_header.py
+index 7c1725aed..b59e6c5e2 100644
+--- a/astropy/io/fits/tests/test_header.py
++++ b/astropy/io/fits/tests/test_header.py
+@@ -2793,4 +2793,40 @@ class TestRecordValuedKeywordCards(FitsTestCase):
+ 
+         with open(self.temp('mode.fits'), mode=mode) as ff:
+             hdu = fits.ImageHDU(data=np.ones(5))
+-            hdu.writeto(ff)
++def test_header_fromstring_bytes():
++    """Test Header.fromstring with bytes input."""
++    header_str = b"SIMPLE  =                    T / file does conform to FITS standard             BITPIX  =                   16 / number of bits per data pixel                  NAXIS   =                    0 / number of data axes                            END                                                                             "
++    header = fits.Header.fromstring(header_str)
++    assert isinstance(header, fits.Header)
++    assert len(header) == 3
++    assert header['SIMPLE'] == True
++    assert header['BITPIX'] == 16
++    assert header['NAXIS'] == 0
++
++def test_header_fromstring_str():
++    """Test Header.fromstring with str input."""
++    header_str = "SIMPLE  =                    T / file does conform to FITS standard             BITPIX  =                   16 / number of bits per data pixel                  NAXIS   =                    0 / number of data axes                            END                                                                             "
++    header = fits.Header.fromstring(header_str)
++    assert isinstance(header, fits.Header)
++    assert len(header) == 3
++    assert header['SIMPLE'] == True
++    assert header['BITPIX'] == 16
++    assert header['NAXIS'] == 0
++
++def test_card_fromstring_bytes():
++    """Test Card.fromstring with bytes input."""
++    card_str = b"SIMPLE  =                    T / file does conform to FITS standard             "
++    card = fits.Card.fromstring(card_str)
++    assert isinstance(card, fits.Card)
++    assert card.keyword == 'SIMPLE'
++    assert card.value == True
++    assert card.comment == 'file does conform to FITS standard'
++
++def test_card_fromstring_str():
++    """Test Card.fromstring with str input."""
++    card_str = "SIMPLE  =                    T / file does conform to FITS standard             "
++    card = fits.Card.fromstring(card_str)
++    assert isinstance(card, fits.Card)
++    assert card.keyword == 'SIMPLE'
++    assert card.value == True
++    assert card.comment == 'file does conform to FITS standard'

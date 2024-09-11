@@ -1,0 +1,53 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 00000000..2bd000fb
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,24 @@
++import xarray as xr
++import numpy as np
++
++arr = xr.DataArray(
++    np.arange(3),
++    coords=[("x", [0, 1, 2])],
++)
++data = xr.Dataset({"a": arr, "b": arr})
++print("Original data:")
++print(data)
++
++stacked = data.to_stacked_array('y', sample_dims=['x'])
++print("\nStacked data:")
++print(stacked)
++
++try:
++    unstacked = stacked.to_unstacked_dataset('y')
++    print("\nUnstacked data:")
++    print(unstacked)
++    print("\nRoundtrip successful!")
++except Exception as e:
++    print(f"\nError during unstacking: {str(e)}")
++
++print("\nScript completed.")
+diff --git a/xarray/core/dataarray.py b/xarray/core/dataarray.py
+index b0df8749..5ab6b80c 100644
+--- a/xarray/core/dataarray.py
++++ b/xarray/core/dataarray.py
+@@ -1961,10 +1961,15 @@ class DataArray(AbstractArray, DataWithCoords):
+         # pull variables out of datarray
+         data_dict = {}
+         for k in variables:
+-            data_dict[k] = self.sel({variable_dim: k}).squeeze(drop=True)
++            selected = self.sel({variable_dim: k})
++            if selected.ndim == 0:
++                # Handle single-dimension variables
++                data_dict[k] = selected.item()
++            else:
++                data_dict[k] = selected.squeeze(drop=True)
+ 
+         # unstacked dataset
+-        return Dataset(data_dict)
++        return Dataset().merge(data_dict, compat='override')
+ 
+     def transpose(self, *dims: Hashable, transpose_coords: bool = True) -> "DataArray":
+         """Return a new DataArray object with transposed dimensions.

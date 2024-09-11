@@ -1,0 +1,550 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/forms/widgets.py
+	modified:   docs/releases/3.1.txt
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test_settings.py
+	tests/forms_tests/field_tests/test_multiple_checkboxes.py
+	tests/forms_tests/field_tests/test_splitarrayfield.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 3fb7c12158a2402f0f80824f6778112071235803
+Author: Mariusz Felisiak <felisiak.mariusz@gmail.com>
+Date:   Tue Dec 10 11:17:50 2019 +0100
+
+    Refs #23433 -- Fixed test_django_admin_py.DeprecationTest tests failures on Windows and Python < 3.8.
+    
+    subprocess.run()'s args parameter accepts a path-like object on Windows
+    since Python 3.8.
+
+diff --git a/tests/admin_scripts/test_django_admin_py.py b/tests/admin_scripts/test_django_admin_py.py
+index 56f5f0c1b5..b8b42fb75a 100644
+--- a/tests/admin_scripts/test_django_admin_py.py
++++ b/tests/admin_scripts/test_django_admin_py.py
+@@ -1,6 +1,6 @@
++import os
+ import subprocess
+ import sys
+-from pathlib import Path
+ 
+ import django
+ from django.test import SimpleTestCase
+@@ -12,6 +12,10 @@ class DeprecationTests(SimpleTestCase):
+         b'django-admin.'
+     )
+ 
++    def setUp(self):
++        script_dir = os.path.abspath(os.path.join(os.path.dirname(django.__file__), 'bin'))
++        self.django_admin_py = os.path.join(script_dir, 'django-admin.py')
++
+     def _run_test(self, args):
+         p = subprocess.run(
+             [sys.executable, *args],
+@@ -22,8 +26,7 @@ class DeprecationTests(SimpleTestCase):
+         return p.stdout, p.stderr
+ 
+     def test_django_admin_py_deprecated(self):
+-        django_admin_py = Path(django.__file__).parent / 'bin' / 'django-admin.py'
+-        _, err = self._run_test(['-Wd', django_admin_py, '--version'])
++        _, err = self._run_test(['-Wd', self.django_admin_py, '--version'])
+         self.assertIn(self.DEPRECATION_MESSAGE, err)
+ 
+     def test_main_not_deprecated(self):
+@@ -31,7 +34,6 @@ class DeprecationTests(SimpleTestCase):
+         self.assertNotIn(self.DEPRECATION_MESSAGE, err)
+ 
+     def test_django_admin_py_equivalent_main(self):
+-        django_admin_py = Path(django.__file__).parent / 'bin' / 'django-admin.py'
+-        django_admin_py_out, _ = self._run_test([django_admin_py, '--version'])
++        django_admin_py_out, _ = self._run_test([self.django_admin_py, '--version'])
+         django_out, _ = self._run_test(['-m', 'django', '--version'])
+         self.assertEqual(django_admin_py_out, django_out)
++ git diff 3fb7c12158a2402f0f80824f6778112071235803
+diff --git a/django/forms/widgets.py b/django/forms/widgets.py
+index 6fe220bea7..f7110b9f1e 100644
+--- a/django/forms/widgets.py
++++ b/django/forms/widgets.py
+@@ -521,11 +521,10 @@ class CheckboxInput(Input):
+         return str(value)
+ 
+     def get_context(self, name, value, attrs):
++        context = super().get_context(name, value, attrs)
+         if self.check_test(value):
+-            if attrs is None:
+-                attrs = {}
+-            attrs['checked'] = True
+-        return super().get_context(name, value, attrs)
++            context['widget']['attrs']['checked'] = True
++        return context
+ 
+     def value_from_datadict(self, data, files, name):
+         if name not in data:
+diff --git a/docs/releases/3.1.txt b/docs/releases/3.1.txt
+index 7ae21330a6..c405c2f368 100644
+--- a/docs/releases/3.1.txt
++++ b/docs/releases/3.1.txt
+@@ -419,3 +419,6 @@ to remove usage of these features.
+ 
+ * Support for ``SimpleTestCase.allow_database_queries`` and
+   ``TransactionTestCase.multi_db`` is removed.
++
++* Fixed a bug in CheckboxInput widget where the 'checked' attribute would persist across multiple widgets in a SplitArrayField with BooleanField.
++
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: asgiref>=3.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (3.4.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (0.4.4)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref>=3.2->Django==3.1) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.1
+    Uninstalling Django-3.1:
+      Successfully uninstalled Django-3.1
+  Running setup.py develop for Django
+Successfully installed Django-3.1
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 3fb7c12158a2402f0f80824f6778112071235803 tests/forms_tests/widget_tests/test_checkboxinput.py tests/postgres_tests/test_array.py
+Updated 0 paths from 29dbadbc8a
++ git apply -v -
+Checking patch tests/forms_tests/widget_tests/test_checkboxinput.py...
+Checking patch tests/postgres_tests/test_array.py...
+Applied patch tests/forms_tests/widget_tests/test_checkboxinput.py cleanly.
+Applied patch tests/postgres_tests/test_array.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 forms_tests.widget_tests.test_checkboxinput postgres_tests.test_array
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+test_exact_dates (postgres_tests.test_array.TestDateTimeExactQuerying) ... skipped 'PostgreSQL specific tests'
+test_exact_datetimes (postgres_tests.test_array.TestDateTimeExactQuerying) ... skipped 'PostgreSQL specific tests'
+test_exact_times (postgres_tests.test_array.TestDateTimeExactQuerying) ... skipped 'PostgreSQL specific tests'
+test_exact_decimals (postgres_tests.test_array.TestOtherTypesExactQuerying) ... skipped 'PostgreSQL specific tests'
+test_exact_ip_addresses (postgres_tests.test_array.TestOtherTypesExactQuerying) ... skipped 'PostgreSQL specific tests'
+test_exact_tags (postgres_tests.test_array.TestOtherTypesExactQuerying) ... skipped 'PostgreSQL specific tests'
+test_exact_uuids (postgres_tests.test_array.TestOtherTypesExactQuerying) ... skipped 'PostgreSQL specific tests'
+test_contained_by (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_contained_by_charfield (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_contained_by_including_F_object (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_contains (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_contains_charfield (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_empty_list (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_enum_lookup (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_exact (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_exact_charfield (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_exact_nested (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_grouping_by_annotations_with_array_field_param (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_gt (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_icontains (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_in (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_in_as_F_object (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_in_including_F_object (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_in_subquery (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_index (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_index_chained (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_index_nested (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_index_transform_expression (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_index_used_on_nested_data (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_isnull (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_len (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_len_empty_array (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_lookups_autofield_array (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_lt (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_order_by_slice (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_overlap (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_overlap_charfield (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_slice (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_slice_nested (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_slice_transform_expression (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_unsupported_lookup (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_usage_in_subquery (postgres_tests.test_array.TestQuerying) ... skipped 'PostgreSQL specific tests'
+test_char (postgres_tests.test_array.TestSaveLoad) ... skipped 'PostgreSQL specific tests'
+test_dates (postgres_tests.test_array.TestSaveLoad) ... skipped 'PostgreSQL specific tests'
+test_default_null (postgres_tests.test_array.TestSaveLoad) ... skipped 'PostgreSQL specific tests'
+test_integer (postgres_tests.test_array.TestSaveLoad) ... skipped 'PostgreSQL specific tests'
+test_integers_passed_as_strings (postgres_tests.test_array.TestSaveLoad) ... skipped 'PostgreSQL specific tests'
+test_model_set_on_base_field (postgres_tests.test_array.TestSaveLoad) ... skipped 'PostgreSQL specific tests'
+test_nested (postgres_tests.test_array.TestSaveLoad) ... skipped 'PostgreSQL specific tests'
+test_nested_nullable_base_field (postgres_tests.test_array.TestSaveLoad) ... skipped 'PostgreSQL specific tests'
+test_null_from_db_value_handling (postgres_tests.test_array.TestSaveLoad) ... skipped 'PostgreSQL specific tests'
+test_null_handling (postgres_tests.test_array.TestSaveLoad) ... skipped 'PostgreSQL specific tests'
+test_other_array_types (postgres_tests.test_array.TestSaveLoad) ... skipped 'PostgreSQL specific tests'
+test_tuples (postgres_tests.test_array.TestSaveLoad) ... skipped 'PostgreSQL specific tests'
+test_get_context_does_not_mutate_attrs (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest) ... ok
+test_render_check_exception (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest) ... ok
+test_render_check_test (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest) ... ok
+test_render_empty (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest) ... ok
+test_render_false (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest) ... ok
+test_render_int (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest) ... ok
+test_render_none (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest) ... ok
+test_render_true (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest) ... ok
+test_render_value (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest) ... ok
+test_value_from_datadict (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest) ... ok
+test_value_from_datadict_string_int (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest) ... ok
+test_value_omitted_from_data (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest) ... ok
+test_get_field_display (postgres_tests.test_array.BasicTests) ... skipped 'PostgreSQL specific tests'
+test_get_field_display_nested_array (postgres_tests.test_array.BasicTests) ... skipped 'PostgreSQL specific tests'
+test_choices_tuple_list (postgres_tests.test_array.TestChecks) ... skipped 'PostgreSQL specific tests'
+test_field_checks (postgres_tests.test_array.TestChecks) ... skipped 'PostgreSQL specific tests'
+test_invalid_base_fields (postgres_tests.test_array.TestChecks) ... skipped 'PostgreSQL specific tests'
+test_invalid_default (postgres_tests.test_array.TestChecks) ... skipped 'PostgreSQL specific tests'
+test_nested_field_checks (postgres_tests.test_array.TestChecks) ... skipped 'PostgreSQL specific tests'
+test_valid_default (postgres_tests.test_array.TestChecks) ... skipped 'PostgreSQL specific tests'
+test_valid_default_none (postgres_tests.test_array.TestChecks) ... skipped 'PostgreSQL specific tests'
+test_adding_arrayfield_with_index (postgres_tests.test_array.TestMigrations) ... skipped 'PostgreSQL specific tests'
+test_adding_field_with_default (postgres_tests.test_array.TestMigrations) ... skipped 'PostgreSQL specific tests'
+test_deconstruct (postgres_tests.test_array.TestMigrations) ... skipped 'PostgreSQL specific tests'
+test_deconstruct_args (postgres_tests.test_array.TestMigrations) ... skipped 'PostgreSQL specific tests'
+test_deconstruct_with_size (postgres_tests.test_array.TestMigrations) ... skipped 'PostgreSQL specific tests'
+test_subclass_deconstruct (postgres_tests.test_array.TestMigrations) ... skipped 'PostgreSQL specific tests'
+test_dumping (postgres_tests.test_array.TestSerialization) ... skipped 'PostgreSQL specific tests'
+test_loading (postgres_tests.test_array.TestSerialization) ... skipped 'PostgreSQL specific tests'
+test_already_converted_value (postgres_tests.test_array.TestSimpleFormField) ... skipped 'PostgreSQL specific tests'
+test_delimiter (postgres_tests.test_array.TestSimpleFormField) ... skipped 'PostgreSQL specific tests'
+test_delimiter_with_nesting (postgres_tests.test_array.TestSimpleFormField) ... skipped 'PostgreSQL specific tests'
+test_has_changed (postgres_tests.test_array.TestSimpleFormField) ... skipped 'PostgreSQL specific tests'
+test_has_changed_empty (postgres_tests.test_array.TestSimpleFormField) ... skipped 'PostgreSQL specific tests'
+test_max_length (postgres_tests.test_array.TestSimpleFormField) ... skipped 'PostgreSQL specific tests'
+test_min_length (postgres_tests.test_array.TestSimpleFormField) ... skipped 'PostgreSQL specific tests'
+test_model_field_choices (postgres_tests.test_array.TestSimpleFormField) ... skipped 'PostgreSQL specific tests'
+test_model_field_formfield (postgres_tests.test_array.TestSimpleFormField) ... skipped 'PostgreSQL specific tests'
+test_model_field_formfield_size (postgres_tests.test_array.TestSimpleFormField) ... skipped 'PostgreSQL specific tests'
+test_prepare_value (postgres_tests.test_array.TestSimpleFormField) ... skipped 'PostgreSQL specific tests'
+test_required (postgres_tests.test_array.TestSimpleFormField) ... skipped 'PostgreSQL specific tests'
+test_to_python_fail (postgres_tests.test_array.TestSimpleFormField) ... skipped 'PostgreSQL specific tests'
+test_valid (postgres_tests.test_array.TestSimpleFormField) ... skipped 'PostgreSQL specific tests'
+test_validate_fail (postgres_tests.test_array.TestSimpleFormField) ... skipped 'PostgreSQL specific tests'
+test_validate_fail_base_field_error_params (postgres_tests.test_array.TestSimpleFormField) ... skipped 'PostgreSQL specific tests'
+test_validators_fail (postgres_tests.test_array.TestSimpleFormField) ... skipped 'PostgreSQL specific tests'
+test_invalid_char_length (postgres_tests.test_array.TestSplitFormField) ... skipped 'PostgreSQL specific tests'
+test_invalid_integer (postgres_tests.test_array.TestSplitFormField) ... skipped 'PostgreSQL specific tests'
+test_remove_trailing_nulls (postgres_tests.test_array.TestSplitFormField) ... skipped 'PostgreSQL specific tests'
+test_remove_trailing_nulls_not_required (postgres_tests.test_array.TestSplitFormField) ... skipped 'PostgreSQL specific tests'
+test_rendering (postgres_tests.test_array.TestSplitFormField) ... skipped 'PostgreSQL specific tests'
+test_required (postgres_tests.test_array.TestSplitFormField) ... skipped 'PostgreSQL specific tests'
+test_required_field (postgres_tests.test_array.TestSplitFormField) ... skipped 'PostgreSQL specific tests'
+test_splitarrayfield_has_changed (postgres_tests.test_array.TestSplitFormField) ... skipped 'PostgreSQL specific tests'
+test_splitarrayfield_remove_trailing_nulls_has_changed (postgres_tests.test_array.TestSplitFormField) ... skipped 'PostgreSQL specific tests'
+test_splitarraywidget_value_omitted_from_data (postgres_tests.test_array.TestSplitFormField) ... skipped 'PostgreSQL specific tests'
+test_valid (postgres_tests.test_array.TestSplitFormField) ... skipped 'PostgreSQL specific tests'
+test_checkbox_get_context_attrs (postgres_tests.test_array.TestSplitFormWidget) ... skipped 'PostgreSQL specific tests'
+test_get_context (postgres_tests.test_array.TestSplitFormWidget) ... skipped 'PostgreSQL specific tests'
+test_render (postgres_tests.test_array.TestSplitFormWidget) ... skipped 'PostgreSQL specific tests'
+test_render_attrs (postgres_tests.test_array.TestSplitFormWidget) ... skipped 'PostgreSQL specific tests'
+test_value_omitted_from_data (postgres_tests.test_array.TestSplitFormWidget) ... skipped 'PostgreSQL specific tests'
+test_blank_true (postgres_tests.test_array.TestValidation) ... skipped 'PostgreSQL specific tests'
+test_nested_array_mismatch (postgres_tests.test_array.TestValidation) ... skipped 'PostgreSQL specific tests'
+test_unbounded (postgres_tests.test_array.TestValidation) ... skipped 'PostgreSQL specific tests'
+test_with_base_field_error_params (postgres_tests.test_array.TestValidation) ... skipped 'PostgreSQL specific tests'
+test_with_size (postgres_tests.test_array.TestValidation) ... skipped 'PostgreSQL specific tests'
+test_with_validators (postgres_tests.test_array.TestValidation) ... skipped 'PostgreSQL specific tests'
+
+----------------------------------------------------------------------
+Ran 122 tests in 0.046s
+
+OK (skipped=110)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application forms_tests
+Importing application postgres_tests
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, forms_tests, messages, sessions, staticfiles
+  Apply all migrations: admin, postgres_tests, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table forms_tests_boundarymodel
+    Creating table forms_tests_defaults
+    Creating table forms_tests_choicemodel
+    Creating table forms_tests_choiceoptionmodel
+    Creating table forms_tests_choicefieldmodel
+    Creating table forms_tests_optionalmultichoicemodel
+    Creating table forms_tests_filemodel
+    Creating table forms_tests_article
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying postgres_tests.0001_setup_extensions... OK
+  Applying postgres_tests.0002_create_test_models... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
++ git checkout 3fb7c12158a2402f0f80824f6778112071235803 tests/forms_tests/widget_tests/test_checkboxinput.py tests/postgres_tests/test_array.py
+Updated 2 paths from 29dbadbc8a

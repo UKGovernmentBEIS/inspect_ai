@@ -1,0 +1,637 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sklearn/decomposition/dict_learning.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit d360ffa7c5896a91ae498b3fb9cf464464ce8f34
+Author: Thomas J Fan <thomasjpfan@gmail.com>
+Date:   Wed Jun 26 20:58:13 2019 -0400
+
+    [MRG] TST Increases tolerance to match float32 resolution (#14184)
+
+diff --git a/sklearn/linear_model/tests/test_ridge.py b/sklearn/linear_model/tests/test_ridge.py
+index ddaf0f5e6..cfc487c6f 100644
+--- a/sklearn/linear_model/tests/test_ridge.py
++++ b/sklearn/linear_model/tests/test_ridge.py
+@@ -1099,13 +1099,14 @@ def test_dtype_match(solver):
+     X_32 = X_64.astype(np.float32)
+     y_32 = y_64.astype(np.float32)
+ 
++    tol = 2 * np.finfo(np.float32).resolution
+     # Check type consistency 32bits
+-    ridge_32 = Ridge(alpha=alpha, solver=solver, max_iter=500, tol=1e-10,)
++    ridge_32 = Ridge(alpha=alpha, solver=solver, max_iter=500, tol=tol)
+     ridge_32.fit(X_32, y_32)
+     coef_32 = ridge_32.coef_
+ 
+     # Check type consistency 64 bits
+-    ridge_64 = Ridge(alpha=alpha, solver=solver, max_iter=500, tol=1e-10,)
++    ridge_64 = Ridge(alpha=alpha, solver=solver, max_iter=500, tol=tol)
+     ridge_64.fit(X_64, y_64)
+     coef_64 = ridge_64.coef_
+ 
++ git diff d360ffa7c5896a91ae498b3fb9cf464464ce8f34
+diff --git a/sklearn/decomposition/dict_learning.py b/sklearn/decomposition/dict_learning.py
+index a318c957f..ca81d4cb5 100644
+--- a/sklearn/decomposition/dict_learning.py
++++ b/sklearn/decomposition/dict_learning.py
+@@ -865,7 +865,8 @@ class SparseCodingMixin(TransformerMixin):
+                                   transform_algorithm='omp',
+                                   transform_n_nonzero_coefs=None,
+                                   transform_alpha=None, split_sign=False,
+-                                  n_jobs=None, positive_code=False):
++                                  n_jobs=None, positive_code=False,
++                                  max_iter=1000):
+         self.n_components = n_components
+         self.transform_algorithm = transform_algorithm
+         self.transform_n_nonzero_coefs = transform_n_nonzero_coefs
+@@ -873,6 +874,7 @@ class SparseCodingMixin(TransformerMixin):
+         self.split_sign = split_sign
+         self.n_jobs = n_jobs
+         self.positive_code = positive_code
++        self.max_iter = max_iter
+ 
+     def transform(self, X):
+         """Encode the data as a sparse combination of the dictionary atoms.
+@@ -900,7 +902,7 @@ class SparseCodingMixin(TransformerMixin):
+             X, self.components_, algorithm=self.transform_algorithm,
+             n_nonzero_coefs=self.transform_n_nonzero_coefs,
+             alpha=self.transform_alpha, n_jobs=self.n_jobs,
+-            positive=self.positive_code)
++            positive=self.positive_code, max_iter=self.max_iter)
+ 
+         if self.split_sign:
+             # feature vector is split into a positive and negative side
+@@ -972,7 +974,10 @@ class SparseCoder(BaseEstimator, SparseCodingMixin):
+     positive_code : bool
+         Whether to enforce positivity when finding the code.
+ 
+-        .. versionadded:: 0.20
++    max_iter : int, optional (default=1000)
++        Maximum number of iterations to perform if `algorithm='lasso_cd'`.
++
++        .. versionadded:: 0.22
+ 
+     Attributes
+     ----------
+@@ -991,12 +996,13 @@ class SparseCoder(BaseEstimator, SparseCodingMixin):
+ 
+     def __init__(self, dictionary, transform_algorithm='omp',
+                  transform_n_nonzero_coefs=None, transform_alpha=None,
+-                 split_sign=False, n_jobs=None, positive_code=False):
++                 split_sign=False, n_jobs=None, positive_code=False,
++                 max_iter=1000):
+         self._set_sparse_coding_params(dictionary.shape[0],
+                                        transform_algorithm,
+                                        transform_n_nonzero_coefs,
+                                        transform_alpha, split_sign, n_jobs,
+-                                       positive_code)
++                                       positive_code, max_iter)
+         self.components_ = dictionary
+ 
+     def fit(self, X, y=None):
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -v --no-use-pep517 --no-build-isolation -e .
+Using pip 21.2.2 from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/pip (python 3.6)
+Obtaining file:///testbed
+    Running command python setup.py egg_info
+    running egg_info
+    creating /tmp/pip-pip-egg-info-mq_viji6/scikit_learn.egg-info
+    writing /tmp/pip-pip-egg-info-mq_viji6/scikit_learn.egg-info/PKG-INFO
+    writing dependency_links to /tmp/pip-pip-egg-info-mq_viji6/scikit_learn.egg-info/dependency_links.txt
+    writing requirements to /tmp/pip-pip-egg-info-mq_viji6/scikit_learn.egg-info/requires.txt
+    writing top-level names to /tmp/pip-pip-egg-info-mq_viji6/scikit_learn.egg-info/top_level.txt
+    writing manifest file '/tmp/pip-pip-egg-info-mq_viji6/scikit_learn.egg-info/SOURCES.txt'
+    reading manifest file '/tmp/pip-pip-egg-info-mq_viji6/scikit_learn.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    adding license file 'COPYING'
+    writing manifest file '/tmp/pip-pip-egg-info-mq_viji6/scikit_learn.egg-info/SOURCES.txt'
+    Partial import of sklearn during the build process.
+Requirement already satisfied: numpy>=1.11.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from scikit-learn==0.22.dev0) (1.19.2)
+Requirement already satisfied: scipy>=0.17.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from scikit-learn==0.22.dev0) (1.5.2)
+Requirement already satisfied: joblib>=0.11 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from scikit-learn==0.22.dev0) (1.1.1)
+Installing collected packages: scikit-learn
+  Attempting uninstall: scikit-learn
+    Found existing installation: scikit-learn 0.22.dev0
+    Uninstalling scikit-learn-0.22.dev0:
+      Removing file or directory /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/scikit-learn.egg-link
+      Removing pth entries from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/easy-install.pth:
+      Removing entry: /testbed
+      Successfully uninstalled scikit-learn-0.22.dev0
+  Running setup.py develop for scikit-learn
+    Running command /opt/miniconda3/envs/testbed/bin/python -c 'import io, os, sys, setuptools, tokenize; sys.argv[0] = '"'"'/testbed/setup.py'"'"'; __file__='"'"'/testbed/setup.py'"'"';f = getattr(tokenize, '"'"'open'"'"', open)(__file__) if os.path.exists(__file__) else io.StringIO('"'"'from setuptools import setup; setup()'"'"');code = f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' develop --no-deps
+    blas_opt_info:
+    blas_mkl_info:
+    customize UnixCCompiler
+      libraries mkl_rt not found in ['/opt/miniconda3/envs/testbed/lib', '/usr/local/lib', '/usr/lib64', '/usr/lib', '/usr/lib/x86_64-linux-gnu']
+      NOT AVAILABLE
+
+    blis_info:
+      libraries blis not found in ['/opt/miniconda3/envs/testbed/lib', '/usr/local/lib', '/usr/lib64', '/usr/lib', '/usr/lib/x86_64-linux-gnu']
+      NOT AVAILABLE
+
+    openblas_info:
+    C compiler: gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC
+
+    creating /tmp/tmp8vyndqfi/tmp
+    creating /tmp/tmp8vyndqfi/tmp/tmp8vyndqfi
+    compile options: '-c'
+    gcc: /tmp/tmp8vyndqfi/source.c
+    gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ /tmp/tmp8vyndqfi/tmp/tmp8vyndqfi/source.o -L/opt/miniconda3/envs/testbed/lib -lopenblas -o /tmp/tmp8vyndqfi/a.out
+      FOUND:
+        libraries = ['openblas', 'openblas']
+        library_dirs = ['/opt/miniconda3/envs/testbed/lib']
+        language = c
+        define_macros = [('HAVE_CBLAS', None)]
+
+      FOUND:
+        libraries = ['openblas', 'openblas']
+        library_dirs = ['/opt/miniconda3/envs/testbed/lib']
+        language = c
+        define_macros = [('HAVE_CBLAS', None)]
+
+    C compiler: gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC
+
+    compile options: '-c'
+    extra options: '-fopenmp'
+    gcc: test_openmp.c
+    gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ objects/test_openmp.o -o test_openmp -fopenmp
+    running develop
+    running build_scripts
+    running egg_info
+    running build_src
+    build_src
+    building library "libsvm-skl" sources
+    building extension "sklearn.__check_build._check_build" sources
+    building extension "sklearn.preprocessing._csr_polynomial_expansion" sources
+    building extension "sklearn.cluster._dbscan_inner" sources
+    building extension "sklearn.cluster._hierarchical" sources
+    building extension "sklearn.cluster._k_means_elkan" sources
+    building extension "sklearn.cluster._k_means" sources
+    building extension "sklearn.datasets._svmlight_format" sources
+    building extension "sklearn.decomposition._online_lda" sources
+    building extension "sklearn.decomposition.cdnmf_fast" sources
+    building extension "sklearn.ensemble._gradient_boosting" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting._gradient_boosting" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting.histogram" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting.splitting" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting._binning" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting._predictor" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting._loss" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting.types" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting.utils" sources
+    building extension "sklearn.feature_extraction._hashing" sources
+    building extension "sklearn.manifold._utils" sources
+    building extension "sklearn.manifold._barnes_hut_tsne" sources
+    building extension "sklearn.metrics.cluster.expected_mutual_info_fast" sources
+    building extension "sklearn.metrics.pairwise_fast" sources
+    building extension "sklearn.neighbors.ball_tree" sources
+    building extension "sklearn.neighbors.kd_tree" sources
+    building extension "sklearn.neighbors.dist_metrics" sources
+    building extension "sklearn.neighbors.typedefs" sources
+    building extension "sklearn.neighbors.quad_tree" sources
+    building extension "sklearn.tree._tree" sources
+    building extension "sklearn.tree._splitter" sources
+    building extension "sklearn.tree._criterion" sources
+    building extension "sklearn.tree._utils" sources
+    building extension "sklearn.utils.sparsefuncs_fast" sources
+    building extension "sklearn.utils._cython_blas" sources
+    building extension "sklearn.utils.arrayfuncs" sources
+    building extension "sklearn.utils.murmurhash" sources
+    building extension "sklearn.utils.lgamma" sources
+    building extension "sklearn.utils.graph_shortest_path" sources
+    building extension "sklearn.utils.fast_dict" sources
+    building extension "sklearn.utils.seq_dataset" sources
+    building extension "sklearn.utils.weight_vector" sources
+    building extension "sklearn.utils._random" sources
+    building extension "sklearn.utils._logistic_sigmoid" sources
+    building extension "sklearn.svm.libsvm" sources
+    building extension "sklearn.svm.liblinear" sources
+    building extension "sklearn.svm.libsvm_sparse" sources
+    building extension "sklearn.linear_model.cd_fast" sources
+    building extension "sklearn.linear_model.sgd_fast" sources
+    building extension "sklearn.linear_model.sag_fast" sources
+    building extension "sklearn._isotonic" sources
+    building data_files sources
+    build_src: building npy-pkg config files
+    writing scikit_learn.egg-info/PKG-INFO
+    writing dependency_links to scikit_learn.egg-info/dependency_links.txt
+    writing requirements to scikit_learn.egg-info/requires.txt
+    writing top-level names to scikit_learn.egg-info/top_level.txt
+    reading manifest file 'scikit_learn.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    adding license file 'COPYING'
+    writing manifest file 'scikit_learn.egg-info/SOURCES.txt'
+    running build_ext
+    customize UnixCCompiler
+    customize UnixCCompiler using build_clib
+    customize UnixCCompiler
+    customize UnixCCompiler using build_ext_subclass
+    customize UnixCCompiler
+    customize UnixCCompiler using build_ext_subclass
+    Creating /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/scikit-learn.egg-link (link to .)
+    Adding scikit-learn 0.22.dev0 to easy-install.pth file
+
+    Installed /testbed
+    Partial import of sklearn during the build process.
+Successfully installed scikit-learn-0.22.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout d360ffa7c5896a91ae498b3fb9cf464464ce8f34 sklearn/decomposition/tests/test_dict_learning.py
+Updated 0 paths from 5e31a6fca
++ git apply -v -
+Checking patch sklearn/decomposition/tests/test_dict_learning.py...
+Applied patch sklearn/decomposition/tests/test_dict_learning.py cleanly.
++ pytest -rA sklearn/decomposition/tests/test_dict_learning.py
+============================= test session starts ==============================
+platform linux -- Python 3.6.13, pytest-6.2.4, py-1.11.0, pluggy-0.13.1
+rootdir: /testbed, configfile: setup.cfg
+collected 67 items
+
+sklearn/decomposition/tests/test_dict_learning.py ...F.................. [ 32%]
+.............................................                            [100%]
+
+=================================== FAILURES ===================================
+________________________________ test_max_iter _________________________________
+
+    def test_max_iter():
+        def ricker_function(resolution, center, width):
+            """Discrete sub-sampled Ricker (Mexican hat) wavelet"""
+            x = np.linspace(0, resolution - 1, resolution)
+            x = ((2 / (np.sqrt(3 * width) * np.pi ** .25))
+                 * (1 - (x - center) ** 2 / width ** 2)
+                 * np.exp(-(x - center) ** 2 / (2 * width ** 2)))
+            return x
+    
+        def ricker_matrix(width, resolution, n_components):
+            """Dictionary of Ricker (Mexican hat) wavelets"""
+            centers = np.linspace(0, resolution - 1, n_components)
+            D = np.empty((n_components, resolution))
+            for i, center in enumerate(centers):
+                D[i] = ricker_function(resolution, center, width)
+            D /= np.sqrt(np.sum(D ** 2, axis=1))[:, np.newaxis]
+            return D
+    
+        transform_algorithm = 'lasso_cd'
+        resolution = 1024
+        subsampling = 3  # subsampling factor
+        n_components = resolution // subsampling
+    
+        # Compute a wavelet dictionary
+        D_multi = np.r_[tuple(ricker_matrix(width=w, resolution=resolution,
+                              n_components=n_components // 5)
+                              for w in (10, 50, 100, 500, 1000))]
+    
+        X = np.linspace(0, resolution - 1, resolution)
+        first_quarter = X < resolution / 4
+        X[first_quarter] = 3.
+        X[np.logical_not(first_quarter)] = -1.
+        X = X.reshape(1, -1)
+    
+        # check that the underlying model fails to converge
+        with pytest.warns(ConvergenceWarning):
+            model = SparseCoder(D_multi, transform_algorithm=transform_algorithm,
+>                               transform_max_iter=1)
+E           TypeError: __init__() got an unexpected keyword argument 'transform_max_iter'
+
+sklearn/decomposition/tests/test_dict_learning.py:97: TypeError
+==================================== PASSES ====================================
+_______________________ test_sparse_coder_parallel_mmap ________________________
+----------------------------- Captured stderr call -----------------------------
+/testbed/sklearn/linear_model/coordinate_descent.py:471: ConvergenceWarning: Objective did not converge. You might want to increase the number of iterations. Duality gap: 0.0011822499203136714, tolerance: 0.00032172415994741156
+  tol, rng, random, positive)
+/testbed/sklearn/linear_model/coordinate_descent.py:471: ConvergenceWarning: Objective did not converge. You might want to increase the number of iterations. Duality gap: 0.0017319639720269533, tolerance: 0.0011344886235220746
+  tol, rng, random, positive)
+/testbed/sklearn/linear_model/coordinate_descent.py:471: ConvergenceWarning: Objective did not converge. You might want to increase the number of iterations. Duality gap: 0.0015392213944256392, tolerance: 0.0011979540114794543
+  tol, rng, random, positive)
+/testbed/sklearn/linear_model/coordinate_descent.py:471: ConvergenceWarning: Objective did not converge. You might want to increase the number of iterations. Duality gap: 0.002662624112496268, tolerance: 0.001245843877618889
+  tol, rng, random, positive)
+=========================== short test summary info ============================
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_shapes_omp
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_shapes
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_overcomplete
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_lars_positive_parameter
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[False-False-lasso_lars]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[False-False-lasso_cd]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[False-False-threshold]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[False-True-lasso_lars]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[False-True-lasso_cd]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[False-True-threshold]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[True-False-lasso_lars]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[True-False-lasso_cd]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[True-False-threshold]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[True-True-lasso_lars]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[True-True-lasso_cd]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[True-True-threshold]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_lars_dict_positivity[False]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_lars_dict_positivity[True]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_lars_code_positivity
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_reconstruction
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_reconstruction_parallel
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_lassocd_readonly_data
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_nonzero_coefs
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_unknown_fit_algorithm
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_split
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_shapes
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_lars_positive_parameter
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[False-False-lasso_lars]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[False-False-lasso_cd]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[False-False-threshold]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[False-True-lasso_lars]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[False-True-lasso_cd]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[False-True-threshold]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[True-False-lasso_lars]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[True-False-lasso_cd]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[True-False-threshold]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[True-True-lasso_lars]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[True-True-lasso_cd]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[True-True-threshold]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_lars[False]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_lars[True]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_positivity[False-False]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_positivity[False-True]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_positivity[True-False]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_positivity[True-True]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_verbosity
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_estimator_shapes
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_overcomplete
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_initialization
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_readonly_initialization
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_partial_fit
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_shapes
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_positivity[False-lasso_lars]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_positivity[False-lasso_cd]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_positivity[False-threshold]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_positivity[True-lasso_lars]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_positivity[True-lasso_cd]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_positivity[True-threshold]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_unavailable_positivity[lars]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_unavailable_positivity[omp]
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_input
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_error
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_error_default_sparsity
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_unknown_method
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_sparse_coder_estimator
+PASSED sklearn/decomposition/tests/test_dict_learning.py::test_sparse_coder_parallel_mmap
+FAILED sklearn/decomposition/tests/test_dict_learning.py::test_max_iter - Typ...
+=================== 1 failed, 66 passed, 1 warning in 26.33s ===================
++ git checkout d360ffa7c5896a91ae498b3fb9cf464464ce8f34 sklearn/decomposition/tests/test_dict_learning.py
+Updated 1 path from 5e31a6fca

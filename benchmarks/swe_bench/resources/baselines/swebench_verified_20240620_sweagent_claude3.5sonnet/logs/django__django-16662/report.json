@@ -1,0 +1,80 @@
+{
+    "django__django-16662": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "#24155 - Tests ordering of imports."
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_args_kwargs_signature (migrations.test_writer.OperationWriterTests.test_args_kwargs_signature)",
+                    "test_args_signature (migrations.test_writer.OperationWriterTests.test_args_signature)",
+                    "test_empty_signature (migrations.test_writer.OperationWriterTests.test_empty_signature)",
+                    "test_expand_args_signature (migrations.test_writer.OperationWriterTests.test_expand_args_signature)",
+                    "test_kwargs_signature (migrations.test_writer.OperationWriterTests.test_kwargs_signature)",
+                    "test_multiline_args_signature (migrations.test_writer.OperationWriterTests.test_multiline_args_signature)",
+                    "test_nested_args_signature (migrations.test_writer.OperationWriterTests.test_nested_args_signature)",
+                    "test_nested_operation_expand_args_signature (migrations.test_writer.OperationWriterTests.test_nested_operation_expand_args_signature)",
+                    "test_custom_operation (migrations.test_writer.WriterTests.test_custom_operation)",
+                    "test_deconstruct_class_arguments (migrations.test_writer.WriterTests.test_deconstruct_class_arguments)",
+                    "Test comments at top of file.",
+                    "test_migration_path (migrations.test_writer.WriterTests.test_migration_path)",
+                    "django.db.models shouldn't be imported if unused.",
+                    "test_register_non_serializer (migrations.test_writer.WriterTests.test_register_non_serializer)",
+                    "test_register_serializer (migrations.test_writer.WriterTests.test_register_serializer)",
+                    "test_serialize_builtin_types (migrations.test_writer.WriterTests.test_serialize_builtin_types)",
+                    "test_serialize_builtins (migrations.test_writer.WriterTests.test_serialize_builtins)",
+                    "test_serialize_choices (migrations.test_writer.WriterTests.test_serialize_choices)",
+                    "Ticket #22943: Test serialization of class-based validators, including",
+                    "test_serialize_collections (migrations.test_writer.WriterTests.test_serialize_collections)",
+                    "Make sure compiled regex can be serialized.",
+                    "test_serialize_complex_func_index (migrations.test_writer.WriterTests.test_serialize_complex_func_index)",
+                    "test_serialize_constants (migrations.test_writer.WriterTests.test_serialize_constants)",
+                    "test_serialize_datetime (migrations.test_writer.WriterTests.test_serialize_datetime)",
+                    "Ticket #22679: makemigrations generates invalid code for (an empty",
+                    "test_serialize_enum_flags (migrations.test_writer.WriterTests.test_serialize_enum_flags)",
+                    "test_serialize_enums (migrations.test_writer.WriterTests.test_serialize_enums)",
+                    "test_serialize_fields (migrations.test_writer.WriterTests.test_serialize_fields)",
+                    "test_serialize_frozensets (migrations.test_writer.WriterTests.test_serialize_frozensets)",
+                    "test_serialize_functions (migrations.test_writer.WriterTests.test_serialize_functions)",
+                    "test_serialize_functools_partial (migrations.test_writer.WriterTests.test_serialize_functools_partial)",
+                    "test_serialize_functools_partialmethod (migrations.test_writer.WriterTests.test_serialize_functools_partialmethod)",
+                    "test_serialize_iterators (migrations.test_writer.WriterTests.test_serialize_iterators)",
+                    "test_serialize_lazy_objects (migrations.test_writer.WriterTests.test_serialize_lazy_objects)",
+                    "A reference in a local scope can't be serialized.",
+                    "test_serialize_managers (migrations.test_writer.WriterTests.test_serialize_managers)",
+                    "test_serialize_multiline_strings (migrations.test_writer.WriterTests.test_serialize_multiline_strings)",
+                    "test_serialize_nested_class (migrations.test_writer.WriterTests.test_serialize_nested_class)",
+                    "test_serialize_numbers (migrations.test_writer.WriterTests.test_serialize_numbers)",
+                    "test_serialize_path_like (migrations.test_writer.WriterTests.test_serialize_path_like)",
+                    "test_serialize_pathlib (migrations.test_writer.WriterTests.test_serialize_pathlib)",
+                    "test_serialize_range (migrations.test_writer.WriterTests.test_serialize_range)",
+                    "test_serialize_set (migrations.test_writer.WriterTests.test_serialize_set)",
+                    "test_serialize_settings (migrations.test_writer.WriterTests.test_serialize_settings)",
+                    "test_serialize_strings (migrations.test_writer.WriterTests.test_serialize_strings)",
+                    "test_serialize_timedelta (migrations.test_writer.WriterTests.test_serialize_timedelta)",
+                    "test_serialize_type_model (migrations.test_writer.WriterTests.test_serialize_type_model)",
+                    "test_serialize_type_none (migrations.test_writer.WriterTests.test_serialize_type_none)",
+                    "An unbound method used within a class body can be serialized.",
+                    "test_serialize_uuid (migrations.test_writer.WriterTests.test_serialize_uuid)",
+                    "Tests serializing a simple migration."
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

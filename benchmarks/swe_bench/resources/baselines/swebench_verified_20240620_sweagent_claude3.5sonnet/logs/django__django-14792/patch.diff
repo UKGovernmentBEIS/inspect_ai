@@ -1,0 +1,100 @@
+
+diff --git a/django/db/backends/postgresql/operations.py b/django/db/backends/postgresql/operations.py
+index 8d19872bea..850a599044 100644
+--- a/django/db/backends/postgresql/operations.py
++++ b/django/db/backends/postgresql/operations.py
+@@ -44,7 +44,11 @@ class DatabaseOperations(BaseDatabaseOperations):
+         return "DATE_TRUNC('%s', %s)" % (lookup_type, field_name)
+ 
+     def _prepare_tzname_delta(self, tzname):
+-        if '+' in tzname:
++        if tzname.startswith('Etc/GMT'):
++            # Convert 'Etc/GMT-10' to '+10' and 'Etc/GMT+10' to '-10'
++            offset = tzname.split('GMT', 1)[1]
++            return '+' + offset[1:] if offset.startswith('-') else '-' + offset[1:]
++        elif '+' in tzname:
+             return tzname.replace('+', '-')
+         elif '-' in tzname:
+             return tzname.replace('-', '+')
+diff --git a/django/db/models/functions/datetime.py b/django/db/models/functions/datetime.py
+index 20161bef38..8de23db881 100644
+--- a/django/db/models/functions/datetime.py
++++ b/django/db/models/functions/datetime.py
+@@ -25,6 +25,10 @@ class TimezoneMixin:
+                 tzname = timezone.get_current_timezone_name()
+             else:
+                 tzname = timezone._get_timezone_name(self.tzinfo)
++                if tzname.startswith('Etc/GMT'):
++                    # Convert 'Etc/GMT-10' to '+10' and 'Etc/GMT+10' to '-10'
++                    offset = tzname.split('GMT', 1)[1]
++                    tzname = '+' + offset[1:] if offset.startswith('-') else '-' + offset[1:]
+         return tzname
+ 
+ 
+diff --git a/run_test.py b/run_test.py
+new file mode 100644
+index 0000000000..fcfcb09ce3
+--- /dev/null
++++ b/run_test.py
+@@ -0,0 +1,12 @@
++import os
++import django
++from django.conf import settings
++from django.test.utils import get_runner
++
++if __name__ == "__main__":
++    os.environ['DJANGO_SETTINGS_MODULE'] = 'tests.test_sqlite'
++    django.setup()
++    TestRunner = get_runner(settings)
++    test_runner = TestRunner()
++    failures = test_runner.run_tests(["tests.postgres_tests.test_operations.DatabaseOperationsTests.test_prepare_tzname_delta"])
++    exit(bool(failures))
+diff --git a/test_timezone_operations.py b/test_timezone_operations.py
+new file mode 100644
+index 0000000000..52e8851138
+--- /dev/null
++++ b/test_timezone_operations.py
+@@ -0,0 +1,23 @@
++import unittest
++from unittest.mock import Mock
++
++class TestDatabaseOperations(unittest.TestCase):
++    def setUp(self):
++        self.ops = Mock()
++        self.ops._prepare_tzname_delta = lambda tzname: (
++            '+' + tzname.split('GMT', 1)[1][1:] if tzname.startswith('Etc/GMT-') else
++            '-' + tzname.split('GMT', 1)[1][1:] if tzname.startswith('Etc/GMT+') else
++            tzname.replace('+', '-') if '+' in tzname else
++            tzname.replace('-', '+') if '-' in tzname else
++            tzname
++        )
++
++    def test_prepare_tzname_delta(self):
++        self.assertEqual(self.ops._prepare_tzname_delta('Etc/GMT-10'), '+10')
++        self.assertEqual(self.ops._prepare_tzname_delta('Etc/GMT+10'), '-10')
++        self.assertEqual(self.ops._prepare_tzname_delta('UTC+10'), 'UTC-10')
++        self.assertEqual(self.ops._prepare_tzname_delta('UTC-10'), 'UTC+10')
++        self.assertEqual(self.ops._prepare_tzname_delta('America/New_York'), 'America/New_York')
++
++if __name__ == '__main__':
++    unittest.main()
+diff --git a/tests/postgres_tests/test_operations.py b/tests/postgres_tests/test_operations.py
+index 1464f3177e..ed77232e1d 100644
+--- a/tests/postgres_tests/test_operations.py
++++ b/tests/postgres_tests/test_operations.py
+@@ -493,4 +493,14 @@ class ValidateConstraintTests(OperationTestBase):
+         name, args, kwargs = operation.deconstruct()
+         self.assertEqual(name, 'ValidateConstraint')
+         self.assertEqual(args, [])
+-        self.assertEqual(kwargs, {'model_name': 'Pony', 'name': constraint_name})
++class DatabaseOperationsTests(PostgreSQLTestCase):
++    def test_prepare_tzname_delta(self):
++        from django.db.backends.postgresql.operations import DatabaseOperations
++        ops = DatabaseOperations(connection=connection)
++
++        self.assertEqual(ops._prepare_tzname_delta('Etc/GMT-10'), '+10')
++        self.assertEqual(ops._prepare_tzname_delta('Etc/GMT+10'), '-10')
++        self.assertEqual(ops._prepare_tzname_delta('UTC+10'), 'UTC-10')
++        self.assertEqual(ops._prepare_tzname_delta('UTC-10'), 'UTC+10')
++        self.assertEqual(ops._prepare_tzname_delta('America/New_York'), 'America/New_York')
++

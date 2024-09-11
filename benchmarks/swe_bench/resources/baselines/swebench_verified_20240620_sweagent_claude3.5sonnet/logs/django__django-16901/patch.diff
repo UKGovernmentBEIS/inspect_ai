@@ -1,0 +1,118 @@
+
+diff --git a/reproduce_xor_bug.py b/reproduce_xor_bug.py
+new file mode 100644
+index 0000000000..555d0006ec
+--- /dev/null
++++ b/reproduce_xor_bug.py
+@@ -0,0 +1,90 @@
++import os
++import sys
++from django.conf import settings
++from django.test import TestCase
++from django.test.utils import setup_test_environment, teardown_test_environment
++from django.test.runner import DiscoverRunner
++from django.core.management import call_command
++
++# Create a temporary directory for our Django project
++import tempfile
++temp_dir = tempfile.mkdtemp()
++
++# Create a minimal Django project structure
++os.makedirs(os.path.join(temp_dir, 'test_app'))
++open(os.path.join(temp_dir, 'test_app', '__init__.py'), 'a').close()
++
++# Add the temp directory to Python path
++sys.path.insert(0, temp_dir)
++
++if __name__ == '__main__':
++    settings.configure(
++        DEBUG=True,
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++            'test_app',
++        ],
++        SECRET_KEY='fake-key',
++        USE_TZ=True,
++        ROOT_URLCONF='',
++        MIDDLEWARE=[],
++    )
++
++    import django
++    django.setup()
++
++    from django.db import models
++    from django.db.models import Q
++
++    class Client(models.Model):
++        name = models.CharField(max_length=100)
++
++        class Meta:
++            app_label = 'test_app'
++
++    # Write the models to a file in the test_app directory
++    with open(os.path.join(temp_dir, 'test_app', 'models.py'), 'w') as f:
++        f.write("""
++from django.db import models
++
++class Client(models.Model):
++    name = models.CharField(max_length=100)
++
++    class Meta:
++        app_label = 'test_app'
++""")
++
++    class XORTestCase(TestCase):
++        def setUp(self):
++            Client.objects.create(id=37, name="Test Client")
++
++        def test_xor_behavior(self):
++            print(Client.objects.filter(Q(id=37)).count())
++            print(Client.objects.filter(Q(id=37) ^ Q(id=37)).count())
++            print(Client.objects.filter(Q(id=37) ^ Q(id=37) ^ Q(id=37)).count())
++            print(Client.objects.filter(Q(id=37) ^ Q(id=37) ^ Q(id=37) ^ Q(id=37)).count())
++            print(Client.objects.filter(Q(id=37) ^ Q(id=37) ^ Q(id=37) ^ Q(id=37) ^ Q(id=37)).count())
++
++    # Make and run migrations
++    call_command('makemigrations', 'test_app', verbosity=0, interactive=False)
++    call_command('migrate', verbosity=0, interactive=False)
++    call_command('migrate', 'test_app', verbosity=0, interactive=False)
++
++    setup_test_environment()
++    runner = DiscoverRunner(verbosity=1, interactive=False, pattern='reproduce_xor_bug.py')
++    suite = runner.test_suite()
++    suite.addTest(XORTestCase('test_xor_behavior'))
++    runner.run_suite(suite)
++
++    print("Script completed successfully, no errors.")
++
++    # Clean up the temporary directory
++    import shutil
++    shutil.rmtree(temp_dir)
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..1a32f8f9ee
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,15 @@
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'django.contrib.auth',
++]
++
++SECRET_KEY = 'fake-key'
++
++USE_TZ = True

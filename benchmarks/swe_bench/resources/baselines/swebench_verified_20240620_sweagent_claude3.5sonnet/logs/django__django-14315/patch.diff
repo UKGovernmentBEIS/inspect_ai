@@ -1,0 +1,15 @@
+
+diff --git a/django/db/backends/postgresql/client.py b/django/db/backends/postgresql/client.py
+index 3effab65a8..0d863ee49b 100644
+--- a/django/db/backends/postgresql/client.py
++++ b/django/db/backends/postgresql/client.py
+@@ -51,8 +51,7 @@ class DatabaseClient(BaseDatabaseClient):
+             env['PGSSLKEY'] = str(sslkey)
+         if passfile:
+             env['PGPASSFILE'] = str(passfile)
+-        return args, env
+-
++        return args, env if env else None
+     def runshell(self, parameters):
+         sigint_handler = signal.getsignal(signal.SIGINT)
+         try:

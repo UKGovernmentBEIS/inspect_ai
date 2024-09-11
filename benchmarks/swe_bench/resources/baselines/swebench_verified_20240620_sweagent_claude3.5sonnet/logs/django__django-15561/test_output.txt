@@ -1,0 +1,864 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/backends/base/schema.py
+	modified:   tests/migrations/test_operations.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 6991880109e35c879b71b7d9d9c154baeec12b89
+Author: David Smith <smithdc@gmail.com>
+Date:   Wed Mar 30 09:10:24 2022 +0100
+
+    Refs #31617 -- Added an id for helptext in admin forms.
+
+diff --git a/django/contrib/admin/templates/admin/auth/user/change_password.html b/django/contrib/admin/templates/admin/auth/user/change_password.html
+index ed4285855e..ac02e811ea 100644
+--- a/django/contrib/admin/templates/admin/auth/user/change_password.html
++++ b/django/contrib/admin/templates/admin/auth/user/change_password.html
+@@ -34,7 +34,7 @@
+   {{ form.password1.errors }}
+   {{ form.password1.label_tag }} {{ form.password1 }}
+   {% if form.password1.help_text %}
+-  <div class="help">{{ form.password1.help_text|safe }}</div>
++  <div class="help"{% if form.password1.id_for_label %} id="{{ form.password1.id_for_label }}_helptext">{% endif %}{{ form.password1.help_text|safe }}</div>
+   {% endif %}
+ </div>
+ 
+@@ -42,7 +42,7 @@
+   {{ form.password2.errors }}
+   {{ form.password2.label_tag }} {{ form.password2 }}
+   {% if form.password2.help_text %}
+-  <div class="help">{{ form.password2.help_text|safe }}</div>
++  <div class="help"{% if form.password2.id_for_label %} id="{{ form.password2.id_for_label }}_helptext"{% endif %}>{{ form.password2.help_text|safe }}</div>
+   {% endif %}
+ </div>
+ 
+diff --git a/django/contrib/admin/templates/admin/includes/fieldset.html b/django/contrib/admin/templates/admin/includes/fieldset.html
+index 218fd5a4c1..8207d47ec4 100644
+--- a/django/contrib/admin/templates/admin/includes/fieldset.html
++++ b/django/contrib/admin/templates/admin/includes/fieldset.html
+@@ -20,7 +20,9 @@
+                         {% endif %}
+                     {% endif %}
+                     {% if field.field.help_text %}
+-                        <div class="help">{{ field.field.help_text|safe }}</div>
++                        <div class="help"{% if field.field.id_for_label %} id="{{ field.field.id_for_label }}_helptext"{% endif %}>
++                          {{ field.field.help_text|safe }}
++                        </div>
+                     {% endif %}
+                 </div>
+             {% endfor %}
+diff --git a/django/contrib/admin/templates/admin/search_form.html b/django/contrib/admin/templates/admin/search_form.html
+index fd7818a9f8..7f65211582 100644
+--- a/django/contrib/admin/templates/admin/search_form.html
++++ b/django/contrib/admin/templates/admin/search_form.html
+@@ -3,7 +3,7 @@
+ <div id="toolbar"><form id="changelist-search" method="get">
+ <div><!-- DIV needed for valid HTML -->
+ <label for="searchbar"><img src="{% static "admin/img/search.svg" %}" alt="Search"></label>
+-<input type="text" size="40" name="{{ search_var }}" value="{{ cl.query }}" id="searchbar" autofocus>
++<input type="text" size="40" name="{{ search_var }}" value="{{ cl.query }}" id="searchbar" autofocus{% if cl.search_help_text %} aria-describedby="searchbar_helptext"{% endif %}>
+ <input type="submit" value="{% translate 'Search' %}">
+ {% if show_result_count %}
+     <span class="small quiet">{% blocktranslate count counter=cl.result_count %}{{ counter }} result{% plural %}{{ counter }} results{% endblocktranslate %} (<a href="?{% if cl.is_popup %}{{ is_popup_var }}=1{% endif %}">{% if cl.show_full_result_count %}{% blocktranslate with full_result_count=cl.full_result_count %}{{ full_result_count }} total{% endblocktranslate %}{% else %}{% translate "Show all" %}{% endif %}</a>)</span>
+@@ -14,7 +14,7 @@
+ </div>
+ {% if cl.search_help_text %}
+ <br class="clear">
+-<div class="help">{{ cl.search_help_text }}</div>
++<div class="help" id="searchbar_helptext">{{ cl.search_help_text }}</div>
+ {% endif %}
+ </form></div>
+ {% endif %}
+diff --git a/django/contrib/admin/templates/registration/password_change_form.html b/django/contrib/admin/templates/registration/password_change_form.html
+index 8c2913398c..e5fa9d8b99 100644
+--- a/django/contrib/admin/templates/registration/password_change_form.html
++++ b/django/contrib/admin/templates/registration/password_change_form.html
+@@ -39,7 +39,7 @@
+     {{ form.new_password1.errors }}
+     {{ form.new_password1.label_tag }} {{ form.new_password1 }}
+     {% if form.new_password1.help_text %}
+-    <div class="help">{{ form.new_password1.help_text|safe }}</div>
++    <div class="help"{% if form.new_password1.id_for_label %} id="{{ form.new_password1.id_for_label }}_helptext"{% endif %}>{{ form.new_password1.help_text|safe }}</div>
+     {% endif %}
+ </div>
+ 
+@@ -47,7 +47,7 @@
+ {{ form.new_password2.errors }}
+     {{ form.new_password2.label_tag }} {{ form.new_password2 }}
+     {% if form.new_password2.help_text %}
+-    <div class="help">{{ form.new_password2.help_text|safe }}</div>
++    <div class="help"{% if form.new_password2.id_for_label %} id="{{ form.new_password2.id_for_label }}_helptext"{% endif %}>{{ form.new_password2.help_text|safe }}</div>
+     {% endif %}
+ </div>
+ 
+diff --git a/tests/admin_changelist/tests.py b/tests/admin_changelist/tests.py
+index 6ffcdc6497..e24654dfcb 100644
+--- a/tests/admin_changelist/tests.py
++++ b/tests/admin_changelist/tests.py
+@@ -1523,7 +1523,7 @@ class ChangeListTests(TestCase):
+         request = self._mocked_authenticated_request("/band/", superuser)
+         response = m.changelist_view(request)
+         self.assertIsNone(response.context_data["cl"].search_help_text)
+-        self.assertNotContains(response, '<div class="help">')
++        self.assertNotContains(response, '<div class="help id="searchbar_helptext">')
+         # search_fields with search_help_text.
+         m.search_help_text = "Search help text"
+         request = self._mocked_authenticated_request("/band/", superuser)
+@@ -1531,7 +1531,14 @@ class ChangeListTests(TestCase):
+         self.assertEqual(
+             response.context_data["cl"].search_help_text, "Search help text"
+         )
+-        self.assertContains(response, '<div class="help">Search help text</div>')
++        self.assertContains(
++            response, '<div class="help" id="searchbar_helptext">Search help text</div>'
++        )
++        self.assertContains(
++            response,
++            '<input type="text" size="40" name="q" value="" id="searchbar" '
++            'autofocus aria-describedby="searchbar_helptext">',
++        )
+ 
+ 
+ class GetAdminLogTests(TestCase):
+diff --git a/tests/admin_inlines/tests.py b/tests/admin_inlines/tests.py
+index 9002af9933..aab20dfd55 100644
+--- a/tests/admin_inlines/tests.py
++++ b/tests/admin_inlines/tests.py
+@@ -263,9 +263,7 @@ class TestInline(TestDataMixin, TestCase):
+         stacked and tabular layouts.
+         """
+         response = self.client.get(reverse("admin:admin_inlines_holder4_add"))
+-        self.assertContains(
+-            response, '<div class="help">Awesome stacked help text is awesome.</div>', 4
+-        )
++        self.assertContains(response, "Awesome stacked help text is awesome.", 4)
+         self.assertContains(
+             response,
+             '<img src="/static/admin/img/icon-unknown.svg" '
+diff --git a/tests/admin_views/tests.py b/tests/admin_views/tests.py
+index 94d9d80289..6fb917bd34 100644
+--- a/tests/admin_views/tests.py
++++ b/tests/admin_views/tests.py
+@@ -1449,8 +1449,43 @@ class AdminViewBasicTest(AdminViewBasicTestCase):
+         with self.assertNoLogs("django.template", "DEBUG"):
+             self.client.post(reverse("admin:admin_views_article_changelist"), post_data)
+ 
++    @override_settings(
++        AUTH_PASSWORD_VALIDATORS=[
++            {
++                "NAME": (
++                    "django.contrib.auth.password_validation."
++                    "UserAttributeSimilarityValidator"
++                )
++            },
++            {
++                "NAME": (
++                    "django.contrib.auth.password_validation."
++                    "NumericPasswordValidator"
++                )
++            },
++        ]
++    )
++    def test_password_change_helptext(self):
++        response = self.client.get(reverse("admin:password_change"))
++        self.assertContains(
++            response, '<div class="help" id="id_new_password1_helptext">'
++        )
++
+ 
+ @override_settings(
++    AUTH_PASSWORD_VALIDATORS=[
++        {
++            "NAME": (
++                "django.contrib.auth.password_validation."
++                "UserAttributeSimilarityValidator"
++            )
++        },
++        {
++            "NAME": (
++                "django.contrib.auth.password_validation." "NumericPasswordValidator"
++            )
++        },
++    ],
+     TEMPLATES=[
+         {
+             "BACKEND": "django.template.backends.django.DjangoTemplates",
+@@ -1470,7 +1505,7 @@ class AdminViewBasicTest(AdminViewBasicTestCase):
+                 ],
+             },
+         }
+-    ]
++    ],
+ )
+ class AdminCustomTemplateTests(AdminViewBasicTestCase):
+     def test_custom_model_admin_templates(self):
+@@ -1563,6 +1598,19 @@ class AdminCustomTemplateTests(AdminViewBasicTestCase):
+             response, '<input type="text" name="username" value="super" class="hidden">'
+         )
+ 
++        # help text for passwords has an id.
++        self.assertContains(
++            response,
++            '<div class="help" id="id_password1_helptext"><ul><li>'
++            "Your password can’t be too similar to your other personal information."
++            "</li><li>Your password can’t be entirely numeric.</li></ul></div>",
++        )
++        self.assertContains(
++            response,
++            '<div class="help" id="id_password2_helptext">'
++            "Enter the same password as before, for verification.</div>",
++        )
++
+     def test_extended_bodyclass_template_index(self):
+         """
+         The admin/index.html template uses block.super in the bodyclass block.
+@@ -6271,17 +6319,17 @@ class ReadonlyTest(AdminFieldExtractionMixin, TestCase):
+         self.assertContains(response, '<div class="form-row field-posted">')
+         self.assertContains(response, '<div class="form-row field-value">')
+         self.assertContains(response, '<div class="form-row">')
+-        self.assertContains(response, '<div class="help">', 3)
++        self.assertContains(response, '<div class="help"', 3)
+         self.assertContains(
+             response,
+-            '<div class="help">Some help text for the title (with Unicode ŠĐĆŽćžšđ)'
+-            "</div>",
++            '<div class="help" id="id_title_helptext">Some help text for the title '
++            "(with Unicode ŠĐĆŽćžšđ)</div>",
+             html=True,
+         )
+         self.assertContains(
+             response,
+-            '<div class="help">Some help text for the content (with Unicode ŠĐĆŽćžšđ)'
+-            "</div>",
++            '<div class="help" id="id_content_helptext">Some help text for the content '
++            "(with Unicode ŠĐĆŽćžšđ)</div>",
+             html=True,
+         )
+         self.assertContains(
+@@ -6468,7 +6516,9 @@ class ReadonlyTest(AdminFieldExtractionMixin, TestCase):
+             reverse("admin:admin_views_fieldoverridepost_change", args=(p.pk,))
+         )
+         self.assertContains(
+-            response, '<div class="help">Overridden help text for the date</div>'
++            response,
++            '<div class="help">Overridden help text for the date</div>',
++            html=True,
+         )
+         self.assertContains(
+             response,
++ git diff 6991880109e35c879b71b7d9d9c154baeec12b89
+diff --git a/django/db/backends/base/schema.py b/django/db/backends/base/schema.py
+index 9d6952df21..0ea36ffb6a 100644
+--- a/django/db/backends/base/schema.py
++++ b/django/db/backends/base/schema.py
+@@ -1389,6 +1389,7 @@ class BaseDatabaseSchemaEditor:
+             "related_query_name",
+             "validators",
+             "verbose_name",
++            "choices",  # Add this line
+         ]
+         for attr in non_database_attrs:
+             old_kwargs.pop(attr, None)
+diff --git a/tests/migrations/test_operations.py b/tests/migrations/test_operations.py
+index a84321ad3b..114de9c12a 100644
+--- a/tests/migrations/test_operations.py
++++ b/tests/migrations/test_operations.py
+@@ -5028,3 +5028,33 @@ class FieldOperationTests(SimpleTestCase):
+         self.assertIs(
+             operation.references_field("Through", "second", "migrations"), True
+         )
++
++    @skipUnlessDBFeature('can_alter_table_rename_column')
++    def test_alter_field_noop_on_sqlite_choices(self):
++        """
++        Tests that AlterField is a no-op when only changing choices on SQLite.
++        """
++        project_state = self.set_up_test_model("test_alfnc")
++        operation = migrations.AlterField(
++            "Pony",
++            "pink",
++            models.IntegerField(choices=[(1, "Red"), (2, "Blue")], default=1),
++        )
++        new_state = project_state.clone()
++        operation.state_forwards("test_alfnc", new_state)
++        self.assertIsNot(new_state.models["test_alfnc", "pony"], project_state.models["test_alfnc", "pony"])
++
++        # Test the database alteration
++        self.assertColumnExists("test_alfnc_pony", "pink")
++        with connection.schema_editor() as editor:
++            with CaptureQueriesContext(connection) as ctx:
++                operation.database_forwards("test_alfnc", editor, project_state, new_state)
++        self.assertEqual(len(ctx), 0, "No SQL statements should be executed for SQLite when only changing choices")
++
++        # Reversal should be a no-op as well
++        with connection.schema_editor() as editor:
++            with CaptureQueriesContext(connection) as ctx:
++                operation.database_backwards("test_alfnc", editor, new_state, project_state)
++        self.assertEqual(len(ctx), 0, "No SQL statements should be executed for SQLite when only changing choices")
++
++        self.assertColumnExists("test_alfnc_pony", "pink")
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.4.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20220406104243) (3.8.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20220406104243) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from asgiref>=3.4.1->Django==4.1.dev20220406104243) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.1.dev20220406104243-0.editable-py3-none-any.whl size=26949 sha256=a1b0480358dfdfd2566ec979bcf22f5090785858c84c379fb9bd2c8ee9eaecd1
+  Stored in directory: /tmp/pip-ephem-wheel-cache-mbk9pmhi/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.1.dev20220406104243
+    Uninstalling Django-4.1.dev20220406104243:
+      Successfully uninstalled Django-4.1.dev20220406104243
+Successfully installed Django-4.1.dev20220406104243
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 6991880109e35c879b71b7d9d9c154baeec12b89 tests/schema/tests.py
+Updated 0 paths from d72cd6cb99
++ git apply -v -
+Checking patch tests/schema/tests.py...
+Applied patch tests/schema/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 schema.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application schema
+Found 176 test(s).
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, schema, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+test_add_binaryfield_mediumblob (schema.tests.SchemaTests)
+Test adding a custom-sized binary field on MySQL (#24846). ... skipped 'MySQL specific'
+test_add_datefield_and_datetimefield_use_effective_default (schema.tests.SchemaTests)
+effective_default() should be used for DateField, DateTimeField, and ... ok
+test_add_field (schema.tests.SchemaTests)
+Tests adding fields to models ... ok
+test_add_field_binary (schema.tests.SchemaTests)
+Tests binary fields get a sane default (#22851) ... ok
+test_add_field_db_collation (schema.tests.SchemaTests) ... ok
+test_add_field_default_dropped (schema.tests.SchemaTests) ... ok
+test_add_field_default_nullable (schema.tests.SchemaTests) ... ok
+test_add_field_default_transform (schema.tests.SchemaTests)
+Tests adding fields to models with a default that is not directly ... ok
+test_add_field_durationfield_with_default (schema.tests.SchemaTests) ... ok
+test_add_field_o2o_nullable (schema.tests.SchemaTests) ... ok
+test_add_field_remove_field (schema.tests.SchemaTests)
+Adding a field and removing it removes all deferred sql referring to it. ... ok
+test_add_field_temp_default (schema.tests.SchemaTests)
+Tests adding fields to models with a temporary default ... ok
+test_add_field_temp_default_boolean (schema.tests.SchemaTests)
+Tests adding fields to models with a temporary default where ... ok
+test_add_field_use_effective_default (schema.tests.SchemaTests)
+#23987 - effective_default() should be used as the field default when ... ok
+test_add_foreign_key_long_names (schema.tests.SchemaTests)
+Regression test for #23009. ... ok
+test_add_foreign_key_quoted_db_table (schema.tests.SchemaTests) ... ok
+test_add_foreign_object (schema.tests.SchemaTests) ... ok
+test_add_indexed_charfield (schema.tests.SchemaTests) ... skipped 'PostgreSQL specific'
+test_add_inline_fk_index_update_data (schema.tests.SchemaTests) ... skipped "Database doesn't support feature(s): can_create_inline_fk, allows_multiple_constraints_on_same_fields"
+test_add_inline_fk_update_data (schema.tests.SchemaTests) ... skipped "Database doesn't support feature(s): can_create_inline_fk"
+test_add_remove_index (schema.tests.SchemaTests)
+Tests index addition and removal ... ok
+test_add_textfield_default_nullable (schema.tests.SchemaTests) ... ok
+test_add_textfield_unhashable_default (schema.tests.SchemaTests) ... ok
+test_add_unique_charfield (schema.tests.SchemaTests) ... skipped 'PostgreSQL specific'
+test_alter (schema.tests.SchemaTests)
+Tests simple altering of fields ... ok
+test_alter_array_field_decrease_base_field_length (schema.tests.SchemaTests) ... skipped 'PostgreSQL specific'
+test_alter_array_field_decrease_nested_base_field_length (schema.tests.SchemaTests) ... skipped 'PostgreSQL specific'
+test_alter_auto_field_quoted_db_column (schema.tests.SchemaTests) ... ok
+test_alter_auto_field_to_char_field (schema.tests.SchemaTests) ... ok
+test_alter_auto_field_to_integer_field (schema.tests.SchemaTests) ... ok
+test_alter_autofield_pk_to_bigautofield_pk_sequence_owner (schema.tests.SchemaTests)
+Converting an implicit PK to BigAutoField(primary_key=True) should keep ... ok
+test_alter_autofield_pk_to_smallautofield_pk_sequence_owner (schema.tests.SchemaTests)
+Converting an implicit PK to SmallAutoField(primary_key=True) should ... ok
+test_alter_char_field_decrease_length (schema.tests.SchemaTests) ... skipped 'PostgreSQL specific'
+test_alter_charfield_to_null (schema.tests.SchemaTests)
+#24307 - Should skip an alter statement on databases with ... ok
+test_alter_db_table_case (schema.tests.SchemaTests) ... ok
+test_alter_field_add_db_index_to_charfield_with_unique (schema.tests.SchemaTests) ... skipped 'PostgreSQL specific'
+test_alter_field_add_index_to_charfield (schema.tests.SchemaTests) ... skipped 'PostgreSQL specific'
+test_alter_field_add_index_to_integerfield (schema.tests.SchemaTests) ... ok
+test_alter_field_add_index_to_textfield (schema.tests.SchemaTests) ... skipped 'PostgreSQL specific'
+test_alter_field_add_unique_to_charfield (schema.tests.SchemaTests) ... skipped 'PostgreSQL specific'
+test_alter_field_add_unique_to_charfield_with_db_index (schema.tests.SchemaTests) ... skipped 'PostgreSQL specific'
+test_alter_field_choices_noop (schema.tests.SchemaTests) ... ok
+test_alter_field_db_collation (schema.tests.SchemaTests) ... ok
+test_alter_field_default_doesnt_perform_queries (schema.tests.SchemaTests)
+No queries are performed if a field default changes and the field's ... skipped 'SQLite naively remakes the table on field alteration.'
+test_alter_field_default_dropped (schema.tests.SchemaTests) ... ok
+test_alter_field_fk_attributes_noop (schema.tests.SchemaTests)
+No queries are performed when changing field attributes that don't ... ok
+test_alter_field_fk_keeps_index (schema.tests.SchemaTests) ... ok
+test_alter_field_fk_to_o2o (schema.tests.SchemaTests) ... ok
+test_alter_field_o2o_keeps_unique (schema.tests.SchemaTests) ... ok
+test_alter_field_o2o_to_fk (schema.tests.SchemaTests) ... ok
+test_alter_field_remove_unique_and_db_index_from_charfield (schema.tests.SchemaTests) ... skipped 'PostgreSQL specific'
+test_alter_field_swap_unique_and_db_index_with_charfield (schema.tests.SchemaTests) ... skipped 'PostgreSQL specific'
+test_alter_field_type_and_db_collation (schema.tests.SchemaTests) ... ok
+test_alter_field_with_custom_db_type (schema.tests.SchemaTests) ... skipped 'PostgreSQL specific'
+test_alter_fk (schema.tests.SchemaTests)
+Tests altering of FKs ... ok
+test_alter_fk_checks_deferred_constraints (schema.tests.SchemaTests)
+#25492 - Altering a foreign key's structure and data in the same ... ok
+test_alter_fk_to_o2o (schema.tests.SchemaTests)
+#24163 - Tests altering of ForeignKey to OneToOneField ... ok
+test_alter_implicit_id_to_explicit (schema.tests.SchemaTests)
+Should be able to convert an implicit "id" field to an explicit "id" ... ok
+test_alter_int_pk_to_autofield_pk (schema.tests.SchemaTests)
+Should be able to rename an IntegerField(primary_key=True) to ... ok
+test_alter_int_pk_to_bigautofield_pk (schema.tests.SchemaTests)
+Should be able to rename an IntegerField(primary_key=True) to ... ok
+test_alter_int_pk_to_int_unique (schema.tests.SchemaTests)
+Should be able to rename an IntegerField(primary_key=True) to ... ok
+test_alter_not_unique_field_to_primary_key (schema.tests.SchemaTests) ... ok
+test_alter_null_to_not_null (schema.tests.SchemaTests)
+#23609 - Tests handling of default values when altering from NULL to NOT NULL. ... ok
+test_alter_null_to_not_null_keeping_default (schema.tests.SchemaTests)
+#23738 - Can change a nullable field with default to non-nullable ... ok
+test_alter_numeric_field_keep_null_status (schema.tests.SchemaTests)
+Changing a field type shouldn't affect the not null status. ... ok
+test_alter_o2o_to_fk (schema.tests.SchemaTests)
+#24163 - Tests altering of OneToOneField to ForeignKey ... ok
+test_alter_pk_with_self_referential_field (schema.tests.SchemaTests)
+Changing the primary key field name of a model with a self-referential ... ok
+test_alter_primary_key_quoted_db_table (schema.tests.SchemaTests) ... ok
+test_alter_smallint_pk_to_smallautofield_pk (schema.tests.SchemaTests)
+Should be able to rename an SmallIntegerField(primary_key=True) to ... ok
+test_alter_text_field (schema.tests.SchemaTests) ... ok
+test_alter_text_field_to_date_field (schema.tests.SchemaTests)
+#25002 - Test conversion of text field to date field. ... ok
+test_alter_text_field_to_datetime_field (schema.tests.SchemaTests)
+#25002 - Test conversion of text field to datetime field. ... ok
+test_alter_text_field_to_not_null_with_default_value (schema.tests.SchemaTests) ... ok
+test_alter_text_field_to_time_field (schema.tests.SchemaTests)
+#25002 - Test conversion of text field to time field. ... ok
+test_alter_textfield_to_null (schema.tests.SchemaTests)
+#24307 - Should skip an alter statement on databases with ... ok
+test_alter_textual_field_keep_null_status (schema.tests.SchemaTests)
+Changing a field type shouldn't affect the not null status. ... ok
+test_alter_textual_field_not_null_to_null (schema.tests.SchemaTests)
+Nullability for textual fields is preserved on databases that ... skipped "Database doesn't support feature(s): interprets_empty_strings_as_nulls"
+test_alter_to_fk (schema.tests.SchemaTests)
+#24447 - Tests adding a FK constraint for an existing column ... ok
+test_char_field_pk_to_auto_field (schema.tests.SchemaTests) ... ok
+test_char_field_with_db_index_to_fk (schema.tests.SchemaTests) ... ok
+test_check_constraint_timedelta_param (schema.tests.SchemaTests) ... ok
+test_check_constraints (schema.tests.SchemaTests)
+Tests creating/deleting CHECK constraints ... ok
+test_ci_cs_db_collation (schema.tests.SchemaTests) ... ok
+test_composite_func_index (schema.tests.SchemaTests) ... ok
+test_composite_func_index_field_and_expression (schema.tests.SchemaTests) ... ok
+test_composite_func_unique_constraint (schema.tests.SchemaTests) ... ok
+test_context_manager_exit (schema.tests.SchemaTests)
+Ensures transaction is correctly closed when an error occurs ... ok
+test_create_index_together (schema.tests.SchemaTests)
+Tests creating models with index_together already defined ... ok
+test_creation_deletion (schema.tests.SchemaTests)
+Tries creating a model's table, and then deleting it. ... ok
+test_creation_deletion_reserved_names (schema.tests.SchemaTests)
+Tries creating a model's table, and then deleting it when it has a ... ok
+test_creation_with_db_table_double_quotes (schema.tests.SchemaTests) ... skipped 'Oracle specific db_table syntax'
+test_db_collation_charfield (schema.tests.SchemaTests) ... ok
+test_db_collation_textfield (schema.tests.SchemaTests) ... ok
+test_db_table (schema.tests.SchemaTests)
+Tests renaming of the table ... ok
+test_fk (schema.tests.SchemaTests)
+Creating tables out of FK order, then repointing, works ... ok
+test_fk_db_constraint (schema.tests.SchemaTests)
+The db_constraint parameter is respected ... ok
+test_fk_to_proxy (schema.tests.SchemaTests)
+Creating a FK to a proxy model creates database constraints. ... ok
+test_foreign_key_index_long_names_regression (schema.tests.SchemaTests)
+Regression test for #21497. ... ok
+test_func_index (schema.tests.SchemaTests) ... ok
+test_func_index_calc (schema.tests.SchemaTests) ... ok
+test_func_index_cast (schema.tests.SchemaTests) ... ok
+test_func_index_collate (schema.tests.SchemaTests) ... ok
+test_func_index_collate_f_ordered (schema.tests.SchemaTests) ... ok
+test_func_index_f (schema.tests.SchemaTests) ... ok
+test_func_index_f_decimalfield (schema.tests.SchemaTests) ... ok
+test_func_index_invalid_topmost_expressions (schema.tests.SchemaTests) ... ok
+test_func_index_json_key_transform (schema.tests.SchemaTests) ... ok
+test_func_index_json_key_transform_cast (schema.tests.SchemaTests) ... ok
+test_func_index_lookups (schema.tests.SchemaTests) ... ok
+test_func_index_multiple_wrapper_references (schema.tests.SchemaTests) ... ok
+test_func_index_nondeterministic (schema.tests.SchemaTests) ... ok
+test_func_index_nonexistent_field (schema.tests.SchemaTests) ... ok
+test_func_index_unsupported (schema.tests.SchemaTests) ... skipped 'Database has feature(s) supports_expression_indexes'
+test_func_unique_constraint (schema.tests.SchemaTests) ... ok
+test_func_unique_constraint_collate (schema.tests.SchemaTests) ... ok
+test_func_unique_constraint_covering (schema.tests.SchemaTests) ... skipped "Database doesn't support feature(s): supports_expression_indexes, supports_covering_indexes"
+test_func_unique_constraint_lookups (schema.tests.SchemaTests) ... ok
+test_func_unique_constraint_nondeterministic (schema.tests.SchemaTests) ... ok
+test_func_unique_constraint_nonexistent_field (schema.tests.SchemaTests) ... ok
+test_func_unique_constraint_partial (schema.tests.SchemaTests) ... ok
+test_func_unique_constraint_unsupported (schema.tests.SchemaTests) ... skipped 'Database has feature(s) supports_expression_indexes'
+test_index_together (schema.tests.SchemaTests)
+Tests removing and adding index_together constraints on a model. ... ok
+test_index_together_with_fk (schema.tests.SchemaTests)
+Tests removing and adding index_together constraints that include ... ok
+test_indexes (schema.tests.SchemaTests)
+Tests creation/altering of indexes ... ok
+test_inline_fk (schema.tests.SchemaTests) ... skipped "Database doesn't support feature(s): can_create_inline_fk"
+test_m2m (schema.tests.SchemaTests) ... ok
+test_m2m_create (schema.tests.SchemaTests) ... ok
+test_m2m_create_custom (schema.tests.SchemaTests) ... ok
+test_m2m_create_inherited (schema.tests.SchemaTests) ... ok
+test_m2m_create_through (schema.tests.SchemaTests) ... ok
+test_m2m_create_through_custom (schema.tests.SchemaTests) ... ok
+test_m2m_create_through_inherited (schema.tests.SchemaTests) ... ok
+test_m2m_custom (schema.tests.SchemaTests) ... ok
+test_m2m_db_constraint (schema.tests.SchemaTests) ... ok
+test_m2m_db_constraint_custom (schema.tests.SchemaTests) ... ok
+test_m2m_db_constraint_inherited (schema.tests.SchemaTests) ... ok
+test_m2m_inherited (schema.tests.SchemaTests) ... ok
+test_m2m_rename_field_in_target_model (schema.tests.SchemaTests) ... ok
+test_m2m_repoint (schema.tests.SchemaTests) ... ok
+test_m2m_repoint_custom (schema.tests.SchemaTests) ... ok
+test_m2m_repoint_inherited (schema.tests.SchemaTests) ... ok
+test_m2m_through_alter (schema.tests.SchemaTests) ... ok
+test_m2m_through_alter_custom (schema.tests.SchemaTests) ... ok
+test_m2m_through_alter_inherited (schema.tests.SchemaTests) ... ok
+test_m2m_through_remove (schema.tests.SchemaTests) ... ok
+test_namespaced_db_table_create_index_name (schema.tests.SchemaTests)
+Table names are stripped of their namespace/schema before being used to ... ok
+test_namespaced_db_table_foreign_key_reference (schema.tests.SchemaTests) ... skipped 'PostgreSQL specific db_table syntax.'
+test_no_db_constraint_added_during_primary_key_change (schema.tests.SchemaTests)
+When a primary key that's pointed to by a ForeignKey with ... ok
+test_order_index (schema.tests.SchemaTests)
+Indexes defined with ordering (ASC/DESC) defined on column ... ok
+test_primary_key (schema.tests.SchemaTests)
+Tests altering of the primary key ... ok
+test_referenced_field_without_constraint_rename_inside_atomic_block (schema.tests.SchemaTests)
+Foreign keys without database level constraint don't prevent the field ... ok
+test_referenced_table_without_constraint_rename_inside_atomic_block (schema.tests.SchemaTests)
+Foreign keys without database level constraint don't prevent the table ... ok
+test_remove_constraints_capital_letters (schema.tests.SchemaTests)
+#23065 - Constraint names must be quoted if they contain capital letters. ... ok
+test_remove_db_index_doesnt_remove_custom_indexes (schema.tests.SchemaTests)
+Changing db_index to False doesn't remove indexes from Meta.indexes. ... ok
+test_remove_field (schema.tests.SchemaTests) ... ok
+test_remove_field_check_does_not_remove_meta_constraints (schema.tests.SchemaTests) ... ok
+test_remove_field_unique_does_not_remove_meta_constraints (schema.tests.SchemaTests) ... ok
+test_remove_index_together_does_not_remove_meta_indexes (schema.tests.SchemaTests) ... ok
+test_remove_unique_together_does_not_remove_meta_constraints (schema.tests.SchemaTests) ... ok
+test_rename (schema.tests.SchemaTests)
+Tests simple altering of fields ... ok
+test_rename_column_renames_deferred_sql_references (schema.tests.SchemaTests) ... skipped 'SQLite naively remakes the table on field alteration.'
+test_rename_keep_null_status (schema.tests.SchemaTests)
+Renaming a field shouldn't affect the not null status. ... ok
+test_rename_referenced_field (schema.tests.SchemaTests) ... ok
+test_rename_table_renames_deferred_sql_references (schema.tests.SchemaTests) ... ok
+test_text_field_with_db_index (schema.tests.SchemaTests) ... ok
+test_text_field_with_db_index_to_fk (schema.tests.SchemaTests) ... ok
+test_unique (schema.tests.SchemaTests)
+Tests removing and adding unique constraints to a single column. ... ok
+test_unique_and_reverse_m2m (schema.tests.SchemaTests)
+AlterField can modify a unique field when there's a reverse M2M ... skipped 'SQLite naively remakes the table on field alteration.'
+test_unique_constraint (schema.tests.SchemaTests) ... ok
+test_unique_constraint_field_and_expression (schema.tests.SchemaTests) ... ok
+test_unique_name_quoting (schema.tests.SchemaTests) ... ok
+test_unique_no_unnecessary_fk_drops (schema.tests.SchemaTests)
+If AlterField isn't selective about dropping foreign key constraints ... skipped 'SQLite naively remakes the table on field alteration.'
+test_unique_together (schema.tests.SchemaTests)
+Tests removing and adding unique_together constraints on a model. ... ok
+test_unique_together_with_fk (schema.tests.SchemaTests)
+Tests removing and adding unique_together constraints that include ... ok
+test_unique_together_with_fk_with_existing_index (schema.tests.SchemaTests)
+Tests removing and adding unique_together constraints that include ... ok
+test_unsupported_transactional_ddl_disallowed (schema.tests.SchemaTests) ... skipped 'Database has feature(s) can_rollback_ddl'
+
+----------------------------------------------------------------------
+Ran 176 tests in 3.479s
+
+OK (skipped=28)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout 6991880109e35c879b71b7d9d9c154baeec12b89 tests/schema/tests.py
+Updated 1 path from d72cd6cb99

@@ -1,0 +1,39 @@
+
+diff --git a/pylint/lint/base_options.py b/pylint/lint/base_options.py
+index c793cc85a..a49f6e0ba 100644
+--- a/pylint/lint/base_options.py
++++ b/pylint/lint/base_options.py
+@@ -538,8 +538,7 @@ def _make_run_options(self: Run) -> Options:
+         (
+             "verbose",
+             {
+-                "action": _DoNothingAction,
+-                "kwargs": {},
++                "action": "store_true",
+                 "short": "v",
+                 "help": "In verbose mode, extra non-checker-related info "
+                 "will be displayed.",
+diff --git a/test_verbose_option.py b/test_verbose_option.py
+new file mode 100644
+index 000000000..f2ea08fb1
+--- /dev/null
++++ b/test_verbose_option.py
+@@ -0,0 +1,18 @@
++import sys
++from pylint.lint import Run
++
++if __name__ == "__main__":
++    try:
++        # Test with verbose option
++        Run(["-v", "--help"])
++        print("Verbose option works correctly")
++        
++        # Test without verbose option
++        Run(["--help"])
++        print("Non-verbose option works correctly")
++        
++        print("All tests passed successfully")
++    except SystemExit:
++        print("Test passed: SystemExit was raised as expected")
++    except Exception as e:
++        print(f"An unexpected error occurred: {e}")

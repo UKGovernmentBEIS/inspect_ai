@@ -1,0 +1,158 @@
+
+diff --git a/django/forms/models.py b/django/forms/models.py
+index 192d9fad94..966d395f7d 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -630,21 +630,26 @@ def modelform_factory(
+     # creating needs to inherit from the parent's inner meta.
+     bases = (form.Meta,) if hasattr(form, "Meta") else ()
+     Meta = type("Meta", bases, attrs)
+-    if formfield_callback:
+-        Meta.formfield_callback = staticmethod(formfield_callback)
++    
++    # Class attributes for the new form class.
++    form_class_attrs = {}
++
++    # Use formfield_callback from Meta if it exists, otherwise use the provided one
++    if hasattr(form, 'Meta') and hasattr(form.Meta, 'formfield_callback'):
++        form_class_attrs["formfield_callback"] = form.Meta.formfield_callback
++    elif formfield_callback:
++        form_class_attrs["formfield_callback"] = formfield_callback
++
+     # Give this new form class a reasonable name.
+     class_name = model.__name__ + "Form"
+ 
+-    # Class attributes for the new form class.
+-    form_class_attrs = {"Meta": Meta, "formfield_callback": formfield_callback}
+-
++    # Add Meta to form_class_attrs
++    form_class_attrs["Meta"] = Meta
+     if getattr(Meta, "fields", None) is None and getattr(Meta, "exclude", None) is None:
+         raise ImproperlyConfigured(
+             "Calling modelform_factory without defining 'fields' or "
+             "'exclude' explicitly is prohibited."
+         )
+-
+-    # Instantiate type(form) in order to use the same metaclass as form.
+     return type(form)(class_name, (form,), form_class_attrs)
+ 
+ 
+diff --git a/docs/topics/forms/modelforms.txt b/docs/topics/forms/modelforms.txt
+index 3332709089..06a4db6749 100644
+--- a/docs/topics/forms/modelforms.txt
++++ b/docs/topics/forms/modelforms.txt
+@@ -746,6 +746,23 @@ documentation.
+ 
+     >>> Form = modelform_factory(Author, form=AuthorForm, localized_fields=("birth_date",))
+ 
++The `formfield_callback` can also be specified either in the `Meta` class of the form or as an argument to `modelform_factory`. If both are provided, the `Meta` class takes precedence:
++
++    >>> def custom_callback(field, **kwargs):
++    ...     return forms.CharField(initial='Custom Initial')
++    >>> class AuthorForm(ModelForm):
++    ...     class Meta:
++    ...         model = Author
++    ...         fields = ('name', 'title')
++    ...         formfield_callback = custom_callback
++    >>> Form = modelform_factory(Author, form=AuthorForm)
++    # This will use the formfield_callback from AuthorForm.Meta
++
++    >>> def another_callback(field, **kwargs):
++    ...     return forms.CharField(initial='Another Initial')
++    >>> Form = modelform_factory(Author, form=AuthorForm, formfield_callback=another_callback)
++    # This will still use the formfield_callback from AuthorForm.Meta, not another_callback
++
+ .. _model-formsets:
+ 
+ Model formsets
+diff --git a/run_tests.py b/run_tests.py
+new file mode 100644
+index 0000000000..2a7448b6c3
+--- /dev/null
++++ b/run_tests.py
+@@ -0,0 +1,45 @@
++import os
++import sys
++import django
++from django.conf import settings
++from django.test.utils import get_runner
++
++# Add the parent directory to sys.path to allow importing Django modules
++sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
++
++if __name__ == "__main__":
++    # Configure minimal settings
++    settings.configure(
++        DEBUG=True,
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=(
++            'django.contrib.auth',
++            'django.contrib.contenttypes',
++            'tests.model_forms',
++        ),
++        ROOT_URLCONF='tests.urls',
++        MIDDLEWARE=[],
++    )
++
++    django.setup()
++
++    # Import our test case
++    from tests.model_forms.tests import ModelFormFactoryCallbackTests
++
++    # Create a test suite with our test case
++    import unittest
++    suite = unittest.TestLoader().loadTestsFromTestCase(ModelFormFactoryCallbackTests)
++
++    # Get the test runner
++    TestRunner = get_runner(settings)
++    test_runner = TestRunner(verbosity=1, interactive=True)
++
++    # Run the tests
++    failures = test_runner.run_suite(suite)
++
++    sys.exit(bool(failures))
+diff --git a/tests/model_forms/tests.py b/tests/model_forms/tests.py
+index d2ce3348c5..e42fa13e8c 100644
+--- a/tests/model_forms/tests.py
++++ b/tests/model_forms/tests.py
+@@ -3614,3 +3614,35 @@ class ModelToDictTests(TestCase):
+         # If data were a QuerySet, it would be reevaluated here and give "red"
+         # instead of the original value.
+         self.assertEqual(data, [blue])
++
++class ModelFormFactoryCallbackTests(TestCase):
++    def test_formfield_callback_from_meta(self):
++        def custom_callback(field, **kwargs):
++            return forms.CharField(initial='Custom Initial')
++
++        class CustomForm(forms.ModelForm):
++            class Meta:
++                model = Person
++                fields = ['name']
++                formfield_callback = custom_callback
++
++        FormClass = modelform_factory(Person, form=CustomForm)
++        form = FormClass()
++        self.assertEqual(form.fields['name'].initial, 'Custom Initial')
++
++    def test_formfield_callback_priority(self):
++        def meta_callback(field, **kwargs):
++            return forms.CharField(initial='Meta Initial')
++
++        def factory_callback(field, **kwargs):
++            return forms.CharField(initial='Factory Initial')
++
++        class CustomForm(forms.ModelForm):
++            class Meta:
++                model = Person
++                fields = ['name']
++                formfield_callback = meta_callback
++
++        FormClass = modelform_factory(Person, form=CustomForm, formfield_callback=factory_callback)
++        form = FormClass()
++        self.assertEqual(form.fields['name'].initial, 'Meta Initial')

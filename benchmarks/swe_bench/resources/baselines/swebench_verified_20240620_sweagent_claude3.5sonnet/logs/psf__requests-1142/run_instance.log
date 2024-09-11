@@ -1,0 +1,589 @@
+2024-07-25 22:13:56,552 - INFO - Environment image sweb.env.x86_64.1f92e6d7cef88badc4f744:latest found for psf__requests-1142
+Building instance image sweb.eval.x86_64.psf__requests-1142:latest for psf__requests-1142
+2024-07-25 22:14:02,910 - INFO - Creating container for psf__requests-1142...
+2024-07-25 22:14:02,943 - INFO - Container for psf__requests-1142 created: b59e2acd19c26283016a5e870b2c527c76c1cb39b39f97ec09014d4d8d2a9960
+2024-07-25 22:14:03,529 - INFO - Container for psf__requests-1142 started: b59e2acd19c26283016a5e870b2c527c76c1cb39b39f97ec09014d4d8d2a9960
+2024-07-25 22:14:03,532 - INFO - Intermediate patch for psf__requests-1142 written to logs/run_evaluation/claude-3-5-run1/claude-3-5-sonnet-20240620__swe-bench-test-split-all__default_xml__t-0.00__p-0.95__c-4.00__install-1__2024-06-20/psf__requests-1142/patch.diff, now applying to container...
+2024-07-25 22:14:03,932 - INFO - Failed to apply patch to container, trying again...
+2024-07-25 22:14:04,037 - INFO - >>>>> Patch Apply Failed:
+The next patch would create the file build/lib/requests/__init__.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/__init__.py
+The next patch would create the file build/lib/requests/adapters.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/adapters.py
+The next patch would create the file build/lib/requests/api.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/api.py
+The next patch would create the file build/lib/requests/auth.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/auth.py
+The next patch would create the file build/lib/requests/cacert.pem,
+which already exists!  Assuming -R.
+patching file build/lib/requests/cacert.pem
+The next patch would create the file build/lib/requests/certs.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/certs.py
+The next patch would create the file build/lib/requests/compat.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/compat.py
+The next patch would create the file build/lib/requests/cookies.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/cookies.py
+The next patch would create the file build/lib/requests/exceptions.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/exceptions.py
+The next patch would create the file build/lib/requests/hooks.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/hooks.py
+The next patch would create the file build/lib/requests/models.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/models.py
+The next patch would create the file build/lib/requests/packages/__init__.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/__init__.py
+The next patch would create the file build/lib/requests/packages/charade/__init__.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/__init__.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/__init__.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/__init__.py.rej
+The next patch would create the file build/lib/requests/packages/charade/big5freq.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/big5freq.py
+The next patch would create the file build/lib/requests/packages/charade/big5prober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/big5prober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/big5prober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/big5prober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/chardistribution.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/chardistribution.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/chardistribution.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/chardistribution.py.rej
+The next patch would create the file build/lib/requests/packages/charade/charsetgroupprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/charsetgroupprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/charsetgroupprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/charsetgroupprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/charsetprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/charsetprober.py
+The next patch would create the file build/lib/requests/packages/charade/codingstatemachine.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/codingstatemachine.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/codingstatemachine.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/codingstatemachine.py.rej
+The next patch would create the file build/lib/requests/packages/charade/compat.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/compat.py
+The next patch would create the file build/lib/requests/packages/charade/constants.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/constants.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/constants.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/constants.py.rej
+The next patch would create the file build/lib/requests/packages/charade/escprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/escprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/escprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/escprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/escsm.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/escsm.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/escsm.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/escsm.py.rej
+The next patch would create the file build/lib/requests/packages/charade/eucjpprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/eucjpprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/eucjpprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/eucjpprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/euckrfreq.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/euckrfreq.py
+The next patch would create the file build/lib/requests/packages/charade/euckrprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/euckrprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/euckrprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/euckrprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/euctwfreq.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/euctwfreq.py
+The next patch would create the file build/lib/requests/packages/charade/euctwprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/euctwprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/euctwprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/euctwprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/gb2312freq.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/gb2312freq.py
+The next patch would create the file build/lib/requests/packages/charade/gb2312prober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/gb2312prober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/gb2312prober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/gb2312prober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/hebrewprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/hebrewprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/hebrewprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/hebrewprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/jisfreq.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/jisfreq.py
+The next patch would create the file build/lib/requests/packages/charade/jpcntx.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/jpcntx.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/jpcntx.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/jpcntx.py.rej
+The next patch would create the file build/lib/requests/packages/charade/langbulgarianmodel.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/langbulgarianmodel.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/langbulgarianmodel.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/langbulgarianmodel.py.rej
+The next patch would create the file build/lib/requests/packages/charade/langcyrillicmodel.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/langcyrillicmodel.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/langcyrillicmodel.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/langcyrillicmodel.py.rej
+The next patch would create the file build/lib/requests/packages/charade/langgreekmodel.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/langgreekmodel.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/langgreekmodel.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/langgreekmodel.py.rej
+The next patch would create the file build/lib/requests/packages/charade/langhebrewmodel.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/langhebrewmodel.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/langhebrewmodel.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/langhebrewmodel.py.rej
+The next patch would create the file build/lib/requests/packages/charade/langhungarianmodel.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/langhungarianmodel.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/langhungarianmodel.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/langhungarianmodel.py.rej
+The next patch would create the file build/lib/requests/packages/charade/langthaimodel.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/langthaimodel.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/langthaimodel.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/langthaimodel.py.rej
+The next patch would create the file build/lib/requests/packages/charade/latin1prober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/latin1prober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/latin1prober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/latin1prober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/mbcharsetprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/mbcharsetprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/mbcharsetprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/mbcharsetprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/mbcsgroupprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/mbcsgroupprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/mbcsgroupprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/mbcsgroupprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/mbcssm.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/mbcssm.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/mbcssm.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/mbcssm.py.rej
+The next patch would create the file build/lib/requests/packages/charade/sbcharsetprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/sbcharsetprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/sbcharsetprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/sbcharsetprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/sbcsgroupprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/sbcsgroupprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/sbcsgroupprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/sbcsgroupprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/sjisprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/sjisprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/sjisprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/sjisprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/universaldetector.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/universaldetector.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/universaldetector.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/universaldetector.py.rej
+The next patch would create the file build/lib/requests/packages/charade/utf8prober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/utf8prober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/utf8prober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/utf8prober.py.rej
+The next patch would create the file build/lib/requests/packages/urllib3/__init__.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/__init__.py
+The next patch would create the file build/lib/requests/packages/urllib3/_collections.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/_collections.py
+The next patch would create the file build/lib/requests/packages/urllib3/connectionpool.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/connectionpool.py
+The next patch would create the file build/lib/requests/packages/urllib3/exceptions.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/exceptions.py
+The next patch would create the file build/lib/requests/packages/urllib3/filepost.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/filepost.py
+The next patch would create the file build/lib/requests/packages/urllib3/packages/__init__.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/packages/__init__.py
+The next patch would create the file build/lib/requests/packages/urllib3/packages/ordered_dict.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/packages/ordered_dict.py
+The next patch would create the file build/lib/requests/packages/urllib3/packages/six.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/packages/six.py
+The next patch would create the file build/lib/requests/packages/urllib3/packages/ssl_match_hostname/__init__.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/packages/ssl_match_hostname/__init__.py
+The next patch would create the file build/lib/requests/packages/urllib3/poolmanager.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/poolmanager.py
+The next patch would create the file build/lib/requests/packages/urllib3/request.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/request.py
+The next patch would create the file build/lib/requests/packages/urllib3/response.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/response.py
+The next patch would create the file build/lib/requests/packages/urllib3/util.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/util.py
+The next patch would create the file build/lib/requests/sessions.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/sessions.py
+The next patch would create the file build/lib/requests/status_codes.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/status_codes.py
+The next patch would create the file build/lib/requests/structures.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/structures.py
+The next patch would create the file build/lib/requests/utils.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/utils.py
+patching file reproduce.py
+patching file requests/models.py
+
+2024-07-25 22:14:04,038 - INFO - Traceback (most recent call last):
+  File "/home/ec2-user/miniconda3/lib/python3.12/site-packages/swebench/harness/run_evaluation.py", line 134, in run_instance
+    raise EvaluationError(
+EvaluationError: Evaluation error for psf__requests-1142: >>>>> Patch Apply Failed:
+The next patch would create the file build/lib/requests/__init__.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/__init__.py
+The next patch would create the file build/lib/requests/adapters.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/adapters.py
+The next patch would create the file build/lib/requests/api.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/api.py
+The next patch would create the file build/lib/requests/auth.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/auth.py
+The next patch would create the file build/lib/requests/cacert.pem,
+which already exists!  Assuming -R.
+patching file build/lib/requests/cacert.pem
+The next patch would create the file build/lib/requests/certs.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/certs.py
+The next patch would create the file build/lib/requests/compat.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/compat.py
+The next patch would create the file build/lib/requests/cookies.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/cookies.py
+The next patch would create the file build/lib/requests/exceptions.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/exceptions.py
+The next patch would create the file build/lib/requests/hooks.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/hooks.py
+The next patch would create the file build/lib/requests/models.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/models.py
+The next patch would create the file build/lib/requests/packages/__init__.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/__init__.py
+The next patch would create the file build/lib/requests/packages/charade/__init__.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/__init__.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/__init__.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/__init__.py.rej
+The next patch would create the file build/lib/requests/packages/charade/big5freq.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/big5freq.py
+The next patch would create the file build/lib/requests/packages/charade/big5prober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/big5prober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/big5prober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/big5prober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/chardistribution.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/chardistribution.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/chardistribution.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/chardistribution.py.rej
+The next patch would create the file build/lib/requests/packages/charade/charsetgroupprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/charsetgroupprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/charsetgroupprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/charsetgroupprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/charsetprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/charsetprober.py
+The next patch would create the file build/lib/requests/packages/charade/codingstatemachine.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/codingstatemachine.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/codingstatemachine.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/codingstatemachine.py.rej
+The next patch would create the file build/lib/requests/packages/charade/compat.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/compat.py
+The next patch would create the file build/lib/requests/packages/charade/constants.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/constants.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/constants.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/constants.py.rej
+The next patch would create the file build/lib/requests/packages/charade/escprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/escprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/escprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/escprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/escsm.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/escsm.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/escsm.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/escsm.py.rej
+The next patch would create the file build/lib/requests/packages/charade/eucjpprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/eucjpprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/eucjpprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/eucjpprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/euckrfreq.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/euckrfreq.py
+The next patch would create the file build/lib/requests/packages/charade/euckrprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/euckrprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/euckrprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/euckrprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/euctwfreq.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/euctwfreq.py
+The next patch would create the file build/lib/requests/packages/charade/euctwprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/euctwprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/euctwprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/euctwprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/gb2312freq.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/gb2312freq.py
+The next patch would create the file build/lib/requests/packages/charade/gb2312prober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/gb2312prober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/gb2312prober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/gb2312prober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/hebrewprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/hebrewprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/hebrewprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/hebrewprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/jisfreq.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/jisfreq.py
+The next patch would create the file build/lib/requests/packages/charade/jpcntx.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/jpcntx.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/jpcntx.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/jpcntx.py.rej
+The next patch would create the file build/lib/requests/packages/charade/langbulgarianmodel.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/langbulgarianmodel.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/langbulgarianmodel.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/langbulgarianmodel.py.rej
+The next patch would create the file build/lib/requests/packages/charade/langcyrillicmodel.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/langcyrillicmodel.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/langcyrillicmodel.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/langcyrillicmodel.py.rej
+The next patch would create the file build/lib/requests/packages/charade/langgreekmodel.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/langgreekmodel.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/langgreekmodel.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/langgreekmodel.py.rej
+The next patch would create the file build/lib/requests/packages/charade/langhebrewmodel.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/langhebrewmodel.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/langhebrewmodel.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/langhebrewmodel.py.rej
+The next patch would create the file build/lib/requests/packages/charade/langhungarianmodel.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/langhungarianmodel.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/langhungarianmodel.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/langhungarianmodel.py.rej
+The next patch would create the file build/lib/requests/packages/charade/langthaimodel.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/langthaimodel.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/langthaimodel.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/langthaimodel.py.rej
+The next patch would create the file build/lib/requests/packages/charade/latin1prober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/latin1prober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/latin1prober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/latin1prober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/mbcharsetprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/mbcharsetprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/mbcharsetprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/mbcharsetprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/mbcsgroupprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/mbcsgroupprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/mbcsgroupprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/mbcsgroupprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/mbcssm.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/mbcssm.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/mbcssm.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/mbcssm.py.rej
+The next patch would create the file build/lib/requests/packages/charade/sbcharsetprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/sbcharsetprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/sbcharsetprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/sbcharsetprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/sbcsgroupprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/sbcsgroupprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/sbcsgroupprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/sbcsgroupprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/sjisprober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/sjisprober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/sjisprober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/sjisprober.py.rej
+The next patch would create the file build/lib/requests/packages/charade/universaldetector.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/universaldetector.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/universaldetector.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/universaldetector.py.rej
+The next patch would create the file build/lib/requests/packages/charade/utf8prober.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/charade/utf8prober.py
+Hunk #1 FAILED at 1 (different line endings).
+Not deleting file build/lib/requests/packages/charade/utf8prober.py as content differs from patch
+1 out of 1 hunk FAILED -- saving rejects to file build/lib/requests/packages/charade/utf8prober.py.rej
+The next patch would create the file build/lib/requests/packages/urllib3/__init__.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/__init__.py
+The next patch would create the file build/lib/requests/packages/urllib3/_collections.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/_collections.py
+The next patch would create the file build/lib/requests/packages/urllib3/connectionpool.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/connectionpool.py
+The next patch would create the file build/lib/requests/packages/urllib3/exceptions.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/exceptions.py
+The next patch would create the file build/lib/requests/packages/urllib3/filepost.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/filepost.py
+The next patch would create the file build/lib/requests/packages/urllib3/packages/__init__.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/packages/__init__.py
+The next patch would create the file build/lib/requests/packages/urllib3/packages/ordered_dict.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/packages/ordered_dict.py
+The next patch would create the file build/lib/requests/packages/urllib3/packages/six.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/packages/six.py
+The next patch would create the file build/lib/requests/packages/urllib3/packages/ssl_match_hostname/__init__.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/packages/ssl_match_hostname/__init__.py
+The next patch would create the file build/lib/requests/packages/urllib3/poolmanager.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/poolmanager.py
+The next patch would create the file build/lib/requests/packages/urllib3/request.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/request.py
+The next patch would create the file build/lib/requests/packages/urllib3/response.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/response.py
+The next patch would create the file build/lib/requests/packages/urllib3/util.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/packages/urllib3/util.py
+The next patch would create the file build/lib/requests/sessions.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/sessions.py
+The next patch would create the file build/lib/requests/status_codes.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/status_codes.py
+The next patch would create the file build/lib/requests/structures.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/structures.py
+The next patch would create the file build/lib/requests/utils.py,
+which already exists!  Assuming -R.
+patching file build/lib/requests/utils.py
+patching file reproduce.py
+patching file requests/models.py
+
+Check (logs/run_evaluation/claude-3-5-run1/claude-3-5-sonnet-20240620__swe-bench-test-split-all__default_xml__t-0.00__p-0.95__c-4.00__install-1__2024-06-20/psf__requests-1142/run_instance.log) for more information.
+
+2024-07-25 22:14:04,039 - INFO - Attempting to stop container sweb.eval.psf__requests-1142.claude-3-5-run1...
+2024-07-25 22:14:19,671 - INFO - Attempting to remove container sweb.eval.psf__requests-1142.claude-3-5-run1...
+2024-07-25 22:14:19,684 - INFO - Container sweb.eval.psf__requests-1142.claude-3-5-run1 removed.
+2024-07-25 22:14:19,684 - INFO - Attempting to remove image sweb.eval.x86_64.psf__requests-1142:latest...
+2024-07-25 22:14:19,794 - INFO - Image sweb.eval.x86_64.psf__requests-1142:latest removed.

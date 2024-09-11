@@ -1,0 +1,59 @@
+{
+    "django__django-11265": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "test_with_exclude (filtered_relation.tests.FilteredRelationTests)"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_aggregate (filtered_relation.tests.FilteredRelationAggregationTests)",
+                    "test_as_subquery (filtered_relation.tests.FilteredRelationTests)",
+                    "test_defer (filtered_relation.tests.FilteredRelationTests)",
+                    "test_difference (filtered_relation.tests.FilteredRelationTests)",
+                    "test_exclude_relation_with_join (filtered_relation.tests.FilteredRelationTests)",
+                    "test_extra (filtered_relation.tests.FilteredRelationTests)",
+                    "test_internal_queryset_alias_mapping (filtered_relation.tests.FilteredRelationTests)",
+                    "test_intersection (filtered_relation.tests.FilteredRelationTests)",
+                    "test_multiple_times (filtered_relation.tests.FilteredRelationTests)",
+                    "test_only_not_supported (filtered_relation.tests.FilteredRelationTests)",
+                    "test_select_for_update (filtered_relation.tests.FilteredRelationTests)",
+                    "test_select_related (filtered_relation.tests.FilteredRelationTests)",
+                    "test_select_related_foreign_key (filtered_relation.tests.FilteredRelationTests)",
+                    "test_select_related_with_empty_relation (filtered_relation.tests.FilteredRelationTests)",
+                    "test_union (filtered_relation.tests.FilteredRelationTests)",
+                    "test_values (filtered_relation.tests.FilteredRelationTests)",
+                    "test_values_list (filtered_relation.tests.FilteredRelationTests)",
+                    "test_with_condition_as_expression_error (filtered_relation.tests.FilteredRelationTests)",
+                    "test_with_empty_relation_name_error (filtered_relation.tests.FilteredRelationTests)",
+                    "test_with_foreign_key_error (filtered_relation.tests.FilteredRelationTests)",
+                    "test_with_foreign_key_on_condition_error (filtered_relation.tests.FilteredRelationTests)",
+                    "test_with_generic_foreign_key (filtered_relation.tests.FilteredRelationTests)",
+                    "test_with_join (filtered_relation.tests.FilteredRelationTests)",
+                    "test_with_join_and_complex_condition (filtered_relation.tests.FilteredRelationTests)",
+                    "test_with_m2m (filtered_relation.tests.FilteredRelationTests)",
+                    "test_with_m2m_deep (filtered_relation.tests.FilteredRelationTests)",
+                    "test_with_m2m_multijoin (filtered_relation.tests.FilteredRelationTests)",
+                    "test_with_multiple_filter (filtered_relation.tests.FilteredRelationTests)",
+                    "test_with_prefetch_related (filtered_relation.tests.FilteredRelationTests)",
+                    "test_without_join (filtered_relation.tests.FilteredRelationTests)"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

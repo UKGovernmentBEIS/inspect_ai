@@ -1,0 +1,38 @@
+
+diff --git a/django/contrib/admin/sites.py b/django/contrib/admin/sites.py
+index 61be31d890..9c34a31087 100644
+--- a/django/contrib/admin/sites.py
++++ b/django/contrib/admin/sites.py
+@@ -453,7 +453,7 @@ class AdminSite:
+                 pass
+             else:
+                 if getattr(match.func, "should_append_slash", True):
+-                    return HttpResponsePermanentRedirect("%s/" % request.path)
++                    return HttpResponsePermanentRedirect("%s/%s" % (request.path, ('?' + request.META['QUERY_STRING'] if request.META['QUERY_STRING'] else '')))
+         raise Http404
+ 
+     def _build_app_dict(self, request, label=None):
+diff --git a/tests/admin_views/test_admin_redirect.py b/tests/admin_views/test_admin_redirect.py
+new file mode 100644
+index 0000000000..a50f82c888
+--- /dev/null
++++ b/tests/admin_views/test_admin_redirect.py
+@@ -0,0 +1,18 @@
++from django.contrib.admin.sites import AdminSite
++from django.test import TestCase, RequestFactory
++from django.http import HttpResponsePermanentRedirect
++from unittest.mock import patch
++from django.urls import ResolverMatch
++
++class AdminRedirectTests(TestCase):
++    def setUp(self):
++        self.site = AdminSite()
++        self.factory = RequestFactory()
++
++    @patch('django.contrib.admin.sites.resolve')
++    def test_catch_all_view_preserves_query_string(self, mock_resolve):
++        mock_resolve.return_value = ResolverMatch(lambda: None, (), {})
++        request = self.factory.get('/admin/auth/user?q=test')
++        response = self.site.catch_all_view(request, 'auth/user')
++        self.assertIsInstance(response, HttpResponsePermanentRedirect)
++        self.assertEqual(response.url, '/admin/auth/user/?q=test')

@@ -1,0 +1,59 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..ef7359b524
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,17 @@
++from sympy import Poly, Symbol, S
++
++x = Symbol('x')
++
++print("Poly(x)*x:")
++print(Poly(x)*x)
++print("\nx*Poly(x):")
++print(x*Poly(x))
++print("\n-2*Poly(x):")
++print(-2*Poly(x))
++print("\nS(-2)*Poly(x):")
++print(S(-2)*Poly(x))
++print("\nPoly(x)*S(-2):")
++print(Poly(x)*S(-2))
++
++print("\nScript completed successfully, no errors.")
++
+diff --git a/sympy/polys/polytools.py b/sympy/polys/polytools.py
+index d5ac051f63..33f04f03ab 100644
+--- a/sympy/polys/polytools.py
++++ b/sympy/polys/polytools.py
+@@ -4038,24 +4038,27 @@ def __rsub__(f, g):
+         return g.sub(f)
+ 
+     @_sympifyit('g', NotImplemented)
++
+     def __mul__(f, g):
++        if isinstance(g, (Symbol, Expr)):
++            return f.mul(f.__class__(g, *f.gens))
+         if not g.is_Poly:
+             try:
+                 g = f.__class__(g, *f.gens)
+             except PolynomialError:
+                 return f.as_expr()*g
+-
+         return f.mul(g)
+ 
+     @_sympifyit('g', NotImplemented)
+     def __rmul__(f, g):
++        if isinstance(g, (Symbol, Expr)):
++            return f.mul(f.__class__(g, *f.gens))
+         if not g.is_Poly:
+             try:
+                 g = f.__class__(g, *f.gens)
+             except PolynomialError:
+                 return g*f.as_expr()
+-
+-        return g.mul(f)
++        return f.mul(g)
+ 
+     @_sympifyit('n', NotImplemented)
+     def __pow__(f, n):

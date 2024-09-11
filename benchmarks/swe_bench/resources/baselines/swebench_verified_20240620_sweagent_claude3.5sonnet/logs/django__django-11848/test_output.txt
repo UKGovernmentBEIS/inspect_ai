@@ -1,0 +1,671 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/utils/http.py
+	modified:   tests/utils_tests/test_http.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit f0adf3b9b7a19cdee05368ff0c0c2d087f011180
+Author: Hasan Ramezani <hasan.r67@gmail.com>
+Date:   Tue Sep 24 23:42:35 2019 +0200
+
+    Fixed #30774 -- Made serialization in migrations use members names for Enums.
+
+diff --git a/django/db/migrations/serializer.py b/django/db/migrations/serializer.py
+index 27b5cbd379..8aa6a04935 100644
+--- a/django/db/migrations/serializer.py
++++ b/django/db/migrations/serializer.py
+@@ -120,9 +120,10 @@ class EnumSerializer(BaseSerializer):
+     def serialize(self):
+         enum_class = self.value.__class__
+         module = enum_class.__module__
+-        v_string, v_imports = serializer_factory(self.value.value).serialize()
+-        imports = {'import %s' % module, *v_imports}
+-        return "%s.%s(%s)" % (module, enum_class.__name__, v_string), imports
++        return (
++            '%s.%s[%r]' % (module, enum_class.__name__, self.value.name),
++            {'import %s' % module},
++        )
+ 
+ 
+ class FloatSerializer(BaseSimpleSerializer):
+diff --git a/tests/migrations/test_writer.py b/tests/migrations/test_writer.py
+index f97d76e9ad..6295a67992 100644
+--- a/tests/migrations/test_writer.py
++++ b/tests/migrations/test_writer.py
+@@ -257,6 +257,10 @@ class WriterTests(SimpleTestCase):
+             A = 'a-value'
+             B = 'value-b'
+ 
++        class TextTranslatedEnum(enum.Enum):
++            A = _('a-value')
++            B = _('value-b')
++
+         class BinaryEnum(enum.Enum):
+             A = b'a-value'
+             B = b'value-b'
+@@ -267,15 +271,19 @@ class WriterTests(SimpleTestCase):
+ 
+         self.assertSerializedResultEqual(
+             TextEnum.A,
+-            ("migrations.test_writer.TextEnum('a-value')", {'import migrations.test_writer'})
++            ("migrations.test_writer.TextEnum['A']", {'import migrations.test_writer'})
++        )
++        self.assertSerializedResultEqual(
++            TextTranslatedEnum.A,
++            ("migrations.test_writer.TextTranslatedEnum['A']", {'import migrations.test_writer'})
+         )
+         self.assertSerializedResultEqual(
+             BinaryEnum.A,
+-            ("migrations.test_writer.BinaryEnum(b'a-value')", {'import migrations.test_writer'})
++            ("migrations.test_writer.BinaryEnum['A']", {'import migrations.test_writer'})
+         )
+         self.assertSerializedResultEqual(
+             IntEnum.B,
+-            ("migrations.test_writer.IntEnum(2)", {'import migrations.test_writer'})
++            ("migrations.test_writer.IntEnum['B']", {'import migrations.test_writer'})
+         )
+ 
+         field = models.CharField(default=TextEnum.B, choices=[(m.value, m) for m in TextEnum])
+@@ -283,27 +291,39 @@ class WriterTests(SimpleTestCase):
+         self.assertEqual(
+             string,
+             "models.CharField(choices=["
+-            "('a-value', migrations.test_writer.TextEnum('a-value')), "
+-            "('value-b', migrations.test_writer.TextEnum('value-b'))], "
+-            "default=migrations.test_writer.TextEnum('value-b'))"
++            "('a-value', migrations.test_writer.TextEnum['A']), "
++            "('value-b', migrations.test_writer.TextEnum['B'])], "
++            "default=migrations.test_writer.TextEnum['B'])"
++        )
++        field = models.CharField(
++            default=TextTranslatedEnum.A,
++            choices=[(m.value, m) for m in TextTranslatedEnum],
++        )
++        string = MigrationWriter.serialize(field)[0]
++        self.assertEqual(
++            string,
++            "models.CharField(choices=["
++            "('a-value', migrations.test_writer.TextTranslatedEnum['A']), "
++            "('value-b', migrations.test_writer.TextTranslatedEnum['B'])], "
++            "default=migrations.test_writer.TextTranslatedEnum['A'])"
+         )
+         field = models.CharField(default=BinaryEnum.B, choices=[(m.value, m) for m in BinaryEnum])
+         string = MigrationWriter.serialize(field)[0]
+         self.assertEqual(
+             string,
+             "models.CharField(choices=["
+-            "(b'a-value', migrations.test_writer.BinaryEnum(b'a-value')), "
+-            "(b'value-b', migrations.test_writer.BinaryEnum(b'value-b'))], "
+-            "default=migrations.test_writer.BinaryEnum(b'value-b'))"
++            "(b'a-value', migrations.test_writer.BinaryEnum['A']), "
++            "(b'value-b', migrations.test_writer.BinaryEnum['B'])], "
++            "default=migrations.test_writer.BinaryEnum['B'])"
+         )
+         field = models.IntegerField(default=IntEnum.A, choices=[(m.value, m) for m in IntEnum])
+         string = MigrationWriter.serialize(field)[0]
+         self.assertEqual(
+             string,
+             "models.IntegerField(choices=["
+-            "(1, migrations.test_writer.IntEnum(1)), "
+-            "(2, migrations.test_writer.IntEnum(2))], "
+-            "default=migrations.test_writer.IntEnum(1))"
++            "(1, migrations.test_writer.IntEnum['A']), "
++            "(2, migrations.test_writer.IntEnum['B'])], "
++            "default=migrations.test_writer.IntEnum['A'])"
+         )
+ 
+     def test_serialize_choices(self):
+@@ -454,7 +474,7 @@ class WriterTests(SimpleTestCase):
+         # Test a string regex with flag
+         validator = RegexValidator(r'^[0-9]+$', flags=re.S)
+         string = MigrationWriter.serialize(validator)[0]
+-        self.assertEqual(string, "django.core.validators.RegexValidator('^[0-9]+$', flags=re.RegexFlag(16))")
++        self.assertEqual(string, "django.core.validators.RegexValidator('^[0-9]+$', flags=re.RegexFlag['DOTALL'])")
+         self.serialize_round_trip(validator)
+ 
+         # Test message and code
++ git diff f0adf3b9b7a19cdee05368ff0c0c2d087f011180
+diff --git a/django/utils/http.py b/django/utils/http.py
+index 572cfb4347..0c6654346f 100644
+--- a/django/utils/http.py
++++ b/django/utils/http.py
+@@ -35,7 +35,7 @@ __Y = r'(?P<year>\d{4})'
+ __Y2 = r'(?P<year>\d{2})'
+ __T = r'(?P<hour>\d{2}):(?P<min>\d{2}):(?P<sec>\d{2})'
+ RFC1123_DATE = re.compile(r'^\w{3}, %s %s %s %s GMT$' % (__D, __M, __Y, __T))
+-RFC850_DATE = re.compile(r'^\w{6,9}, %s-%s-%s %s GMT$' % (__D, __M, __Y2, __T))
++RFC850_DATE = re.compile(r'^\w{3}, %s %s %s %s GMT$' % (__D, __M, __Y2, __T))
+ ASCTIME_DATE = re.compile(r'^\w{3} %s %s %s %s$' % (__M, __D2, __T, __Y))
+ 
+ RFC3986_GENDELIMS = ":/?#[]@"
+@@ -164,31 +164,45 @@ def parse_http_date(date):
+ 
+     Return an integer expressed in seconds since the epoch, in UTC.
+     """
+-    # email.utils.parsedate() does the job for RFC1123 dates; unfortunately
+-    # RFC7231 makes it mandatory to support RFC850 dates too. So we roll
+-    # our own RFC-compliant parsing.
+-    for regex in RFC1123_DATE, RFC850_DATE, ASCTIME_DATE:
++    # Try the RFC850 format first
++    m = RFC850_DATE.match(date)
++    if m is not None:
++        try:
++            year = int(m.group('year'))
++            # Adjust for two-digit year
++            current_year = datetime.datetime.now().year
++            current_century = current_year - (current_year % 100)
++            if year > (current_year % 100) + 50:
++                year += current_century - 100
++            else:
++                year += current_century
++            month = MONTHS.index(m.group('mon').lower()) + 1
++            day = int(m.group('day'))
++            hour = int(m.group('hour'))
++            min = int(m.group('min'))
++            sec = int(m.group('sec'))
++            result = datetime.datetime(year, month, day, hour, min, sec)
++            return calendar.timegm(result.utctimetuple())
++        except Exception:
++            pass
++
++    # If RFC850 format didn't match, try the other formats
++    for regex in RFC1123_DATE, ASCTIME_DATE:
+         m = regex.match(date)
+         if m is not None:
+-            break
+-    else:
+-        raise ValueError("%r is not in a valid HTTP date format" % date)
+-    try:
+-        year = int(m.group('year'))
+-        if year < 100:
+-            if year < 70:
+-                year += 2000
+-            else:
+-                year += 1900
+-        month = MONTHS.index(m.group('mon').lower()) + 1
+-        day = int(m.group('day'))
+-        hour = int(m.group('hour'))
+-        min = int(m.group('min'))
+-        sec = int(m.group('sec'))
+-        result = datetime.datetime(year, month, day, hour, min, sec)
+-        return calendar.timegm(result.utctimetuple())
+-    except Exception as exc:
+-        raise ValueError("%r is not a valid date" % date) from exc
++            try:
++                year = int(m.group('year'))
++                month = MONTHS.index(m.group('mon').lower()) + 1
++                day = int(m.group('day'))
++                hour = int(m.group('hour'))
++                min = int(m.group('min'))
++                sec = int(m.group('sec'))
++                result = datetime.datetime(year, month, day, hour, min, sec)
++                return calendar.timegm(result.utctimetuple())
++            except Exception:
++                pass
++
++    raise ValueError("%r is not in a valid HTTP date format" % date)
+ 
+ 
+ def parse_http_date_safe(date):
+diff --git a/tests/utils_tests/test_http.py b/tests/utils_tests/test_http.py
+index bc8bcfe977..87889dc5d9 100644
+--- a/tests/utils_tests/test_http.py
++++ b/tests/utils_tests/test_http.py
+@@ -336,5 +336,32 @@ class EscapeLeadingSlashesTests(unittest.TestCase):
+             ('//', '/%2F'),
+         )
+         for url, expected in tests:
+-            with self.subTest(url=url):
+                 self.assertEqual(escape_leading_slashes(url), expected)
++
++
++class ParseHttpDateTests(SimpleTestCase):
++    def test_parse_http_date(self):
++        from django.utils.http import parse_http_date
++        import time
++
++        # Test for dates before 1970 (negative timestamps)
++        self.assertEqual(parse_http_date("Sun, 06 Nov 1994 08:49:37 GMT"), 784111777)
++
++        # Test for dates after 1970
++        self.assertEqual(parse_http_date("Wed, 21 Oct 2015 07:28:00 GMT"), 1445412480)
++
++        # Test for dates with two-digit years
++        current_year = time.gmtime().tm_year
++        current_century = current_year - (current_year % 100)
++
++        # Date that appears to be more than 50 years in the future
++        future_date = f"Wed, 21 Oct {(current_year % 100) + 51:02d} 07:28:00 GMT"
++        expected_year = current_century - 100 + (current_year % 100) + 51
++        expected_timestamp = int(time.mktime(time.strptime(f"{expected_year}-10-21 07:28:00", "%Y-%m-%d %H:%M:%S")))
++        self.assertEqual(parse_http_date(future_date), expected_timestamp)
++
++        # Date that appears to be less than or equal to 50 years in the future
++        recent_date = f"Wed, 21 Oct {(current_year % 100) + 50:02d} 07:28:00 GMT"
++        expected_year = current_century + (current_year % 100) + 50
++        expected_timestamp = int(time.mktime(time.strptime(f"{expected_year}-10-21 07:28:00", "%Y-%m-%d %H:%M:%S")))
++        self.assertEqual(parse_http_date(recent_date), expected_timestamp)
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (2024.1)
+Requirement already satisfied: sqlparse in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (0.4.4)
+Requirement already satisfied: asgiref in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (3.4.1)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref->Django==3.1) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.1
+    Uninstalling Django-3.1:
+      Successfully uninstalled Django-3.1
+  Running setup.py develop for Django
+Successfully installed Django-3.1
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout f0adf3b9b7a19cdee05368ff0c0c2d087f011180 tests/utils_tests/test_http.py
+Updated 1 path from 523bee2a37
++ git apply -v -
+Checking patch tests/utils_tests/test_http.py...
+Applied patch tests/utils_tests/test_http.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 utils_tests.test_http
+test_input_too_large (utils_tests.test_http.Base36IntTests) ... ok
+test_invalid_literal (utils_tests.test_http.Base36IntTests) ... ok
+test_negative_input (utils_tests.test_http.Base36IntTests) ... ok
+test_roundtrip (utils_tests.test_http.Base36IntTests) ... ok
+test_to_base36_errors (utils_tests.test_http.Base36IntTests) ... ok
+test_to_int_errors (utils_tests.test_http.Base36IntTests) ... ok
+test_values (utils_tests.test_http.Base36IntTests) ... ok
+test_allowed_hosts_str (utils_tests.test_http.IsSafeURLTests) ... ok
+test_bad_urls (utils_tests.test_http.IsSafeURLTests) ... ok
+test_basic_auth (utils_tests.test_http.IsSafeURLTests) ... ok
+test_good_urls (utils_tests.test_http.IsSafeURLTests) ... ok
+test_is_safe_url_deprecated (utils_tests.test_http.IsSafeURLTests) ... ok
+test_no_allowed_hosts (utils_tests.test_http.IsSafeURLTests) ... ok
+test_secure_param_https_urls (utils_tests.test_http.IsSafeURLTests) ... ok
+test_secure_param_non_https_urls (utils_tests.test_http.IsSafeURLTests) ... ok
+test_custom_iterable_not_doseq (utils_tests.test_http.URLEncodeTests) ... ok
+test_dict (utils_tests.test_http.URLEncodeTests) ... ok
+test_dict_containing_empty_sequence_doseq (utils_tests.test_http.URLEncodeTests) ... ok
+test_dict_containing_sequence_doseq (utils_tests.test_http.URLEncodeTests) ... ok
+test_dict_containing_sequence_not_doseq (utils_tests.test_http.URLEncodeTests) ... ok
+test_dict_containing_tuple_not_doseq (utils_tests.test_http.URLEncodeTests) ... ok
+test_dict_with_bytearray (utils_tests.test_http.URLEncodeTests) ... ok
+test_dict_with_bytes_values (utils_tests.test_http.URLEncodeTests) ... ok
+test_dict_with_sequence_of_bytes (utils_tests.test_http.URLEncodeTests) ... ok
+test_generator (utils_tests.test_http.URLEncodeTests) ... ok
+test_multivaluedict (utils_tests.test_http.URLEncodeTests) ... ok
+test_none (utils_tests.test_http.URLEncodeTests) ... ok
+test_none_in_generator (utils_tests.test_http.URLEncodeTests) ... ok
+test_none_in_sequence (utils_tests.test_http.URLEncodeTests) ... ok
+test_tuples (utils_tests.test_http.URLEncodeTests) ... ok
+test_parsing (utils_tests.test_http.ETagProcessingTests) ... ok
+test_quoting (utils_tests.test_http.ETagProcessingTests) ... ok
+test (utils_tests.test_http.EscapeLeadingSlashesTests) ... ok
+test_http_date (utils_tests.test_http.HttpDateProcessingTests) ... ok
+test_parsing_asctime (utils_tests.test_http.HttpDateProcessingTests) ... ok
+test_parsing_rfc1123 (utils_tests.test_http.HttpDateProcessingTests) ... ok
+test_parsing_rfc850 (utils_tests.test_http.HttpDateProcessingTests) ... test_parsing_year_less_than_70 (utils_tests.test_http.HttpDateProcessingTests) ... FAIL
+test_bad (utils_tests.test_http.IsSameDomainTests) ... ok
+test_good (utils_tests.test_http.IsSameDomainTests) ... ok
+test_quote (utils_tests.test_http.URLQuoteTests) ... ok
+test_quote_plus (utils_tests.test_http.URLQuoteTests) ... ok
+test_unquote (utils_tests.test_http.URLQuoteTests) ... ok
+test_unquote_plus (utils_tests.test_http.URLQuoteTests) ... ok
+test_roundtrip (utils_tests.test_http.URLSafeBase64Tests) ... Testing against Django installed in '/testbed/django'
+Importing application utils_tests
+Skipping setup of unused database(s): default, other.
+System check identified no issues (0 silenced).
+ok
+
+======================================================================
+ERROR: test_parsing_rfc850 (utils_tests.test_http.HttpDateProcessingTests) (rfc850str='Tuesday, 31-Dec-69 08:49:37 GMT')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/utils_tests/test_http.py", line 339, in test_parsing_rfc850
+    parsed = parse_http_date(rfc850str)
+  File "/testbed/django/utils/http.py", line 205, in parse_http_date
+    raise ValueError("%r is not in a valid HTTP date format" % date)
+ValueError: 'Tuesday, 31-Dec-69 08:49:37 GMT' is not in a valid HTTP date format
+
+======================================================================
+ERROR: test_parsing_rfc850 (utils_tests.test_http.HttpDateProcessingTests) (rfc850str='Tuesday, 10-Nov-70 08:49:37 GMT')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/utils_tests/test_http.py", line 339, in test_parsing_rfc850
+    parsed = parse_http_date(rfc850str)
+  File "/testbed/django/utils/http.py", line 205, in parse_http_date
+    raise ValueError("%r is not in a valid HTTP date format" % date)
+ValueError: 'Tuesday, 10-Nov-70 08:49:37 GMT' is not in a valid HTTP date format
+
+======================================================================
+ERROR: test_parsing_rfc850 (utils_tests.test_http.HttpDateProcessingTests) (rfc850str='Sunday, 06-Nov-94 08:49:37 GMT')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/utils_tests/test_http.py", line 339, in test_parsing_rfc850
+    parsed = parse_http_date(rfc850str)
+  File "/testbed/django/utils/http.py", line 205, in parse_http_date
+    raise ValueError("%r is not in a valid HTTP date format" % date)
+ValueError: 'Sunday, 06-Nov-94 08:49:37 GMT' is not in a valid HTTP date format
+
+======================================================================
+ERROR: test_parsing_rfc850 (utils_tests.test_http.HttpDateProcessingTests) (rfc850str='Wednesday, 31-Dec-70 08:49:37 GMT')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/utils_tests/test_http.py", line 339, in test_parsing_rfc850
+    parsed = parse_http_date(rfc850str)
+  File "/testbed/django/utils/http.py", line 205, in parse_http_date
+    raise ValueError("%r is not in a valid HTTP date format" % date)
+ValueError: 'Wednesday, 31-Dec-70 08:49:37 GMT' is not in a valid HTTP date format
+
+======================================================================
+ERROR: test_parsing_rfc850 (utils_tests.test_http.HttpDateProcessingTests) (rfc850str='Friday, 31-Dec-71 08:49:37 GMT')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/utils_tests/test_http.py", line 339, in test_parsing_rfc850
+    parsed = parse_http_date(rfc850str)
+  File "/testbed/django/utils/http.py", line 205, in parse_http_date
+    raise ValueError("%r is not in a valid HTTP date format" % date)
+ValueError: 'Friday, 31-Dec-71 08:49:37 GMT' is not in a valid HTTP date format
+
+======================================================================
+ERROR: test_parsing_rfc850 (utils_tests.test_http.HttpDateProcessingTests) (rfc850str='Sunday, 31-Dec-00 08:49:37 GMT')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/utils_tests/test_http.py", line 339, in test_parsing_rfc850
+    parsed = parse_http_date(rfc850str)
+  File "/testbed/django/utils/http.py", line 205, in parse_http_date
+    raise ValueError("%r is not in a valid HTTP date format" % date)
+ValueError: 'Sunday, 31-Dec-00 08:49:37 GMT' is not in a valid HTTP date format
+
+======================================================================
+ERROR: test_parsing_rfc850 (utils_tests.test_http.HttpDateProcessingTests) (rfc850str='Friday, 31-Dec-99 08:49:37 GMT')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/utils_tests/test_http.py", line 339, in test_parsing_rfc850
+    parsed = parse_http_date(rfc850str)
+  File "/testbed/django/utils/http.py", line 205, in parse_http_date
+    raise ValueError("%r is not in a valid HTTP date format" % date)
+ValueError: 'Friday, 31-Dec-99 08:49:37 GMT' is not in a valid HTTP date format
+
+======================================================================
+FAIL: test_parsing_year_less_than_70 (utils_tests.test_http.HttpDateProcessingTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/utils_tests/test_http.py", line 348, in test_parsing_year_less_than_70
+    self.assertEqual(datetime.utcfromtimestamp(parsed), datetime(2037, 11, 6, 8, 49, 37))
+AssertionError: datetime.datetime(37, 11, 6, 8, 49, 37) != datetime.datetime(2037, 11, 6, 8, 49, 37)
+
+----------------------------------------------------------------------
+Ran 45 tests in 0.012s
+
+FAILED (failures=1, errors=7)
++ git checkout f0adf3b9b7a19cdee05368ff0c0c2d087f011180 tests/utils_tests/test_http.py
+Updated 1 path from 523bee2a37

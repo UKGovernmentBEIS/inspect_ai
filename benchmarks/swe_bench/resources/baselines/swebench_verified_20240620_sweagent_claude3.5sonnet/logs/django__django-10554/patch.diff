@@ -1,0 +1,260 @@
+
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index a791908caf..799ba916f5 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -419,7 +419,7 @@ class SQLCompiler:
+                     raise DatabaseError('LIMIT/OFFSET not allowed in subqueries of compound statements.')
+                 if compiler.get_order_by():
+                     raise DatabaseError('ORDER BY not allowed in subqueries of compound statements.')
+-        parts = ()
++        parts = []
+         for compiler in compilers:
+             try:
+                 # If the columns list is limited, then all combined queries
+@@ -442,7 +442,7 @@ class SQLCompiler:
+                     # already added for all compound queries.
+                     elif not features.supports_slicing_ordering_in_compound:
+                         part_sql = '({})'.format(part_sql)
+-                parts += ((part_sql, part_args),)
++                parts.append((part_sql, part_args))
+             except EmptyResultSet:
+                 # Omit the empty queryset with UNION and with DIFFERENCE if the
+                 # first queryset is nonempty.
+@@ -455,11 +455,24 @@ class SQLCompiler:
+         if all and combinator == 'union':
+             combinator_sql += ' ALL'
+         braces = '({})' if features.supports_slicing_ordering_in_compound else '{}'
+-        sql_parts, args_parts = zip(*((braces.format(sql), args) for sql, args in parts))
++        sql_parts, args_parts = zip(*parts)
+         result = [' {} '.format(combinator_sql).join(sql_parts)]
+         params = []
+         for part in args_parts:
+             params.extend(part)
++        
++        # Add ORDER BY clause for the combined query
++        order_by = self.query.order_by
++        if order_by:
++            ordering = []
++            for field in order_by:
++                if isinstance(field, str):
++                    ordering.append(field.lstrip('-'))
++                elif hasattr(field, 'get_ordering_name'):
++                    ordering.append(field.get_ordering_name())
++            if ordering:
++                result.append('ORDER BY %s' % ', '.join(ordering))
++        
+         return result, params
+ 
+     def as_sql(self, with_limits=True, with_col_aliases=False):
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..65c466d322
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,44 @@
++import os
++import django
++
++# Configure Django settings
++os.environ.setdefault("DJANGO_SETTINGS_MODULE", "test_settings")
++django.setup()
++
++from django.test import TestCase
++from testapp import Dimension
++
++class TestUnionQuerysetOrdering(TestCase):
++    @classmethod
++    def setUpTestData(cls):
++        Dimension.objects.bulk_create([
++            Dimension(id=10, name='A', order=1),
++            Dimension(id=11, name='B', order=2),
++            Dimension(id=16, name='C', order=3),
++            Dimension(id=17, name='D', order=4),
++        ])
++
++    def test_union_queryset_ordering(self):
++        qs = (
++            Dimension.objects.filter(pk__in=[10, 11])
++            .union(Dimension.objects.filter(pk__in=[16, 17]))
++            .order_by('order')
++        )
++        
++        print("Initial queryset:", [d.id for d in qs])
++        
++        try:
++            reordered = qs.order_by().values_list('pk', flat=True)
++            print("Reordered queryset:", list(reordered))
++            
++            # This should raise an exception
++            print("Trying to evaluate qs again:", [d.id for d in qs])
++        except Exception as e:
++            print(f"Exception raised: {type(e).__name__}: {str(e)}")
++
++        print("Test completed.")
++
++if __name__ == '__main__':
++    test_case = TestUnionQuerysetOrdering()
++    test_case.setUpTestData()
++    test_case.test_union_queryset_ordering()
+diff --git a/test_project/__init__.py b/test_project/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_project/manage.py b/test_project/manage.py
+new file mode 100644
+index 0000000000..2fb39583a0
+--- /dev/null
++++ b/test_project/manage.py
+@@ -0,0 +1,15 @@
++#!/usr/bin/env python
++import os
++import sys
++
++if __name__ == "__main__":
++    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "settings")
++    try:
++        from django.core.management import execute_from_command_line
++    except ImportError as exc:
++        raise ImportError(
++            "Couldn't import Django. Are you sure it's installed and "
++            "available on your PYTHONPATH environment variable? Did you "
++            "forget to activate a virtual environment?"
++        ) from exc
++    execute_from_command_line(sys.argv)
+diff --git a/test_project/settings.py b/test_project/settings.py
+new file mode 100644
+index 0000000000..05ef17268c
+--- /dev/null
++++ b/test_project/settings.py
+@@ -0,0 +1,22 @@
++import os
++
++BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
++
++SECRET_KEY = 'dummy-secret-key-for-testing'
++
++DEBUG = True
++
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'django.contrib.auth',
++    'testapp',
++]
++
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
++    }
++}
++
++DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+diff --git a/test_project/testapp/__init__.py b/test_project/testapp/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_project/testapp/models.py b/test_project/testapp/models.py
+new file mode 100644
+index 0000000000..9623dd6e74
+--- /dev/null
++++ b/test_project/testapp/models.py
+@@ -0,0 +1,8 @@
++from django.db import models
++
++class Dimension(models.Model):
++    name = models.CharField(max_length=100)
++    order = models.IntegerField()
++
++    def __str__(self):
++        return self.name
+diff --git a/test_project/testapp/test_union_queryset.py b/test_project/testapp/test_union_queryset.py
+new file mode 100644
+index 0000000000..22af5de743
+--- /dev/null
++++ b/test_project/testapp/test_union_queryset.py
+@@ -0,0 +1,44 @@
++from django.test import TestCase
++from .models import Dimension
++
++class TestUnionQuerysetOrdering(TestCase):
++    @classmethod
++    def setUpTestData(cls):
++        Dimension.objects.bulk_create([
++            Dimension(id=10, name='A', order=1),
++            Dimension(id=11, name='B', order=2),
++            Dimension(id=16, name='C', order=3),
++            Dimension(id=17, name='D', order=4),
++        ])
++
++    def test_union_queryset_ordering(self):
++        qs1 = Dimension.objects.filter(pk__in=[10, 11])
++        qs2 = Dimension.objects.filter(pk__in=[16, 17])
++        
++        print("qs1 query:", qs1.query)
++        print("qs2 query:", qs2.query)
++        
++        qs = qs1.union(qs2).order_by('order')
++        
++        print("Union queryset query:", qs.query)
++        print("Union queryset SQL:", qs.query.get_compiler(qs.db).as_sql())
++        
++        try:
++            print("Initial queryset:", list(qs.values_list('id', flat=True)))
++        except Exception as e:
++            print(f"Exception raised during initial evaluation: {type(e).__name__}: {str(e)}")
++        
++        try:
++            reordered = qs.order_by().values_list('pk', flat=True)
++            print("Reordered queryset:", list(reordered))
++        except Exception as e:
++            print(f"Exception raised during reordering: {type(e).__name__}: {str(e)}")
++        
++        try:
++            print("Trying to evaluate qs again:", list(qs))
++        except Exception as e:
++            print(f"Exception raised during final evaluation: {type(e).__name__}: {str(e)}")
++        else:
++            print("No exception was raised during final evaluation.")
++
++        print("Test completed.")
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..e66f7b23fd
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,22 @@
++import os
++
++BASE_DIR = os.path.dirname(os.path.abspath(__file__))
++
++SECRET_KEY = 'dummy-secret-key-for-testing'
++
++DEBUG = True
++
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'django.contrib.auth',
++    'testapp',  # Add this line
++]
++
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
++    }
++}
++
++DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+diff --git a/testapp.py b/testapp.py
+new file mode 100644
+index 0000000000..14d9892ddc
+--- /dev/null
++++ b/testapp.py
+@@ -0,0 +1,8 @@
++from django.db import models
++
++class Dimension(models.Model):
++    name = models.CharField(max_length=100)
++    order = models.IntegerField()
++
++    class Meta:
++        app_label = 'testapp'

@@ -1,0 +1,484 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/core/management/commands/inspectdb.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test_inspectdb.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit dab48b7482295956973879d15bfd4d3bb0718772
+Author: Mariusz Felisiak <felisiak.mariusz@gmail.com>
+Date:   Tue Nov 2 15:34:08 2021 +0100
+
+    Fixed #33234 -- Fixed autodetector crash for proxy models inheriting from non-model class.
+    
+    Regression in aa4acc164d1247c0de515c959f7b09648b57dc42.
+    
+    Thanks Kevin Marsh for the report.
+
+diff --git a/django/db/migrations/state.py b/django/db/migrations/state.py
+index 2927e66f83..d3e2098a67 100644
+--- a/django/db/migrations/state.py
++++ b/django/db/migrations/state.py
+@@ -476,6 +476,8 @@ class ProjectState:
+ 
+     def _find_concrete_model_from_proxy(self, proxy_models, model_state):
+         for base in model_state.bases:
++            if not (isinstance(base, str) or issubclass(base, models.Model)):
++                continue
+             base_key = make_model_tuple(base)
+             base_state = proxy_models.get(base_key)
+             if not base_state:
+diff --git a/tests/migrations/test_autodetector.py b/tests/migrations/test_autodetector.py
+index 8e3382adb9..3b46601145 100644
+--- a/tests/migrations/test_autodetector.py
++++ b/tests/migrations/test_autodetector.py
+@@ -1783,6 +1783,29 @@ class AutodetectorTests(TestCase):
+         self.assertOperationAttributes(changes, "testapp", 0, 0, name="AuthorProxy")
+         self.assertOperationAttributes(changes, "testapp", 0, 1, name="AuthorProxy", options={})
+ 
++    def test_proxy_non_model_parent(self):
++        class Mixin:
++            pass
++
++        author_proxy_non_model_parent = ModelState(
++            'testapp',
++            'AuthorProxy',
++            [],
++            {'proxy': True},
++            (Mixin, 'testapp.author'),
++        )
++        changes = self.get_changes(
++            [self.author_empty],
++            [self.author_empty, author_proxy_non_model_parent],
++        )
++        self.assertNumberMigrations(changes, 'testapp', 1)
++        self.assertOperationTypes(changes, 'testapp', 0, ['CreateModel'])
++        self.assertOperationAttributes(
++            changes, 'testapp', 0, 0, name='AuthorProxy',
++            options={'proxy': True, 'indexes': [], 'constraints': []},
++            bases=(Mixin, 'testapp.author'),
++        )
++
+     def test_proxy_custom_pk(self):
+         """
+         #23415 - The autodetector must correctly deal with custom FK on proxy
++ git diff dab48b7482295956973879d15bfd4d3bb0718772
+diff --git a/django/core/management/commands/inspectdb.py b/django/core/management/commands/inspectdb.py
+index f9b4bfb477..3983cb63d9 100644
+--- a/django/core/management/commands/inspectdb.py
++++ b/django/core/management/commands/inspectdb.py
+@@ -124,13 +124,20 @@ class Command(BaseCommand):
+                             "self" if relations[column_name][1] == table_name
+                             else table2model(relations[column_name][1])
+                         )
++                        
++                        # Find the constraint that corresponds to this relation
++                        for constraint in constraints.values():
++                            if constraint['foreign_key'] and constraint['columns'] == [column_name]:
++                                referenced_column = constraint['foreign_key'][1]
++                                if referenced_column != primary_key_column:
++                                    extra_params['to_field'] = referenced_column
++                                break
++                        
+                         if rel_to in known_models:
+                             field_type = '%s(%s' % (rel_type, rel_to)
+                         else:
+                             field_type = "%s('%s'" % (rel_type, rel_to)
+                     else:
+-                        # Calling `get_field_type` to get the field type string and any
+-                        # additional parameters and notes.
+                         field_type, field_params, field_notes = self.get_field_type(connection, table_name, row)
+                         extra_params.update(field_params)
+                         comment_notes.extend(field_notes)
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.3.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20211102143408) (3.8.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20211102143408) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from asgiref>=3.3.2->Django==4.1.dev20211102143408) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.1.dev20211102143408-0.editable-py3-none-any.whl size=26776 sha256=fbe07277b7bebce1c087366891e7331132e2176a1dd2809b26a7215bf22455f0
+  Stored in directory: /tmp/pip-ephem-wheel-cache-ebyohjjo/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.1.dev20211102143408
+    Uninstalling Django-4.1.dev20211102143408:
+      Successfully uninstalled Django-4.1.dev20211102143408
+Successfully installed Django-4.1.dev20211102143408
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout dab48b7482295956973879d15bfd4d3bb0718772 tests/inspectdb/models.py tests/inspectdb/tests.py
+Updated 0 paths from cc662296c2
++ git apply -v -
+Checking patch tests/inspectdb/models.py...
+Checking patch tests/inspectdb/tests.py...
+Applied patch tests/inspectdb/models.py cleanly.
+Applied patch tests/inspectdb/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 inspectdb.models inspectdb.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application inspectdb
+Found 21 test(s).
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, inspectdb, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table inspectdb_people
+    Creating table inspectdb_message
+    Creating table inspectdb_peopledata
+    Creating table inspectdb_peoplemoredata
+    Creating table inspectdb_foreignkeytofield
+    Creating table inspectdb_digitsincolumnname
+    Creating table inspectdb_special.table name
+    Creating table inspectdb_columntypes
+    Creating table inspectdb_jsonfieldcolumntype
+    Creating table inspectdb_charfielddbcollation
+    Creating table inspectdb_textfielddbcollation
+    Creating table inspectdb_uniquetogether
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (2 silenced).
+test_attribute_name_not_python_keyword (inspectdb.tests.InspectDBTestCase) ... FAIL
+test_char_field_db_collation (inspectdb.tests.InspectDBTestCase) ... ok
+test_custom_fields (inspectdb.tests.InspectDBTestCase)
+Introspection of columns with a custom field (#21090) ... FAIL
+test_digits_column_name_introspection (inspectdb.tests.InspectDBTestCase)
+Introspection of column names consist/start with digits (#16536/#17676) ... ok
+test_field_types (inspectdb.tests.InspectDBTestCase)
+Test introspection of various Django field types ... ok
+test_foreign_key_to_field (inspectdb.tests.InspectDBTestCase) ... ok
+test_introspection_errors (inspectdb.tests.InspectDBTestCase)
+Introspection errors should not crash the command, and the error should ... ok
+test_json_field (inspectdb.tests.InspectDBTestCase) ... ok
+test_managed_models (inspectdb.tests.InspectDBTestCase)
+By default the command generates models with `Meta.managed = False` (#14305) ... ok
+test_number_field_types (inspectdb.tests.InspectDBTestCase)
+Test introspection of various Django field types ... ok
+test_special_column_name_introspection (inspectdb.tests.InspectDBTestCase)
+Introspection of column names containing special characters, ... ok
+test_stealth_table_name_filter_option (inspectdb.tests.InspectDBTestCase) ... ok
+test_table_name_introspection (inspectdb.tests.InspectDBTestCase)
+Introspection of table names containing special characters, ... ok
+test_table_option (inspectdb.tests.InspectDBTestCase)
+inspectdb can inspect a subset of tables by passing the table names as ... ok
+test_text_field_db_collation (inspectdb.tests.InspectDBTestCase) ... ok
+test_unique_together_meta (inspectdb.tests.InspectDBTestCase) ... ok
+test_unsupported_unique_together (inspectdb.tests.InspectDBTestCase)
+Unsupported index types (COALESCE here) are skipped. ... skipped 'PostgreSQL specific SQL'
+test_foreign_data_wrapper (inspectdb.tests.InspectDBTransactionalTests) ... skipped 'PostgreSQL specific SQL'
+test_include_materialized_views (inspectdb.tests.InspectDBTransactionalTests)
+inspectdb --include-views creates models for materialized views. ... skipped "Database doesn't support feature(s): can_introspect_materialized_views"
+test_include_partitions (inspectdb.tests.InspectDBTransactionalTests)
+inspectdb --include-partitions creates models for partitions. ... skipped 'PostgreSQL specific SQL'
+test_include_views (inspectdb.tests.InspectDBTransactionalTests)
+inspectdb --include-views creates models for database views. ... ok
+
+======================================================================
+FAIL: test_attribute_name_not_python_keyword (inspectdb.tests.InspectDBTestCase)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/testcases.py", line 1305, in skip_wrapper
+    return test_func(*args, **kwargs)
+  File "/testbed/tests/inspectdb/tests.py", line 198, in test_attribute_name_not_python_keyword
+    self.assertIn(
+AssertionError: 'people_pk = models.OneToOneField(InspectdbPeople, models.DO_NOTHING, primary_key=True)' not found in "# This is an auto-generated Django model module.\n# You'll have to do the following manually to clean this up:\n#   * Rearrange models' order\n#   * Make sure each model has one field with primary_key=True\n#   * Make sure each ForeignKey and OneToOneField has `on_delete` set to the desired behavior\n#   * Remove `managed = False` lines if you wish to allow Django to create, modify, and delete the table\n# Feel free to rename the models, but don't rename db_table values or field names.\nfrom django.db import models\n\n\nclass InspectdbCharfielddbcollation(models.Model):\n    char_field = models.CharField(max_length=10, db_collation='nocase')\n\n    class Meta:\n        managed = False\n        db_table = 'inspectdb_charfielddbcollation'\n\n\nclass InspectdbColumntypes(models.Model):\n    big_int_field = models.BigIntegerField()\n    bool_field = models.BooleanField()\n    null_bool_field = models.BooleanField(blank=True, null=True)\n    char_field = models.CharField(max_length=10)\n    null_char_field = models.CharField(max_length=10, blank=True, null=True)\n    date_field = models.DateField()\n    date_time_field = models.DateTimeField()\n    decimal_field = models.DecimalField(max_digits=10, decimal_places=5)  # max_digits and decimal_places have been guessed, as this database handles decimal fields as float\n    email_field = models.CharField(max_length=254)\n    file_field = models.CharField(max_length=100)\n    file_path_field = models.CharField(max_length=100)\n    float_field = models.FloatField()\n    int_field = models.IntegerField()\n    gen_ip_address_field = models.CharField(max_length=39)\n    pos_big_int_field = models.PositiveBigIntegerField()\n    pos_int_field = models.PositiveIntegerField()\n    pos_small_int_field = models.PositiveSmallIntegerField()\n    slug_field = models.CharField(max_length=50)\n    small_int_field = models.SmallIntegerField()\n    text_field = models.TextField()\n    time_field = models.TimeField()\n    url_field = models.CharField(max_length=200)\n    uuid_field = models.CharField(max_length=32)\n\n    class Meta:\n        managed = False\n        db_table = 'inspectdb_columntypes'\n\n\nclass InspectdbDigitsincolumnname(models.Model):\n    number_123 = models.CharField(db_column='123', max_length=11)  # Field renamed because it wasn't a valid Python identifier.\n    number_4extra = models.CharField(db_column='4extra', max_length=11)  # Field renamed because it wasn't a valid Python identifier.\n    number_45extra = models.CharField(db_column='45extra', max_length=11)  # Field renamed because it wasn't a valid Python identifier.\n\n    class Meta:\n        managed = False\n        db_table = 'inspectdb_digitsincolumnname'\n\n\nclass InspectdbForeignkeytofield(models.Model):\n    to_field_fk = models.ForeignKey('InspectdbPeoplemoredata', models.DO_NOTHING, to_field='people_unique_id')\n\n    class Meta:\n        managed = False\n        db_table = 'inspectdb_foreignkeytofield'\n\n\nclass InspectdbJsonfieldcolumntype(models.Model):\n    json_field = models.JSONField()\n    null_json_field = models.JSONField(blank=True, null=True)\n\n    class Meta:\n        managed = False\n        db_table = 'inspectdb_jsonfieldcolumntype'\n\n\nclass InspectdbMessage(models.Model):\n    from_field = models.ForeignKey('InspectdbPeople', models.DO_NOTHING, db_column='from_id')  # Field renamed because it was a Python reserved word.\n\n    class Meta:\n        managed = False\n        db_table = 'inspectdb_message'\n\n\nclass InspectdbPeople(models.Model):\n    name = models.CharField(max_length=255)\n    parent = models.ForeignKey('self', models.DO_NOTHING)\n\n    class Meta:\n        managed = False\n        db_table = 'inspectdb_people'\n\n\nclass InspectdbPeopledata(models.Model):\n    people_pk = models.OneToOneField(InspectdbPeople, models.DO_NOTHING, primary_key=True, to_field='id')\n    ssn = models.CharField(max_length=11)\n\n    class Meta:\n        managed = False\n        db_table = 'inspectdb_peopledata'\n\n\nclass InspectdbPeoplemoredata(models.Model):\n    people_unique = models.OneToOneField(InspectdbPeople, models.DO_NOTHING)\n    message = models.ForeignKey(InspectdbMessage, models.DO_NOTHING, blank=True, null=True)\n    license = models.CharField(max_length=255)\n\n    class Meta:\n        managed = False\n        db_table = 'inspectdb_peoplemoredata'\n\n\nclass InspectdbSpecialTableName(models.Model):\n    field = models.IntegerField()\n    field_field = models.IntegerField(db_column='Field_')  # Field name made lowercase. Field renamed because it ended with '_'.\n    field_field_0 = models.IntegerField(db_column='Field__')  # Field name made lowercase. Field renamed because it contained more than one '_' in a row. Field renamed because it ended with '_'. Field renamed because of name conflict.\n    field_field_1 = models.IntegerField(db_column='__field')  # Field renamed because it contained more than one '_' in a row. Field renamed because it started with '_'. Field renamed because of name conflict.\n    prc_x = models.IntegerField(db_column='prc(%) x')  # Field renamed to remove unsuitable characters.\n    tamaño = models.IntegerField()\n\n    class Meta:\n        managed = False\n        db_table = 'inspectdb_special.table name'\n\n\nclass InspectdbTextfielddbcollation(models.Model):\n    text_field = models.TextField(db_collation='nocase')\n\n    class Meta:\n        managed = False\n        db_table = 'inspectdb_textfielddbcollation'\n\n\nclass InspectdbUniquetogether(models.Model):\n    field1 = models.IntegerField()\n    field2 = models.CharField(max_length=10)\n    from_field = models.IntegerField(db_column='from')  # Field renamed because it was a Python reserved word.\n    non_unique_column = models.IntegerField(db_column='non__unique_column')  # Field renamed because it contained more than one '_' in a row.\n    non_unique_column_0 = models.IntegerField(db_column='non_unique__column')  # Field renamed because it contained more than one '_' in a row. Field renamed because of name conflict.\n\n    class Meta:\n        managed = False\n        db_table = 'inspectdb_uniquetogether'\n        unique_together = (('non_unique_column', 'non_unique_column_0'), ('from_field', 'field1'), ('field1', 'field2'),)\n"
+
+======================================================================
+FAIL: test_custom_fields (inspectdb.tests.InspectDBTestCase)
+Introspection of columns with a custom field (#21090)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/inspectdb/tests.py", line 323, in test_custom_fields
+    self.assertIn("text_field = myfields.TextField()", output)
+AssertionError: 'text_field = myfields.TextField()' not found in "# This is an auto-generated Django model module.\n# You'll have to do the following manually to clean this up:\n#   * Rearrange models' order\n#   * Make sure each model has one field with primary_key=True\n#   * Make sure each ForeignKey and OneToOneField has `on_delete` set to the desired behavior\n#   * Remove `managed = False` lines if you wish to allow Django to create, modify, and delete the table\n# Feel free to rename the models, but don't rename db_table values or field names.\nfrom django.db import models\n\n\nclass InspectdbColumntypes(models.Model):\n    id = models.TextField(primary_key=True)  # This field type is a guess.\n    big_int_field = models.BigIntegerField()\n    bool_field = models.TextField()  # This field type is a guess.\n    null_bool_field = models.TextField(blank=True, null=True)  # This field type is a guess.\n    char_field = models.TextField()  # This field type is a guess.\n    null_char_field = models.TextField(blank=True, null=True)  # This field type is a guess.\n    date_field = models.TextField()  # This field type is a guess.\n    date_time_field = models.TextField()  # This field type is a guess.\n    decimal_field = models.TextField()  # This field type is a guess.\n    email_field = models.TextField()  # This field type is a guess.\n    file_field = models.TextField()  # This field type is a guess.\n    file_path_field = models.TextField()  # This field type is a guess.\n    float_field = models.TextField()  # This field type is a guess.\n    int_field = models.TextField()  # This field type is a guess.\n    gen_ip_address_field = models.TextField()  # This field type is a guess.\n    pos_big_int_field = models.TextField()  # This field type is a guess.\n    pos_int_field = models.TextField()  # This field type is a guess.\n    pos_small_int_field = models.TextField()  # This field type is a guess.\n    slug_field = models.TextField()  # This field type is a guess.\n    small_int_field = models.TextField()  # This field type is a guess.\n    text_field = models.TextField()  # This field type is a guess.\n    time_field = models.TextField()  # This field type is a guess.\n    url_field = models.TextField()  # This field type is a guess.\n    uuid_field = models.TextField()  # This field type is a guess.\n\n    class Meta:\n        managed = False\n        db_table = 'inspectdb_columntypes'\n"
+
+----------------------------------------------------------------------
+Ran 21 tests in 1.005s
+
+FAILED (failures=2, skipped=4)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout dab48b7482295956973879d15bfd4d3bb0718772 tests/inspectdb/models.py tests/inspectdb/tests.py
+Updated 2 paths from cc662296c2

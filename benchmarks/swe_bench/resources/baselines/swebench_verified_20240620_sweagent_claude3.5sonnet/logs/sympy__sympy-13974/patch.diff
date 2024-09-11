@@ -1,0 +1,89 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..1b69313b00
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,21 @@
++from sympy import *
++from sympy.physics.quantum import TensorProduct as tp
++from sympy.physics.quantum import tensor_product_simp as tps
++from sympy.physics.paulialgebra import Pauli
++a = Symbol('a', commutative=False)
++
++print("Test 1:")
++t1 = tp(1,1)*tp(1,1)
++print(f"t1 = {t1}")
++print(f"tps(t1) = {tps(t1)}")
++print(f"t1.expand(tensorproduct=True) = {t1.expand(tensorproduct=True)}")
++print(f"tps(tp(1,1)*tp(1,a)).subs(a, 1) = {tps(tp(1,1)*tp(1,a)).subs(a, 1)}")
++
++print("\nTest 2:")
++t2 = tp(1,Pauli(3))*tp(1,Pauli(3))
++print(f"t2 = {t2}")
++print(f"tps(t2) = {tps(t2)}")
++print(f"t2.expand(tensorproduct=True) = {t2.expand(tensorproduct=True)}")
++print(f"tps(tp(1,Pauli(3))*tp(1,a)).subs(a, Pauli(3)) = {tps(tp(1,Pauli(3))*tp(1,a)).subs(a, Pauli(3))}")
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sympy/physics/quantum/tensorproduct.py b/sympy/physics/quantum/tensorproduct.py
+index 9dd10d219e..0bd0538842 100644
+--- a/sympy/physics/quantum/tensorproduct.py
++++ b/sympy/physics/quantum/tensorproduct.py
+@@ -146,9 +146,27 @@ def _eval_adjoint(self):
+     def _eval_rewrite(self, pattern, rule, **hints):
+         sargs = self.args
+         terms = [t._eval_rewrite(pattern, rule, **hints) for t in sargs]
+-        return TensorProduct(*terms).expand(tensorproduct=True)
+-
+-    def _sympystr(self, printer, *args):
++    def expand(self, **hints):
++        if hints.get('tensorproduct', False):
++            if isinstance(self, Pow):
++                base = self.base.expand(**hints)
++                if isinstance(base, TensorProduct):
++                    return TensorProduct(*[arg**self.exp for arg in base.args])
++                return base**self.exp
++            expanded_args = []
++            for arg in self.args:
++                expanded_arg = arg.expand(**hints)
++                if isinstance(expanded_arg, TensorProduct):
++                    expanded_args.extend(expanded_arg.args)
++                elif isinstance(expanded_arg, Pow) and isinstance(expanded_arg.base, TensorProduct):
++                    expanded_args.extend([a**expanded_arg.exp for a in expanded_arg.base.args])
++                else:
++                    expanded_args.append(expanded_arg)
++            result = TensorProduct(*expanded_args)
++            if isinstance(result, TensorProduct) and len(result.args) == 1:
++                return result.args[0]
++            return result
++        return super(TensorProduct, self).expand(**hints)
+         from sympy.printing.str import sstr
+         length = len(self.args)
+         s = ''
+@@ -377,17 +395,23 @@ def tensor_product_simp(e, **hints):
+ 
+     >>> tensor_product_simp(e**2)
+     (A*C)x(B*D)**2
+-
+     """
+     if isinstance(e, Add):
+         return Add(*[tensor_product_simp(arg) for arg in e.args])
+     elif isinstance(e, Pow):
+-        return tensor_product_simp(e.base) ** e.exp
++        base = tensor_product_simp(e.base)
++        if isinstance(base, TensorProduct):
++            return TensorProduct(*[arg**e.exp for arg in base.args])
++        return base**e.exp
+     elif isinstance(e, Mul):
+         return tensor_product_simp_Mul(e)
+     elif isinstance(e, Commutator):
+         return Commutator(*[tensor_product_simp(arg) for arg in e.args])
+     elif isinstance(e, AntiCommutator):
+         return AntiCommutator(*[tensor_product_simp(arg) for arg in e.args])
++    elif isinstance(e, TensorProduct):
++        simplified_args = [tensor_product_simp(arg) for arg in e.args]
++        return TensorProduct(*simplified_args)
+     else:
+         return e
++        return e

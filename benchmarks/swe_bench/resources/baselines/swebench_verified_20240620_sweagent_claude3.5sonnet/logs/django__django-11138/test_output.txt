@@ -1,0 +1,536 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/backends/mysql/operations.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test_settings.py
+	tests/backends/mysql/test_operations.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit c84b91b7603e488f7171fdff8f08368ef3d6b856
+Author: Tim Graham <timograham@gmail.com>
+Date:   Sat Feb 11 13:39:35 2017 -0500
+
+    Refs #27807 -- Removed docs for User.username_validator.
+    
+    The new override functionality claimed in refs #21379 doesn't work.
+    Forwardport of 714fdbaa7048c2321f6238d9421137c33d9af7cc from stable/1.10.x.
+
+diff --git a/docs/ref/contrib/auth.txt b/docs/ref/contrib/auth.txt
+index 9376ea6fcb..12186f19b7 100644
+--- a/docs/ref/contrib/auth.txt
++++ b/docs/ref/contrib/auth.txt
+@@ -38,8 +38,7 @@ Fields
+             usernames. Although it wasn't a deliberate choice, Unicode
+             characters have always been accepted when using Python 3. Django
+             1.10 officially added Unicode support in usernames, keeping the
+-            ASCII-only behavior on Python 2, with the option to customize the
+-            behavior using :attr:`.User.username_validator`.
++            ASCII-only behavior on Python 2.
+ 
+     .. attribute:: first_name
+ 
+@@ -137,24 +136,6 @@ Attributes
+         :attr:`~django.contrib.auth.models.User.is_authenticated` to this
+         attribute.
+ 
+-    .. attribute:: username_validator
+-
+-        Points to a validator instance used to validate usernames. Defaults to
+-        :class:`validators.UnicodeUsernameValidator`.
+-
+-        To change the default username validator, you can subclass the ``User``
+-        model and set this attribute to a different validator instance. For
+-        example, to use ASCII usernames::
+-
+-            from django.contrib.auth.models import User
+-            from django.contrib.auth.validators import ASCIIUsernameValidator
+-
+-            class CustomUser(User):
+-                username_validator = ASCIIUsernameValidator()
+-
+-                class Meta:
+-                    proxy = True  # If no new field is added.
+-
+ Methods
+ -------
+ 
+diff --git a/docs/releases/1.10.txt b/docs/releases/1.10.txt
+index ccf791c856..a5193179ac 100644
+--- a/docs/releases/1.10.txt
++++ b/docs/releases/1.10.txt
+@@ -60,12 +60,11 @@ wasn't a deliberate choice, Unicode characters have always been accepted when
+ using Python 3.
+ 
+ The username validator now explicitly accepts Unicode characters by
+-default on Python 3 only. This default behavior can be overridden by changing
+-the :attr:`~django.contrib.auth.models.User.username_validator` attribute of
+-the ``User`` model, or to any proxy of that model, using either
++default on Python 3 only.
++
++Custom user models may use the new
+ :class:`~django.contrib.auth.validators.ASCIIUsernameValidator` or
+-:class:`~django.contrib.auth.validators.UnicodeUsernameValidator`. Custom user
+-models may also use those validators.
++:class:`~django.contrib.auth.validators.UnicodeUsernameValidator`.
+ 
+ Minor features
+ --------------
++ git diff c84b91b7603e488f7171fdff8f08368ef3d6b856
+diff --git a/django/db/backends/mysql/operations.py b/django/db/backends/mysql/operations.py
+index 50f85e0621..e1d78267cb 100644
+--- a/django/db/backends/mysql/operations.py
++++ b/django/db/backends/mysql/operations.py
+@@ -70,7 +70,8 @@ class DatabaseOperations(BaseDatabaseOperations):
+ 
+     def _convert_field_to_tz(self, field_name, tzname):
+         if settings.USE_TZ:
+-            field_name = "CONVERT_TZ(%s, 'UTC', '%s')" % (field_name, tzname)
++            from_tz = self.connection.settings_dict.get('TIME_ZONE', 'UTC')
++            field_name = "CONVERT_TZ(%s, '%s', '%s')" % (field_name, from_tz, tzname)
+         return field_name
+ 
+     def datetime_cast_date_sql(self, field_name, tzname):
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0.dev20190408000220) (2024.1)
+Requirement already satisfied: sqlparse in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0.dev20190408000220) (0.4.4)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.0.dev20190408000220
+    Uninstalling Django-3.0.dev20190408000220:
+      Successfully uninstalled Django-3.0.dev20190408000220
+  Running setup.py develop for Django
+Successfully installed Django-3.0.dev20190408000220
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout c84b91b7603e488f7171fdff8f08368ef3d6b856 tests/timezones/tests.py
+Updated 0 paths from 7bb2d0d7f0
++ git apply -v -
+Checking patch tests/timezones/tests.py...
+Applied patch tests/timezones/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 timezones.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+test_change_editable (timezones.tests.AdminTests) ... ok
+test_change_editable_in_other_timezone (timezones.tests.AdminTests) ... ok
+test_change_readonly (timezones.tests.AdminTests) ... ok
+test_change_readonly_in_other_timezone (timezones.tests.AdminTests) ... ok
+test_changelist (timezones.tests.AdminTests) ... ok
+test_changelist_in_other_timezone (timezones.tests.AdminTests) ... ok
+test_auto_now_and_auto_now_add (timezones.tests.LegacyDatabaseTests) ... ok
+test_aware_datetime_in_local_timezone (timezones.tests.LegacyDatabaseTests) ... skipped "Database doesn't support feature(s): supports_timezones"
+test_aware_datetime_in_local_timezone_with_microsecond (timezones.tests.LegacyDatabaseTests) ... skipped "Database doesn't support feature(s): supports_timezones"
+test_aware_datetime_in_other_timezone (timezones.tests.LegacyDatabaseTests) ... skipped "Database doesn't support feature(s): supports_timezones"
+test_aware_datetime_in_utc (timezones.tests.LegacyDatabaseTests) ... skipped "Database doesn't support feature(s): supports_timezones"
+test_aware_datetime_unsupported (timezones.tests.LegacyDatabaseTests) ... ok
+test_cursor_execute_accepts_naive_datetime (timezones.tests.LegacyDatabaseTests) ... ok
+test_cursor_execute_returns_naive_datetime (timezones.tests.LegacyDatabaseTests) ... ok
+test_filter_date_field_with_aware_datetime (timezones.tests.LegacyDatabaseTests) ... ok
+test_naive_datetime (timezones.tests.LegacyDatabaseTests) ... ok
+test_naive_datetime_with_microsecond (timezones.tests.LegacyDatabaseTests) ... ok
+test_query_aggregation (timezones.tests.LegacyDatabaseTests) ... ok
+test_query_annotation (timezones.tests.LegacyDatabaseTests) ... ok
+test_query_datetime_lookups (timezones.tests.LegacyDatabaseTests) ... ok
+test_query_datetimes (timezones.tests.LegacyDatabaseTests) ... ok
+test_query_filter (timezones.tests.LegacyDatabaseTests) ... ok
+test_raw_sql (timezones.tests.LegacyDatabaseTests) ... ok
+test_form (timezones.tests.LegacyFormsTests) ... ok
+test_form_with_ambiguous_time (timezones.tests.LegacyFormsTests) ... ok
+test_form_with_non_existent_time (timezones.tests.LegacyFormsTests) ... ok
+test_model_form (timezones.tests.LegacyFormsTests) ... ok
+test_split_form (timezones.tests.LegacyFormsTests) ... ok
+test_auto_now_and_auto_now_add (timezones.tests.NewDatabaseTests) ... ok
+test_aware_datetime_in_local_timezone (timezones.tests.NewDatabaseTests) ... ok
+test_aware_datetime_in_local_timezone_with_microsecond (timezones.tests.NewDatabaseTests) ... ok
+test_aware_datetime_in_other_timezone (timezones.tests.NewDatabaseTests) ... ok
+test_aware_datetime_in_utc (timezones.tests.NewDatabaseTests) ... ok
+test_cursor_execute_accepts_aware_datetime (timezones.tests.NewDatabaseTests) ... skipped "Database doesn't support feature(s): supports_timezones"
+test_cursor_execute_accepts_naive_datetime (timezones.tests.NewDatabaseTests) ... ok
+test_cursor_execute_returns_aware_datetime (timezones.tests.NewDatabaseTests) ... skipped "Database doesn't support feature(s): supports_timezones"
+test_cursor_execute_returns_naive_datetime (timezones.tests.NewDatabaseTests) ... ok
+test_datetime_from_date (timezones.tests.NewDatabaseTests) ... ok
+test_filter_date_field_with_aware_datetime (timezones.tests.NewDatabaseTests) ... ok
+test_naive_datetime (timezones.tests.NewDatabaseTests) ... ok
+test_naive_datetime_with_microsecond (timezones.tests.NewDatabaseTests) ... ok
+test_null_datetime (timezones.tests.NewDatabaseTests) ... ok
+test_query_aggregation (timezones.tests.NewDatabaseTests) ... ok
+test_query_annotation (timezones.tests.NewDatabaseTests) ... ok
+test_query_convert_timezones (timezones.tests.NewDatabaseTests) ... FAIL
+test_query_datetime_lookups (timezones.tests.NewDatabaseTests) ... ok
+test_query_datetime_lookups_in_other_timezone (timezones.tests.NewDatabaseTests) ... ok
+test_query_datetimes (timezones.tests.NewDatabaseTests) ... ok
+test_query_datetimes_in_other_timezone (timezones.tests.NewDatabaseTests) ... ok
+test_query_filter (timezones.tests.NewDatabaseTests) ... ok
+test_query_filter_with_naive_datetime (timezones.tests.NewDatabaseTests) ... ok
+test_query_filter_with_pytz_timezones (timezones.tests.NewDatabaseTests) ... ok
+test_raw_sql (timezones.tests.NewDatabaseTests) ... ok
+test_update_with_timedelta (timezones.tests.NewDatabaseTests) ... ok
+test_form (timezones.tests.NewFormsTests) ... ok
+test_form_with_ambiguous_time (timezones.tests.NewFormsTests) ... ok
+test_form_with_explicit_timezone (timezones.tests.NewFormsTests) ... ok
+test_form_with_non_existent_time (timezones.tests.NewFormsTests) ... ok
+test_form_with_other_timezone (timezones.tests.NewFormsTests) ... ok
+test_localized_form (timezones.tests.NewFormsTests) ... ok
+test_localized_model_form (timezones.tests.NewFormsTests) ... ok
+test_model_form (timezones.tests.NewFormsTests) ... ok
+test_split_form (timezones.tests.NewFormsTests) ... ok
+test_time_zone_parameter_not_supported_if_database_supports_timezone (timezones.tests.UnsupportedTimeZoneDatabaseTests) ... skipped "Database doesn't support feature(s): supports_timezones"
+skipped "Database doesn't support feature(s): test_db_allows_multiple_connections"
+test_aware_datetime_in_local_timezone (timezones.tests.SerializationTests) ... FAIL
+test_aware_datetime_in_other_timezone (timezones.tests.SerializationTests) ... FAIL
+test_aware_datetime_in_utc (timezones.tests.SerializationTests) ... ok
+test_aware_datetime_with_microsecond (timezones.tests.SerializationTests) ... FAIL
+test_naive_datetime (timezones.tests.SerializationTests) ... ok
+test_naive_datetime_with_microsecond (timezones.tests.SerializationTests) ... ok
+test_date_and_time_template_filters (timezones.tests.TemplateTests) ... ok
+test_date_and_time_template_filters_honor_localtime (timezones.tests.TemplateTests) ... ok
+test_get_current_timezone_templatetag (timezones.tests.TemplateTests) ... ok
+test_get_current_timezone_templatetag_invalid_argument (timezones.tests.TemplateTests) ... ok
+test_get_current_timezone_templatetag_with_pytz (timezones.tests.TemplateTests) ... ok
+test_localtime_filters_do_not_raise_exceptions (timezones.tests.TemplateTests) ... ok
+test_localtime_filters_with_pytz (timezones.tests.TemplateTests) ... ok
+test_localtime_templatetag_and_filters (timezones.tests.TemplateTests) ... ok
+test_localtime_templatetag_invalid_argument (timezones.tests.TemplateTests) ... ok
+test_now_template_tag_uses_current_time_zone (timezones.tests.TemplateTests) ... ok
+test_timezone_templatetag (timezones.tests.TemplateTests) ... ok
+test_timezone_templatetag_invalid_argument (timezones.tests.TemplateTests) ... ok
+test_timezone_templatetag_with_pytz (timezones.tests.TemplateTests) ... ok
+test_tz_template_context_processor (timezones.tests.TemplateTests) ... ok
+
+======================================================================
+FAIL: test_query_convert_timezones (timezones.tests.NewDatabaseTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/timezones/tests.py", line 340, in test_query_convert_timezones
+    self.assertEqual(Event.objects.filter(dt__date=event_datetime.date()).first(), event)
+AssertionError: None != <Event: Event object (1)>
+
+======================================================================
+FAIL: test_aware_datetime_in_local_timezone (timezones.tests.SerializationTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/timezones/tests.py", line 758, in test_aware_datetime_in_local_timezone
+    self.assertEqual(obj.dt.replace(tzinfo=UTC), dt)
+AssertionError: datet[38 chars]zinfo=<UTC>) != datet[38 chars]zinfo=datetime.timezone(datetime.timedelta(0, 10800), '+0300'))
+
+======================================================================
+FAIL: test_aware_datetime_in_other_timezone (timezones.tests.SerializationTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/timezones/tests.py", line 782, in test_aware_datetime_in_other_timezone
+    self.assertEqual(obj.dt.replace(tzinfo=UTC), dt)
+AssertionError: datet[38 chars]zinfo=<UTC>) != datet[38 chars]zinfo=datetime.timezone(datetime.timedelta(0, 25200), '+0700'))
+
+======================================================================
+FAIL: test_aware_datetime_with_microsecond (timezones.tests.SerializationTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/timezones/tests.py", line 710, in test_aware_datetime_with_microsecond
+    self.assertEqual(obj.dt.replace(tzinfo=UTC), dt)
+AssertionError: datet[46 chars]zinfo=<UTC>) != datet[46 chars]zinfo=datetime.timezone(datetime.timedelta(0, 25200), '+0700'))
+
+----------------------------------------------------------------------
+Ran 84 tests in 0.521s
+
+FAILED (failures=4, skipped=8)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application timezones
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, sessions, staticfiles, timezones
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table timezones_event
+    Creating table timezones_maybeevent
+    Creating table timezones_session
+    Creating table timezones_sessionevent
+    Creating table timezones_timestamp
+    Creating table timezones_alldayevent
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
++ git checkout c84b91b7603e488f7171fdff8f08368ef3d6b856 tests/timezones/tests.py
+Updated 1 path from 7bb2d0d7f0

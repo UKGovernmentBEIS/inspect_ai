@@ -1,0 +1,99 @@
+
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 000000000..20e2572c3
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,13 @@
++from sklearn.tree import DecisionTreeClassifier
++from sklearn.tree.export import export_text
++from sklearn.datasets import load_iris
++
++X, y = load_iris(return_X_y=True)
++X = X[:, 0].reshape(-1, 1)
++
++tree = DecisionTreeClassifier()
++tree.fit(X, y)
++tree_text = export_text(tree, feature_names=['sepal_length'])
++print(tree_text)
++
++print("Script completed successfully, no errors.")
+diff --git a/sklearn/tree/export.py b/sklearn/tree/export.py
+index 1fe11e596..5ca62798f 100644
+--- a/sklearn/tree/export.py
++++ b/sklearn/tree/export.py
+@@ -1,8 +1,8 @@
++import warnings
++
+ """
+ This module defines export functions for decision trees.
+ """
+-
+-# Authors: Gilles Louppe <g.louppe@gmail.com>
+ #          Peter Prettenhofer <peter.prettenhofer@gmail.com>
+ #          Brian Holt <bdholt1@gmail.com>
+ #          Noel Dawe <noel@dawe.me>
+@@ -11,7 +11,6 @@ This module defines export functions for decision trees.
+ #          Li Li <aiki.nogard@gmail.com>
+ #          Giuseppe Vettigli <vettigli@gmail.com>
+ # License: BSD 3 clause
+-import warnings
+ from io import StringIO
+ 
+ from numbers import Integral
+@@ -866,33 +865,25 @@ def export_text(decision_tree, feature_names=None, max_depth=10,
+     right_child_fmt = "{} {} <= {}\n"
+     left_child_fmt = "{} {} >  {}\n"
+     truncation_fmt = "{} {}\n"
++    value_fmt = "{}{} {}\n"
+ 
+     if max_depth < 0:
+         raise ValueError("max_depth bust be >= 0, given %d" % max_depth)
+ 
+-    if (feature_names is not None and
+-            len(feature_names) != tree_.n_features):
+-        raise ValueError("feature_names must contain "
+-                         "%d elements, got %d" % (tree_.n_features,
+-                                                  len(feature_names)))
+-
+-    if spacing <= 0:
+-        raise ValueError("spacing must be > 0, given %d" % spacing)
+-
+-    if decimals < 0:
+-        raise ValueError("decimals must be >= 0, given %d" % decimals)
+-
+-    if isinstance(decision_tree, DecisionTreeClassifier):
+-        value_fmt = "{}{} weights: {}\n"
+-        if not show_weights:
+-            value_fmt = "{}{}{}\n"
++    if feature_names is not None:
++        if len(feature_names) != tree_.n_features:
++            warnings.warn("Number of features of the model does not match the number of feature names provided. "
++                          "Using generic feature names.")
++            feature_names_ = [f"feature_{i}" for i in range(tree_.n_features)]
++        else:
++            feature_names_ = feature_names
+     else:
+-        value_fmt = "{}{} value: {}\n"
++        feature_names_ = [f"feature_{i}" for i in range(tree_.n_features)]
+ 
+-    if feature_names:
+-        feature_names_ = [feature_names[i] for i in tree_.feature]
+-    else:
+-        feature_names_ = ["feature_{}".format(i) for i in tree_.feature]
++    def get_feature_name(index):
++        if index < len(feature_names_):
++            return feature_names_[index]
++        return f"feature_{index}"
+ 
+     export_text.report = ""
+ 
+@@ -928,7 +919,7 @@ def export_text(decision_tree, feature_names=None, max_depth=10,
+             info_fmt_right = info_fmt
+ 
+             if tree_.feature[node] != _tree.TREE_UNDEFINED:
+-                name = feature_names_[node]
++                name = get_feature_name(tree_.feature[node])
+                 threshold = tree_.threshold[node]
+                 threshold = "{1:.{0}f}".format(decimals, threshold)
+                 export_text.report += right_child_fmt.format(indent,

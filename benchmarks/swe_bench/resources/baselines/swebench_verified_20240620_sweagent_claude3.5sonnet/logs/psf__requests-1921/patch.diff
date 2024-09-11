@@ -1,0 +1,97 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 00000000..a526fbd0
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,15 @@
++import requests
++
++# Create a session
++session = requests.Session()
++
++# Try to remove Accept-Encoding header by setting it to None
++session.headers['Accept-Encoding'] = None
++
++# Make a request to see the headers sent
++response = requests.get('https://httpbin.org/headers', headers=session.headers)
++
++# Print the headers that were sent
++print(response.json())
++
++print("Script completed successfully, no errors.")
+diff --git a/requests/models.py b/requests/models.py
+index cd232e68..9cdb675b 100644
+--- a/requests/models.py
++++ b/requests/models.py
+@@ -390,11 +390,17 @@ class PreparedRequest(RequestEncodingMixin, RequestHooksMixin):
+     def prepare_headers(self, headers):
+         """Prepares the given HTTP headers."""
+ 
++        self.headers = CaseInsensitiveDict()
+         if headers:
+-            self.headers = CaseInsensitiveDict((to_native_string(name), value) for name, value in headers.items())
+-        else:
+-            self.headers = CaseInsensitiveDict()
+-
++            for name, value in headers.items():
++                if value is not None:
++                    if name.lower() == 'accept-encoding' and value == '':
++                        # Explicitly set empty string for Accept-Encoding
++                        self.headers[to_native_string(name)] = value
++                    else:
++                        self.headers[to_native_string(name)] = value
++                elif name in self.headers:
++                    del self.headers[name]
+     def prepare_body(self, data, files):
+         """Prepares the given HTTP body data."""
+ 
+diff --git a/test_headers.py b/test_headers.py
+new file mode 100644
+index 00000000..0a9312c7
+--- /dev/null
++++ b/test_headers.py
+@@ -0,0 +1,43 @@
++import requests
++
++def test_none_header():
++    session = requests.Session()
++    session.headers['Accept-Encoding'] = None
++    
++    print("Test 1: Setting Accept-Encoding to None")
++    print("Session headers before request:")
++    print(session.headers)
++    
++    response = session.get('https://httpbin.org/headers')
++    
++    print("\nSession headers after request:")
++    print(session.headers)
++    print("Headers sent:")
++    print(response.json()['headers'])
++    
++    assert 'Accept-Encoding' not in response.json()['headers'], "Accept-Encoding header was not removed"
++    
++    print("Test 1 passed: Accept-Encoding header was successfully removed")
++
++def test_empty_string_header():
++    session = requests.Session()
++    session.headers['Accept-Encoding'] = ''
++    
++    print("\nTest 2: Setting Accept-Encoding to empty string")
++    print("Session headers before request:")
++    print(session.headers)
++    
++    response = session.get('https://httpbin.org/headers')
++    
++    print("\nSession headers after request:")
++    print(session.headers)
++    print("Headers sent:")
++    print(response.json()['headers'])
++    
++    assert response.json()['headers'].get('Accept-Encoding') == '', "Accept-Encoding header was not set to empty string"
++    
++    print("Test 2 passed: Accept-Encoding header was successfully set to empty string")
++
++if __name__ == "__main__":
++    test_none_header()
++    test_empty_string_header()

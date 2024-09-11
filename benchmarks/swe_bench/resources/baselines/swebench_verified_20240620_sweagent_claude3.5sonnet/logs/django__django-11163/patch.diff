@@ -1,0 +1,92 @@
+
+diff --git a/django/forms/models.py b/django/forms/models.py
+index d157c291ef..e11a14b1ff 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -83,14 +83,15 @@ def model_to_dict(instance, fields=None, exclude=None):
+     for f in chain(opts.concrete_fields, opts.private_fields, opts.many_to_many):
+         if not getattr(f, 'editable', False):
+             continue
+-        if fields and f.name not in fields:
++        # Check if fields is not None before excluding fields not in the list.
++        # This allows for an empty list to be passed, resulting in an empty dict.
++        if fields is not None and f.name not in fields:
+             continue
+         if exclude and f.name in exclude:
+             continue
+         data[f.name] = f.value_from_object(instance)
+     return data
+ 
+-
+ def apply_limit_choices_to_to_formfield(formfield):
+     """Apply limit_choices_to to the formfield's queryset if needed."""
+     if hasattr(formfield, 'queryset') and hasattr(formfield, 'get_limit_choices_to'):
+diff --git a/runtests.py b/runtests.py
+new file mode 100644
+index 0000000000..6e0b26f9e6
+--- /dev/null
++++ b/runtests.py
+@@ -0,0 +1,13 @@
++import os
++import sys
++import django
++from django.conf import settings
++from django.test.utils import get_runner
++
++if __name__ == "__main__":
++    os.environ['DJANGO_SETTINGS_MODULE'] = 'test_settings'
++    django.setup()
++    TestRunner = get_runner(settings)
++    test_runner = TestRunner()
++    failures = test_runner.run_tests(["test_model_to_dict"])
++    sys.exit(bool(failures))
+diff --git a/test_model_to_dict.py b/test_model_to_dict.py
+new file mode 100644
+index 0000000000..6993af2407
+--- /dev/null
++++ b/test_model_to_dict.py
+@@ -0,0 +1,27 @@
++from django.test import TestCase
++from django.db import models
++from django.forms.models import model_to_dict
++
++class ModelToDictTest(TestCase):
++    @classmethod
++    def setUpClass(cls):
++        super().setUpClass()
++        class TestModel(models.Model):
++            field1 = models.CharField(max_length=100)
++            field2 = models.IntegerField()
++
++            class Meta:
++                app_label = 'test_model_to_dict'
++
++        cls.TestModel = TestModel
++
++    def test_model_to_dict_empty_fields(self):
++        instance = self.TestModel(field1="test", field2=42)
++        result = model_to_dict(instance, fields=[])
++        self.assertEqual(result, {}, "model_to_dict with empty fields list should return an empty dict")
++
++    def test_model_to_dict_none_fields(self):
++        instance = self.TestModel(field1="test", field2=42)
++        result = model_to_dict(instance, fields=None)
++        self.assertIn('field1', result, "model_to_dict with fields=None should include all fields")
++        self.assertIn('field2', result, "model_to_dict with fields=None should include all fields")
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..b4257562c5
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,11 @@
++SECRET_KEY = 'fake-key'
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'test_model_to_dict',
++]
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}

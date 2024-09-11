@@ -1,0 +1,540 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sympy/combinatorics/permutations.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	minimal_permutation_test.py
+	simple_permutation_test.py
+	test_permutation_subclass.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit aa9780761ad8c3c0f68beeef3a0ce5caac9e100b
+Merge: 548d0a6011 f3f93ab461
+Author: Chris Smith <smichr@gmail.com>
+Date:   Tue Apr 4 21:23:25 2017 -0500
+
+    Merge pull request #12486 from Newman101/is_iterable_docstring
+    
+    Added docstring to is_iterable method
+
++ git diff aa9780761ad8c3c0f68beeef3a0ce5caac9e100b
+diff --git a/sympy/combinatorics/permutations.py b/sympy/combinatorics/permutations.py
+index 4ac1c2ef3b..5d03107949 100644
+--- a/sympy/combinatorics/permutations.py
++++ b/sympy/combinatorics/permutations.py
+@@ -799,114 +799,44 @@ class Permutation(Basic):
+     _rank = None
+ 
+     def __new__(cls, *args, **kwargs):
+-        """
+-        Constructor for the Permutation object from a list or a
+-        list of lists in which all elements of the permutation may
+-        appear only once.
+-
+-        Examples
+-        ========
+-
+-        >>> from sympy.combinatorics.permutations import Permutation
+-        >>> Permutation.print_cyclic = False
+-
+-        Permutations entered in array-form are left unaltered:
+-
+-        >>> Permutation([0, 2, 1])
+-        Permutation([0, 2, 1])
+-
+-        Permutations entered in cyclic form are converted to array form;
+-        singletons need not be entered, but can be entered to indicate the
+-        largest element:
+-
+-        >>> Permutation([[4, 5, 6], [0, 1]])
+-        Permutation([1, 0, 2, 3, 5, 6, 4])
+-        >>> Permutation([[4, 5, 6], [0, 1], [19]])
+-        Permutation([1, 0, 2, 3, 5, 6, 4], size=20)
+-
+-        All manipulation of permutations assumes that the smallest element
+-        is 0 (in keeping with 0-based indexing in Python) so if the 0 is
+-        missing when entering a permutation in array form, an error will be
+-        raised:
+-
+-        >>> Permutation([2, 1])
+-        Traceback (most recent call last):
+-        ...
+-        ValueError: Integers 0 through 2 must be present.
+-
+-        If a permutation is entered in cyclic form, it can be entered without
+-        singletons and the ``size`` specified so those values can be filled
+-        in, otherwise the array form will only extend to the maximum value
+-        in the cycles:
+-
+-        >>> Permutation([[1, 4], [3, 5, 2]], size=10)
+-        Permutation([0, 4, 3, 5, 1, 2], size=10)
+-        >>> _.array_form
+-        [0, 4, 3, 5, 1, 2, 6, 7, 8, 9]
+-        """
+         size = kwargs.pop('size', None)
+         if size is not None:
+-            size = int(size)
+-
+-        #a) ()
+-        #b) (1) = identity
+-        #c) (1, 2) = cycle
+-        #d) ([1, 2, 3]) = array form
+-        #e) ([[1, 2]]) = cyclic form
+-        #f) (Cycle) = conversion to permutation
+-        #g) (Permutation) = adjust size or return copy
+-        ok = True
+-        if not args:  # a
+-            return _af_new(list(range(size or 0)))
+-        elif len(args) > 1:  # c
+-            return _af_new(Cycle(*args).list(size))
++            size = as_int(size)
++
++        if not args:
++            return cls._af_new(list(range(size or 0)))
++        elif len(args) > 1:
++            return cls._af_new(Cycle(*args).list(size))
+         if len(args) == 1:
+             a = args[0]
+-            if isinstance(a, Perm):  # g
++            if isinstance(a, cls):
+                 if size is None or size == a.size:
+                     return a
+-                return Perm(a.array_form, size=size)
+-            if isinstance(a, Cycle):  # f
+-                return _af_new(a.list(size))
+-            if not is_sequence(a):  # b
+-                return _af_new(list(range(a + 1)))
++                return cls._af_new(a.array_form, size=size)
++            if isinstance(a, Cycle):
++                return cls._af_new(a.list(size))
++            if not is_sequence(a):
++                return cls._af_new(list(range(a + 1)))
+             if has_variety(is_sequence(ai) for ai in a):
+-                ok = False
+-        else:
+-            ok = False
+-        if not ok:
+-            raise ValueError("Permutation argument must be a list of ints, "
+-                             "a list of lists, Permutation or Cycle.")
+-
++                raise ValueError("Permutation argument must be a list of ints, "
++                                 "a list of lists, Permutation or Cycle.")
+ 
+-        # safe to assume args are valid; this also makes a copy
+-        # of the args
+         args = list(args[0])
+-
+         is_cycle = args and is_sequence(args[0])
+-        if is_cycle:  # e
++        if is_cycle:
+             args = [[int(i) for i in c] for c in args]
+-        else:  # d
++        else:
+             args = [int(i) for i in args]
+ 
+-        # if there are n elements present, 0, 1, ..., n-1 should be present
+-        # unless a cycle notation has been provided. A 0 will be added
+-        # for convenience in case one wants to enter permutations where
+-        # counting starts from 1.
+-
+         temp = flatten(args)
+         if has_dups(temp) and not is_cycle:
+             raise ValueError('there were repeated elements.')
+         temp = set(temp)
+ 
+-        if not is_cycle and \
+-                any(i not in temp for i in range(len(temp))):
+-            raise ValueError("Integers 0 through %s must be present." %
+-                             max(temp))
++        if not is_cycle and any(i not in temp for i in range(len(temp))):
++            raise ValueError("Integers 0 through %s must be present." % max(temp))
+ 
+         if is_cycle:
+-            # it's not necessarily canonical so we won't store
+-            # it -- use the array form instead
+             c = Cycle()
+             for ci in args:
+                 c = c(*ci)
+@@ -914,41 +844,37 @@ def __new__(cls, *args, **kwargs):
+         else:
+             aform = list(args)
+         if size and size > len(aform):
+-            # don't allow for truncation of permutation which
+-            # might split a cycle and lead to an invalid aform
+-            # but do allow the permutation size to be increased
+             aform.extend(list(range(len(aform), size)))
+         size = len(aform)
+-        obj = Basic.__new__(cls, aform)
++        obj = Basic.__new__(cls)
+         obj._array_form = aform
+         obj._size = size
+         return obj
+ 
+-    @staticmethod
+-    def _af_new(perm):
++    @classmethod
++    def _af_new(cls, perm):
+         """A method to produce a Permutation object from a list;
+         the list is bound to the _array_form attribute, so it must
+         not be modified; this method is meant for internal use only;
+         the list ``a`` is supposed to be generated as a temporary value
+-        in a method, so p = Perm._af_new(a) is the only object
++        in a method, so p = cls._af_new(a) is the only object
+         to hold a reference to ``a``::
+ 
+         Examples
+         ========
+ 
+-        >>> from sympy.combinatorics.permutations import Perm
+-        >>> Perm.print_cyclic = False
++        >>> from sympy.combinatorics.permutations import Permutation
++        >>> Permutation.print_cyclic = False
+         >>> a = [2,1,3,0]
+-        >>> p = Perm._af_new(a)
++        >>> p = Permutation._af_new(a)
+         >>> p
+         Permutation([2, 1, 3, 0])
+ 
+         """
+-        p = Basic.__new__(Perm, perm)
++        p = object.__new__(cls)
+         p._array_form = perm
+         p._size = len(perm)
+         return p
+-
+     def _hashable_content(self):
+         # the array_form (a list) is the Permutation arg, so we need to
+         # return a tuple, instead
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: mpmath>=0.19 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from sympy==1.0.1.dev0) (1.3.0)
+Installing collected packages: sympy
+  Attempting uninstall: sympy
+    Found existing installation: sympy 1.0.1.dev0
+    Uninstalling sympy-1.0.1.dev0:
+      Successfully uninstalled sympy-1.0.1.dev0
+  Running setup.py develop for sympy
+Successfully installed sympy-1.0.1.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout aa9780761ad8c3c0f68beeef3a0ce5caac9e100b sympy/combinatorics/tests/test_permutations.py
+Updated 0 paths from 9a926891ed
++ git apply -v -
+Checking patch sympy/combinatorics/tests/test_permutations.py...
+Applied patch sympy/combinatorics/tests/test_permutations.py cleanly.
++ PYTHONWARNINGS=ignore::UserWarning,ignore::SyntaxWarning
++ bin/test -C --verbose sympy/combinatorics/tests/test_permutations.py
+/testbed/sympy/core/basic.py:3: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Mapping
+/testbed/sympy/plotting/plot.py:28: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Callable
+/testbed/sympy/core/basic.py:3: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Mapping
+/testbed/sympy/plotting/plot.py:28: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Callable
+============================= test process starts ==============================
+executable:         /opt/miniconda3/envs/testbed/bin/python  (3.9.19-final-0) [CPython]
+architecture:       64-bit
+cache:              no
+ground types:       python 
+random seed:        84406001
+hash randomization: on (PYTHONHASHSEED=2860158148)
+
+sympy/combinatorics/tests/test_permutations.py[0] Traceback (most recent call last):
+  File "/testbed/sympy/utilities/runtests.py", line 1079, in test_file
+    exec_(code, gl)
+  File "/testbed/sympy/combinatorics/tests/test_permutations.py", line 5, in <module>
+    from sympy.combinatorics.permutations import (Permutation, _af_parity,
+  File "/testbed/sympy/combinatorics/__init__.py", line 7, in <module>
+    from sympy.combinatorics.polyhedron import (Polyhedron, tetrahedron, cube,
+  File "/testbed/sympy/combinatorics/polyhedron.py", line 824, in <module>
+    dodecahedron_faces, icosahedron_faces) = _pgroup_calcs()
+  File "/testbed/sympy/combinatorics/polyhedron.py", line 712, in _pgroup_calcs
+    tetrahedron = Polyhedron(
+  File "/testbed/sympy/combinatorics/polyhedron.py", line 392, in __new__
+    obj._pgroup = PermutationGroup((
+  File "/testbed/sympy/combinatorics/perm_groups.py", line 140, in __new__
+    args = list(uniq([_af_new(list(a)) for a in args]))
+  File "/testbed/sympy/utilities/iterables.py", line 1722, in uniq
+    if not (s in seen or seen.add(s)):
+  File "/testbed/sympy/core/basic.py", line 108, in __hash__
+    h = self._mhash
+AttributeError: _mhash
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/testbed/sympy/utilities/runtests.py", line 536, in _test
+    return int(not t.test(sort=sort, timeout=timeout,
+  File "/testbed/sympy/utilities/runtests.py", line 1013, in test
+    self.test_file(f, sort, timeout, slow, enhance_asserts)
+  File "/testbed/sympy/utilities/runtests.py", line 1086, in test_file
+    reporter.test_exception(sys.exc_info())
+  File "/testbed/sympy/utilities/runtests.py", line 2217, in test_exception
+    self._exceptions.append((self._active_file, self._active_f, exc_info))
+AttributeError: 'PyTestReporter' object has no attribute '_active_file'
++ git checkout aa9780761ad8c3c0f68beeef3a0ce5caac9e100b sympy/combinatorics/tests/test_permutations.py
+Updated 1 path from 9a926891ed

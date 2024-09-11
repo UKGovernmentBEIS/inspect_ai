@@ -1,0 +1,111 @@
+
+diff --git a/django/db/migrations/optimizer.py b/django/db/migrations/optimizer.py
+index 7e5dea2377..dd981e7fef 100644
+--- a/django/db/migrations/optimizer.py
++++ b/django/db/migrations/optimizer.py
+@@ -1,3 +1,5 @@
++from django.db.migrations.operations.fields import AlterField
++
+ class MigrationOptimizer:
+     """
+     Power the optimization process, where you provide a list of Operations
+@@ -38,32 +40,31 @@ class MigrationOptimizer:
+             operations = result
+ 
+     def optimize_inner(self, operations, app_label):
+-        """Inner optimization loop."""
++        """
++        Inner optimization loop.
++        
++        This method now optimizes consecutive AlterField operations on the same model and field
++        by merging them into a single operation with all the latest field attributes.
++        """
+         new_operations = []
+-        for i, operation in enumerate(operations):
+-            right = True  # Should we reduce on the right or on the left.
+-            # Compare it to each operation after it
+-            for j, other in enumerate(operations[i + 1 :]):
+-                result = operation.reduce(other, app_label)
+-                if isinstance(result, list):
+-                    in_between = operations[i + 1 : i + j + 1]
+-                    if right:
+-                        new_operations.extend(in_between)
+-                        new_operations.extend(result)
+-                    elif all(op.reduce(other, app_label) is True for op in in_between):
+-                        # Perform a left reduction if all of the in-between
+-                        # operations can optimize through other.
+-                        new_operations.extend(result)
+-                        new_operations.extend(in_between)
+-                    else:
+-                        # Otherwise keep trying.
+-                        new_operations.append(operation)
+-                        break
+-                    new_operations.extend(operations[i + j + 2 :])
+-                    return new_operations
+-                elif not result:
+-                    # Can't perform a right reduction.
+-                    right = False
++        i = 0
++        while i < len(operations):
++            operation = operations[i]
++            if isinstance(operation, AlterField):
++                # Look ahead for consecutive AlterField operations on the same model and field
++                j = i + 1
++                while j < len(operations) and isinstance(operations[j], AlterField) and \
++                      operations[j].model_name == operation.model_name and \
++                      operations[j].name == operation.name:
++                    # Merge the field attributes, keeping the latest values
++                    new_attrs = operation.field.deconstruct()[3].copy()
++                    new_attrs.update(operations[j].field.deconstruct()[3])
++                    operation.field = type(operation.field)(**new_attrs)
++                    j += 1
++                new_operations.append(operation)
++                i = j  # Skip the merged operations
+             else:
+                 new_operations.append(operation)
++                i += 1
++
+         return new_operations
+diff --git a/test_optimizer.py b/test_optimizer.py
+new file mode 100644
+index 0000000000..0993e7ae14
+--- /dev/null
++++ b/test_optimizer.py
+@@ -0,0 +1,37 @@
++from django.db import migrations, models
++from django.db.migrations.optimizer import MigrationOptimizer
++
++def test_optimizer():
++    operations = [
++        migrations.AlterField(
++            model_name="book",
++            name="title",
++            field=models.CharField(max_length=128, null=True),
++        ),
++        migrations.AlterField(
++            model_name="book",
++            name="title",
++            field=models.CharField(max_length=128, null=True, help_text="help"),
++        ),
++        migrations.AlterField(
++            model_name="book",
++            name="title",
++            field=models.CharField(max_length=128, null=True, help_text="help", default=None),
++        ),
++    ]
++
++    optimizer = MigrationOptimizer()
++    optimized = optimizer.optimize(operations, app_label="books")
++
++    print(f"Original operations: {len(operations)}")
++    print(f"Optimized operations: {len(optimized)}")
++    
++    for op in optimized:
++        print(f"Operation: {op.__class__.__name__}")
++        print(f"  Model: {op.model_name}")
++        print(f"  Field: {op.name}")
++        print(f"  Attributes: {op.field.deconstruct()[3]}")
++        print()
++
++if __name__ == "__main__":
++    test_optimizer()

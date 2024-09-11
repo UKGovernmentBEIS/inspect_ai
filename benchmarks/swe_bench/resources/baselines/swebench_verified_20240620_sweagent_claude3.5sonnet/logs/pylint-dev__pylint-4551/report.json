@@ -1,0 +1,37 @@
+{
+    "pylint-dev__pylint-4551": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "tests/unittest_pyreverse_writer.py::test_dot_files[packages_No_Name.dot]",
+                    "tests/unittest_pyreverse_writer.py::test_dot_files[classes_No_Name.dot]",
+                    "tests/unittest_pyreverse_writer.py::test_get_visibility[names0-special]",
+                    "tests/unittest_pyreverse_writer.py::test_get_visibility[names1-private]",
+                    "tests/unittest_pyreverse_writer.py::test_get_visibility[names2-public]",
+                    "tests/unittest_pyreverse_writer.py::test_get_visibility[names3-protected]",
+                    "tests/unittest_pyreverse_writer.py::test_get_annotation_annassign[a:",
+                    "tests/unittest_pyreverse_writer.py::test_get_annotation_assignattr[def",
+                    "tests/unittest_pyreverse_writer.py::test_infer_node_1",
+                    "tests/unittest_pyreverse_writer.py::test_infer_node_2"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

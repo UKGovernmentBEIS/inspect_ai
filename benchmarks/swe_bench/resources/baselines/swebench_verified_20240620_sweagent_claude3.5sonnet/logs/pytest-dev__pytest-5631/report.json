@@ -1,0 +1,45 @@
+{
+    "pytest-dev__pytest-5631": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "testing/python/integration.py::TestMockDecoration::test_mock_sentinel_check_against_numpy_like"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "testing/python/integration.py::test_wrapped_getfslineno",
+                    "testing/python/integration.py::TestMockDecoration::test_wrapped_getfuncargnames",
+                    "testing/python/integration.py::TestMockDecoration::test_getfuncargnames_patching",
+                    "testing/python/integration.py::test_pytestconfig_is_session_scoped",
+                    "testing/python/integration.py::TestOEJSKITSpecials::test_funcarg_non_pycollectobj",
+                    "testing/python/integration.py::TestOEJSKITSpecials::test_autouse_fixture",
+                    "testing/python/integration.py::TestMockDecoration::test_unittest_mock",
+                    "testing/python/integration.py::TestReRunTests::test_rerun",
+                    "testing/python/integration.py::TestNoselikeTestAttribute::test_module_with_global_test",
+                    "testing/python/integration.py::TestNoselikeTestAttribute::test_class_and_method",
+                    "testing/python/integration.py::TestNoselikeTestAttribute::test_unittest_class",
+                    "testing/python/integration.py::TestNoselikeTestAttribute::test_class_with_nasty_getattr",
+                    "testing/python/integration.py::TestParameterize::test_idfn_marker",
+                    "testing/python/integration.py::TestParameterize::test_idfn_fixture"
+                ],
+                "failure": [
+                    "testing/python/integration.py::TestMockDecoration::test_unittest_mock_and_fixture"
+                ]
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

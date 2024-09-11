@@ -1,0 +1,482 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/core/management/commands/flush.py
+	modified:   django/db/backends/base/operations.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 537d422942b53bc0a2b6a51968f379c0de07793c
+Author: Jon Dufresne <jon.dufresne@gmail.com>
+Date:   Sat Apr 18 11:48:30 2020 -0700
+
+    Simplified LongNameTest.test_sequence_name_length_limits_flush() with execute_sql_flush().
+
+diff --git a/tests/backends/tests.py b/tests/backends/tests.py
+index 2cbfa2f5a2..d6c2331378 100644
+--- a/tests/backends/tests.py
++++ b/tests/backends/tests.py
+@@ -162,9 +162,7 @@ class LongNameTest(TransactionTestCase):
+             VLM_m2m._meta.db_table,
+         ]
+         sql_list = connection.ops.sql_flush(no_style(), tables, reset_sequences=True)
+-        with connection.cursor() as cursor:
+-            for statement in sql_list:
+-                cursor.execute(statement)
++        connection.ops.execute_sql_flush(connection.alias, sql_list)
+ 
+ 
+ class SequenceResetTest(TestCase):
++ git diff 537d422942b53bc0a2b6a51968f379c0de07793c
+diff --git a/django/core/management/commands/flush.py b/django/core/management/commands/flush.py
+index e8ed3967f7..bc8021cf4e 100644
+--- a/django/core/management/commands/flush.py
++++ b/django/core/management/commands/flush.py
+@@ -60,7 +60,7 @@ Are you sure you want to do this?
+ 
+         if confirm == 'yes':
+             try:
+-                connection.ops.execute_sql_flush(database, sql_list)
++                connection.ops.execute_sql_flush(sql_list)
+             except Exception as exc:
+                 raise CommandError(
+                     "Database %s couldn't be flushed. Possible reasons:\n"
+diff --git a/django/db/backends/base/operations.py b/django/db/backends/base/operations.py
+index 70ac07ae09..f07580c18b 100644
+--- a/django/db/backends/base/operations.py
++++ b/django/db/backends/base/operations.py
+@@ -400,9 +400,9 @@ class BaseDatabaseOperations:
+         """
+         raise NotImplementedError('subclasses of BaseDatabaseOperations must provide a sql_flush() method')
+ 
+-    def execute_sql_flush(self, using, sql_list):
++    def execute_sql_flush(self, sql_list):
+         """Execute a list of SQL statements to flush the database."""
+-        with transaction.atomic(using=using, savepoint=self.connection.features.can_rollback_ddl):
++        with transaction.atomic(using=self.connection.alias, savepoint=self.connection.features.can_rollback_ddl):
+             with self.connection.cursor() as cursor:
+                 for sql in sql_list:
+                     cursor.execute(sql)
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: asgiref>=3.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (3.4.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (0.4.4)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref>=3.2->Django==3.1) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.1
+    Uninstalling Django-3.1:
+      Successfully uninstalled Django-3.1
+  Running setup.py develop for Django
+Successfully installed Django-3.1
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 537d422942b53bc0a2b6a51968f379c0de07793c tests/backends/base/test_operations.py tests/backends/tests.py
+Updated 0 paths from 592dabd783
++ git apply -v -
+Checking patch tests/backends/base/test_operations.py...
+Checking patch tests/backends/tests.py...
+Applied patch tests/backends/base/test_operations.py cleanly.
+Applied patch tests/backends/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 backends.base.test_operations backends.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+test_distinct_on_fields (backends.base.test_operations.DatabaseOperationTests) ... ok
+test_subtract_temporals (backends.base.test_operations.DatabaseOperationTests) ... skipped 'Database has feature(s) supports_temporal_subtraction'
+test_window_frame_raise_not_supported_error (backends.base.test_operations.DatabaseOperationTests) ... skipped 'Database has feature(s) supports_over_clause'
+test_can_reference_existent (backends.tests.DBConstraintTestCase) ... ok
+test_can_reference_non_existent (backends.tests.DBConstraintTestCase) ... ok
+test_many_to_many (backends.tests.DBConstraintTestCase) ... ok
+test_django_date_extract (backends.tests.DateQuotingTest) ... ok
+test_django_date_trunc (backends.tests.DateQuotingTest) ... ok
+test_parameter_escaping (backends.tests.EscapingChecks) ... ok
+test_paramless_no_escaping (backends.tests.EscapingChecks) ... ok
+test_parameter_escaping (backends.tests.EscapingChecksDebug) ... ok
+test_paramless_no_escaping (backends.tests.EscapingChecksDebug) ... ok
+test_debug_sql (backends.tests.LastExecutedQueryTest) ... ok
+test_last_executed_query (backends.tests.LastExecutedQueryTest) ... ok
+test_last_executed_query_dict (backends.tests.LastExecutedQueryTest) ... skipped "Database doesn't support feature(s): supports_paramstyle_pyformat"
+test_last_executed_query_without_previous_query (backends.tests.LastExecutedQueryTest) ... ok
+test_query_encoding (backends.tests.LastExecutedQueryTest)
+last_executed_query() returns a string. ... ok
+test_zero_as_autoval (backends.tests.MySQLPKZeroTests) ... skipped 'Database has feature(s) allows_auto_pk_0'
+test_bad_parameter_count (backends.tests.ParameterHandlingTest)
+An executemany call with too many/not enough parameters will raise an exception (Refs #12612) ... ok
+test_generic_relation (backends.tests.SequenceResetTest)
+Sequence names are correct when resetting generic relations (Ref #13941) ... ok
+test_adapt_datetimefield_value (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_adapt_timefield_value (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_adapt_timefield_value_none (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_adapt_timefield_value_unaware (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_adapt_unknown_value_date (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_adapt_unknown_value_decimal (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_adapt_unknown_value_time (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_date_extract_sql (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_date_interval_sql (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_date_trunc_sql (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_datetime_cast_date_sql (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_datetime_cast_time_sql (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_datetime_extract_sql (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_datetime_trunc_sql (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_deferrable_sql (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_end_transaction_rollback (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_no_limit_value (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_pk_default_value (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_quote_name (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_regex_lookup (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_sequence_reset_by_name_sql (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_set_time_zone_sql (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_sql_flush (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_tablespace_sql (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_time_extract_sql (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_time_trunc_sql (backends.base.test_operations.SimpleDatabaseOperationTests) ... ok
+test_execute_sql_flush_statements (backends.base.test_operations.SqlFlushTests) ... ok
+test_sql_flush_no_tables (backends.base.test_operations.SqlFlushTests) ... ok
+test_cached_db_features (backends.tests.BackendTestCase) ... ok
+test_cursor_contextmanager (backends.tests.BackendTestCase) ... ok
+test_cursor_contextmanager_closing (backends.tests.BackendTestCase) ... skipped 'Psycopg2 specific cursor.closed attribute needed'
+test_cursor_execute_with_pyformat (backends.tests.BackendTestCase) ... skipped "Database doesn't support feature(s): supports_paramstyle_pyformat"
+test_cursor_executemany (backends.tests.BackendTestCase) ... ok
+test_cursor_executemany_with_empty_params_list (backends.tests.BackendTestCase) ... ok
+test_cursor_executemany_with_iterator (backends.tests.BackendTestCase) ... ok
+test_cursor_executemany_with_pyformat (backends.tests.BackendTestCase) ... skipped "Database doesn't support feature(s): supports_paramstyle_pyformat"
+test_cursor_executemany_with_pyformat_iterator (backends.tests.BackendTestCase) ... skipped "Database doesn't support feature(s): supports_paramstyle_pyformat"
+test_database_operations_helper_class (backends.tests.BackendTestCase) ... ok
+test_database_operations_init (backends.tests.BackendTestCase) ... ok
+test_duplicate_table_error (backends.tests.BackendTestCase)
+Creating an existing table returns a DatabaseError ... ok
+test_is_usable_after_database_disconnects (backends.tests.BackendTestCase) ... skipped "Database doesn't support feature(s): test_db_allows_multiple_connections"
+test_queries (backends.tests.BackendTestCase) ... ok
+test_queries_limit (backends.tests.BackendTestCase) ... skipped "Database doesn't support feature(s): test_db_allows_multiple_connections"
+test_timezone_none_use_tz_false (backends.tests.BackendTestCase) ... ok
+test_unicode_fetches (backends.tests.BackendTestCase) ... ok
+test_unicode_password (backends.tests.BackendTestCase) ... ok
+test_signal (backends.tests.ConnectionCreatedSignalTest) ... skipped "Database doesn't support feature(s): test_db_allows_multiple_connections"
+test_check_constraints (backends.tests.FkConstraintsTests) ... ok
+test_disable_constraint_checks_context_manager (backends.tests.FkConstraintsTests) ... ok
+test_disable_constraint_checks_manually (backends.tests.FkConstraintsTests) ... ok
+test_integrity_checks_on_creation (backends.tests.FkConstraintsTests) ... ok
+test_integrity_checks_on_update (backends.tests.FkConstraintsTests) ... ok
+test_sequence_name_length_limits_create (backends.tests.LongNameTest)
+Test creation of model with long name and long pk name doesn't error. Ref #8901 ... ok
+test_sequence_name_length_limits_flush (backends.tests.LongNameTest) ... ok
+test_sequence_name_length_limits_m2m (backends.tests.LongNameTest) ... ok
+test_closing_non_shared_connections (backends.tests.ThreadTests) ... ok
+test_connections_thread_local (backends.tests.ThreadTests) ... ok
+test_default_connection_thread_local (backends.tests.ThreadTests) ... ok
+test_pass_connection_between_threads (backends.tests.ThreadTests) ... ok
+test_thread_sharing_count (backends.tests.ThreadTests) ... Testing against Django installed in '/testbed/django'
+Importing application backends
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, backends, contenttypes, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table backends_square
+    Creating table backends_person
+    Creating table backends_schoolclass
+    Creating table backends_verylongmodelnamezzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+    Creating table backends_tag
+    Creating table CaseSensitive_Post
+    Creating table backends_reporter
+    Creating table backends_article
+    Creating table backends_item
+    Creating table backends_object
+    Creating table backends_objectreference
+    Creating table backends_objectselfreference
+    Creating table backends_circulara
+    Creating table backends_circularb
+    Creating table backends_rawdata
+    Creating table backends_author
+    Creating table backends_book
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+ok
+
+----------------------------------------------------------------------
+Ran 80 tests in 0.326s
+
+OK (skipped=11)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout 537d422942b53bc0a2b6a51968f379c0de07793c tests/backends/base/test_operations.py tests/backends/tests.py
+Updated 2 paths from 592dabd783

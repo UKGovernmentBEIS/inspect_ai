@@ -1,0 +1,550 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/contrib/auth/checks.py
+	modified:   tests/auth_tests/test_checks.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit ede9fac75807fe5810df66280a60e7068cc97e4a
+Author: Tim Graham <timograham@gmail.com>
+Date:   Tue Oct 20 00:22:56 2020 -0400
+
+    Fixed #32120 -- Added DatabaseFeatures.indexes_foreign_keys.
+
+diff --git a/django/db/backends/base/features.py b/django/db/backends/base/features.py
+index 477ae96c8d..0b315aac02 100644
+--- a/django/db/backends/base/features.py
++++ b/django/db/backends/base/features.py
+@@ -172,6 +172,9 @@ class BaseDatabaseFeatures:
+     # Can it create foreign key constraints inline when adding columns?
+     can_create_inline_fk = True
+ 
++    # Does it automatically index foreign keys?
++    indexes_foreign_keys = True
++
+     # Does it support CHECK constraints?
+     supports_column_check_constraints = True
+     supports_table_check_constraints = True
+diff --git a/tests/introspection/tests.py b/tests/introspection/tests.py
+index fd7def1def..82a661a83d 100644
+--- a/tests/introspection/tests.py
++++ b/tests/introspection/tests.py
+@@ -206,17 +206,20 @@ class IntrospectionTests(TransactionTestCase):
+             constraints = connection.introspection.get_constraints(cursor, Article._meta.db_table)
+         indexes_verified = 0
+         expected_columns = [
+-            ['reporter_id'],
+             ['headline', 'pub_date'],
+-            ['response_to_id'],
+             ['headline', 'response_to_id', 'pub_date', 'reporter_id'],
+         ]
++        if connection.features.indexes_foreign_keys:
++            expected_columns += [
++                ['reporter_id'],
++                ['response_to_id'],
++            ]
+         for val in constraints.values():
+             if val['index'] and not (val['primary_key'] or val['unique']):
+                 self.assertIn(val['columns'], expected_columns)
+                 self.assertEqual(val['orders'], ['ASC'] * len(val['columns']))
+                 indexes_verified += 1
+-        self.assertEqual(indexes_verified, 4)
++        self.assertEqual(indexes_verified, len(expected_columns))
+ 
+     def test_get_constraints(self):
+         def assertDetails(details, cols, primary_key=False, unique=False, index=False, check=False, foreign_key=None):
+diff --git a/tests/schema/tests.py b/tests/schema/tests.py
+index e41db7a500..a7743deba4 100644
+--- a/tests/schema/tests.py
++++ b/tests/schema/tests.py
+@@ -292,7 +292,12 @@ class SchemaTests(TransactionTestCase):
+         with connection.schema_editor() as editor:
+             editor.add_field(Node, new_field)
+             editor.execute('UPDATE schema_node SET new_parent_fk_id = %s;', [parent.pk])
+-        self.assertIn('new_parent_fk_id', self.get_indexes(Node._meta.db_table))
++        assertIndex = (
++            self.assertIn
++            if connection.features.indexes_foreign_keys
++            else self.assertNotIn
++        )
++        assertIndex('new_parent_fk_id', self.get_indexes(Node._meta.db_table))
+ 
+     @skipUnlessDBFeature(
+         'can_create_inline_fk',
+@@ -316,7 +321,12 @@ class SchemaTests(TransactionTestCase):
+             Node._meta.add_field(new_field)
+             editor.execute('UPDATE schema_node SET new_parent_fk_id = %s;', [parent.pk])
+             editor.add_index(Node, Index(fields=['new_parent_fk'], name='new_parent_inline_fk_idx'))
+-        self.assertIn('new_parent_fk_id', self.get_indexes(Node._meta.db_table))
++        assertIndex = (
++            self.assertIn
++            if connection.features.indexes_foreign_keys
++            else self.assertNotIn
++        )
++        assertIndex('new_parent_fk_id', self.get_indexes(Node._meta.db_table))
+ 
+     @skipUnlessDBFeature('supports_foreign_keys')
+     def test_char_field_with_db_index_to_fk(self):
+@@ -1161,6 +1171,7 @@ class SchemaTests(TransactionTestCase):
+             editor.create_model(Author)
+             editor.create_model(Book)
+         expected_fks = 1 if connection.features.supports_foreign_keys else 0
++        expected_indexes = 1 if connection.features.indexes_foreign_keys else 0
+ 
+         # Check the index is right to begin with.
+         counts = self.get_constraints_count(
+@@ -1168,7 +1179,10 @@ class SchemaTests(TransactionTestCase):
+             Book._meta.get_field('author').column,
+             (Author._meta.db_table, Author._meta.pk.column),
+         )
+-        self.assertEqual(counts, {'fks': expected_fks, 'uniques': 0, 'indexes': 1})
++        self.assertEqual(
++            counts,
++            {'fks': expected_fks, 'uniques': 0, 'indexes': expected_indexes},
++        )
+ 
+         old_field = Book._meta.get_field('author')
+         new_field = OneToOneField(Author, CASCADE)
+@@ -1189,6 +1203,7 @@ class SchemaTests(TransactionTestCase):
+             editor.create_model(Author)
+             editor.create_model(Book)
+         expected_fks = 1 if connection.features.supports_foreign_keys else 0
++        expected_indexes = 1 if connection.features.indexes_foreign_keys else 0
+ 
+         # Check the index is right to begin with.
+         counts = self.get_constraints_count(
+@@ -1196,7 +1211,10 @@ class SchemaTests(TransactionTestCase):
+             Book._meta.get_field('author').column,
+             (Author._meta.db_table, Author._meta.pk.column),
+         )
+-        self.assertEqual(counts, {'fks': expected_fks, 'uniques': 0, 'indexes': 1})
++        self.assertEqual(
++            counts,
++            {'fks': expected_fks, 'uniques': 0, 'indexes': expected_indexes},
++        )
+ 
+         old_field = Book._meta.get_field('author')
+         # on_delete changed from CASCADE.
+@@ -1211,7 +1229,10 @@ class SchemaTests(TransactionTestCase):
+             (Author._meta.db_table, Author._meta.pk.column),
+         )
+         # The index remains.
+-        self.assertEqual(counts, {'fks': expected_fks, 'uniques': 0, 'indexes': 1})
++        self.assertEqual(
++            counts,
++            {'fks': expected_fks, 'uniques': 0, 'indexes': expected_indexes},
++        )
+ 
+     def test_alter_field_o2o_to_fk(self):
+         with connection.schema_editor() as editor:
+@@ -2521,7 +2542,7 @@ class SchemaTests(TransactionTestCase):
+             with self.assertRaisesMessage(TransactionManagementError, message):
+                 editor.execute(editor.sql_create_table % {'table': 'foo', 'definition': ''})
+ 
+-    @skipUnlessDBFeature('supports_foreign_keys')
++    @skipUnlessDBFeature('supports_foreign_keys', 'indexes_foreign_keys')
+     def test_foreign_key_index_long_names_regression(self):
+         """
+         Regression test for #21497.
++ git diff ede9fac75807fe5810df66280a60e7068cc97e4a
+diff --git a/django/contrib/auth/checks.py b/django/contrib/auth/checks.py
+index 65fc266f7e..a96a9c27d3 100644
+--- a/django/contrib/auth/checks.py
++++ b/django/contrib/auth/checks.py
+@@ -4,6 +4,7 @@ from types import MethodType
+ from django.apps import apps
+ from django.conf import settings
+ from django.core import checks
++from django.db.models import UniqueConstraint
+ 
+ from .management import _get_builtin_permissions
+ 
+@@ -52,7 +53,15 @@ def check_user_model(app_configs=None, **kwargs):
+         )
+ 
+     # Check that the username field is unique
+-    if not cls._meta.get_field(cls.USERNAME_FIELD).unique:
++    username_field = cls._meta.get_field(cls.USERNAME_FIELD)
++    is_unique = username_field.unique
++    if not is_unique:
++        # Check for UniqueConstraint in Meta.constraints
++        for constraint in cls._meta.constraints:
++            if isinstance(constraint, UniqueConstraint) and cls.USERNAME_FIELD in constraint.fields:
++                is_unique = True
++                break
++    if not is_unique:
+         if (settings.AUTHENTICATION_BACKENDS ==
+                 ['django.contrib.auth.backends.ModelBackend']):
+             errors.append(
+diff --git a/tests/auth_tests/test_checks.py b/tests/auth_tests/test_checks.py
+index cfaa4063f8..d2db90472d 100644
+--- a/tests/auth_tests/test_checks.py
++++ b/tests/auth_tests/test_checks.py
+@@ -82,8 +82,31 @@ class UserModelChecksTests(SimpleTestCase):
+                     hint='Ensure that your authentication backend(s) can handle non-unique usernames.',
+                     obj=CustomUserNonUniqueUsername,
+                     id='auth.W004',
+-                ),
+-            ])
++                )])
++
++    def test_username_unique_constraint(self):
++        """
++        A USERNAME_FIELD with a UniqueConstraint should not raise an error.
++        """
++        from django.contrib.auth.models import AbstractBaseUser
++        from django.db import models
++        from django.test.utils import isolate_apps
++        from unittest.mock import patch
++
++        with isolate_apps('auth_tests'):
++            class CustomUserUniqueConstraint(AbstractBaseUser):
++                username = models.CharField(max_length=30)
++                USERNAME_FIELD = 'username'
++
++                class Meta:
++                    app_label = 'auth_tests'
++                    constraints = [
++                        models.UniqueConstraint(fields=['username'], name='unique_username')
++                    ]
++
++            with patch('django.contrib.auth.get_user_model', return_value=CustomUserUniqueConstraint):
++                errors = checks.run_checks()
++                self.assertEqual(errors, [])
+ 
+     @override_settings(AUTH_USER_MODEL='auth_tests.BadUser')
+     def test_is_anonymous_authenticated_methods(self):
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: asgiref>=3.2.10 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (3.4.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (0.4.4)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref>=3.2.10->Django==3.2) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.2
+    Uninstalling Django-3.2:
+      Successfully uninstalled Django-3.2
+  Running setup.py develop for Django
+Successfully installed Django-3.2
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout ede9fac75807fe5810df66280a60e7068cc97e4a tests/auth_tests/test_checks.py
+Updated 1 path from 7714702d18
++ git apply -v -
+Checking patch tests/auth_tests/test_checks.py...
+Applied patch tests/auth_tests/test_checks.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 auth_tests.test_checks
+Testing against Django installed in '/testbed/django'
+Importing application auth_tests
+Skipping setup of unused database(s): default, other.
+System check identified no issues (0 silenced).
+test_clashing_custom_permissions (auth_tests.test_checks.ModelsPermissionsChecksTests) ... ok
+test_clashing_default_permissions (auth_tests.test_checks.ModelsPermissionsChecksTests) ... ok
+test_custom_permission_codename_max_length (auth_tests.test_checks.ModelsPermissionsChecksTests) ... ok
+test_custom_permission_name_max_length (auth_tests.test_checks.ModelsPermissionsChecksTests) ... ok
+test_empty_default_permissions (auth_tests.test_checks.ModelsPermissionsChecksTests) ... ok
+test_model_name_max_length (auth_tests.test_checks.ModelsPermissionsChecksTests) ... ok
+test_non_clashing_custom_permissions (auth_tests.test_checks.ModelsPermissionsChecksTests) ... ok
+test_verbose_name_max_length (auth_tests.test_checks.ModelsPermissionsChecksTests) ... ok
+test_is_anonymous_authenticated_methods (auth_tests.test_checks.UserModelChecksTests) ... ok
+test_required_fields_is_list (auth_tests.test_checks.UserModelChecksTests)
+REQUIRED_FIELDS should be a list. ... ok
+test_username_non_unique (auth_tests.test_checks.UserModelChecksTests) ... ok
+test_username_not_in_required_fields (auth_tests.test_checks.UserModelChecksTests)
+USERNAME_FIELD should not appear in REQUIRED_FIELDS. ... ok
+test_username_partially_unique (auth_tests.test_checks.UserModelChecksTests) ... FAIL
+test_username_unique_with_model_constraint (auth_tests.test_checks.UserModelChecksTests) ... ok
+
+======================================================================
+FAIL: test_username_partially_unique (auth_tests.test_checks.UserModelChecksTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/utils.py", line 382, in inner
+    return func(*args, **kwargs)
+  File "/testbed/tests/auth_tests/test_checks.py", line 110, in test_username_partially_unique
+    id='auth.E003',
+AssertionError: Lists differ: [] != [<Error: level=40, msg="'CustomUserPartial[228 chars]03'>]
+
+Second list contains 1 additional elements.
+First extra element 0:
+<Error: level=40, msg="'CustomUserPartiallyUnique.username' must be unique because it is named as the 'USERNAME_FIELD'.", hint=None, obj=<class 'auth_tests.test_checks.UserModelChecksTests.test_username_partially_unique.<locals>.CustomUserPartiallyUnique'>, id='auth.E003'>
+
+- []
++ [<Error: level=40, msg="'CustomUserPartiallyUnique.username' must be unique because it is named as the 'USERNAME_FIELD'.", hint=None, obj=<class 'auth_tests.test_checks.UserModelChecksTests.test_username_partially_unique.<locals>.CustomUserPartiallyUnique'>, id='auth.E003'>]
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.048s
+
+FAILED (failures=1)
++ git checkout ede9fac75807fe5810df66280a60e7068cc97e4a tests/auth_tests/test_checks.py
+Updated 1 path from 7714702d18

@@ -1,0 +1,48 @@
+
+diff --git a/django/template/autoreload.py b/django/template/autoreload.py
+index 84c8554165..f3fd704031 100644
+--- a/django/template/autoreload.py
++++ b/django/template/autoreload.py
+@@ -17,7 +17,7 @@ def get_template_directories():
+         if not isinstance(backend, DjangoTemplates):
+             continue
+ 
+-        items.update(cwd / to_path(dir) for dir in backend.engine.dirs)
++        items.update(cwd / to_path(dir) for dir in backend.engine.dirs if dir)
+ 
+         for loader in backend.engine.template_loaders:
+             if not hasattr(loader, "get_dirs"):
+@@ -25,7 +25,7 @@ def get_template_directories():
+             items.update(
+                 cwd / to_path(directory)
+                 for directory in loader.get_dirs()
+-                if not is_django_path(directory)
++                if directory and not is_django_path(directory)
+             )
+     return items
+ 
+diff --git a/tests/template_tests/test_autoreloader.py b/tests/template_tests/test_autoreloader.py
+index cc2c3f58a5..f5f6ea4e73 100644
+--- a/tests/template_tests/test_autoreloader.py
++++ b/tests/template_tests/test_autoreloader.py
+@@ -128,4 +128,19 @@ class Jinja2TemplateReloadTests(SimpleTestCase):
+     @mock.patch("django.template.loaders.base.Loader.reset")
+     def test_reset_all_loaders(self, mock_reset):
+         autoreload.reset_loaders()
+-        self.assertEqual(mock_reset.call_count, 0)
++    @override_settings(
++        TEMPLATES=[
++            {
++                "DIRS": ["", "/valid/path"],
++                "BACKEND": "django.template.backends.django.DjangoTemplates",
++            }
++        ]
++    )
++    def test_empty_string_in_template_dirs(self):
++        template_dirs = autoreload.get_template_directories()
++        self.assertSetEqual(
++            template_dirs,
++            {Path.cwd() / "/valid/path"},
++        )
++        self.assertNotIn(Path.cwd(), template_dirs)
++

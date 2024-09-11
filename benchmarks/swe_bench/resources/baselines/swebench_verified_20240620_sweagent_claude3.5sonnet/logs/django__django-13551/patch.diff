@@ -1,0 +1,86 @@
+
+diff --git a/django/contrib/auth/tokens.py b/django/contrib/auth/tokens.py
+index 93e2d71af2..ef296dd3d9 100644
+--- a/django/contrib/auth/tokens.py
++++ b/django/contrib/auth/tokens.py
+@@ -94,7 +94,8 @@ class PasswordResetTokenGenerator:
+         # Truncate microseconds so that tokens are consistent even if the
+         # database doesn't support microseconds.
+         login_timestamp = '' if user.last_login is None else user.last_login.replace(microsecond=0, tzinfo=None)
+-        return str(user.pk) + user.password + str(login_timestamp) + str(timestamp)
++        email = user.email if hasattr(user, 'email') else ''
++        return str(user.pk) + user.password + str(login_timestamp) + str(timestamp) + email
+ 
+     def _num_seconds(self, dt):
+         return int((dt - datetime(2001, 1, 1)).total_seconds())
+diff --git a/docs/releases/2.1.15.txt b/docs/releases/2.1.15.txt
+index bb15f33d17..eed6fd5f10 100644
+--- a/docs/releases/2.1.15.txt
++++ b/docs/releases/2.1.15.txt
+@@ -51,3 +51,6 @@ Bugfixes
+   ``'self'`` in the ``of`` argument with :ref:`multi-table inheritance
+   <multi-table-inheritance>`, a parent model was locked instead of the
+   queryset's model (:ticket:`30953`).
++* Fixed a bug in :class:`~django.contrib.auth.tokens.PasswordResetTokenGenerator`
++  where the token would not be invalidated when the user's email address was
++  changed.
+diff --git a/test_password_reset_token.py b/test_password_reset_token.py
+new file mode 100644
+index 0000000000..a226a0c50b
+--- /dev/null
++++ b/test_password_reset_token.py
+@@ -0,0 +1,54 @@
++import os
++import django
++from django.conf import settings
++from django.core.management import call_command
++
++# Configure Django settings
++if not settings.configured:
++    settings.configure(
++        DEBUG=True,
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.auth',
++            'django.contrib.contenttypes',
++        ],
++        SECRET_KEY='dummy-secret-key',
++    )
++
++django.setup()
++
++# Now we can safely import Django components
++from django.contrib.auth import get_user_model
++from django.contrib.auth.tokens import PasswordResetTokenGenerator
++
++def run_test():
++    # Run migrations
++    call_command('migrate')
++
++    # Create a test user
++    User = get_user_model()
++    user = User.objects.create_user(username='testuser', email='test@example.com', password='testpassword')
++
++    # Generate a token
++    token_generator = PasswordResetTokenGenerator()
++    token = token_generator.make_token(user)
++
++    # Verify the token
++    print("Initial token verification:", token_generator.check_token(user, token))
++
++    # Change the user's email
++    user.email = 'newemail@example.com'
++    user.save()
++
++    # Verify the token again
++    print("Token verification after email change:", token_generator.check_token(user, token))
++
++    print("Test completed.")
++
++if __name__ == "__main__":
++    run_test()

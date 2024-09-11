@@ -1,0 +1,137 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..a23992ceda
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,17 @@
++from sympy import *
++from sympy.printing import sstr, print_python
++
++x, y = symbols('x y')
++
++print("Test 1:")
++print(sstr(x + S(1)/2, sympy_integers=True))
++print(sstr(Eq(x, S(1)/2), sympy_integers=True))
++
++print("\nTest 2:")
++print(sstr(Limit(x, x, S(1)/2), sympy_integers=True))
++
++print("\nTest 3:")
++print(sstr(Eq(x, y)))
++print_python(Eq(x, y))
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sympy/printing/python.py b/sympy/printing/python.py
+index dc6d8ffe59..1bfdf1caf1 100644
+--- a/sympy/printing/python.py
++++ b/sympy/printing/python.py
+@@ -34,11 +34,9 @@ def _print_Function(self, expr):
+             self.functions.append(func)
+         return StrPrinter._print_Function(self, expr)
+ 
+-    # procedure (!) for defining symbols which have be defined in print_python()
+     def _print_Symbol(self, expr):
+         symbol = self._str(expr)
+-        if symbol not in self.symbols:
+-            self.symbols.append(symbol)
++        self.symbols.append(symbol)
+         return StrPrinter._print_Symbol(self, expr)
+ 
+     def _print_module(self, expr):
+@@ -52,19 +50,21 @@ def python(expr, **settings):
+     printer = PythonPrinter(settings)
+     exprp = printer.doprint(expr)
+ 
+-    result = ''
++    # Collect all symbols from the expression
++    symbols = expr.free_symbols
++
++    result = 'from sympy import Symbol, Function\n\n'
+     # Returning found symbols and functions
+     renamings = {}
+-    for symbolname in printer.symbols:
++    for symbol in symbols:
++        symbolname = symbol.name
+         newsymbolname = symbolname
+         # Escape symbol names that are reserved python keywords
+         if kw.iskeyword(newsymbolname):
+             while True:
+                 newsymbolname += "_"
+-                if (newsymbolname not in printer.symbols and
+-                        newsymbolname not in printer.functions):
+-                    renamings[sympy.Symbol(
+-                        symbolname)] = sympy.Symbol(newsymbolname)
++                if newsymbolname not in [s.name for s in symbols] and newsymbolname not in printer.functions:
++                    renamings[symbol] = sympy.Symbol(newsymbolname)
+                     break
+         result += newsymbolname + ' = Symbol(\'' + symbolname + '\')\n'
+ 
+@@ -74,19 +74,17 @@ def python(expr, **settings):
+         if kw.iskeyword(newfunctionname):
+             while True:
+                 newfunctionname += "_"
+-                if (newfunctionname not in printer.symbols and
+-                        newfunctionname not in printer.functions):
+-                    renamings[sympy.Function(
+-                        functionname)] = sympy.Function(newfunctionname)
++                if newfunctionname not in [s.name for s in symbols] and newfunctionname not in printer.functions:
++                    renamings[sympy.Function(functionname)] = sympy.Function(newfunctionname)
+                     break
+         result += newfunctionname + ' = Function(\'' + functionname + '\')\n'
+ 
+-    if not len(renamings) == 0:
++    if renamings:
+         exprp = expr.subs(renamings)
+-    result += 'e = ' + printer._str(exprp)
++    result += '\n' if symbols or printer.functions else ''
++    result += 'expr = ' + printer._str(exprp)
+     return result
+-
+-
+ def print_python(expr, **settings):
+     """Print output of python() function"""
+     print(python(expr, **settings))
++    return None  # To avoid printing the return value
+diff --git a/sympy/printing/str.py b/sympy/printing/str.py
+index cc1d19fcce..5345357cb3 100644
+--- a/sympy/printing/str.py
++++ b/sympy/printing/str.py
+@@ -216,9 +216,9 @@ def _print_LatticeOp(self, expr):
+     def _print_Limit(self, expr):
+         e, z, z0, dir = expr.args
+         if str(dir) == "+":
+-            return "Limit(%s, %s, %s)" % (e, z, z0)
++            return "Limit(%s, %s, %s)" % (self._print_with_settings(e), self._print_with_settings(z), self._print_with_settings(z0))
+         else:
+-            return "Limit(%s, %s, %s, dir='%s')" % (e, z, z0, dir)
++            return "Limit(%s, %s, %s, dir='%s')" % (self._print_with_settings(e), self._print_with_settings(z), self._print_with_settings(z0), dir)
+ 
+     def _print_list(self, expr):
+         return "[%s]" % self.stringify(expr, ", ")
+@@ -617,7 +617,6 @@ def _print_Float(self, expr):
+         return rv
+ 
+     def _print_Relational(self, expr):
+-
+         charmap = {
+             "==": "Eq",
+             "!=": "Ne",
+@@ -630,11 +629,14 @@ def _print_Relational(self, expr):
+         }
+ 
+         if expr.rel_op in charmap:
+-            return '%s(%s, %s)' % (charmap[expr.rel_op], expr.lhs, expr.rhs)
++            return '%s(%s, %s)' % (charmap[expr.rel_op], self._print_with_settings(expr.lhs), self._print_with_settings(expr.rhs))
+ 
+-        return '%s %s %s' % (self.parenthesize(expr.lhs, precedence(expr)),
++        return '%s %s %s' % (self.parenthesize(self._print_with_settings(expr.lhs), precedence(expr)),
+                            self._relationals.get(expr.rel_op) or expr.rel_op,
+-                           self.parenthesize(expr.rhs, precedence(expr)))
++                           self.parenthesize(self._print_with_settings(expr.rhs), precedence(expr)))
++
++    def _print_with_settings(self, expr):
++        return StrPrinter(settings=self._settings)._print(expr)
+ 
+     def _print_ComplexRootOf(self, expr):
+         return "CRootOf(%s, %d)" % (self._print_Add(expr.expr, order='lex'),

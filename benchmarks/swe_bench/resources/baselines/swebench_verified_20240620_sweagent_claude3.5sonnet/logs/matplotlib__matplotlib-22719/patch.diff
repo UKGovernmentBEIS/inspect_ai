@@ -1,0 +1,51 @@
+
+diff --git a/lib/matplotlib/category.py b/lib/matplotlib/category.py
+index c823b68fd9..a785a7c8f1 100644
+--- a/lib/matplotlib/category.py
++++ b/lib/matplotlib/category.py
+@@ -44,6 +44,7 @@ class StrCategoryConverter(units.ConversionInterface):
+         Returns
+         -------
+         float or ndarray[float]
++            If input is empty, returns an empty float array.
+         """
+         if unit is None:
+             raise ValueError(
+@@ -53,6 +54,11 @@ class StrCategoryConverter(units.ConversionInterface):
+         StrCategoryConverter._validate_unit(unit)
+         # dtype = object preserves numerical pass throughs
+         values = np.atleast_1d(np.array(value, dtype=object))
++        
++        # Handle empty arrays
++        if values.size == 0:
++            return np.array([], dtype=float)
++        
+         # pass through sequence of non binary numbers
+         with _api.suppress_matplotlib_deprecation_warning():
+             is_numlike = all(units.ConversionInterface.is_numlike(v)
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..a645c08879
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,20 @@
++import matplotlib.pyplot as plt
++import warnings
++
++warnings.filterwarnings('error')  # Convert warnings to errors
++
++try:
++    f, ax = plt.subplots()
++    ax.xaxis.update_units(["a", "b"])
++    ax.plot([], [])
++    print("Plot created without errors.")
++except Exception as e:
++    print(f"Error occurred: {type(e).__name__}: {str(e)}")
++
++try:
++    ax.convert_xunits([])
++    print("convert_xunits executed without errors.")
++except Exception as e:
++    print(f"Error in convert_xunits: {type(e).__name__}: {str(e)}")
++
++print("Script completed.")

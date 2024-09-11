@@ -1,0 +1,31 @@
+{
+    "sphinx-doc__sphinx-8035": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "tests/test_ext_autodoc_private_members.py::test_private_members"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "tests/test_ext_autodoc_private_members.py::test_private_field",
+                    "tests/test_ext_autodoc_private_members.py::test_private_field_and_private_members"
+                ]
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

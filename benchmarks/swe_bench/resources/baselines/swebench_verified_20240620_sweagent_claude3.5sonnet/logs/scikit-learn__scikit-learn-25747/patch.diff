@@ -1,0 +1,39 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..1cac3a1dc
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,32 @@
++import pandas as pd
++import numpy as np
++from typing import Optional
++from sklearn.base import BaseEstimator, TransformerMixin
++from sklearn import set_config
++from sklearn.pipeline import make_union
++
++index = pd.date_range(start="2020-01-01", end="2020-01-05", inclusive="left", freq="h")
++data = pd.DataFrame(index=index, data=[10] * len(index), columns=["value"])
++data["date"] = index.date
++
++
++class MyTransformer(BaseEstimator, TransformerMixin):
++    def fit(self, X: pd.DataFrame, y: Optional[pd.Series] = None, **kwargs):
++        return self
++
++    def transform(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> pd.DataFrame:
++        result = X["value"].groupby(X["date"]).sum()
++        return X.assign(aggregated_value=X["date"].map(result))
++
++
++# This works.
++set_config(transform_output="default")
++print(make_union(MyTransformer()).fit_transform(data))
++
++# This should now work.
++set_config(transform_output="pandas")
++result = make_union(MyTransformer()).fit_transform(data)
++print(result)
++print(type(result))
++
++print("Script completed successfully, no errors.")

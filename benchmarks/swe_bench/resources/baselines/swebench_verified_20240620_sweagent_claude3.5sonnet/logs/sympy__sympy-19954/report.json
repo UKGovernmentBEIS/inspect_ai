@@ -1,0 +1,86 @@
+{
+    "sympy__sympy-19954": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "test_sylow_subgroup"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_has",
+                    "test_generate",
+                    "test_order",
+                    "test_equality",
+                    "test_stabilizer",
+                    "test_center",
+                    "test_centralizer",
+                    "test_coset_rank",
+                    "test_coset_factor",
+                    "test_orbits",
+                    "test_is_normal",
+                    "test_eq",
+                    "test_derived_subgroup",
+                    "test_is_solvable",
+                    "test_rubik1",
+                    "test_direct_product",
+                    "test_orbit_rep",
+                    "test_schreier_vector",
+                    "test_random_pr",
+                    "test_is_alt_sym",
+                    "test_minimal_block",
+                    "test_max_div",
+                    "test_is_primitive",
+                    "test_random_stab",
+                    "test_transitivity_degree",
+                    "test_schreier_sims_random",
+                    "test_baseswap",
+                    "test_schreier_sims_incremental",
+                    "test_subgroup_search",
+                    "test_normal_closure",
+                    "test_derived_series",
+                    "test_lower_central_series",
+                    "test_commutator",
+                    "test_is_nilpotent",
+                    "test_is_trivial",
+                    "test_pointwise_stabilizer",
+                    "test_make_perm",
+                    "test_elements",
+                    "test_is_group",
+                    "test_PermutationGroup",
+                    "test_coset_transvesal",
+                    "test_coset_table",
+                    "test_subgroup",
+                    "test_generator_product",
+                    "test_polycyclic",
+                    "test_elementary",
+                    "test_perfect",
+                    "test_index",
+                    "test_cyclic",
+                    "test_abelian_invariants",
+                    "test_composition_series",
+                    "test_is_symmetric",
+                    "test_conjugacy_class",
+                    "test_conjugacy_classes",
+                    "test_coset_class"
+                ],
+                "failure": [
+                    "test_minimal_blocks"
+                ]
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

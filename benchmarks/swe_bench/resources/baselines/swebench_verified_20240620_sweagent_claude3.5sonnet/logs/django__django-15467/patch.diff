@@ -1,0 +1,97 @@
+
+diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py
+index 64be087bf1..42f4576190 100644
+--- a/django/contrib/admin/options.py
++++ b/django/contrib/admin/options.py
+@@ -269,7 +269,7 @@ class BaseModelAdmin(metaclass=forms.MediaDefiningClass):
+                         "class": get_ul_class(self.radio_fields[db_field.name]),
+                     }
+                 )
+-                kwargs["empty_label"] = _("None") if db_field.blank else None
++                kwargs["empty_label"] = (kwargs.get('empty_label') or _('None')) if db_field.blank else None
+ 
+         if "queryset" not in kwargs:
+             queryset = self.get_field_queryset(db, db_field, request)
+diff --git a/tests/modeladmin/test_empty_label.py b/tests/modeladmin/test_empty_label.py
+new file mode 100644
+index 0000000000..2d61cdc7e8
+--- /dev/null
++++ b/tests/modeladmin/test_empty_label.py
+@@ -0,0 +1,32 @@
++from django.contrib.admin import ModelAdmin, VERTICAL
++from django.contrib.admin.sites import AdminSite
++from django.test import TestCase
++from django.db import models
++
++class EmptyLabelModel(models.Model):
++    name = models.CharField(max_length=100)
++    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
++
++class EmptyLabelModelAdmin(ModelAdmin):
++    radio_fields = {'parent': VERTICAL}
++
++    def formfield_for_foreignkey(self, db_field, request, **kwargs):
++        if db_field.name == "parent":
++            kwargs['empty_label'] = "Custom Empty Label"
++        return super().formfield_for_foreignkey(db_field, request, **kwargs)
++
++class EmptyLabelTestCase(TestCase):
++    def setUp(self):
++        self.site = AdminSite()
++
++    def test_empty_label_default(self):
++        ma = ModelAdmin(EmptyLabelModel, self.site)
++        form_field = ma.formfield_for_foreignkey(EmptyLabelModel._meta.get_field('parent'), None)
++        self.assertEqual(form_field.empty_label, "---------")
++
++    def test_empty_label_custom(self):
++        ma = EmptyLabelModelAdmin(EmptyLabelModel, self.site)
++        form_field = ma.formfield_for_foreignkey(EmptyLabelModel._meta.get_field('parent'), None)
++        self.assertEqual(form_field.empty_label, "Custom Empty Label")
++
++print("Test file created successfully.")
+diff --git a/tests/modeladmin/tests.py b/tests/modeladmin/tests.py
+index ede1a09212..f248c41d62 100644
+--- a/tests/modeladmin/tests.py
++++ b/tests/modeladmin/tests.py
+@@ -22,7 +22,16 @@ from django.forms.widgets import Select
+ from django.test import SimpleTestCase, TestCase
+ from django.test.utils import isolate_apps
+ 
+-from .models import Band, Concert, Song
++class Genre(models.Model):
++    name = models.CharField(max_length=50)
++
++class Band(models.Model):
++    name = models.CharField(max_length=100)
++    bio = models.TextField()
++    sign_date = models.DateField()
++    genre = models.ForeignKey(Genre, on_delete=models.CASCADE)
++
++from .models import Concert, Song
+ 
+ 
+ class MockRequest:
+@@ -938,3 +947,22 @@ class ModelAdminPermissionTests(SimpleTestCase):
+             self.assertFalse(ma.has_module_permission(request))
+         finally:
+             ma.opts.app_label = original_app_label
++
++@isolate_apps('modeladmin')
++class CustomEmptyLabelTest(TestCase):
++    def setUp(self):
++        self.site = AdminSite()
++        self.genre = Genre.objects.create(name="Rock")
++
++    def test_custom_empty_label(self):
++        class BandAdmin(ModelAdmin):
++            radio_fields = {'genre': VERTICAL}
++
++            def formfield_for_foreignkey(self, db_field, request, **kwargs):
++                if db_field.name == 'genre':
++                    kwargs['empty_label'] = "Custom Empty Label"
++                return super().formfield_for_foreignkey(db_field, request, **kwargs)
++
++        ma = BandAdmin(Band, self.site)
++        form = ma.get_form(request)()
++        self.assertEqual(form.fields['genre'].empty_label, "Custom Empty Label")

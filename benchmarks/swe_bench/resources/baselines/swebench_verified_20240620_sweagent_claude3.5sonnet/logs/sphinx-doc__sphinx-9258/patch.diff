@@ -1,0 +1,193 @@
+
+diff --git a/doc/usage/extensions/napoleon.rst b/doc/usage/extensions/napoleon.rst
+index 2752b1479..c685f6ed0 100644
+--- a/doc/usage/extensions/napoleon.rst
++++ b/doc/usage/extensions/napoleon.rst
+@@ -87,6 +87,7 @@ reStructuredText.
+ 
+ All standard reStructuredText formatting still works as expected.
+ 
++Napoleon now supports union types using the "|" syntax in both Google and NumPy style docstrings. For example, you can specify a parameter or return type as "str | int" to indicate that it can be either a string or an integer.
+ 
+ .. _Sections:
+ 
+diff --git a/setup.py b/setup.py
+index 2538952e3..94e1d8b32 100644
+--- a/setup.py
++++ b/setup.py
+@@ -15,22 +15,22 @@ if sys.version_info < (3, 6):
+     sys.exit(1)
+ 
+ install_requires = [
+-    'sphinxcontrib-applehelp',
+-    'sphinxcontrib-devhelp',
++    'sphinxcontrib-applehelp<=1.0.7',
++    'sphinxcontrib-devhelp<=1.0.5',
+     'sphinxcontrib-jsmath',
+-    'sphinxcontrib-htmlhelp',
+-    'sphinxcontrib-serializinghtml',
+-    'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'sphinxcontrib-htmlhelp<=2.0.4',
++    'sphinxcontrib-serializinghtml<=1.1.9',
++    'sphinxcontrib-qthelp<=1.0.6',
++    'Jinja2<3.0',
+     'Pygments>=2.0',
+     'docutils>=0.14,<0.18',
+     'snowballstemmer>=1.1',
+     'babel>=1.3',
+-    'alabaster>=0.7,<0.8',
++    'alabaster>=0.7,<0.7.12',
+     'imagesize',
+     'requests>=2.5.0',
+     'setuptools',
+-    'packaging',
++    'packaging', 'markupsafe<=2.0.1',
+ ]
+ 
+ extras_require = {
+diff --git a/sphinx/ext/napoleon/docstring.py b/sphinx/ext/napoleon/docstring.py
+index d8cb75a5f..25d7669c4 100644
+--- a/sphinx/ext/napoleon/docstring.py
++++ b/sphinx/ext/napoleon/docstring.py
+@@ -950,51 +950,17 @@ def _tokenize_type_spec(spec: str) -> List[str]:
+ 
+ 
+ def _token_type(token: str, location: str = None) -> str:
+-    def is_numeric(token):
+-        try:
+-            # use complex to make sure every numeric value is detected as literal
+-            complex(token)
+-        except ValueError:
+-            return False
+-        else:
+-            return True
+-
+-    if token.startswith(" ") or token.endswith(" "):
++    if token in (",", "or", "of", "to", "and"):
+         type_ = "delimiter"
+-    elif (
+-            is_numeric(token) or
+-            (token.startswith("{") and token.endswith("}")) or
+-            (token.startswith('"') and token.endswith('"')) or
+-            (token.startswith("'") and token.endswith("'"))
+-    ):
++    elif token.startswith('"') and token.endswith('"'):
+         type_ = "literal"
+-    elif token.startswith("{"):
+-        logger.warning(
+-            __("invalid value set (missing closing brace): %s"),
+-            token,
+-            location=location,
+-        )
++    elif token.startswith("'") and token.endswith("'"):
+         type_ = "literal"
+-    elif token.endswith("}"):
+-        logger.warning(
+-            __("invalid value set (missing opening brace): %s"),
+-            token,
+-            location=location,
+-        )
++    elif _default_regex.match(token):
+         type_ = "literal"
+-    elif token.startswith("'") or token.startswith('"'):
+-        logger.warning(
+-            __("malformed string literal (missing closing quote): %s"),
+-            token,
+-            location=location,
+-        )
++    elif token in _SINGLETONS:
+         type_ = "literal"
+-    elif token.endswith("'") or token.endswith('"'):
+-        logger.warning(
+-            __("malformed string literal (missing opening quote): %s"),
+-            token,
+-            location=location,
+-        )
++    elif token == "...":
+         type_ = "literal"
+     elif token in ("optional", "default"):
+         # default is not a official keyword (yet) but supported by the
+@@ -1002,6 +968,8 @@ def _token_type(token: str, location: str = None) -> str:
+         type_ = "control"
+     elif _xref_regex.match(token):
+         type_ = "reference"
++    elif token == "|":
++        type_ = "union"
+     else:
+         type_ = "obj"
+ 
+@@ -1037,11 +1005,21 @@ def _convert_numpy_type_spec(_type: str, location: str = None, translations: dic
+         "control": lambda x: "*%s*" % x,
+         "delimiter": lambda x: x,
+         "reference": lambda x: x,
++        "union": lambda x: " | ",
+     }
+ 
+-    converted = "".join(converters.get(type_)(token) for token, type_ in types)
++    converted = []
++    for token, type_ in types:
++        if type_ == "union":
++            if converted and converted[-1] != " ":
++                converted.append(" ")
++            converted.append(converters[type_](token))
++            if len(types) > types.index((token, type_)) + 1 and converted[-1] != " ":
++                converted.append(" ")
++        else:
++            converted.append(converters[type_](token))
+ 
+-    return converted
++    return "".join(converted).strip()
+ 
+ 
+ class NumpyDocstring(GoogleDocstring):
+diff --git a/test_union_types.py b/test_union_types.py
+new file mode 100644
+index 000000000..71d8e6aa5
+--- /dev/null
++++ b/test_union_types.py
+@@ -0,0 +1,31 @@
++from sphinx.ext.napoleon.docstring import NumpyDocstring
++
++def test_function(param: 'str | int') -> 'str | None':
++    """
++    Test function for union types.
++
++    Parameters
++    ----------
++    param : str | int
++        A parameter that can be either a string or an integer.
++
++    Returns
++    -------
++    str | None
++        Returns a string or None.
++    """
++    pass
++
++# Create a NumpyDocstring instance
++docstring = NumpyDocstring(test_function.__doc__)
++
++# Parse the docstring
++parsed = str(docstring)
++
++# Print the parsed docstring
++print(parsed)
++
++if "str | int" in parsed and "str | None" in parsed:
++    print("Union types are correctly parsed!")
++else:
++    print("Union types are not correctly parsed.")
+diff --git a/tox.ini b/tox.ini
+index a363e187f..3b8bc12d0 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,7 +27,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

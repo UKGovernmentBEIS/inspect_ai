@@ -1,0 +1,147 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..b566c7c3e
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,15 @@
++from sklearn.ensemble import IsolationForest
++import pandas as pd
++import warnings
++
++X = pd.DataFrame({"a": [-1.1, 0.3, 0.5, 100]})
++
++with warnings.catch_warnings(record=True) as w:
++    warnings.simplefilter("always")
++    clf = IsolationForest(random_state=0, contamination=0.05).fit(X)
++    if len(w) > 0:
++        print(f"Warning raised: {w[-1].message}")
++    else:
++        print("No warning raised")
++
++print("Script completed successfully.")
+diff --git a/sklearn/ensemble/_iforest.py b/sklearn/ensemble/_iforest.py
+index 4d6c1c3f0..0a43edc2a 100644
+--- a/sklearn/ensemble/_iforest.py
++++ b/sklearn/ensemble/_iforest.py
+@@ -9,6 +9,10 @@ from warnings import warn
+ from numbers import Integral, Real
+ 
+ from ..tree import ExtraTreeRegressor
++try:
++    import pandas as pd
++except ImportError:
++    pd = None
+ from ..tree._tree import DTYPE as tree_dtype
+ from ..utils import (
+     check_random_state,
+@@ -289,6 +293,16 @@ class IsolationForest(OutlierMixin, BaseBagging):
+         """
+         self._validate_params()
+         X = self._validate_data(X, accept_sparse=["csc"], dtype=tree_dtype)
++        print(f"Type of X in fit: {type(X)}")
++        if pd is not None and isinstance(X, pd.DataFrame):
++            self._feature_names = X.columns.tolist()
++            self.feature_names_in_ = np.array(self._feature_names, dtype=object)
++            print(f"Feature names stored: {self._feature_names}")
++        else:
++            self._feature_names = None
++            self.feature_names_in_ = None
++            print("No feature names stored")
++        
+         if issparse(X):
+             # Pre-sort indices to avoid that each individual tree of the
+             # ensemble sorts the indices.
+@@ -345,7 +359,11 @@ class IsolationForest(OutlierMixin, BaseBagging):
+             return self
+ 
+         # else, define offset_ wrt contamination parameter
+-        self.offset_ = np.percentile(self.score_samples(X), 100.0 * self.contamination)
++        if pd is not None and self._feature_names is not None:
++            X_score = pd.DataFrame(X, columns=self._feature_names)
++        else:
++            X_score = X
++        self.offset_ = np.percentile(self.score_samples(X_score), 100.0 * self.contamination)
+ 
+         return self
+ 
+@@ -433,7 +451,13 @@ class IsolationForest(OutlierMixin, BaseBagging):
+         check_is_fitted(self)
+ 
+         # Check data
++        print(f"Type of X in score_samples: {type(X)}")
++        if pd is not None and isinstance(X, pd.DataFrame) and self._feature_names is not None:
++            print(f"X columns: {X.columns.tolist()}")
++            print(f"Stored feature names: {self._feature_names}")
++            X = X.reindex(columns=self._feature_names)
+         X = self._validate_data(X, accept_sparse="csr", dtype=np.float32, reset=False)
++        print(f"Type of X after validation: {type(X)}")
+ 
+         # Take the opposite of the scores as bigger is better (here less
+         # abnormal)
+diff --git a/sklearn/utils/validation.py b/sklearn/utils/validation.py
+index eb56caa5e..458738e6f 100644
+--- a/sklearn/utils/validation.py
++++ b/sklearn/utils/validation.py
+@@ -592,17 +592,17 @@ def _pandas_dtype_needs_early_conversion(pd_dtype):
+     # Check these early for pandas versions without extension dtypes
+     from pandas.api.types import (
+         is_bool_dtype,
+-        is_sparse,
+         is_float_dtype,
+         is_integer_dtype,
+     )
++    from pandas import SparseDtype
+ 
+     if is_bool_dtype(pd_dtype):
+-        # bool and extension booleans need early converstion because __array__
++        # bool and extension booleans need early conversion because __array__
+         # converts mixed dtype dataframes into object dtypes
+         return True
+ 
+-    if is_sparse(pd_dtype):
++    if isinstance(pd_dtype, SparseDtype):
+         # Sparse arrays will be converted later in `check_array`
+         return False
+ 
+@@ -611,7 +611,7 @@ def _pandas_dtype_needs_early_conversion(pd_dtype):
+     except ImportError:
+         return False
+ 
+-    if is_sparse(pd_dtype) or not is_extension_array_dtype(pd_dtype):
++    if isinstance(pd_dtype, SparseDtype) or not is_extension_array_dtype(pd_dtype):
+         # Sparse arrays will be converted later in `check_array`
+         # Only handle extension arrays for integer and floats
+         return False
+@@ -622,7 +622,6 @@ def _pandas_dtype_needs_early_conversion(pd_dtype):
+     elif is_integer_dtype(pd_dtype):
+         # XXX: Warn when converting from a high integer to a float
+         return True
+-
+     return False
+ 
+ 
+@@ -762,9 +761,9 @@ def check_array(
+         # throw warning if columns are sparse. If all columns are sparse, then
+         # array.sparse exists and sparsity will be preserved (later).
+         with suppress(ImportError):
+-            from pandas.api.types import is_sparse
++            from pandas import SparseDtype
+ 
+-            if not hasattr(array, "sparse") and array.dtypes.apply(is_sparse).any():
++            if not hasattr(array, "sparse") and array.dtypes.apply(lambda dtype: isinstance(dtype, SparseDtype)).any():
+                 warnings.warn(
+                     "pandas.DataFrame with sparse columns found."
+                     "It will be converted to a dense numpy array."
+@@ -824,9 +823,9 @@ def check_array(
+     # When all dataframe columns are sparse, convert to a sparse array
+     if hasattr(array, "sparse") and array.ndim > 1:
+         with suppress(ImportError):
+-            from pandas.api.types import is_sparse
++            from pandas import SparseDtype
+ 
+-            if array.dtypes.apply(is_sparse).all():
++            if array.dtypes.apply(lambda dtype: isinstance(dtype, SparseDtype)).all():
+                 # DataFrame.sparse only supports `to_coo`
+                 array = array.sparse.to_coo()
+                 if array.dtype == np.dtype("object"):

@@ -1,0 +1,99 @@
+
+diff --git a/check_sympy_version.py b/check_sympy_version.py
+new file mode 100644
+index 0000000000..495bf082e5
+--- /dev/null
++++ b/check_sympy_version.py
+@@ -0,0 +1,49 @@
++from sympy import Mod, lambdify, symbols, expand
++import inspect
++
++def test_lambdify(expr, x_val, y_val):
++    print(f"Testing expression: {expr}")
++    
++    print("\nWith default modules:")
++    f = lambdify([x, y], expr)
++    print(f"Result: {f(x_val, y_val)}")
++    print("Source code:")
++    print(inspect.getsource(f))
++    
++    print("\nWith modules=[]:")
++    g = lambdify([x, y], expr, modules=[])
++    print(f"Result: {g(x_val, y_val)}")
++    print("Source code:")
++    print(inspect.getsource(g))
++    
++    print("\n" + "="*50 + "\n")
++
++x, y = symbols('x y')
++
++# Test cases
++test_lambdify(-Mod(x, y), 3, 7)
++test_lambdify(2*Mod(x, y), 3, 7)
++test_lambdify(x*Mod(x, y), 3, 7)
++test_lambdify(expand(x*Mod(x, y)), 3, 7)
++
++print("Script completed successfully.")
++
++x, y = symbols('x y')
++
++# Test cases
++test_lambdify(-Mod(x, y), 3, 7)
++test_lambdify(2*Mod(x, y), 3, 7)
++test_lambdify(x*Mod(x, y), 3, 7)
++test_lambdify(expand(x*Mod(x, y)), 3, 7)
++
++print("Script completed successfully.")
++
++x, y = symbols('x y')
++
++# Test cases
++test_lambdify(-Mod(x, y), 3, 7)
++test_lambdify(2*Mod(x, y), 3, 7)
++test_lambdify(x*Mod(x, y), 3, 7)
++test_lambdify(expand(x*Mod(x, y)), 3, 7)
++
++print("Script completed successfully.")
+diff --git a/reproduce_mod_bug.py b/reproduce_mod_bug.py
+new file mode 100644
+index 0000000000..8c04cb4735
+--- /dev/null
++++ b/reproduce_mod_bug.py
+@@ -0,0 +1,37 @@
++from sympy import Mod, lambdify, symbols, expand
++import inspect
++
++def test_lambdify(expr, x_val, y_val):
++    print(f"Testing expression: {expr}")
++    
++    print("\nWith default modules:")
++    f = lambdify([x, y], expr)
++    print(f"Result: {f(x_val, y_val)}")
++    print("Source code:")
++    print(inspect.getsource(f))
++    
++    print("\nWith modules=[]:")
++    g = lambdify([x, y], expr, modules=[])
++    print(f"Result: {g(x_val, y_val)}")
++    print("Source code:")
++    print(inspect.getsource(g))
++    
++    print("\n" + "="*50 + "\n")
++
++x, y = symbols('x y')
++
++# Test cases
++test_lambdify(-Mod(x, y), 3, 7)
++test_lambdify(2*Mod(x, y), 3, 7)
++test_lambdify(x*Mod(x, y), 3, 7)
++test_lambdify(expand(x*Mod(x, y)), 3, 7)
++test_lambdify(Mod(x, y), -3, 7)  # New test case with negative number
++
++# Add a comparison with the symbolic evaluation
++print("Symbolic evaluation:")
++print(f"Mod(3, 7) = {Mod(3, 7)}")
++print(f"Mod(-3, 7) = {Mod(-3, 7)}")
++print(f"3 % 7 = {3 % 7}")
++print(f"-3 % 7 = {-3 % 7}")
++
++print("\nScript completed successfully.")

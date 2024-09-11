@@ -1,0 +1,126 @@
+
+diff --git a/lib/matplotlib/contour.py b/lib/matplotlib/contour.py
+index 144eadeae2..1782515421 100644
+--- a/lib/matplotlib/contour.py
++++ b/lib/matplotlib/contour.py
+@@ -1392,7 +1392,7 @@ class QuadContourSet(ContourSet):
+             self.zmin = args[0].zmin
+             self.zmax = args[0].zmax
+             self._corner_mask = args[0]._corner_mask
+-            contour_generator = args[0]._contour_generator
++            self._contour_generator = args[0]._contour_generator
+             self._mins = args[0]._mins
+             self._maxs = args[0]._maxs
+             self._algorithm = args[0]._algorithm
+@@ -1415,7 +1415,22 @@ class QuadContourSet(ContourSet):
+ 
+             x, y, z = self._contour_args(args, kwargs)
+ 
+-            contour_generator = contourpy.contour_generator(
++            # Debug print statements
++            print(f"Input z dtype: {z.dtype}")
++            print(f"Is bool input: {self._is_bool_input}")
++            print(f"Initial self.levels: {self.levels}")
++
++            # Check if input was originally a boolean array
++            if self._is_bool_input:
++                if self.levels is None or len(self.levels) != 1:
++                    self.levels = [0.5]
++                print("Boolean array detected, levels set to:", self.levels)
++            else:
++                print("Non-boolean array detected")
++
++            print(f"Final self.levels: {self.levels}")
++
++            self._contour_generator = contourpy.contour_generator(
+                 x, y, z, name=self._algorithm, corner_mask=self._corner_mask,
+                 line_type=contourpy.LineType.SeparateCode,
+                 fill_type=contourpy.FillType.OuterCode,
+@@ -1436,10 +1451,7 @@ class QuadContourSet(ContourSet):
+             self._mins = [ma.min(x), ma.min(y)]
+             self._maxs = [ma.max(x), ma.max(y)]
+ 
+-        self._contour_generator = contour_generator
+-
+         return kwargs
+-
+     def _contour_args(self, args, kwargs):
+         if self.filled:
+             fn = 'contourf'
+@@ -1447,11 +1459,17 @@ class QuadContourSet(ContourSet):
+             fn = 'contour'
+         nargs = len(args)
+         if nargs <= 2:
+-            z = ma.asarray(args[0], dtype=np.float64)
++            z = ma.asarray(args[0])
++            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
++            if self._is_bool_input:
++                z = z.astype(np.float64)
+             x, y = self._initialize_x_y(z)
+             args = args[1:]
+         elif nargs <= 4:
+             x, y, z = self._check_xyz(args[:3], kwargs)
++            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
++            if self._is_bool_input:
++                z = z.astype(np.float64)
+             args = args[3:]
+         else:
+             raise _api.nargs_error(fn, takes="from 1 to 4", given=nargs)
+@@ -1464,8 +1482,6 @@ class QuadContourSet(ContourSet):
+             self.zmin = float(z.min())
+         self._process_contour_level_args(args)
+         return (x, y, z)
+-
+-    def _check_xyz(self, args, kwargs):
+         """
+         Check that the shapes of the input arrays match; if x and y are 1D,
+         convert them to 2D using meshgrid.
+diff --git a/lib/matplotlib/tests/output/contour_boolean.png b/lib/matplotlib/tests/output/contour_boolean.png
+new file mode 100644
+index 0000000000..496083c9ab
+Binary files /dev/null and b/lib/matplotlib/tests/output/contour_boolean.png differ
+diff --git a/lib/matplotlib/tests/test_contour_boolean.py b/lib/matplotlib/tests/test_contour_boolean.py
+new file mode 100644
+index 0000000000..ac6c5c1cdc
+--- /dev/null
++++ b/lib/matplotlib/tests/test_contour_boolean.py
+@@ -0,0 +1,39 @@
++import numpy as np
++import matplotlib.pyplot as plt
++import os
++
++def test_contour_boolean():
++    # Create a boolean array
++    x, y = np.meshgrid(np.linspace(0, 1, 100), np.linspace(0, 1, 100))
++    z = (x - 0.5)**2 + (y - 0.5)**2 < 0.25
++
++    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
++
++    # Plot without specifying levels (should auto-detect boolean and use [0.5])
++    cs1 = ax1.contour(z)
++    ax1.set_title('Auto-detected boolean')
++
++    # Plot with explicitly set levels for comparison
++    cs2 = ax2.contour(z, levels=[0.5])
++    ax2.set_title('Explicitly set level=[0.5]')
++
++    # Check that both contour sets have the same number of levels
++    assert len(cs1.levels) == len(cs2.levels) == 1, "Number of levels should be 1 for both plots"
++
++    # Check that the level is 0.5 for both plots
++    assert cs1.levels[0] == cs2.levels[0] == 0.5, "Level should be 0.5 for both plots"
++
++    # Add text annotations instead of colorbars
++    ax1.text(0.5, -0.1, f'Level: {cs1.levels[0]}', transform=ax1.transAxes, ha='center')
++    ax2.text(0.5, -0.1, f'Level: {cs2.levels[0]}', transform=ax2.transAxes, ha='center')
++
++    plt.tight_layout()
++
++    # Save the figure
++    output_dir = os.path.join(os.path.dirname(__file__), 'output')
++    os.makedirs(output_dir, exist_ok=True)
++    output_path = os.path.join(output_dir, 'contour_boolean.png')
++    plt.savefig(output_path)
++    plt.close(fig)
++
++    print(f"Test image saved to: {output_path}")

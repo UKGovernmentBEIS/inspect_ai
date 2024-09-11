@@ -1,0 +1,644 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/models/sql/where.py
+	modified:   tests/queries/tests.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_bug.py
+	test_app/
+	test_settings.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 770d3e6a4ce8e0a91a9e27156036c1985e74d4a3
+Author: David Smith <39445562+smithdc1@users.noreply.github.com>
+Date:   Wed Feb 2 06:17:57 2022 +0000
+
+    Fixed typo in release notes.
+
+diff --git a/docs/releases/2.2.27.txt b/docs/releases/2.2.27.txt
+index 688a482575..2a9b24be42 100644
+--- a/docs/releases/2.2.27.txt
++++ b/docs/releases/2.2.27.txt
+@@ -12,7 +12,7 @@ CVE-2022-22818: Possible XSS via ``{% debug %}`` template tag
+ The ``{% debug %}`` template tag didn't properly encode the current context,
+ posing an XSS attack vector.
+ 
+-In order to avoid this vulnerability, ``{% debug %}`` no longer outputs an
++In order to avoid this vulnerability, ``{% debug %}`` no longer outputs
+ information when the ``DEBUG`` setting is ``False``, and it ensures all context
+ variables are correctly escaped when the ``DEBUG`` setting is ``True``.
+ 
+diff --git a/docs/releases/3.2.12.txt b/docs/releases/3.2.12.txt
+index 0907050791..68a775463b 100644
+--- a/docs/releases/3.2.12.txt
++++ b/docs/releases/3.2.12.txt
+@@ -12,7 +12,7 @@ CVE-2022-22818: Possible XSS via ``{% debug %}`` template tag
+ The ``{% debug %}`` template tag didn't properly encode the current context,
+ posing an XSS attack vector.
+ 
+-In order to avoid this vulnerability, ``{% debug %}`` no longer outputs an
++In order to avoid this vulnerability, ``{% debug %}`` no longer outputs
+ information when the ``DEBUG`` setting is ``False``, and it ensures all context
+ variables are correctly escaped when the ``DEBUG`` setting is ``True``.
+ 
+diff --git a/docs/releases/4.0.2.txt b/docs/releases/4.0.2.txt
+index 05d235a4ff..97b87ff0b2 100644
+--- a/docs/releases/4.0.2.txt
++++ b/docs/releases/4.0.2.txt
+@@ -14,7 +14,7 @@ CVE-2022-22818: Possible XSS via ``{% debug %}`` template tag
+ The ``{% debug %}`` template tag didn't properly encode the current context,
+ posing an XSS attack vector.
+ 
+-In order to avoid this vulnerability, ``{% debug %}`` no longer outputs an
++In order to avoid this vulnerability, ``{% debug %}`` no longer outputs
+ information when the ``DEBUG`` setting is ``False``, and it ensures all context
+ variables are correctly escaped when the ``DEBUG`` setting is ``True``.
+ 
++ git diff 770d3e6a4ce8e0a91a9e27156036c1985e74d4a3
+diff --git a/django/db/models/sql/where.py b/django/db/models/sql/where.py
+index 50ff13be75..2c6752808d 100644
+--- a/django/db/models/sql/where.py
++++ b/django/db/models/sql/where.py
+@@ -63,12 +63,6 @@ class WhereNode(tree.Node):
+         return where_node, having_node
+ 
+     def as_sql(self, compiler, connection):
+-        """
+-        Return the SQL version of the where clause and the value to be
+-        substituted in. Return '', [] if this node matches everything,
+-        None, [] if this node is empty, and raise EmptyResultSet if this
+-        node can't match anything.
+-        """
+         result = []
+         result_params = []
+         if self.connector == AND:
+@@ -76,26 +70,25 @@ class WhereNode(tree.Node):
+         else:
+             full_needed, empty_needed = 1, len(self.children)
+ 
++        all_empty = True
+         for child in self.children:
+             try:
+                 sql, params = compiler.compile(child)
+             except EmptyResultSet:
+                 empty_needed -= 1
+             else:
++                all_empty = False
+                 if sql:
+                     result.append(sql)
+                     result_params.extend(params)
+                 else:
+                     full_needed -= 1
+-            # Check if this node matches nothing or everything.
+-            # First check the amount of full nodes and empty nodes
+-            # to make this node empty/full.
+-            # Now, check if this node is full/empty using the
+-            # counts.
+             if empty_needed == 0:
+                 if self.negated:
+                     return '', []
+                 else:
++                    if all_empty:
++                        return '1=0', []  # Always false condition
+                     raise EmptyResultSet
+             if full_needed == 0:
+                 if self.negated:
+@@ -106,9 +99,6 @@ class WhereNode(tree.Node):
+         sql_string = conn.join(result)
+         if sql_string:
+             if self.negated:
+-                # Some backends (Oracle at least) need parentheses
+-                # around the inner SQL in the negated case, even if the
+-                # inner SQL contains just a single expression.
+                 sql_string = 'NOT (%s)' % sql_string
+             elif len(result) > 1 or self.resolved:
+                 sql_string = '(%s)' % sql_string
+diff --git a/tests/queries/tests.py b/tests/queries/tests.py
+index f146bc89fd..73ff5264b5 100644
+--- a/tests/queries/tests.py
++++ b/tests/queries/tests.py
+@@ -1122,6 +1122,16 @@ class Queries1Tests(TestCase):
+ 
+ 
+ class Queries2Tests(TestCase):
++    @classmethod
++    def setUpTestData(cls):
++        cls.num4 = Number.objects.create(num=4)
++        cls.num8 = Number.objects.create(num=8)
++
++    def test_exists_subquery_with_empty_queryset(self):
++        qs = Item.objects.filter(~Exists(Item.objects.none()), name='test')
++        self.assertIn('NOT (EXISTS (SELECT 1 FROM', str(qs.query))
++        self.assertIn('WHERE 1=0', str(qs.query))
++
+     @classmethod
+     def setUpTestData(cls):
+         cls.num4 = Number.objects.create(num=4)
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.4.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20220202061757) (3.8.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20220202061757) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from asgiref>=3.4.1->Django==4.1.dev20220202061757) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.1.dev20220202061757-0.editable-py3-none-any.whl size=26927 sha256=1be785c3e73c3985d5cc62a13347e1f6b364d5f01ae1ff8d010d56775730fe6f
+  Stored in directory: /tmp/pip-ephem-wheel-cache-agtjck1m/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.1.dev20220202061757
+    Uninstalling Django-4.1.dev20220202061757:
+      Successfully uninstalled Django-4.1.dev20220202061757
+Successfully installed Django-4.1.dev20220202061757
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 770d3e6a4ce8e0a91a9e27156036c1985e74d4a3 tests/expressions/tests.py
+Updated 0 paths from d975e662a0
++ git apply -v -
+Checking patch tests/expressions/tests.py...
+Applied patch tests/expressions/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 expressions.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application expressions
+Found 165 test(s).
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, expressions, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table expressions_manager
+    Creating table expressions_employee
+    Creating table expressions_remoteemployee
+    Creating table expressions_company
+    Creating table expressions_number
+    Creating table expressions_ExPeRiMeNt
+    Creating table expressions_result
+    Creating table expressions_time
+    Creating table expressions_simulationrun
+    Creating table expressions_uuidpk
+    Creating table expressions_uuid
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+test_aggregate_rawsql_annotation (expressions.tests.BasicExpressionsTests) ... ok
+test_aggregate_subquery_annotation (expressions.tests.BasicExpressionsTests) ... ok
+test_annotate_values_aggregate (expressions.tests.BasicExpressionsTests) ... ok
+test_annotate_values_count (expressions.tests.BasicExpressionsTests) ... ok
+test_annotate_values_filter (expressions.tests.BasicExpressionsTests) ... ok
+test_annotation_with_nested_outerref (expressions.tests.BasicExpressionsTests) ... ok
+test_annotation_with_outerref (expressions.tests.BasicExpressionsTests) ... ok
+test_annotations_within_subquery (expressions.tests.BasicExpressionsTests) ... ok
+test_arithmetic (expressions.tests.BasicExpressionsTests) ... ok
+test_boolean_expression_combined (expressions.tests.BasicExpressionsTests) ... ok
+test_boolean_expression_combined_with_empty_Q (expressions.tests.BasicExpressionsTests) ... ok
+test_boolean_expression_in_Q (expressions.tests.BasicExpressionsTests) ... ok
+test_case_in_filter_if_boolean_output_field (expressions.tests.BasicExpressionsTests) ... ok
+test_exist_single_field_output_field (expressions.tests.BasicExpressionsTests) ... ok
+test_exists_in_filter (expressions.tests.BasicExpressionsTests) ... ok
+test_explicit_output_field (expressions.tests.BasicExpressionsTests) ... ok
+test_filter_inter_attribute (expressions.tests.BasicExpressionsTests) ... ok
+test_filter_with_join (expressions.tests.BasicExpressionsTests) ... ok
+test_filtering_on_annotate_that_uses_q (expressions.tests.BasicExpressionsTests) ... ok
+test_filtering_on_q_that_is_boolean (expressions.tests.BasicExpressionsTests) ... ok
+test_filtering_on_rawsql_that_is_boolean (expressions.tests.BasicExpressionsTests) ... ok
+test_in_subquery (expressions.tests.BasicExpressionsTests) ... ok
+test_incorrect_field_in_F_expression (expressions.tests.BasicExpressionsTests) ... ok
+test_incorrect_joined_field_in_F_expression (expressions.tests.BasicExpressionsTests) ... ok
+test_nested_outerref_with_function (expressions.tests.BasicExpressionsTests) ... ok
+test_nested_subquery (expressions.tests.BasicExpressionsTests) ... ok
+test_nested_subquery_join_outer_ref (expressions.tests.BasicExpressionsTests) ... ok
+test_nested_subquery_outer_ref_2 (expressions.tests.BasicExpressionsTests) ... ok
+test_nested_subquery_outer_ref_with_autofield (expressions.tests.BasicExpressionsTests) ... ok
+test_new_object_create (expressions.tests.BasicExpressionsTests) ... ok
+test_new_object_save (expressions.tests.BasicExpressionsTests) ... ok
+test_object_create_with_aggregate (expressions.tests.BasicExpressionsTests) ... ok
+test_object_update (expressions.tests.BasicExpressionsTests) ... ok
+test_object_update_fk (expressions.tests.BasicExpressionsTests) ... ok
+test_object_update_unsaved_objects (expressions.tests.BasicExpressionsTests) ... ok
+test_order_by_exists (expressions.tests.BasicExpressionsTests) ... ok
+test_order_by_multiline_sql (expressions.tests.BasicExpressionsTests) ... ok
+test_order_of_operations (expressions.tests.BasicExpressionsTests) ... ok
+test_outerref (expressions.tests.BasicExpressionsTests) ... ok
+test_outerref_mixed_case_table_name (expressions.tests.BasicExpressionsTests) ... ok
+test_outerref_with_operator (expressions.tests.BasicExpressionsTests) ... ok
+test_parenthesis_priority (expressions.tests.BasicExpressionsTests) ... ok
+test_pickle_expression (expressions.tests.BasicExpressionsTests) ... ok
+test_subquery (expressions.tests.BasicExpressionsTests) ... ok
+test_subquery_eq (expressions.tests.BasicExpressionsTests) ... ok
+test_subquery_filter_by_aggregate (expressions.tests.BasicExpressionsTests) ... ok
+test_subquery_filter_by_lazy (expressions.tests.BasicExpressionsTests) ... ok
+test_subquery_group_by_outerref_in_filter (expressions.tests.BasicExpressionsTests) ... ok
+test_subquery_in_filter (expressions.tests.BasicExpressionsTests) ... ok
+test_subquery_references_joined_table_twice (expressions.tests.BasicExpressionsTests) ... ok
+test_subquery_sql (expressions.tests.BasicExpressionsTests) ... ok
+test_ticket_11722_iexact_lookup (expressions.tests.BasicExpressionsTests) ... ok
+test_ticket_16731_startswith_lookup (expressions.tests.BasicExpressionsTests) ... ok
+test_ticket_18375_chained_filters (expressions.tests.BasicExpressionsTests) ... ok
+test_ticket_18375_join_reuse (expressions.tests.BasicExpressionsTests) ... ok
+test_ticket_18375_kwarg_ordering (expressions.tests.BasicExpressionsTests) ... ok
+test_ticket_18375_kwarg_ordering_2 (expressions.tests.BasicExpressionsTests) ... ok
+test_update (expressions.tests.BasicExpressionsTests) ... ok
+test_update_inherited_field_value (expressions.tests.BasicExpressionsTests) ... ok
+test_update_with_fk (expressions.tests.BasicExpressionsTests) ... ok
+test_update_with_none (expressions.tests.BasicExpressionsTests) ... ok
+test_uuid_pk_subquery (expressions.tests.BasicExpressionsTests) ... ok
+test_negated_empty_exists (expressions.tests.ExistsTests) ... ok
+test_optimizations (expressions.tests.ExistsTests) ... ok
+test_lefthand_addition (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_bitwise_and (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_bitwise_left_shift_operator (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_bitwise_or (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_bitwise_right_shift_operator (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_bitwise_xor (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_bitwise_xor_not_supported (expressions.tests.ExpressionOperatorTests) ... skipped "Oracle doesn't support bitwise XOR."
+test_lefthand_bitwise_xor_null (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_bitwise_xor_right_null (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_division (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_modulo (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_modulo_null (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_multiplication (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_power (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_subtraction (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_transformed_field_bitwise_or (expressions.tests.ExpressionOperatorTests) ... ok
+test_right_hand_addition (expressions.tests.ExpressionOperatorTests) ... ok
+test_right_hand_division (expressions.tests.ExpressionOperatorTests) ... ok
+test_right_hand_modulo (expressions.tests.ExpressionOperatorTests) ... ok
+test_right_hand_multiplication (expressions.tests.ExpressionOperatorTests) ... ok
+test_right_hand_subtraction (expressions.tests.ExpressionOperatorTests) ... ok
+test_righthand_power (expressions.tests.ExpressionOperatorTests) ... ok
+test_complex_expressions (expressions.tests.ExpressionsNumericTests)
+Complex expressions of different connection types are possible. ... ok
+test_decimal_expression (expressions.tests.ExpressionsNumericTests) ... ok
+test_fill_with_value_from_same_object (expressions.tests.ExpressionsNumericTests)
+We can fill a value in all objects with an other value of the ... ok
+test_filter_decimal_expression (expressions.tests.ExpressionsNumericTests) ... ok
+test_filter_not_equals_other_field (expressions.tests.ExpressionsNumericTests)
+We can filter for objects, where a value is not equals the value ... ok
+test_increment_value (expressions.tests.ExpressionsNumericTests)
+We can increment a value of all objects in a query set. ... ok
+test_F_reuse (expressions.tests.ExpressionsTests) ... ok
+test_insensitive_patterns_escape (expressions.tests.ExpressionsTests)
+Special characters (e.g. %, _ and \) stored in database are ... ok
+test_patterns_escape (expressions.tests.ExpressionsTests)
+Special characters (e.g. %, _ and \) stored in database are ... ok
+test_date_case_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_date_comparison (expressions.tests.FTimeDeltaTests) ... ok
+test_date_minus_duration (expressions.tests.FTimeDeltaTests) ... ok
+test_date_subquery_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_date_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_datetime_subquery_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_datetime_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_datetime_subtraction_microseconds (expressions.tests.FTimeDeltaTests) ... ok
+test_delta_add (expressions.tests.FTimeDeltaTests) ... ok
+test_delta_subtract (expressions.tests.FTimeDeltaTests) ... ok
+test_delta_update (expressions.tests.FTimeDeltaTests) ... ok
+test_duration_expressions (expressions.tests.FTimeDeltaTests) ... ok
+test_duration_with_datetime (expressions.tests.FTimeDeltaTests) ... ok
+test_duration_with_datetime_microseconds (expressions.tests.FTimeDeltaTests) ... ok
+test_durationfield_add (expressions.tests.FTimeDeltaTests) ... ok
+test_durationfield_multiply_divide (expressions.tests.FTimeDeltaTests) ... ok
+test_exclude (expressions.tests.FTimeDeltaTests) ... ok
+test_invalid_operator (expressions.tests.FTimeDeltaTests) ... ok
+test_mixed_comparisons1 (expressions.tests.FTimeDeltaTests) ... expected failure
+test_mixed_comparisons2 (expressions.tests.FTimeDeltaTests) ... ok
+test_multiple_query_compilation (expressions.tests.FTimeDeltaTests) ... ok
+test_negative_timedelta_update (expressions.tests.FTimeDeltaTests) ... ok
+test_query_clone (expressions.tests.FTimeDeltaTests) ... ok
+test_time_subquery_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_time_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_month_aggregation (expressions.tests.FieldTransformTests) ... ok
+test_multiple_transforms_in_values (expressions.tests.FieldTransformTests) ... ok
+test_transform_in_values (expressions.tests.FieldTransformTests) ... ok
+test_complex_expressions_do_not_introduce_sql_injection_via_untrusted_string_inclusion (expressions.tests.IterableLookupInnerExpressionsTests)
+This tests that SQL injection isn't possible using compilation of ... ok
+test_expressions_in_lookups_join_choice (expressions.tests.IterableLookupInnerExpressionsTests) ... ok
+test_in_lookup_allows_F_expressions_and_expressions_for_datetimes (expressions.tests.IterableLookupInnerExpressionsTests) ... ok
+test_in_lookup_allows_F_expressions_and_expressions_for_integers (expressions.tests.IterableLookupInnerExpressionsTests) ... ok
+test_range_lookup_allows_F_expressions_and_expressions_for_integers (expressions.tests.IterableLookupInnerExpressionsTests) ... ok
+test_range_lookup_namedtuple (expressions.tests.IterableLookupInnerExpressionsTests) ... ok
+test_compile_unresolved (expressions.tests.ValueTests) ... ok
+test_deconstruct (expressions.tests.ValueTests) ... ok
+test_deconstruct_output_field (expressions.tests.ValueTests) ... ok
+test_equal (expressions.tests.ValueTests) ... ok
+test_equal_output_field (expressions.tests.ValueTests) ... ok
+test_hash (expressions.tests.ValueTests) ... ok
+test_output_field_decimalfield (expressions.tests.ValueTests) ... ok
+test_output_field_does_not_create_broken_validators (expressions.tests.ValueTests)
+The output field for a given Value doesn't get cleaned & validated, ... ok
+test_raise_empty_expressionlist (expressions.tests.ValueTests) ... ok
+test_repr (expressions.tests.ValueTests) ... ok
+test_resolve_output_field (expressions.tests.ValueTests) ... ok
+test_resolve_output_field_failure (expressions.tests.ValueTests) ... ok
+test_update_TimeField_using_Value (expressions.tests.ValueTests) ... ok
+test_update_UUIDField_using_Value (expressions.tests.ValueTests) ... ok
+test_and (expressions.tests.CombinableTests) ... ok
+test_negation (expressions.tests.CombinableTests) ... ok
+test_or (expressions.tests.CombinableTests) ... ok
+test_reversed_and (expressions.tests.CombinableTests) ... ok
+test_reversed_or (expressions.tests.CombinableTests) ... ok
+test_resolve_output_field (expressions.tests.CombinedExpressionTests) ... ok
+test_empty_group_by (expressions.tests.ExpressionWrapperTests) ... ok
+test_non_empty_group_by (expressions.tests.ExpressionWrapperTests) ... ok
+test_deconstruct (expressions.tests.FTests) ... ok
+test_deepcopy (expressions.tests.FTests) ... ok
+test_equal (expressions.tests.FTests) ... ok
+test_hash (expressions.tests.FTests) ... ok
+test_not_equal_Value (expressions.tests.FTests) ... ok
+test_equal (expressions.tests.OrderByTests) ... ok
+test_hash (expressions.tests.OrderByTests) ... ok
+test_aggregates (expressions.tests.ReprTests) ... ok
+test_distinct_aggregates (expressions.tests.ReprTests) ... ok
+test_expressions (expressions.tests.ReprTests) ... ok
+test_filtered_aggregates (expressions.tests.ReprTests) ... ok
+test_functions (expressions.tests.ReprTests) ... ok
+test_equal (expressions.tests.SimpleExpressionTests) ... ok
+test_hash (expressions.tests.SimpleExpressionTests) ... ok
+
+----------------------------------------------------------------------
+Ran 165 tests in 0.605s
+
+OK (skipped=1, expected failures=1)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout 770d3e6a4ce8e0a91a9e27156036c1985e74d4a3 tests/expressions/tests.py
+Updated 1 path from d975e662a0

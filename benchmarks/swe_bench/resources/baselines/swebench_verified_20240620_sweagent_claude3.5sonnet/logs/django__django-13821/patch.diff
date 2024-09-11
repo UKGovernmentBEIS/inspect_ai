@@ -1,0 +1,104 @@
+
+diff --git a/django/db/backends/sqlite3/base.py b/django/db/backends/sqlite3/base.py
+index ab4ea70492..dcff5534e0 100644
+--- a/django/db/backends/sqlite3/base.py
++++ b/django/db/backends/sqlite3/base.py
+@@ -64,8 +64,8 @@ def list_aggregate(function):
+ 
+ 
+ def check_sqlite_version():
+-    if Database.sqlite_version_info < (3, 8, 3):
+-        raise ImproperlyConfigured('SQLite 3.8.3 or later is required (found %s).' % Database.sqlite_version)
++    if Database.sqlite_version_info < (3, 9, 0):
++        raise ImproperlyConfigured('SQLite 3.9.0 or later is required (found %s).' % Database.sqlite_version)
+ 
+ 
+ check_sqlite_version()
+diff --git a/django/db/backends/sqlite3/features.py b/django/db/backends/sqlite3/features.py
+index 3348256c74..acf576cae5 100644
+--- a/django/db/backends/sqlite3/features.py
++++ b/django/db/backends/sqlite3/features.py
+@@ -31,17 +31,14 @@ class DatabaseFeatures(BaseDatabaseFeatures):
+     time_cast_precision = 3
+     can_release_savepoints = True
+     # Is "ALTER TABLE ... RENAME COLUMN" supported?
+-    can_alter_table_rename_column = Database.sqlite_version_info >= (3, 25, 0)
+-    supports_parentheses_in_compound = False
+-    # Deferred constraint checks can be emulated on SQLite < 3.20 but not in a
+-    # reasonably performant way.
+-    supports_pragma_foreign_key_check = Database.sqlite_version_info >= (3, 20, 0)
+-    can_defer_constraint_checks = supports_pragma_foreign_key_check
+-    supports_functions_in_partial_indexes = Database.sqlite_version_info >= (3, 15, 0)
+-    supports_over_clause = Database.sqlite_version_info >= (3, 25, 0)
+-    supports_frame_range_fixed_distance = Database.sqlite_version_info >= (3, 28, 0)
+-    supports_aggregate_filter_clause = Database.sqlite_version_info >= (3, 30, 1)
+-    supports_order_by_nulls_modifier = Database.sqlite_version_info >= (3, 30, 0)
++    can_alter_table_rename_column = True
++    supports_pragma_foreign_key_check = True
++    can_defer_constraint_checks = True
++    supports_functions_in_partial_indexes = True
++    supports_over_clause = True
++    supports_frame_range_fixed_distance = True
++    supports_aggregate_filter_clause = True
++    supports_order_by_nulls_modifier = True
+     order_by_nulls_first = True
+     supports_json_field_contains = False
+     test_collations = {
+@@ -66,12 +63,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
+                 'model_fields.test_integerfield.PositiveIntegerFieldTests.test_negative_values',
+             },
+         }
+-        if Database.sqlite_version_info < (3, 27):
+-            skips.update({
+-                'Nondeterministic failure on SQLite < 3.27.': {
+-                    'expressions_window.tests.WindowFunctionTests.test_subquery_row_range_rank',
+-                },
+-            })
++        # All SQLite versions we support (3.9.0+) pass these tests
+         if self.connection.is_in_memory_db():
+             skips.update({
+                 "the sqlite backend's close() method is a no-op when using an "
+@@ -83,11 +75,8 @@ class DatabaseFeatures(BaseDatabaseFeatures):
+ 
+     @cached_property
+     def supports_atomic_references_rename(self):
+-        # SQLite 3.28.0 bundled with MacOS 10.15 does not support renaming
+-        # references atomically.
+-        if platform.mac_ver()[0].startswith('10.15.') and Database.sqlite_version_info == (3, 28, 0):
+-            return False
+-        return Database.sqlite_version_info >= (3, 26, 0)
++        # All SQLite versions we support (3.9.0+) support atomic references rename
++        return True
+ 
+     @cached_property
+     def introspected_field_types(self):
+diff --git a/docs/ref/databases.txt b/docs/ref/databases.txt
+index 809ee68db6..8fc9e89662 100644
+--- a/docs/ref/databases.txt
++++ b/docs/ref/databases.txt
+@@ -679,7 +679,7 @@ appropriate typecasting.
+ SQLite notes
+ ============
+ 
+-Django supports SQLite 3.8.3 and later.
++Django supports SQLite 3.9.0 and later.
+ 
+ SQLite_ provides an excellent development alternative for applications that
+ are predominantly read-only or require a smaller installation footprint. As
+diff --git a/docs/releases/3.2.txt b/docs/releases/3.2.txt
+index 8cd77ffad0..cab518dfa8 100644
+--- a/docs/releases/3.2.txt
++++ b/docs/releases/3.2.txt
+@@ -605,6 +605,12 @@ Dropped support for MySQL 5.6
+ The end of upstream support for MySQL 5.6 is April 2021. Django 3.2 supports
+ MySQL 5.7 and higher.
+ 
++Dropped support for SQLite 3.8.3 and older
++------------------------------------------
++
++Django 3.2 supports SQLite 3.9.0 and later. This version adds support for
++indexes on expressions and the JSON1 extension, which Django uses.
++
+ Miscellaneous
+ -------------
+ 

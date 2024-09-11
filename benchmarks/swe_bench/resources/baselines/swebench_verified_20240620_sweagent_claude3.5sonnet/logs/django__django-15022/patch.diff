@@ -1,0 +1,241 @@
+
+diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py
+index 66f3396a6b..b8e2b25f60 100644
+--- a/django/contrib/admin/options.py
++++ b/django/contrib/admin/options.py
+@@ -1031,14 +1031,15 @@ class ModelAdmin(BaseModelAdmin):
+         if search_fields and search_term:
+             orm_lookups = [construct_search(str(search_field))
+                            for search_field in search_fields]
++            or_queries = models.Q()
+             for bit in smart_split(search_term):
+                 if bit.startswith(('"', "'")) and bit[0] == bit[-1]:
+                     bit = unescape_string_literal(bit)
+-                or_queries = models.Q(
++                or_queries |= models.Q(
+                     *((orm_lookup, bit) for orm_lookup in orm_lookups),
+-                    _connector=models.Q.OR,
++                    _connector=models.Q.OR
+                 )
+-                queryset = queryset.filter(or_queries)
++            queryset = queryset.filter(or_queries)
+             may_have_duplicates |= any(
+                 lookup_spawns_duplicates(self.opts, search_spec)
+                 for search_spec in orm_lookups
+diff --git a/django/contrib/admin/run_test.py b/django/contrib/admin/run_test.py
+new file mode 100644
+index 0000000000..e047336dc5
+--- /dev/null
++++ b/django/contrib/admin/run_test.py
+@@ -0,0 +1,67 @@
++import os
++import django
++from django.conf import settings
++from django.test.utils import get_runner
++from django.apps import apps
++from django.contrib import admin
++
++if __name__ == "__main__":
++    # Configure the test environment
++    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django.conf.global_settings')
++    
++    # Update the existing settings
++    settings.configure(
++        DEBUG=True,
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.admin',
++            'django.contrib.auth',
++            'django.contrib.contenttypes',
++            'django.contrib.sessions',
++            'django.contrib.messages',
++            'django.contrib.staticfiles',
++        ],
++        MIDDLEWARE=[
++            'django.middleware.security.SecurityMiddleware',
++            'django.contrib.sessions.middleware.SessionMiddleware',
++            'django.middleware.common.CommonMiddleware',
++            'django.middleware.csrf.CsrfViewMiddleware',
++            'django.contrib.auth.middleware.AuthenticationMiddleware',
++            'django.contrib.messages.middleware.MessageMiddleware',
++            'django.middleware.clickjacking.XFrameOptionsMiddleware',
++        ],
++        ROOT_URLCONF='django.contrib.admin.test_urls',
++        SECRET_KEY='fake-key',
++        TEMPLATES=[{
++            'BACKEND': 'django.template.backends.django.DjangoTemplates',
++            'APP_DIRS': True,
++            'OPTIONS': {
++                'context_processors': [
++                    'django.template.context_processors.debug',
++                    'django.template.context_processors.request',
++                    'django.contrib.auth.context_processors.auth',
++                    'django.contrib.messages.context_processors.messages',
++                ],
++            },
++        }],
++    )
++
++    django.setup()
++
++    # Ensure all apps are populated
++    apps.populate(settings.INSTALLED_APPS)
++
++    # Get the test runner
++    TestRunner = get_runner(settings)
++
++    # Run the test
++    test_runner = TestRunner(verbosity=1, interactive=True)
++    failures = test_runner.run_tests(["django.contrib.admin.test_admin_search"])
++
++    # Exit with non-zero status if there were failures
++    exit(bool(failures))
+diff --git a/django/contrib/admin/test_admin_search.py b/django/contrib/admin/test_admin_search.py
+new file mode 100644
+index 0000000000..274ec13c50
+--- /dev/null
++++ b/django/contrib/admin/test_admin_search.py
+@@ -0,0 +1,108 @@
++import os
++from django.test import TestCase, override_settings, TransactionTestCase
++from django.contrib.admin.options import ModelAdmin
++from django.db import models, connection
++from django.http import HttpRequest
++from django.conf import settings
++from django.test.utils import isolate_apps
++from django.db.transaction import atomic
++
++# Configure the test database
++if not settings.configured:
++    settings.configure(
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.admin',
++            'django.contrib.auth',
++            'django.contrib.contenttypes',
++            'django.contrib.sessions',
++            'django.contrib.messages',
++            'django.contrib.staticfiles',
++        ],
++        MIDDLEWARE=[
++            'django.middleware.security.SecurityMiddleware',
++            'django.contrib.sessions.middleware.SessionMiddleware',
++            'django.middleware.common.CommonMiddleware',
++            'django.middleware.csrf.CsrfViewMiddleware',
++            'django.contrib.auth.middleware.AuthenticationMiddleware',
++            'django.contrib.messages.middleware.MessageMiddleware',
++            'django.middleware.clickjacking.XFrameOptionsMiddleware',
++        ],
++        ROOT_URLCONF='django.contrib.admin.sites',
++        SECRET_KEY='fake-key',
++    )
++
++import django
++django.setup()
++
++@isolate_apps('django.contrib.admin')
++class AdminSearchTestCase(TransactionTestCase):
++    @classmethod
++    def setUpClass(cls):
++        super().setUpClass()
++
++        class MockModel(models.Model):
++            name = models.CharField(max_length=100)
++            description = models.TextField()
++
++            class Meta:
++                app_label = 'admin'
++
++        class MockModelAdmin(ModelAdmin):
++            search_fields = ['name', 'description']
++
++        cls.MockModel = MockModel
++        cls.MockModelAdmin = MockModelAdmin
++
++    @classmethod
++    def tearDownClass(cls):
++        super().tearDownClass()
++
++    def setUp(self):
++        super().setUp()
++        connection.disable_constraint_checking()
++        try:
++            with atomic():
++                with connection.schema_editor() as schema_editor:
++                    schema_editor.create_model(self.MockModel)
++        finally:
++            connection.enable_constraint_checking()
++
++        self.model_admin = self.MockModelAdmin(self.MockModel, None)
++        self.request = HttpRequest()
++        self.MockModel.objects.create(name="Test1", description="Description1")
++        self.MockModel.objects.create(name="Test2", description="Description2")
++        self.MockModel.objects.create(name="Other", description="OtherDescription")
++
++    def tearDown(self):
++        super().tearDown()
++        connection.disable_constraint_checking()
++        try:
++            with atomic():
++                with connection.schema_editor() as schema_editor:
++                    schema_editor.delete_model(self.MockModel)
++        finally:
++            connection.enable_constraint_checking()
++
++    def test_search_results(self):
++        queryset = self.MockModel.objects.all()
++        search_term = "Test Description"
++        filtered_qs, _ = self.model_admin.get_search_results(self.request, queryset, search_term)
++        
++        # Check that we get 2 results (Test1 and Test2)
++        self.assertEqual(filtered_qs.count(), 2)
++        
++        # Check that 'Other' is not in the results
++        self.assertFalse(filtered_qs.filter(name="Other").exists())
++
++        # Check that we're not doing separate queries for each word
++        self.assertNumQueries(1, lambda: list(filtered_qs))
++
++if __name__ == '__main__':
++    from django.core.management import call_command
++    call_command('test', 'django.contrib.admin.test_admin_search')
+diff --git a/django/contrib/admin/test_urls.py b/django/contrib/admin/test_urls.py
+new file mode 100644
+index 0000000000..dfc73621fa
+--- /dev/null
++++ b/django/contrib/admin/test_urls.py
+@@ -0,0 +1,6 @@
++from django.contrib import admin
++from django.urls import path
++
++urlpatterns = [
++    path('admin/', admin.site.urls),
++]
+diff --git a/django/contrib/management/commands/run_admin_search_test.py b/django/contrib/management/commands/run_admin_search_test.py
+new file mode 100644
+index 0000000000..9e54f78e12
+--- /dev/null
++++ b/django/contrib/management/commands/run_admin_search_test.py
+@@ -0,0 +1,12 @@
++from django.core.management.base import BaseCommand
++from django.test.utils import setup_test_environment
++from django.test.runner import DiscoverRunner
++
++class Command(BaseCommand):
++    help = 'Runs the admin search test'
++
++    def handle(self, *args, **options):
++        setup_test_environment()
++        test_runner = DiscoverRunner(verbosity=2)
++        test_labels = ['django.contrib.admin.test_admin_search']
++        test_runner.run_tests(test_labels)

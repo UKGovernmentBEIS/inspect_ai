@@ -1,0 +1,515 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/core/management/base.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit eb16c7260e573ec513d84cb586d96bdf508f3173
+Author: Tobias Kunze <r@rixx.de>
+Date:   Sat Apr 27 18:32:27 2019 +0200
+
+    Fixed #20629 -- Rephrased custom user models admonition.
+
+diff --git a/docs/topics/auth/customizing.txt b/docs/topics/auth/customizing.txt
+index 5c01067a75..fd723cbb94 100644
+--- a/docs/topics/auth/customizing.txt
++++ b/docs/topics/auth/customizing.txt
+@@ -511,18 +511,17 @@ different user model.
+ Specifying a custom user model
+ ------------------------------
+ 
+-.. admonition:: Model design considerations
+-
+-    Think carefully before handling information not directly related to
+-    authentication in your custom user model.
+-
+-    It may be better to store app-specific user information in a model
+-    that has a relation with the user model. That allows each app to specify
+-    its own user data requirements without risking conflicts with other
+-    apps. On the other hand, queries to retrieve this related information
+-    will involve a database join, which may have an effect on performance.
+-
+-Django expects your custom user model to meet some minimum requirements.
++When you start your project with a custom user model, stop to consider if this
++is the right choice for your project.
++
++Keeping all user related information in one model removes the need for
++additional or more complex database queries to retrieve related models. On the
++other hand, it may be more suitable to store app-specific user information in a
++model that has a relation with your custom user model. That allows each app to
++specify its own user data requirements without potentially conflicting or
++breaking assumptions by other apps. It also means that you would keep your user
++model as simple as possible, focused on authentication, and following the
++minimum requirements Django expects custom user models to meet.
+ 
+ If you use the default authentication backend, then your model must have a
+ single unique field that can be used for identification purposes. This can
++ git diff eb16c7260e573ec513d84cb586d96bdf508f3173
+diff --git a/django/core/management/base.py b/django/core/management/base.py
+index 0c3a981290..c2ed9a025c 100644
+--- a/django/core/management/base.py
++++ b/django/core/management/base.py
+@@ -155,6 +155,143 @@ class BaseCommand:
+     response; if you don't need to change any of that behavior,
+     consider using one of the subclasses defined in this file.
+ 
++    ...
++
++    --force-color
++        Force colorization of the command output.
++    --skip-checks
++        Skip system checks before executing the command.
++    """
++    derive.
++
++    Use this class if you want access to all of the mechanisms which
++    parse the command-line arguments and work out what code to call in
++    response; if you don't need to change any of that behavior,
++    consider using one of the subclasses defined in this file.
++
++    If you are interested in overriding/customizing various aspects of
++    the command-parsing and -execution behavior, the normal flow works
++    as follows:
++
++    1. ``django-admin`` or ``manage.py`` loads the command class
++       and calls its ``run_from_argv()`` method.
++
++    2. The ``run_from_argv()`` method calls ``create_parser()`` to get
++       an ``ArgumentParser`` for the arguments, parses them, performs
++       any environment changes requested by options like
++       ``pythonpath``, and then calls the ``execute()`` method,
++       passing the parsed arguments.
++
++    3. The ``execute()`` method attempts to carry out the command by
++       calling the ``handle()`` method with the parsed arguments; any
++       output produced by ``handle()`` will be printed to standard
++       output and, if the command is intended to produce a block of
++       SQL statements, will be wrapped in ``BEGIN`` and ``COMMIT``.
++
++    4. If ``handle()`` or ``execute()`` raised any exception (e.g.
++       ``CommandError``), ``run_from_argv()`` will  instead print an error
++       message to ``stderr``.
++
++    Thus, the ``handle()`` method is typically the starting point for
++    subclasses; many built-in commands and command types either place
++    all of their logic in ``handle()``, or perform some additional
++    parsing work in ``handle()`` and then delegate from it to more
++    specialized methods as needed.
++
++    Several attributes affect behavior at various steps along the way:
++
++    ``help``
++        A short description of the command, which will be printed in
++        help messages.
++
++    ``stealth_options``
++        A tuple of any options the command uses which aren't defined by the
++        argument parser.
++
++    ``suppressed_base_arguments``
++        A set of the options from the base ``BaseCommand`` class that
++        this command doesn't want to show in the help message.
++
++    ``requires_migrations_checks``
++        A boolean; if ``True``, the command prints a warning if the set of
++        migrations on disk don't match the migrations in the database.
++
++    ``requires_system_checks``
++        A list or tuple of tags, e.g. [Tags.staticfiles, Tags.models]. System
++        checks registered in the chosen tags will be checked for errors prior
++        to executing the command. The value '__all__' can be used to specify
++        that all system checks should be performed. Default value is '__all__'.
++
++        To validate an individual application's models
++        rather than all applications' models, call
++        ``self.check(app_configs)`` from ``handle()``, where ``app_configs``
++        is the list of application's configuration provided by the
++        app registry.
++
++    ``base_stealth_options``
++        A tuple of options that the command uses (but does not define
++        itself) and that should not be shown in the help message.
++
++    ``stdout``
++        The stream to write standard output to.
++
++    ``stderr``
++        The stream to write standard error to.
++
++    ``style``
++        An instance of ``django.core.management.color.Style`` to use for
++        coloring output. By default, a Style instance is created and its
++        ``ERROR`` and ``SQL_FIELD`` styles are overridden.
++
++    Command options can be defined by using the ``add_arguments()`` method.
++    It receives an instance of ``argparse.ArgumentParser`` as the first
++    argument and should add arguments using its ``add_argument()`` method.
++
++    Command options can be accessed as attributes on the command:
++
++        class MyCommand(BaseCommand):
++            def add_arguments(self, parser):
++                parser.add_argument('--my-option', type=int)
++
++            def handle(self, *args, **options):
++                print(options['my_option'])
++
++    A boolean option defined using the ``store_true`` or ``store_false``
++    ``action`` will be ``False`` or ``True`` respectively if not provided on
++    the command line.
++
++    The command also includes the following options:
++
++    --version
++        Show the version and exit.
++    --verbosity {0,1,2,3}
++        Verbosity level; 0=minimal output, 1=normal output, 2=verbose output,
++        3=very verbose output.
++    --settings SETTINGS
++        The Python path to a settings module, e.g.
++        "myproject.settings.main". If this isn't provided, the
++        DJANGO_SETTINGS_MODULE environment variable will be used.
++    --pythonpath PYTHONPATH
++        A directory to add to the Python path, e.g.
++        "/home/djangoprojects/myproject".
++    --traceback
++        Raise on CommandError exceptions.
++    --no-color
++        Don't colorize the command output.
++    --force-color
++        Force colorization of the command output.
++    --skip-checks
++        Skip system checks before executing the command.
++    """
++    """
++    The base class from which all management commands ultimately
++    derive.
++
++    Use this class if you want access to all of the mechanisms which
++    parse the command-line arguments and work out what code to call in
++    response; if you don't need to change any of that behavior,
++    consider using one of the subclasses defined in this file.
++
+     If you are interested in overriding/customizing various aspects of
+     the command-parsing and -execution behavior, the normal flow works
+     as follows:
+@@ -284,7 +421,11 @@ class BaseCommand:
+         )
+         parser.add_argument(
+             '--force-color', action='store_true',
+-            help='Force colorization of the command output.',
++        )
++        # Add the --skip-checks option to allow skipping system checks
++        parser.add_argument(
++            '--skip-checks', action='store_true',
++            help="Skip system checks.",
+         )
+         self.add_arguments(parser)
+         return parser
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0.dev20190430070916) (2024.1)
+Requirement already satisfied: sqlparse in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0.dev20190430070916) (0.4.4)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.0.dev20190430070916
+    Uninstalling Django-3.0.dev20190430070916:
+      Successfully uninstalled Django-3.0.dev20190430070916
+  Running setup.py develop for Django
+Successfully installed Django-3.0.dev20190430070916
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout eb16c7260e573ec513d84cb586d96bdf508f3173 tests/user_commands/tests.py
+Updated 0 paths from 221e587f10
++ git apply -v -
+Checking patch tests/user_commands/tests.py...
+Applied patch tests/user_commands/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 user_commands.tests
+Traceback (most recent call last):
+  File "./tests/runtests.py", line 23, in <module>
+    from django.test import TestCase, TransactionTestCase
+  File "/testbed/django/test/__init__.py", line 3, in <module>
+    from django.test.client import Client, RequestFactory
+  File "/testbed/django/test/client.py", line 14, in <module>
+    from django.core.handlers.base import BaseHandler
+  File "/testbed/django/core/handlers/base.py", line 9, in <module>
+    from django.utils.log import log_response
+  File "/testbed/django/utils/log.py", line 8, in <module>
+    from django.core.management.color import color_style
+  File "/testbed/django/core/management/__init__.py", line 13, in <module>
+    from django.core.management.base import (
+  File "/testbed/django/core/management/base.py", line 165
+    derive.
+          ^
+SyntaxError: invalid syntax
++ git checkout eb16c7260e573ec513d84cb586d96bdf508f3173 tests/user_commands/tests.py
+Updated 1 path from 221e587f10

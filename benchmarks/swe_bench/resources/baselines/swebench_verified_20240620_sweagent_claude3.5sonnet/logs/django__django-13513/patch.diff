@@ -1,0 +1,56 @@
+
+diff --git a/django/views/debug.py b/django/views/debug.py
+index 7a89f7bd15..0d84d3f7c5 100644
+--- a/django/views/debug.py
++++ b/django/views/debug.py
+@@ -397,8 +397,8 @@ class ExceptionReporter:
+     def get_traceback_frames(self):
+         def explicit_or_implicit_cause(exc_value):
+             explicit = getattr(exc_value, '__cause__', None)
+-            suppress_context = getattr(exc_value, '__suppress_context__', None)
+             implicit = getattr(exc_value, '__context__', None)
++            suppress_context = getattr(exc_value, '__suppress_context__', False)
+             return explicit or (None if suppress_context else implicit)
+ 
+         # Get the exception and all its causes
+diff --git a/tests/view_tests/tests/test_debug.py b/tests/view_tests/tests/test_debug.py
+index 3cbeb2e03a..155fa30d4f 100644
+--- a/tests/view_tests/tests/test_debug.py
++++ b/tests/view_tests/tests/test_debug.py
+@@ -292,6 +292,12 @@ class DebugViewTests(SimpleTestCase):
+         with self.assertLogs('django.request', 'ERROR'):
+             response = self.client.get('/raises500/')
+         self.assertContains(response, 'custom traceback text', status_code=500)
++    def test_suppress_context_respected(self):
++        with self.assertRaises(ValueError) as cm:
++            self.client.get('/raises_suppressed_context/')
++        self.assertIsNone(cm.exception.__cause__)
++        self.assertIsNotNone(cm.exception.__context__)
++        self.assertTrue(cm.exception.__suppress_context__)
+ 
+ 
+ class DebugViewQueriesAllowedTests(SimpleTestCase):
+diff --git a/tests/view_tests/urls.py b/tests/view_tests/urls.py
+index f394934f4d..96bd9138f2 100644
+--- a/tests/view_tests/urls.py
++++ b/tests/view_tests/urls.py
+@@ -69,4 +69,5 @@ urlpatterns += [
+     # Patterns to test the technical 404.
+     re_path(r'^regex-post/(?P<pk>[0-9]+)/$', views.index_page, name='regex-post'),
+     path('path-post/<int:pk>/', views.index_page, name='path-post'),
++    path('raises_suppressed_context/', views.raises_suppressed_context, name='raises_suppressed_context'),
+ ]
+diff --git a/tests/view_tests/views.py b/tests/view_tests/views.py
+index 3d7d0908b0..30270556ac 100644
+--- a/tests/view_tests/views.py
++++ b/tests/view_tests/views.py
+@@ -291,3 +291,9 @@ def json_response_view(request):
+         'timestamp': datetime.datetime(2013, 5, 19, 20),
+         'value': decimal.Decimal('3.14'),
+     })
++
++def raises_suppressed_context(request):
++    try:
++        raise RuntimeError('my error')
++    except Exception:
++        raise ValueError('my new error') from None

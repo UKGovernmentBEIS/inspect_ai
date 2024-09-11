@@ -1,0 +1,36 @@
+
+diff --git a/doc/usage/restructuredtext/directives.rst b/doc/usage/restructuredtext/directives.rst
+index 4029b04e6..f2b69d755 100644
+--- a/doc/usage/restructuredtext/directives.rst
++++ b/doc/usage/restructuredtext/directives.rst
+@@ -106,6 +106,17 @@ tables of contents.  The ``toctree`` directive is the central element.
+          foo
+          bar
+ 
++   .. warning::
++
++      Certain names are reserved for Sphinx's internal use and should not be used in the toctree:
++
++      * ``genindex``
++      * ``modindex``
++      * ``search``
++
++      These are used for the general index, the module index, and the search page, respectively.
++      Including these in your toctree will result in build warnings and they will not function as expected.
++
+    Numbering then starts at the heading of ``foo``.  Sub-toctrees are
+    automatically numbered (don't give the ``numbered`` flag to those).
+ 
+diff --git a/tox.ini b/tox.ini
+index 7ca990b56..a0708b02c 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -30,7 +30,7 @@ setenv =
+     PYTHONWARNINGS = all
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -X warn_default_encoding -m pytest --durations 25 {posargs}
++    python -X dev -X warn_default_encoding -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:du-latest]
+ commands =

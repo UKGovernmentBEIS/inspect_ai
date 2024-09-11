@@ -1,0 +1,40 @@
+
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index 29e33c075f..7a087d32a3 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -1423,19 +1423,22 @@ class SQLDeleteCompiler(SQLCompiler):
+         Create the SQL for this query. Return the SQL string and list of
+         parameters.
+         """
+-        if self.single_alias:
++        # Optimize for the common case of deleting all objects in a table
++        # without any complex conditions. This addresses a performance regression
++        # introduced in Django 3.1.
++        if self.single_alias and not self.query.where:
++            # Simple case: DELETE FROM table
+             return self._as_sql(self.query)
+-        innerq = self.query.clone()
+-        innerq.__class__ = Query
+-        innerq.clear_select_clause()
+-        pk = self.query.model._meta.pk
+-        innerq.select = [
+-            pk.get_col(self.query.get_initial_alias())
+-        ]
+-        outerq = Query(self.query.model)
+-        outerq.where = self.query.where_class()
+-        outerq.add_q(Q(pk__in=innerq))
+-        return self._as_sql(outerq)
++        else:
++            # Complex case: Use a subquery
++            innerq = self.query.clone()
++            innerq.__class__ = Query
++            innerq.clear_select_clause()
++            innerq.select = [self.query.model._meta.pk.get_col(self.query.get_initial_alias())]
++            outerq = Query(self.query.model)
++            outerq.where = self.query.where_class()
++            outerq.add_q(Q(pk__in=innerq))
++            return self._as_sql(outerq)
+ 
+ 
+ class SQLUpdateCompiler(SQLCompiler):

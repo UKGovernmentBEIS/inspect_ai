@@ -1,0 +1,3625 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/forms/models.py
+	modified:   django/forms/widgets.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test_radio_app/
+	test_settings.py
+	tests/forms_tests/test_radio_select.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 335c9c94acf263901fb023404408880245b0c4b4
+Author: Nick Pope <nick.pope@flightdataservices.com>
+Date:   Tue Aug 20 08:54:41 2019 +0100
+
+    Simplified imports from django.db and django.contrib.gis.db.
+
+diff --git a/django/contrib/admin/checks.py b/django/contrib/admin/checks.py
+index e088bc9142..533e66a19f 100644
+--- a/django/contrib/admin/checks.py
++++ b/django/contrib/admin/checks.py
+@@ -10,7 +10,7 @@ from django.core import checks
+ from django.core.exceptions import FieldDoesNotExist
+ from django.db import models
+ from django.db.models.constants import LOOKUP_SEP
+-from django.db.models.expressions import Combinable, F, OrderBy
++from django.db.models.expressions import Combinable
+ from django.forms.models import (
+     BaseModelForm, BaseModelFormSet, _get_foreign_key,
+ )
+@@ -546,10 +546,10 @@ class BaseModelAdminChecks:
+ 
+     def _check_ordering_item(self, obj, field_name, label):
+         """ Check that `ordering` refers to existing fields. """
+-        if isinstance(field_name, (Combinable, OrderBy)):
+-            if not isinstance(field_name, OrderBy):
++        if isinstance(field_name, (Combinable, models.OrderBy)):
++            if not isinstance(field_name, models.OrderBy):
+                 field_name = field_name.asc()
+-            if isinstance(field_name.expression, F):
++            if isinstance(field_name.expression, models.F):
+                 field_name = field_name.expression.name
+             else:
+                 return []
+diff --git a/django/contrib/admin/helpers.py b/django/contrib/admin/helpers.py
+index 0337c50010..09dbd090fc 100644
+--- a/django/contrib/admin/helpers.py
++++ b/django/contrib/admin/helpers.py
+@@ -7,7 +7,7 @@ from django.contrib.admin.utils import (
+     lookup_field,
+ )
+ from django.core.exceptions import ObjectDoesNotExist
+-from django.db.models.fields.related import ManyToManyRel
++from django.db.models import ManyToManyRel
+ from django.forms.utils import flatatt
+ from django.template.defaultfilters import capfirst, linebreaksbr
+ from django.utils.html import conditional_escape, format_html
+diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py
+index a0429a0e84..69a5fbf389 100644
+--- a/django/contrib/admin/options.py
++++ b/django/contrib/admin/options.py
+@@ -30,7 +30,6 @@ from django.core.exceptions import (
+ from django.core.paginator import Paginator
+ from django.db import models, router, transaction
+ from django.db.models.constants import LOOKUP_SEP
+-from django.db.models.fields import BLANK_CHOICE_DASH
+ from django.forms.formsets import DELETION_FIELD_NAME, all_valid
+ from django.forms.models import (
+     BaseInlineFormSet, inlineformset_factory, modelform_defines_fields,
+@@ -889,7 +888,7 @@ class ModelAdmin(BaseModelAdmin):
+         actions = self._filter_actions_by_permissions(request, self._get_base_actions())
+         return {name: (func, name, desc) for func, name, desc in actions}
+ 
+-    def get_action_choices(self, request, default_choices=BLANK_CHOICE_DASH):
++    def get_action_choices(self, request, default_choices=models.BLANK_CHOICE_DASH):
+         """
+         Return a list of choices for use in a form object.  Each choice is a
+         tuple (name, description).
+diff --git a/django/contrib/admin/views/main.py b/django/contrib/admin/views/main.py
+index e587d4ffca..b2d95828df 100644
+--- a/django/contrib/admin/views/main.py
++++ b/django/contrib/admin/views/main.py
+@@ -17,8 +17,8 @@ from django.core.exceptions import (
+     FieldDoesNotExist, ImproperlyConfigured, SuspiciousOperation,
+ )
+ from django.core.paginator import InvalidPage
+-from django.db import models
+-from django.db.models.expressions import Combinable, F, OrderBy
++from django.db.models import F, Field, ManyToOneRel, OrderBy
++from django.db.models.expressions import Combinable
+ from django.urls import reverse
+ from django.utils.http import urlencode
+ from django.utils.timezone import make_aware
+@@ -141,7 +141,7 @@ class ChangeList:
+                     # FieldListFilter class that has been registered for the
+                     # type of the given field.
+                     field, field_list_filter_class = list_filter, FieldListFilter.create
+-                if not isinstance(field, models.Field):
++                if not isinstance(field, Field):
+                     field_path = field
+                     field = get_fields_from_path(self.model, field_path)[-1]
+ 
+@@ -487,7 +487,7 @@ class ChangeList:
+             except FieldDoesNotExist:
+                 pass
+             else:
+-                if isinstance(field.remote_field, models.ManyToOneRel):
++                if isinstance(field.remote_field, ManyToOneRel):
+                     # <FK>_id field names don't require a join.
+                     if field_name != field.get_attname():
+                         return True
+diff --git a/django/contrib/admin/widgets.py b/django/contrib/admin/widgets.py
+index 7db57f4098..ca78a18437 100644
+--- a/django/contrib/admin/widgets.py
++++ b/django/contrib/admin/widgets.py
+@@ -8,7 +8,7 @@ from django import forms
+ from django.conf import settings
+ from django.core.exceptions import ValidationError
+ from django.core.validators import URLValidator
+-from django.db.models.deletion import CASCADE
++from django.db.models import CASCADE
+ from django.urls import reverse
+ from django.urls.exceptions import NoReverseMatch
+ from django.utils.html import smart_urlquote
+diff --git a/django/contrib/auth/migrations/0011_update_proxy_permissions.py b/django/contrib/auth/migrations/0011_update_proxy_permissions.py
+index 7409ea1254..a939244561 100644
+--- a/django/contrib/auth/migrations/0011_update_proxy_permissions.py
++++ b/django/contrib/auth/migrations/0011_update_proxy_permissions.py
+@@ -1,9 +1,8 @@
+ import sys
+ 
+ from django.core.management.color import color_style
+-from django.db import migrations, transaction
++from django.db import IntegrityError, migrations, transaction
+ from django.db.models import Q
+-from django.db.utils import IntegrityError
+ 
+ WARNING = """
+     A problem arose migrating proxy model permissions for {old} to {new}.
+diff --git a/django/contrib/contenttypes/fields.py b/django/contrib/contenttypes/fields.py
+index 163e3a9c50..3282fd6d4b 100644
+--- a/django/contrib/contenttypes/fields.py
++++ b/django/contrib/contenttypes/fields.py
+@@ -7,12 +7,11 @@ from django.contrib.contenttypes.models import ContentType
+ from django.core import checks
+ from django.core.exceptions import FieldDoesNotExist, ObjectDoesNotExist
+ from django.db import DEFAULT_DB_ALIAS, models, router, transaction
+-from django.db.models import DO_NOTHING
++from django.db.models import DO_NOTHING, ForeignObject, ForeignObjectRel
+ from django.db.models.base import ModelBase, make_foreign_order_accessors
+ from django.db.models.fields.mixins import FieldCacheMixin
+ from django.db.models.fields.related import (
+-    ForeignObject, ForeignObjectRel, ReverseManyToOneDescriptor,
+-    lazy_related_operation,
++    ReverseManyToOneDescriptor, lazy_related_operation,
+ )
+ from django.db.models.query_utils import PathInfo
+ from django.utils.functional import cached_property
+diff --git a/django/contrib/contenttypes/management/__init__.py b/django/contrib/contenttypes/management/__init__.py
+index df931d9c7f..4971fa0c4b 100644
+--- a/django/contrib/contenttypes/management/__init__.py
++++ b/django/contrib/contenttypes/management/__init__.py
+@@ -1,6 +1,7 @@
+ from django.apps import apps as global_apps
+-from django.db import DEFAULT_DB_ALIAS, migrations, router, transaction
+-from django.db.utils import IntegrityError
++from django.db import (
++    DEFAULT_DB_ALIAS, IntegrityError, migrations, router, transaction,
++)
+ 
+ 
+ class RenameContentType(migrations.RunPython):
+diff --git a/django/contrib/gis/db/backends/base/features.py b/django/contrib/gis/db/backends/base/features.py
+index 5c25ca5ac0..51f2a9c743 100644
+--- a/django/contrib/gis/db/backends/base/features.py
++++ b/django/contrib/gis/db/backends/base/features.py
+@@ -1,6 +1,6 @@
+ import re
+ 
+-from django.contrib.gis.db.models import aggregates
++from django.contrib.gis.db import models
+ 
+ 
+ class BaseSpatialFeatures:
+@@ -77,19 +77,19 @@ class BaseSpatialFeatures:
+     # Is the aggregate supported by the database?
+     @property
+     def supports_collect_aggr(self):
+-        return aggregates.Collect not in self.connection.ops.disallowed_aggregates
++        return models.Collect not in self.connection.ops.disallowed_aggregates
+ 
+     @property
+     def supports_extent_aggr(self):
+-        return aggregates.Extent not in self.connection.ops.disallowed_aggregates
++        return models.Extent not in self.connection.ops.disallowed_aggregates
+ 
+     @property
+     def supports_make_line_aggr(self):
+-        return aggregates.MakeLine not in self.connection.ops.disallowed_aggregates
++        return models.MakeLine not in self.connection.ops.disallowed_aggregates
+ 
+     @property
+     def supports_union_aggr(self):
+-        return aggregates.Union not in self.connection.ops.disallowed_aggregates
++        return models.Union not in self.connection.ops.disallowed_aggregates
+ 
+     def __getattr__(self, name):
+         m = re.match(r'has_(\w*)_function$', name)
+diff --git a/django/contrib/gis/db/backends/base/operations.py b/django/contrib/gis/db/backends/base/operations.py
+index 4a2245680f..63fcf93c91 100644
+--- a/django/contrib/gis/db/backends/base/operations.py
++++ b/django/contrib/gis/db/backends/base/operations.py
+@@ -3,7 +3,7 @@ from django.contrib.gis.db.models.functions import Distance
+ from django.contrib.gis.measure import (
+     Area as AreaMeasure, Distance as DistanceMeasure,
+ )
+-from django.db.utils import NotSupportedError
++from django.db import NotSupportedError
+ from django.utils.functional import cached_property
+ 
+ 
+diff --git a/django/contrib/gis/db/backends/mysql/operations.py b/django/contrib/gis/db/backends/mysql/operations.py
+index 44717f5e30..e5000e99fa 100644
+--- a/django/contrib/gis/db/backends/mysql/operations.py
++++ b/django/contrib/gis/db/backends/mysql/operations.py
+@@ -1,9 +1,9 @@
++from django.contrib.gis.db import models
+ from django.contrib.gis.db.backends.base.adapter import WKTAdapter
+ from django.contrib.gis.db.backends.base.operations import (
+     BaseSpatialOperations,
+ )
+ from django.contrib.gis.db.backends.utils import SpatialOperator
+-from django.contrib.gis.db.models import aggregates
+ from django.contrib.gis.geos.geometry import GEOSGeometryBase
+ from django.contrib.gis.geos.prototypes.io import wkb_r
+ from django.contrib.gis.measure import Distance
+@@ -49,8 +49,8 @@ class MySQLOperations(BaseSpatialOperations, DatabaseOperations):
+         return operators
+ 
+     disallowed_aggregates = (
+-        aggregates.Collect, aggregates.Extent, aggregates.Extent3D,
+-        aggregates.MakeLine, aggregates.Union,
++        models.Collect, models.Extent, models.Extent3D, models.MakeLine,
++        models.Union,
+     )
+ 
+     @cached_property
+diff --git a/django/contrib/gis/db/backends/mysql/schema.py b/django/contrib/gis/db/backends/mysql/schema.py
+index 693c48dba6..679b2bcb8e 100644
+--- a/django/contrib/gis/db/backends/mysql/schema.py
++++ b/django/contrib/gis/db/backends/mysql/schema.py
+@@ -1,8 +1,8 @@
+ import logging
+ 
+-from django.contrib.gis.db.models.fields import GeometryField
++from django.contrib.gis.db.models import GeometryField
++from django.db import OperationalError
+ from django.db.backends.mysql.schema import DatabaseSchemaEditor
+-from django.db.utils import OperationalError
+ 
+ logger = logging.getLogger('django.contrib.gis')
+ 
+diff --git a/django/contrib/gis/db/backends/oracle/operations.py b/django/contrib/gis/db/backends/oracle/operations.py
+index da6d7768f2..8cd0bfdf56 100644
+--- a/django/contrib/gis/db/backends/oracle/operations.py
++++ b/django/contrib/gis/db/backends/oracle/operations.py
+@@ -9,12 +9,12 @@
+ """
+ import re
+ 
++from django.contrib.gis.db import models
+ from django.contrib.gis.db.backends.base.operations import (
+     BaseSpatialOperations,
+ )
+ from django.contrib.gis.db.backends.oracle.adapter import OracleSpatialAdapter
+ from django.contrib.gis.db.backends.utils import SpatialOperator
+-from django.contrib.gis.db.models import aggregates
+ from django.contrib.gis.geos.geometry import GEOSGeometry, GEOSGeometryBase
+ from django.contrib.gis.geos.prototypes.io import wkb_r
+ from django.contrib.gis.measure import Distance
+@@ -53,7 +53,7 @@ class OracleOperations(BaseSpatialOperations, DatabaseOperations):
+ 
+     name = 'oracle'
+     oracle = True
+-    disallowed_aggregates = (aggregates.Collect, aggregates.Extent3D, aggregates.MakeLine)
++    disallowed_aggregates = (models.Collect, models.Extent3D, models.MakeLine)
+ 
+     Adapter = OracleSpatialAdapter
+ 
+diff --git a/django/contrib/gis/db/backends/oracle/schema.py b/django/contrib/gis/db/backends/oracle/schema.py
+index d90e6cfad6..7bccee7a60 100644
+--- a/django/contrib/gis/db/backends/oracle/schema.py
++++ b/django/contrib/gis/db/backends/oracle/schema.py
+@@ -1,4 +1,4 @@
+-from django.contrib.gis.db.models.fields import GeometryField
++from django.contrib.gis.db.models import GeometryField
+ from django.db.backends.oracle.schema import DatabaseSchemaEditor
+ from django.db.backends.utils import strip_quotes, truncate_name
+ 
+diff --git a/django/contrib/gis/db/backends/postgis/operations.py b/django/contrib/gis/db/backends/postgis/operations.py
+index 852a4c8cf5..3eabcca95d 100644
+--- a/django/contrib/gis/db/backends/postgis/operations.py
++++ b/django/contrib/gis/db/backends/postgis/operations.py
+@@ -11,9 +11,9 @@ from django.contrib.gis.geos.geometry import GEOSGeometryBase
+ from django.contrib.gis.geos.prototypes.io import wkb_r
+ from django.contrib.gis.measure import Distance
+ from django.core.exceptions import ImproperlyConfigured
++from django.db import NotSupportedError, ProgrammingError
+ from django.db.backends.postgresql.operations import DatabaseOperations
+ from django.db.models import Func, Value
+-from django.db.utils import NotSupportedError, ProgrammingError
+ from django.utils.functional import cached_property
+ from django.utils.version import get_version_tuple
+ 
+diff --git a/django/contrib/gis/db/backends/spatialite/operations.py b/django/contrib/gis/db/backends/spatialite/operations.py
+index 3cdc92b845..4d4d84aa6d 100644
+--- a/django/contrib/gis/db/backends/spatialite/operations.py
++++ b/django/contrib/gis/db/backends/spatialite/operations.py
+@@ -2,12 +2,12 @@
+ SQL functions reference lists:
+ https://www.gaia-gis.it/gaia-sins/spatialite-sql-4.3.0.html
+ """
++from django.contrib.gis.db import models
+ from django.contrib.gis.db.backends.base.operations import (
+     BaseSpatialOperations,
+ )
+ from django.contrib.gis.db.backends.spatialite.adapter import SpatiaLiteAdapter
+ from django.contrib.gis.db.backends.utils import SpatialOperator
+-from django.contrib.gis.db.models import aggregates
+ from django.contrib.gis.geos.geometry import GEOSGeometry, GEOSGeometryBase
+ from django.contrib.gis.geos.prototypes.io import wkb_r
+ from django.contrib.gis.measure import Distance
+@@ -62,7 +62,7 @@ class SpatiaLiteOperations(BaseSpatialOperations, DatabaseOperations):
+         'dwithin': SpatialOperator(func='PtDistWithin'),
+     }
+ 
+-    disallowed_aggregates = (aggregates.Extent3D,)
++    disallowed_aggregates = (models.Extent3D,)
+ 
+     select = 'CAST (AsEWKB(%s) AS BLOB)'
+ 
+diff --git a/django/contrib/gis/db/backends/spatialite/schema.py b/django/contrib/gis/db/backends/spatialite/schema.py
+index 93ea754488..6a4c84ce72 100644
+--- a/django/contrib/gis/db/backends/spatialite/schema.py
++++ b/django/contrib/gis/db/backends/spatialite/schema.py
+@@ -1,5 +1,5 @@
++from django.db import DatabaseError
+ from django.db.backends.sqlite3.schema import DatabaseSchemaEditor
+-from django.db.utils import DatabaseError
+ 
+ 
+ class SpatialiteSchemaEditor(DatabaseSchemaEditor):
+@@ -35,7 +35,7 @@ class SpatialiteSchemaEditor(DatabaseSchemaEditor):
+         return self.connection.ops.geo_quote_name(name)
+ 
+     def column_sql(self, model, field, include_default=False):
+-        from django.contrib.gis.db.models.fields import GeometryField
++        from django.contrib.gis.db.models import GeometryField
+         if not isinstance(field, GeometryField):
+             return super().column_sql(model, field, include_default)
+ 
+@@ -82,7 +82,7 @@ class SpatialiteSchemaEditor(DatabaseSchemaEditor):
+         self.geometry_sql = []
+ 
+     def delete_model(self, model, **kwargs):
+-        from django.contrib.gis.db.models.fields import GeometryField
++        from django.contrib.gis.db.models import GeometryField
+         # Drop spatial metadata (dropping the table does not automatically remove them)
+         for field in model._meta.local_fields:
+             if isinstance(field, GeometryField):
+@@ -101,7 +101,7 @@ class SpatialiteSchemaEditor(DatabaseSchemaEditor):
+         super().delete_model(model, **kwargs)
+ 
+     def add_field(self, model, field):
+-        from django.contrib.gis.db.models.fields import GeometryField
++        from django.contrib.gis.db.models import GeometryField
+         if isinstance(field, GeometryField):
+             # Populate self.geometry_sql
+             self.column_sql(model, field)
+@@ -112,7 +112,7 @@ class SpatialiteSchemaEditor(DatabaseSchemaEditor):
+             super().add_field(model, field)
+ 
+     def remove_field(self, model, field):
+-        from django.contrib.gis.db.models.fields import GeometryField
++        from django.contrib.gis.db.models import GeometryField
+         # NOTE: If the field is a geometry field, the table is just recreated,
+         # the parent's remove_field can't be used cause it will skip the
+         # recreation if the field does not have a database type. Geometry fields
+@@ -124,7 +124,7 @@ class SpatialiteSchemaEditor(DatabaseSchemaEditor):
+             super().remove_field(model, field)
+ 
+     def alter_db_table(self, model, old_db_table, new_db_table, disable_constraints=True):
+-        from django.contrib.gis.db.models.fields import GeometryField
++        from django.contrib.gis.db.models import GeometryField
+         # Remove geometry-ness from temp table
+         for field in model._meta.local_fields:
+             if isinstance(field, GeometryField):
+diff --git a/django/contrib/gis/db/models/aggregates.py b/django/contrib/gis/db/models/aggregates.py
+index 993d9f91fc..69380beea9 100644
+--- a/django/contrib/gis/db/models/aggregates.py
++++ b/django/contrib/gis/db/models/aggregates.py
+@@ -1,7 +1,7 @@
+ from django.contrib.gis.db.models.fields import (
+     ExtentField, GeometryCollectionField, GeometryField, LineStringField,
+ )
+-from django.db.models.aggregates import Aggregate
++from django.db.models import Aggregate
+ from django.utils.functional import cached_property
+ 
+ __all__ = ['Collect', 'Extent', 'Extent3D', 'MakeLine', 'Union']
+diff --git a/django/contrib/gis/db/models/fields.py b/django/contrib/gis/db/models/fields.py
+index 08186d8933..af5abb549e 100644
+--- a/django/contrib/gis/db/models/fields.py
++++ b/django/contrib/gis/db/models/fields.py
+@@ -8,7 +8,7 @@ from django.contrib.gis.geos import (
+     MultiLineString, MultiPoint, MultiPolygon, Point, Polygon,
+ )
+ from django.core.exceptions import ImproperlyConfigured
+-from django.db.models.fields import Field
++from django.db.models import Field
+ from django.utils.translation import gettext_lazy as _
+ 
+ # Local cache of the spatial_ref_sys table, which holds SRID data for each
+diff --git a/django/contrib/gis/db/models/functions.py b/django/contrib/gis/db/models/functions.py
+index 7ddb2ed708..9734068574 100644
+--- a/django/contrib/gis/db/models/functions.py
++++ b/django/contrib/gis/db/models/functions.py
+@@ -4,12 +4,12 @@ from django.contrib.gis.db.models.fields import BaseSpatialField, GeometryField
+ from django.contrib.gis.db.models.sql import AreaField, DistanceField
+ from django.contrib.gis.geos import GEOSGeometry
+ from django.core.exceptions import FieldError
++from django.db import NotSupportedError
+ from django.db.models import (
+-    BinaryField, BooleanField, FloatField, IntegerField, TextField, Transform,
++    BinaryField, BooleanField, FloatField, Func, IntegerField, TextField,
++    Transform, Value,
+ )
+-from django.db.models.expressions import Func, Value
+ from django.db.models.functions import Cast
+-from django.db.utils import NotSupportedError
+ from django.utils.functional import cached_property
+ 
+ NUMERIC_TYPES = (int, float, Decimal)
+diff --git a/django/contrib/gis/db/models/lookups.py b/django/contrib/gis/db/models/lookups.py
+index 8ac266b830..c1d021b28e 100644
+--- a/django/contrib/gis/db/models/lookups.py
++++ b/django/contrib/gis/db/models/lookups.py
+@@ -1,8 +1,7 @@
+ from django.contrib.gis.db.models.fields import BaseSpatialField
+ from django.contrib.gis.measure import Distance
+ from django.db import NotSupportedError
+-from django.db.models.expressions import Expression
+-from django.db.models.lookups import Lookup, Transform
++from django.db.models import Expression, Lookup, Transform
+ from django.db.models.sql.query import Query
+ from django.utils.regex_helper import _lazy_re_compile
+ 
+diff --git a/django/contrib/gis/sitemaps/kml.py b/django/contrib/gis/sitemaps/kml.py
+index e2af5125a6..103dc20408 100644
+--- a/django/contrib/gis/sitemaps/kml.py
++++ b/django/contrib/gis/sitemaps/kml.py
+@@ -1,5 +1,5 @@
+ from django.apps import apps
+-from django.contrib.gis.db.models.fields import GeometryField
++from django.contrib.gis.db.models import GeometryField
+ from django.contrib.sitemaps import Sitemap
+ from django.db import models
+ from django.urls import reverse
+diff --git a/django/contrib/gis/sitemaps/views.py b/django/contrib/gis/sitemaps/views.py
+index 33e0b24091..be91d929f6 100644
+--- a/django/contrib/gis/sitemaps/views.py
++++ b/django/contrib/gis/sitemaps/views.py
+@@ -1,5 +1,5 @@
+ from django.apps import apps
+-from django.contrib.gis.db.models.fields import GeometryField
++from django.contrib.gis.db.models import GeometryField
+ from django.contrib.gis.db.models.functions import AsKML, Transform
+ from django.contrib.gis.shortcuts import render_to_kml, render_to_kmz
+ from django.core.exceptions import FieldDoesNotExist
+diff --git a/django/contrib/postgres/aggregates/general.py b/django/contrib/postgres/aggregates/general.py
+index 9616bc3e3e..31dd52773b 100644
+--- a/django/contrib/postgres/aggregates/general.py
++++ b/django/contrib/postgres/aggregates/general.py
+@@ -1,6 +1,5 @@
+ from django.contrib.postgres.fields import ArrayField, JSONField
+-from django.db.models import Value
+-from django.db.models.aggregates import Aggregate
++from django.db.models import Aggregate, Value
+ 
+ from .mixins import OrderableAggMixin
+ 
+diff --git a/django/contrib/postgres/aggregates/mixins.py b/django/contrib/postgres/aggregates/mixins.py
+index 82e8eebdf4..2ab9052467 100644
+--- a/django/contrib/postgres/aggregates/mixins.py
++++ b/django/contrib/postgres/aggregates/mixins.py
+@@ -1,4 +1,4 @@
+-from django.db.models.expressions import F, OrderBy
++from django.db.models import F, OrderBy
+ 
+ 
+ class OrderableAggMixin:
+diff --git a/django/contrib/postgres/aggregates/statistics.py b/django/contrib/postgres/aggregates/statistics.py
+index 2df8f95cb0..c3254e3677 100644
+--- a/django/contrib/postgres/aggregates/statistics.py
++++ b/django/contrib/postgres/aggregates/statistics.py
+@@ -1,5 +1,4 @@
+-from django.db.models import FloatField, IntegerField
+-from django.db.models.aggregates import Aggregate
++from django.db.models import Aggregate, FloatField, IntegerField
+ 
+ __all__ = [
+     'CovarPop', 'Corr', 'RegrAvgX', 'RegrAvgY', 'RegrCount', 'RegrIntercept',
+diff --git a/django/contrib/postgres/indexes.py b/django/contrib/postgres/indexes.py
+index 8f0c77aa52..a5ffe94431 100644
+--- a/django/contrib/postgres/indexes.py
++++ b/django/contrib/postgres/indexes.py
+@@ -1,5 +1,5 @@
++from django.db import NotSupportedError
+ from django.db.models import Index
+-from django.db.utils import NotSupportedError
+ from django.utils.functional import cached_property
+ 
+ __all__ = [
+diff --git a/django/contrib/postgres/operations.py b/django/contrib/postgres/operations.py
+index 52776324c5..12c850a073 100644
+--- a/django/contrib/postgres/operations.py
++++ b/django/contrib/postgres/operations.py
+@@ -1,9 +1,9 @@
+ from django.contrib.postgres.signals import (
+     get_citext_oids, get_hstore_oids, register_type_handlers,
+ )
++from django.db import NotSupportedError
+ from django.db.migrations import AddIndex, RemoveIndex
+ from django.db.migrations.operations.base import Operation
+-from django.db.utils import NotSupportedError
+ 
+ 
+ class CreateExtension(Operation):
+diff --git a/django/contrib/postgres/search.py b/django/contrib/postgres/search.py
+index 1b96b26513..000241ba24 100644
+--- a/django/contrib/postgres/search.py
++++ b/django/contrib/postgres/search.py
+@@ -1,9 +1,8 @@
+-from django.db.models import CharField, Field, FloatField, TextField
+-from django.db.models.expressions import (
+-    CombinedExpression, Expression, Func, Value,
++from django.db.models import (
++    CharField, Expression, Field, FloatField, Func, Lookup, TextField, Value,
+ )
++from django.db.models.expressions import CombinedExpression
+ from django.db.models.functions import Cast, Coalesce
+-from django.db.models.lookups import Lookup
+ 
+ 
+ class SearchVectorExact(Lookup):
+diff --git a/django/core/management/commands/createcachetable.py b/django/core/management/commands/createcachetable.py
+index 7e4edfc24f..677420f4fb 100644
+--- a/django/core/management/commands/createcachetable.py
++++ b/django/core/management/commands/createcachetable.py
+@@ -3,9 +3,8 @@ from django.core.cache import caches
+ from django.core.cache.backends.db import BaseDatabaseCache
+ from django.core.management.base import BaseCommand, CommandError
+ from django.db import (
+-    DEFAULT_DB_ALIAS, connections, models, router, transaction,
++    DEFAULT_DB_ALIAS, DatabaseError, connections, models, router, transaction,
+ )
+-from django.db.utils import DatabaseError
+ 
+ 
+ class Command(BaseCommand):
+diff --git a/django/db/backends/base/base.py b/django/db/backends/base/base.py
+index 61e0dc0ca0..2a0141fdab 100644
+--- a/django/db/backends/base/base.py
++++ b/django/db/backends/base/base.py
+@@ -10,12 +10,12 @@ import pytz
+ 
+ from django.conf import settings
+ from django.core.exceptions import ImproperlyConfigured
+-from django.db import DEFAULT_DB_ALIAS
++from django.db import DEFAULT_DB_ALIAS, DatabaseError
+ from django.db.backends import utils
+ from django.db.backends.base.validation import BaseDatabaseValidation
+ from django.db.backends.signals import connection_created
+ from django.db.transaction import TransactionManagementError
+-from django.db.utils import DatabaseError, DatabaseErrorWrapper
++from django.db.utils import DatabaseErrorWrapper
+ from django.utils import timezone
+ from django.utils.asyncio import async_unsafe
+ from django.utils.functional import cached_property
+diff --git a/django/db/backends/base/features.py b/django/db/backends/base/features.py
+index 45c62f463b..5760b59098 100644
+--- a/django/db/backends/base/features.py
++++ b/django/db/backends/base/features.py
+@@ -1,4 +1,4 @@
+-from django.db.utils import ProgrammingError
++from django.db import ProgrammingError
+ from django.utils.functional import cached_property
+ 
+ 
+diff --git a/django/db/backends/mysql/base.py b/django/db/backends/mysql/base.py
+index aeb935e91f..527197971f 100644
+--- a/django/db/backends/mysql/base.py
++++ b/django/db/backends/mysql/base.py
+@@ -4,7 +4,7 @@ MySQL database backend for Django.
+ Requires mysqlclient: https://pypi.org/project/mysqlclient/
+ """
+ from django.core.exceptions import ImproperlyConfigured
+-from django.db import utils
++from django.db import IntegrityError
+ from django.db.backends import utils as backend_utils
+ from django.db.backends.base.base import BaseDatabaseWrapper
+ from django.utils.asyncio import async_unsafe
+@@ -75,7 +75,7 @@ class CursorWrapper:
+             # Map some error codes to IntegrityError, since they seem to be
+             # misclassified and Django would prefer the more logical place.
+             if e.args[0] in self.codes_for_integrityerror:
+-                raise utils.IntegrityError(*tuple(e.args))
++                raise IntegrityError(*tuple(e.args))
+             raise
+ 
+     def executemany(self, query, args):
+@@ -85,7 +85,7 @@ class CursorWrapper:
+             # Map some error codes to IntegrityError, since they seem to be
+             # misclassified and Django would prefer the more logical place.
+             if e.args[0] in self.codes_for_integrityerror:
+-                raise utils.IntegrityError(*tuple(e.args))
++                raise IntegrityError(*tuple(e.args))
+             raise
+ 
+     def __getattr__(self, attr):
+@@ -314,7 +314,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
+                         )
+                     )
+                     for bad_row in cursor.fetchall():
+-                        raise utils.IntegrityError(
++                        raise IntegrityError(
+                             "The row in table '%s' with primary key '%s' has an invalid "
+                             "foreign key: %s.%s contains a value '%s' that does not "
+                             "have a corresponding value in %s.%s."
+diff --git a/django/db/backends/mysql/introspection.py b/django/db/backends/mysql/introspection.py
+index 9334cc5748..50160ba590 100644
+--- a/django/db/backends/mysql/introspection.py
++++ b/django/db/backends/mysql/introspection.py
+@@ -6,7 +6,7 @@ from MySQLdb.constants import FIELD_TYPE
+ from django.db.backends.base.introspection import (
+     BaseDatabaseIntrospection, FieldInfo as BaseFieldInfo, TableInfo,
+ )
+-from django.db.models.indexes import Index
++from django.db.models import Index
+ from django.utils.datastructures import OrderedSet
+ 
+ FieldInfo = namedtuple('FieldInfo', BaseFieldInfo._fields + ('extra', 'is_unsigned'))
+diff --git a/django/db/backends/oracle/base.py b/django/db/backends/oracle/base.py
+index e1c76ec058..e303ec1f3d 100644
+--- a/django/db/backends/oracle/base.py
++++ b/django/db/backends/oracle/base.py
+@@ -11,7 +11,7 @@ from contextlib import contextmanager
+ 
+ from django.conf import settings
+ from django.core.exceptions import ImproperlyConfigured
+-from django.db import utils
++from django.db import IntegrityError
+ from django.db.backends.base.base import BaseDatabaseWrapper
+ from django.utils.asyncio import async_unsafe
+ from django.utils.encoding import force_bytes, force_str
+@@ -74,7 +74,7 @@ def wrap_oracle_errors():
+         # Convert that case to Django's IntegrityError exception.
+         x = e.args[0]
+         if hasattr(x, 'code') and hasattr(x, 'message') and x.code == 2091 and 'ORA-02291' in x.message:
+-            raise utils.IntegrityError(*tuple(e.args))
++            raise IntegrityError(*tuple(e.args))
+         raise
+ 
+ 
+diff --git a/django/db/backends/oracle/creation.py b/django/db/backends/oracle/creation.py
+index 2f4abfbc99..ec2667ef33 100644
+--- a/django/db/backends/oracle/creation.py
++++ b/django/db/backends/oracle/creation.py
+@@ -1,8 +1,8 @@
+ import sys
+ 
+ from django.conf import settings
++from django.db import DatabaseError
+ from django.db.backends.base.creation import BaseDatabaseCreation
+-from django.db.utils import DatabaseError
+ from django.utils.crypto import get_random_string
+ from django.utils.functional import cached_property
+ 
+diff --git a/django/db/backends/oracle/features.py b/django/db/backends/oracle/features.py
+index 73a6e86686..24b281281d 100644
+--- a/django/db/backends/oracle/features.py
++++ b/django/db/backends/oracle/features.py
+@@ -1,5 +1,5 @@
++from django.db import InterfaceError
+ from django.db.backends.base.features import BaseDatabaseFeatures
+-from django.db.utils import InterfaceError
+ 
+ 
+ class DatabaseFeatures(BaseDatabaseFeatures):
+diff --git a/django/db/backends/oracle/operations.py b/django/db/backends/oracle/operations.py
+index 358c91505f..1e59323655 100644
+--- a/django/db/backends/oracle/operations.py
++++ b/django/db/backends/oracle/operations.py
+@@ -3,11 +3,12 @@ import uuid
+ from functools import lru_cache
+ 
+ from django.conf import settings
++from django.db import DatabaseError
+ from django.db.backends.base.operations import BaseDatabaseOperations
+ from django.db.backends.utils import strip_quotes, truncate_name
+-from django.db.models.expressions import Exists, ExpressionWrapper, RawSQL
++from django.db.models import AutoField, Exists, ExpressionWrapper
++from django.db.models.expressions import RawSQL
+ from django.db.models.sql.where import WhereNode
+-from django.db.utils import DatabaseError
+ from django.utils import timezone
+ from django.utils.encoding import force_bytes, force_str
+ from django.utils.functional import cached_property
+@@ -466,12 +467,11 @@ END;
+         return sql
+ 
+     def sequence_reset_sql(self, style, model_list):
+-        from django.db import models
+         output = []
+         query = self._sequence_reset_sql
+         for model in model_list:
+             for f in model._meta.local_fields:
+-                if isinstance(f, models.AutoField):
++                if isinstance(f, AutoField):
+                     no_autofield_sequence_name = self._get_no_autofield_sequence_name(model._meta.db_table)
+                     table = self.quote_name(model._meta.db_table)
+                     column = self.quote_name(f.column)
+diff --git a/django/db/backends/oracle/schema.py b/django/db/backends/oracle/schema.py
+index d0f664a6ff..d6585a80ca 100644
+--- a/django/db/backends/oracle/schema.py
++++ b/django/db/backends/oracle/schema.py
+@@ -2,8 +2,8 @@ import copy
+ import datetime
+ import re
+ 
++from django.db import DatabaseError
+ from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+-from django.db.utils import DatabaseError
+ 
+ 
+ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
+diff --git a/django/db/backends/postgresql/base.py b/django/db/backends/postgresql/base.py
+index 8d58767c62..12b969142e 100644
+--- a/django/db/backends/postgresql/base.py
++++ b/django/db/backends/postgresql/base.py
+@@ -10,12 +10,11 @@ import warnings
+ 
+ from django.conf import settings
+ from django.core.exceptions import ImproperlyConfigured
+-from django.db import connections
++from django.db import DatabaseError as WrappedDatabaseError, connections
+ from django.db.backends.base.base import BaseDatabaseWrapper
+ from django.db.backends.utils import (
+     CursorDebugWrapper as BaseCursorDebugWrapper,
+ )
+-from django.db.utils import DatabaseError as WrappedDatabaseError
+ from django.utils.asyncio import async_unsafe
+ from django.utils.functional import cached_property
+ from django.utils.safestring import SafeString
+diff --git a/django/db/backends/postgresql/features.py b/django/db/backends/postgresql/features.py
+index 67c04d89dc..533c8dc282 100644
+--- a/django/db/backends/postgresql/features.py
++++ b/django/db/backends/postgresql/features.py
+@@ -1,7 +1,7 @@
+ import operator
+ 
++from django.db import InterfaceError
+ from django.db.backends.base.features import BaseDatabaseFeatures
+-from django.db.utils import InterfaceError
+ from django.utils.functional import cached_property
+ 
+ 
+diff --git a/django/db/backends/postgresql/introspection.py b/django/db/backends/postgresql/introspection.py
+index b7bf18691c..beec8619cc 100644
+--- a/django/db/backends/postgresql/introspection.py
++++ b/django/db/backends/postgresql/introspection.py
+@@ -1,7 +1,7 @@
+ from django.db.backends.base.introspection import (
+     BaseDatabaseIntrospection, FieldInfo, TableInfo,
+ )
+-from django.db.models.indexes import Index
++from django.db.models import Index
+ 
+ 
+ class DatabaseIntrospection(BaseDatabaseIntrospection):
+diff --git a/django/db/backends/sqlite3/base.py b/django/db/backends/sqlite3/base.py
+index a3ae1f048e..642d3d6c5a 100644
+--- a/django/db/backends/sqlite3/base.py
++++ b/django/db/backends/sqlite3/base.py
+@@ -16,7 +16,7 @@ from sqlite3 import dbapi2 as Database
+ import pytz
+ 
+ from django.core.exceptions import ImproperlyConfigured
+-from django.db import utils
++from django.db import IntegrityError
+ from django.db.backends import utils as backend_utils
+ from django.db.backends.base.base import BaseDatabaseWrapper
+ from django.utils import timezone
+@@ -328,7 +328,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
+                         ),
+                         (rowid,),
+                     ).fetchone()
+-                    raise utils.IntegrityError(
++                    raise IntegrityError(
+                         "The row in table '%s' with primary key '%s' has an "
+                         "invalid foreign key: %s.%s contains a value '%s' that "
+                         "does not have a corresponding value in %s.%s." % (
+@@ -360,7 +360,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
+                             )
+                         )
+                         for bad_row in cursor.fetchall():
+-                            raise utils.IntegrityError(
++                            raise IntegrityError(
+                                 "The row in table '%s' with primary key '%s' has an "
+                                 "invalid foreign key: %s.%s contains a value '%s' that "
+                                 "does not have a corresponding value in %s.%s." % (
+diff --git a/django/db/backends/sqlite3/introspection.py b/django/db/backends/sqlite3/introspection.py
+index 2b5e732a47..a203c454df 100644
+--- a/django/db/backends/sqlite3/introspection.py
++++ b/django/db/backends/sqlite3/introspection.py
+@@ -6,7 +6,7 @@ import sqlparse
+ from django.db.backends.base.introspection import (
+     BaseDatabaseIntrospection, FieldInfo as BaseFieldInfo, TableInfo,
+ )
+-from django.db.models.indexes import Index
++from django.db.models import Index
+ from django.utils.regex_helper import _lazy_re_compile
+ 
+ FieldInfo = namedtuple('FieldInfo', BaseFieldInfo._fields + ('pk',))
+diff --git a/django/db/backends/sqlite3/operations.py b/django/db/backends/sqlite3/operations.py
+index 951aca0938..83ee1489a6 100644
+--- a/django/db/backends/sqlite3/operations.py
++++ b/django/db/backends/sqlite3/operations.py
+@@ -6,9 +6,8 @@ from itertools import chain
+ 
+ from django.conf import settings
+ from django.core.exceptions import FieldError
+-from django.db import utils
++from django.db import DatabaseError, NotSupportedError, models
+ from django.db.backends.base.operations import BaseDatabaseOperations
+-from django.db.models import aggregates, fields
+ from django.db.models.expressions import Col
+ from django.utils import timezone
+ from django.utils.dateparse import parse_date, parse_datetime, parse_time
+@@ -40,8 +39,8 @@ class DatabaseOperations(BaseDatabaseOperations):
+             return len(objs)
+ 
+     def check_expression_support(self, expression):
+-        bad_fields = (fields.DateField, fields.DateTimeField, fields.TimeField)
+-        bad_aggregates = (aggregates.Sum, aggregates.Avg, aggregates.Variance, aggregates.StdDev)
++        bad_fields = (models.DateField, models.DateTimeField, models.TimeField)
++        bad_aggregates = (models.Sum, models.Avg, models.Variance, models.StdDev)
+         if isinstance(expression, bad_aggregates):
+             for expr in expression.get_source_expressions():
+                 try:
+@@ -52,13 +51,13 @@ class DatabaseOperations(BaseDatabaseOperations):
+                     pass
+                 else:
+                     if isinstance(output_field, bad_fields):
+-                        raise utils.NotSupportedError(
++                        raise NotSupportedError(
+                             'You cannot use Sum, Avg, StdDev, and Variance '
+                             'aggregations on date/time fields in sqlite3 '
+                             'since date/time is saved as text.'
+                         )
+-        if isinstance(expression, aggregates.Aggregate) and len(expression.source_expressions) > 1:
+-            raise utils.NotSupportedError(
++        if isinstance(expression, models.Aggregate) and len(expression.source_expressions) > 1:
++            raise NotSupportedError(
+                 "SQLite doesn't support DISTINCT on aggregate functions "
+                 "accepting multiple arguments."
+             )
+@@ -313,7 +312,7 @@ class DatabaseOperations(BaseDatabaseOperations):
+ 
+     def combine_duration_expression(self, connector, sub_expressions):
+         if connector not in ['+', '-']:
+-            raise utils.DatabaseError('Invalid connector for timedelta: %s.' % connector)
++            raise DatabaseError('Invalid connector for timedelta: %s.' % connector)
+         fn_params = ["'%s'" % connector] + sub_expressions
+         if len(fn_params) > 3:
+             raise ValueError('Too many params for timedelta operations.')
+diff --git a/django/db/backends/sqlite3/schema.py b/django/db/backends/sqlite3/schema.py
+index 029e22e188..a4885c5632 100644
+--- a/django/db/backends/sqlite3/schema.py
++++ b/django/db/backends/sqlite3/schema.py
+@@ -2,12 +2,12 @@ import copy
+ from decimal import Decimal
+ 
+ from django.apps.registry import Apps
++from django.db import NotSupportedError
+ from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+ from django.db.backends.ddl_references import Statement
+ from django.db.backends.utils import strip_quotes
+ from django.db.models import UniqueConstraint
+ from django.db.transaction import atomic
+-from django.db.utils import NotSupportedError
+ 
+ 
+ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
+diff --git a/django/db/backends/utils.py b/django/db/backends/utils.py
+index 50db093020..2efc9b0553 100644
+--- a/django/db/backends/utils.py
++++ b/django/db/backends/utils.py
+@@ -6,7 +6,7 @@ import logging
+ import time
+ from contextlib import contextmanager
+ 
+-from django.db.utils import NotSupportedError
++from django.db import NotSupportedError
+ 
+ logger = logging.getLogger('django.db.backends')
+ 
+diff --git a/django/db/migrations/exceptions.py b/django/db/migrations/exceptions.py
+index f389701d67..8def99da5b 100644
+--- a/django/db/migrations/exceptions.py
++++ b/django/db/migrations/exceptions.py
+@@ -1,4 +1,4 @@
+-from django.db.utils import DatabaseError
++from django.db import DatabaseError
+ 
+ 
+ class AmbiguityError(Exception):
+diff --git a/django/db/migrations/operations/fields.py b/django/db/migrations/operations/fields.py
+index 402dae2829..6318c91d05 100644
+--- a/django/db/migrations/operations/fields.py
++++ b/django/db/migrations/operations/fields.py
+@@ -1,5 +1,5 @@
+ from django.core.exceptions import FieldDoesNotExist
+-from django.db.models.fields import NOT_PROVIDED
++from django.db.models import NOT_PROVIDED
+ from django.utils.functional import cached_property
+ 
+ from .base import Operation
+diff --git a/django/db/migrations/questioner.py b/django/db/migrations/questioner.py
+index 47a3052c80..9edb8180ef 100644
+--- a/django/db/migrations/questioner.py
++++ b/django/db/migrations/questioner.py
+@@ -4,7 +4,7 @@ import os
+ import sys
+ 
+ from django.apps import apps
+-from django.db.models.fields import NOT_PROVIDED
++from django.db.models import NOT_PROVIDED
+ from django.utils import timezone
+ 
+ from .loader import MigrationLoader
+diff --git a/django/db/migrations/recorder.py b/django/db/migrations/recorder.py
+index 20f5a7d85e..b8e32a468c 100644
+--- a/django/db/migrations/recorder.py
++++ b/django/db/migrations/recorder.py
+@@ -1,6 +1,5 @@
+ from django.apps.registry import Apps
+-from django.db import models
+-from django.db.utils import DatabaseError
++from django.db import DatabaseError, models
+ from django.utils.functional import classproperty
+ from django.utils.timezone import now
+ 
+diff --git a/django/db/migrations/state.py b/django/db/migrations/state.py
+index 9b62edad1f..fe8594ad77 100644
+--- a/django/db/migrations/state.py
++++ b/django/db/migrations/state.py
+@@ -5,7 +5,6 @@ from django.apps import AppConfig
+ from django.apps.registry import Apps, apps as global_apps
+ from django.conf import settings
+ from django.db import models
+-from django.db.models.fields.proxy import OrderWrt
+ from django.db.models.fields.related import RECURSIVE_RELATIONSHIP_CONSTANT
+ from django.db.models.options import DEFAULT_NAMES, normalize_together
+ from django.db.models.utils import make_model_tuple
+@@ -406,7 +405,7 @@ class ModelState:
+         for field in model._meta.local_fields:
+             if getattr(field, "remote_field", None) and exclude_rels:
+                 continue
+-            if isinstance(field, OrderWrt):
++            if isinstance(field, models.OrderWrt):
+                 continue
+             name = field.name
+             try:
+diff --git a/django/db/models/__init__.py b/django/db/models/__init__.py
+index 06bd72f8b9..7af6e60c51 100644
+--- a/django/db/models/__init__.py
++++ b/django/db/models/__init__.py
+@@ -12,7 +12,8 @@ from django.db.models.enums import *  # NOQA
+ from django.db.models.enums import __all__ as enums_all
+ from django.db.models.expressions import (
+     Case, Exists, Expression, ExpressionList, ExpressionWrapper, F, Func,
+-    OuterRef, RowRange, Subquery, Value, ValueRange, When, Window, WindowFrame,
++    OrderBy, OuterRef, RowRange, Subquery, Value, ValueRange, When, Window,
++    WindowFrame,
+ )
+ from django.db.models.fields import *  # NOQA
+ from django.db.models.fields import __all__ as fields_all
+@@ -22,16 +23,14 @@ from django.db.models.indexes import *  # NOQA
+ from django.db.models.indexes import __all__ as indexes_all
+ from django.db.models.lookups import Lookup, Transform
+ from django.db.models.manager import Manager
+-from django.db.models.query import (
+-    Prefetch, Q, QuerySet, prefetch_related_objects,
+-)
+-from django.db.models.query_utils import FilteredRelation
++from django.db.models.query import Prefetch, QuerySet, prefetch_related_objects
++from django.db.models.query_utils import FilteredRelation, Q
+ 
+ # Imports that would create circular imports if sorted
+ from django.db.models.base import DEFERRED, Model  # isort:skip
+ from django.db.models.fields.related import (  # isort:skip
+     ForeignKey, ForeignObject, OneToOneField, ManyToManyField,
+-    ManyToOneRel, ManyToManyRel, OneToOneRel,
++    ForeignObjectRel, ManyToOneRel, ManyToManyRel, OneToOneRel,
+ )
+ 
+ 
+@@ -41,11 +40,12 @@ __all__ += [
+     'CASCADE', 'DO_NOTHING', 'PROTECT', 'RESTRICT', 'SET', 'SET_DEFAULT',
+     'SET_NULL', 'ProtectedError', 'RestrictedError',
+     'Case', 'Exists', 'Expression', 'ExpressionList', 'ExpressionWrapper', 'F',
+-    'Func', 'OuterRef', 'RowRange', 'Subquery', 'Value', 'ValueRange', 'When',
++    'Func', 'OrderBy', 'OuterRef', 'RowRange', 'Subquery', 'Value',
++    'ValueRange', 'When',
+     'Window', 'WindowFrame',
+     'FileField', 'ImageField', 'OrderWrt', 'Lookup', 'Transform', 'Manager',
+     'Prefetch', 'Q', 'QuerySet', 'prefetch_related_objects', 'DEFERRED', 'Model',
+     'FilteredRelation',
+     'ForeignKey', 'ForeignObject', 'OneToOneField', 'ManyToManyField',
+-    'ManyToOneRel', 'ManyToManyRel', 'OneToOneRel',
++    'ForeignObjectRel', 'ManyToOneRel', 'ManyToManyRel', 'OneToOneRel',
+ ]
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index 33edfd3ec3..2e831b21ac 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -4,10 +4,9 @@ import inspect
+ from decimal import Decimal
+ 
+ from django.core.exceptions import EmptyResultSet, FieldError
+-from django.db import connection
++from django.db import NotSupportedError, connection
+ from django.db.models import fields
+ from django.db.models.query_utils import Q
+-from django.db.utils import NotSupportedError
+ from django.utils.deconstruct import deconstructible
+ from django.utils.functional import cached_property
+ from django.utils.hashable import make_hashable
+diff --git a/django/db/models/functions/text.py b/django/db/models/functions/text.py
+index 2b2495c5c4..9f3c0a9830 100644
+--- a/django/db/models/functions/text.py
++++ b/django/db/models/functions/text.py
+@@ -1,8 +1,8 @@
++from django.db import NotSupportedError
+ from django.db.models.expressions import Func, Value
+ from django.db.models.fields import IntegerField
+ from django.db.models.functions import Coalesce
+ from django.db.models.lookups import Transform
+-from django.db.utils import NotSupportedError
+ 
+ 
+ class BytesToCharFieldConversionMixin:
+diff --git a/django/db/models/options.py b/django/db/models/options.py
+index 5c527563d7..ae2b073df9 100644
+--- a/django/db/models/options.py
++++ b/django/db/models/options.py
+@@ -7,9 +7,7 @@ from django.apps import apps
+ from django.conf import settings
+ from django.core.exceptions import FieldDoesNotExist
+ from django.db import connections
+-from django.db.models import Manager
+-from django.db.models.fields import AutoField
+-from django.db.models.fields.proxy import OrderWrt
++from django.db.models import AutoField, Manager, OrderWrt
+ from django.db.models.query_utils import PathInfo
+ from django.utils.datastructures import ImmutableList, OrderedSet
+ from django.utils.functional import cached_property
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 005fde44c6..74be5df0ac 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -12,19 +12,17 @@ from itertools import chain
+ from django.conf import settings
+ from django.core import exceptions
+ from django.db import (
+-    DJANGO_VERSION_PICKLE_KEY, IntegrityError, connections, router,
+-    transaction,
++    DJANGO_VERSION_PICKLE_KEY, IntegrityError, NotSupportedError, connections,
++    router, transaction,
+ )
+-from django.db.models import DateField, DateTimeField, sql
++from django.db.models import AutoField, DateField, DateTimeField, sql
+ from django.db.models.constants import LOOKUP_SEP
+ from django.db.models.deletion import Collector
+ from django.db.models.expressions import Case, Expression, F, Value, When
+-from django.db.models.fields import AutoField
+ from django.db.models.functions import Cast, Trunc
+ from django.db.models.query_utils import FilteredRelation, Q
+ from django.db.models.sql.constants import CURSOR, GET_ITERATOR_CHUNK_SIZE
+ from django.db.models.utils import resolve_callables
+-from django.db.utils import NotSupportedError
+ from django.utils import timezone
+ from django.utils.functional import cached_property, partition
+ from django.utils.version import get_version
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index a56397a3a1..aee5cb81cd 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -4,6 +4,7 @@ from functools import partial
+ from itertools import chain
+ 
+ from django.core.exceptions import EmptyResultSet, FieldError
++from django.db import DatabaseError, NotSupportedError
+ from django.db.models.constants import LOOKUP_SEP
+ from django.db.models.expressions import OrderBy, Random, RawSQL, Ref, Value
+ from django.db.models.functions import Cast
+@@ -13,7 +14,6 @@ from django.db.models.sql.constants import (
+ )
+ from django.db.models.sql.query import Query, get_order_dir
+ from django.db.transaction import TransactionManagementError
+-from django.db.utils import DatabaseError, NotSupportedError
+ from django.utils.functional import cached_property
+ from django.utils.hashable import make_hashable
+ 
+diff --git a/django/forms/models.py b/django/forms/models.py
+index d05931ab6e..dafc11f995 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -140,7 +140,7 @@ def fields_for_model(model, fields=None, exclude=None, widgets=None,
+     ignored = []
+     opts = model._meta
+     # Avoid circular import
+-    from django.db.models.fields import Field as ModelField
++    from django.db.models import Field as ModelField
+     sortable_private_fields = [f for f in opts.private_fields if isinstance(f, ModelField)]
+     for f in sorted(chain(opts.concrete_fields, sortable_private_fields, opts.many_to_many)):
+         if not getattr(f, 'editable', False):
+diff --git a/django/views/generic/list.py b/django/views/generic/list.py
+index 8f72b90069..65bae2b498 100644
+--- a/django/views/generic/list.py
++++ b/django/views/generic/list.py
+@@ -1,6 +1,6 @@
+ from django.core.exceptions import ImproperlyConfigured
+ from django.core.paginator import InvalidPage, Paginator
+-from django.db.models.query import QuerySet
++from django.db.models import QuerySet
+ from django.http import Http404
+ from django.utils.translation import gettext as _
+ from django.views.generic.base import ContextMixin, TemplateResponseMixin, View
+diff --git a/docs/howto/custom-lookups.txt b/docs/howto/custom-lookups.txt
+index 82ccb9a69d..52a16ae167 100644
+--- a/docs/howto/custom-lookups.txt
++++ b/docs/howto/custom-lookups.txt
+@@ -42,12 +42,12 @@ the field class we want the lookup to be available for. In this case, the lookup
+ makes sense on all ``Field`` subclasses, so we register it with ``Field``
+ directly::
+ 
+-  from django.db.models.fields import Field
++  from django.db.models import Field
+   Field.register_lookup(NotEqual)
+ 
+ Lookup registration can also be done using a decorator pattern::
+ 
+-    from django.db.models.fields import Field
++    from django.db.models import Field
+ 
+     @Field.register_lookup
+     class NotEqualLookup(Lookup):
+diff --git a/tests/admin_changelist/tests.py b/tests/admin_changelist/tests.py
+index 933d2ac1d2..fa0c08669d 100644
+--- a/tests/admin_changelist/tests.py
++++ b/tests/admin_changelist/tests.py
+@@ -10,8 +10,7 @@ from django.contrib.auth.models import User
+ from django.contrib.contenttypes.models import ContentType
+ from django.contrib.messages.storage.cookie import CookieStorage
+ from django.db import connection, models
+-from django.db.models import F
+-from django.db.models.fields import Field, IntegerField
++from django.db.models import F, Field, IntegerField
+ from django.db.models.functions import Upper
+ from django.db.models.lookups import Contains, Exact
+ from django.template import Context, Template, TemplateSyntaxError
+diff --git a/tests/aggregation/tests.py b/tests/aggregation/tests.py
+index 62b47ebd1c..ed2125c0a9 100644
+--- a/tests/aggregation/tests.py
++++ b/tests/aggregation/tests.py
+@@ -5,10 +5,9 @@ from decimal import Decimal
+ from django.core.exceptions import FieldError
+ from django.db import connection
+ from django.db.models import (
+-    Avg, Count, DecimalField, DurationField, F, FloatField, Func, IntegerField,
+-    Max, Min, Sum, Value,
++    Avg, Case, Count, DecimalField, DurationField, Exists, F, FloatField, Func,
++    IntegerField, Max, Min, OuterRef, Subquery, Sum, Value, When,
+ )
+-from django.db.models.expressions import Case, Exists, OuterRef, Subquery, When
+ from django.db.models.functions import Coalesce
+ from django.test import TestCase
+ from django.test.testcases import skipUnlessDBFeature
+diff --git a/tests/aggregation_regress/tests.py b/tests/aggregation_regress/tests.py
+index 63e51fea2e..bdfcb1d89b 100644
+--- a/tests/aggregation_regress/tests.py
++++ b/tests/aggregation_regress/tests.py
+@@ -8,10 +8,9 @@ from django.contrib.contenttypes.models import ContentType
+ from django.core.exceptions import FieldError
+ from django.db import connection
+ from django.db.models import (
+-    Avg, Case, Count, DecimalField, F, IntegerField, Max, Q, StdDev, Sum,
+-    Value, Variance, When,
++    Aggregate, Avg, Case, Count, DecimalField, F, IntegerField, Max, Q, StdDev,
++    Sum, Value, Variance, When,
+ )
+-from django.db.models.aggregates import Aggregate
+ from django.test import TestCase, skipUnlessAnyDBFeature, skipUnlessDBFeature
+ from django.test.utils import Approximate
+ 
+diff --git a/tests/backends/mysql/test_creation.py b/tests/backends/mysql/test_creation.py
+index 01e59d8758..5675601a1b 100644
+--- a/tests/backends/mysql/test_creation.py
++++ b/tests/backends/mysql/test_creation.py
+@@ -3,10 +3,9 @@ import unittest
+ from io import StringIO
+ from unittest import mock
+ 
+-from django.db import connection
++from django.db import DatabaseError, connection
+ from django.db.backends.base.creation import BaseDatabaseCreation
+ from django.db.backends.mysql.creation import DatabaseCreation
+-from django.db.utils import DatabaseError
+ from django.test import SimpleTestCase
+ 
+ 
+diff --git a/tests/backends/oracle/test_creation.py b/tests/backends/oracle/test_creation.py
+index f090a0ac89..930d2520e2 100644
+--- a/tests/backends/oracle/test_creation.py
++++ b/tests/backends/oracle/test_creation.py
+@@ -2,9 +2,8 @@ import unittest
+ from io import StringIO
+ from unittest import mock
+ 
+-from django.db import connection
++from django.db import DatabaseError, connection
+ from django.db.backends.oracle.creation import DatabaseCreation
+-from django.db.utils import DatabaseError
+ from django.test import TestCase
+ 
+ 
+diff --git a/tests/backends/oracle/tests.py b/tests/backends/oracle/tests.py
+index a0d49854d9..0a7bf01963 100644
+--- a/tests/backends/oracle/tests.py
++++ b/tests/backends/oracle/tests.py
+@@ -1,8 +1,7 @@
+ import unittest
+ 
+-from django.db import connection
+-from django.db.models.fields import BooleanField, NullBooleanField
+-from django.db.utils import DatabaseError
++from django.db import DatabaseError, connection
++from django.db.models import BooleanField, NullBooleanField
+ from django.test import TransactionTestCase
+ 
+ from ..models import Square
+diff --git a/tests/backends/postgresql/test_creation.py b/tests/backends/postgresql/test_creation.py
+index 7d6f319a80..f6a067248d 100644
+--- a/tests/backends/postgresql/test_creation.py
++++ b/tests/backends/postgresql/test_creation.py
+@@ -3,9 +3,8 @@ from contextlib import contextmanager
+ from io import StringIO
+ from unittest import mock
+ 
+-from django.db import connection
++from django.db import DatabaseError, connection
+ from django.db.backends.base.creation import BaseDatabaseCreation
+-from django.db.utils import DatabaseError
+ from django.test import SimpleTestCase
+ 
+ try:
+diff --git a/tests/backends/sqlite/tests.py b/tests/backends/sqlite/tests.py
+index 3447fb6096..fc02671ca5 100644
+--- a/tests/backends/sqlite/tests.py
++++ b/tests/backends/sqlite/tests.py
+@@ -8,11 +8,9 @@ from sqlite3 import dbapi2
+ from unittest import mock
+ 
+ from django.core.exceptions import ImproperlyConfigured
+-from django.db import ConnectionHandler, connection, transaction
+-from django.db.models import Avg, StdDev, Sum, Variance
+-from django.db.models.aggregates import Aggregate
+-from django.db.models.fields import CharField
+-from django.db.utils import NotSupportedError
++from django.db import NotSupportedError, connection, transaction
++from django.db.models import Aggregate, Avg, CharField, StdDev, Sum, Variance
++from django.db.utils import ConnectionHandler
+ from django.test import (
+     TestCase, TransactionTestCase, override_settings, skipIfDBFeature,
+ )
+diff --git a/tests/backends/test_utils.py b/tests/backends/test_utils.py
+index cd4911fd1a..7974dee607 100644
+--- a/tests/backends/test_utils.py
++++ b/tests/backends/test_utils.py
+@@ -1,11 +1,10 @@
+ """Tests for django.db.backends.utils"""
+ from decimal import Decimal, Rounded
+ 
+-from django.db import connection
++from django.db import NotSupportedError, connection
+ from django.db.backends.utils import (
+     format_number, split_identifier, truncate_name,
+ )
+-from django.db.utils import NotSupportedError
+ from django.test import (
+     SimpleTestCase, TransactionTestCase, skipIfDBFeature, skipUnlessDBFeature,
+ )
+diff --git a/tests/basic/tests.py b/tests/basic/tests.py
+index 5eada343e1..e186958400 100644
+--- a/tests/basic/tests.py
++++ b/tests/basic/tests.py
+@@ -5,7 +5,7 @@ from unittest import mock
+ from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
+ from django.db import DEFAULT_DB_ALIAS, DatabaseError, connections, models
+ from django.db.models.manager import BaseManager
+-from django.db.models.query import MAX_GET_RESULTS, EmptyQuerySet, QuerySet
++from django.db.models.query import MAX_GET_RESULTS, EmptyQuerySet
+ from django.test import (
+     SimpleTestCase, TestCase, TransactionTestCase, skipUnlessDBFeature,
+ )
+@@ -316,7 +316,7 @@ class ModelTest(TestCase):
+         # A hacky test for custom QuerySet subclass - refs #17271
+         Article.objects.create(headline='foo', pub_date=datetime.now())
+ 
+-        class CustomQuerySet(QuerySet):
++        class CustomQuerySet(models.QuerySet):
+             def do_something(self):
+                 return 'did something'
+ 
+@@ -607,7 +607,7 @@ class ManagerTest(SimpleTestCase):
+         `Manager` will need to be added to `ManagerTest.QUERYSET_PROXY_METHODS`.
+         """
+         self.assertEqual(
+-            sorted(BaseManager._get_queryset_methods(QuerySet)),
++            sorted(BaseManager._get_queryset_methods(models.QuerySet)),
+             sorted(self.QUERYSET_PROXY_METHODS),
+         )
+ 
+@@ -640,7 +640,7 @@ class SelectOnSaveTests(TestCase):
+ 
+         orig_class = Article._base_manager._queryset_class
+ 
+-        class FakeQuerySet(QuerySet):
++        class FakeQuerySet(models.QuerySet):
+             # Make sure the _update method below is in fact called.
+             called = False
+ 
+diff --git a/tests/db_functions/comparison/test_cast.py b/tests/db_functions/comparison/test_cast.py
+index c08e61a9e6..a286e467a0 100644
+--- a/tests/db_functions/comparison/test_cast.py
++++ b/tests/db_functions/comparison/test_cast.py
+@@ -3,8 +3,6 @@ import decimal
+ import unittest
+ 
+ from django.db import connection, models
+-from django.db.models import Avg
+-from django.db.models.expressions import Value
+ from django.db.models.functions import Cast
+ from django.test import (
+     TestCase, ignore_warnings, override_settings, skipUnlessDBFeature,
+@@ -19,7 +17,7 @@ class CastTests(TestCase):
+         Author.objects.create(name='Bob', age=1, alias='1')
+ 
+     def test_cast_from_value(self):
+-        numbers = Author.objects.annotate(cast_integer=Cast(Value('0'), models.IntegerField()))
++        numbers = Author.objects.annotate(cast_integer=Cast(models.Value('0'), models.IntegerField()))
+         self.assertEqual(numbers.get().cast_integer, 0)
+ 
+     def test_cast_from_field(self):
+@@ -127,7 +125,7 @@ class CastTests(TestCase):
+         The SQL for the Cast expression is wrapped with parentheses in case
+         it's a complex expression.
+         """
+-        list(Author.objects.annotate(cast_float=Cast(Avg('age'), models.FloatField())))
++        list(Author.objects.annotate(cast_float=Cast(models.Avg('age'), models.FloatField())))
+         self.assertIn('(AVG("db_functions_author"."age"))::double precision', connection.queries[-1]['sql'])
+ 
+     def test_cast_to_text_field(self):
+diff --git a/tests/db_functions/text/test_sha224.py b/tests/db_functions/text/test_sha224.py
+index 9ec0bf933f..a8291d416c 100644
+--- a/tests/db_functions/text/test_sha224.py
++++ b/tests/db_functions/text/test_sha224.py
+@@ -1,9 +1,8 @@
+ import unittest
+ 
+-from django.db import connection
++from django.db import NotSupportedError, connection
+ from django.db.models import CharField
+ from django.db.models.functions import SHA224
+-from django.db.utils import NotSupportedError
+ from django.test import TestCase
+ from django.test.utils import register_lookup
+ 
+diff --git a/tests/db_utils/tests.py b/tests/db_utils/tests.py
+index db58b58f33..2a1cec0365 100644
+--- a/tests/db_utils/tests.py
++++ b/tests/db_utils/tests.py
+@@ -2,8 +2,8 @@
+ import unittest
+ 
+ from django.core.exceptions import ImproperlyConfigured
+-from django.db import DEFAULT_DB_ALIAS, connection
+-from django.db.utils import ConnectionHandler, ProgrammingError, load_backend
++from django.db import DEFAULT_DB_ALIAS, ProgrammingError, connection
++from django.db.utils import ConnectionHandler, load_backend
+ from django.test import SimpleTestCase, TestCase
+ 
+ 
+diff --git a/tests/delete/tests.py b/tests/delete/tests.py
+index 1731342bc1..d8424670c9 100644
+--- a/tests/delete/tests.py
++++ b/tests/delete/tests.py
+@@ -1,9 +1,8 @@
+ from math import ceil
+ 
+ from django.db import connection, models
+-from django.db.models.deletion import (
+-    Collector, ProtectedError, RestrictedError,
+-)
++from django.db.models import ProtectedError, RestrictedError
++from django.db.models.deletion import Collector
+ from django.db.models.sql.constants import GET_ITERATOR_CHUNK_SIZE
+ from django.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
+ 
+diff --git a/tests/expressions/test_queryset_values.py b/tests/expressions/test_queryset_values.py
+index e264597968..a15cc26023 100644
+--- a/tests/expressions/test_queryset_values.py
++++ b/tests/expressions/test_queryset_values.py
+@@ -1,5 +1,4 @@
+-from django.db.models.aggregates import Sum
+-from django.db.models.expressions import F
++from django.db.models import F, Sum
+ from django.test import TestCase
+ 
+ from .models import Company, Employee
+diff --git a/tests/expressions/tests.py b/tests/expressions/tests.py
+index 180153f555..6f1a9723e8 100644
+--- a/tests/expressions/tests.py
++++ b/tests/expressions/tests.py
+@@ -6,16 +6,14 @@ from copy import deepcopy
+ from unittest import mock
+ 
+ from django.core.exceptions import FieldError
+-from django.db import DatabaseError, connection, models
+-from django.db.models import CharField, Q, TimeField, UUIDField
+-from django.db.models.aggregates import (
+-    Avg, Count, Max, Min, StdDev, Sum, Variance,
+-)
+-from django.db.models.expressions import (
+-    Case, Col, Combinable, Exists, Expression, ExpressionList,
+-    ExpressionWrapper, F, Func, OrderBy, OuterRef, Random, RawSQL, Ref,
+-    Subquery, Value, When,
++from django.db import DatabaseError, connection
++from django.db.models import (
++    Avg, BooleanField, Case, CharField, Count, DateField, DateTimeField,
++    DurationField, Exists, Expression, ExpressionList, ExpressionWrapper, F,
++    Func, IntegerField, Max, Min, Model, OrderBy, OuterRef, Q, StdDev,
++    Subquery, Sum, TimeField, UUIDField, Value, Variance, When,
+ )
++from django.db.models.expressions import Col, Combinable, Random, RawSQL, Ref
+ from django.db.models.functions import (
+     Coalesce, Concat, Length, Lower, Substr, Upper,
+ )
+@@ -57,7 +55,7 @@ class BasicExpressionsTests(TestCase):
+         ).values('num_employees', 'salaries').aggregate(
+             result=Sum(
+                 F('salaries') + F('num_employees'),
+-                output_field=models.IntegerField()
++                output_field=IntegerField()
+             ),
+         )
+         self.assertEqual(companies['result'], 2395)
+@@ -79,7 +77,7 @@ class BasicExpressionsTests(TestCase):
+     def test_filtering_on_annotate_that_uses_q(self):
+         self.assertEqual(
+             Company.objects.annotate(
+-                num_employees_check=ExpressionWrapper(Q(num_employees__gt=3), output_field=models.BooleanField())
++                num_employees_check=ExpressionWrapper(Q(num_employees__gt=3), output_field=BooleanField())
+             ).filter(num_employees_check=True).count(),
+             2,
+         )
+@@ -87,7 +85,7 @@ class BasicExpressionsTests(TestCase):
+     def test_filtering_on_q_that_is_boolean(self):
+         self.assertEqual(
+             Company.objects.filter(
+-                ExpressionWrapper(Q(num_employees__gt=3), output_field=models.BooleanField())
++                ExpressionWrapper(Q(num_employees__gt=3), output_field=BooleanField())
+             ).count(),
+             2,
+         )
+@@ -95,7 +93,7 @@ class BasicExpressionsTests(TestCase):
+     def test_filtering_on_rawsql_that_is_boolean(self):
+         self.assertEqual(
+             Company.objects.filter(
+-                RawSQL('num_employees > %s', (3,), output_field=models.BooleanField()),
++                RawSQL('num_employees > %s', (3,), output_field=BooleanField()),
+             ).count(),
+             2,
+         )
+@@ -438,7 +436,7 @@ class BasicExpressionsTests(TestCase):
+ 
+     def test_exist_single_field_output_field(self):
+         queryset = Company.objects.values('pk')
+-        self.assertIsInstance(Exists(queryset).output_field, models.BooleanField)
++        self.assertIsInstance(Exists(queryset).output_field, BooleanField)
+ 
+     def test_subquery(self):
+         Company.objects.filter(name='Example Inc.').update(
+@@ -452,8 +450,8 @@ class BasicExpressionsTests(TestCase):
+             is_ceo_of_small_company=Exists(Company.objects.filter(num_employees__lt=200, ceo=OuterRef('pk'))),
+             is_ceo_small_2=~~Exists(Company.objects.filter(num_employees__lt=200, ceo=OuterRef('pk'))),
+             largest_company=Subquery(Company.objects.order_by('-num_employees').filter(
+-                models.Q(ceo=OuterRef('pk')) | models.Q(point_of_contact=OuterRef('pk'))
+-            ).values('name')[:1], output_field=models.CharField())
++                Q(ceo=OuterRef('pk')) | Q(point_of_contact=OuterRef('pk'))
++            ).values('name')[:1], output_field=CharField())
+         ).values(
+             'firstname',
+             'is_point_of_contact',
+@@ -533,7 +531,7 @@ class BasicExpressionsTests(TestCase):
+         contrived = Employee.objects.annotate(
+             is_point_of_contact=Subquery(
+                 outer.filter(pk=OuterRef('pk')).values('is_point_of_contact'),
+-                output_field=models.BooleanField(),
++                output_field=BooleanField(),
+             ),
+         )
+         self.assertCountEqual(contrived.values_list(), outer.values_list())
+@@ -564,7 +562,7 @@ class BasicExpressionsTests(TestCase):
+         ])
+         inner = Time.objects.filter(time=OuterRef(OuterRef('time')), pk=OuterRef('start')).values('time')
+         middle = SimulationRun.objects.annotate(other=Subquery(inner)).values('other')[:1]
+-        outer = Time.objects.annotate(other=Subquery(middle, output_field=models.TimeField()))
++        outer = Time.objects.annotate(other=Subquery(middle, output_field=TimeField()))
+         # This is a contrived example. It exercises the double OuterRef form.
+         self.assertCountEqual(outer, [first, second, third])
+ 
+@@ -574,7 +572,7 @@ class BasicExpressionsTests(TestCase):
+         SimulationRun.objects.create(start=first, end=second, midpoint='12:00')
+         inner = SimulationRun.objects.filter(start=OuterRef(OuterRef('pk'))).values('start')
+         middle = Time.objects.annotate(other=Subquery(inner)).values('other')[:1]
+-        outer = Time.objects.annotate(other=Subquery(middle, output_field=models.IntegerField()))
++        outer = Time.objects.annotate(other=Subquery(middle, output_field=IntegerField()))
+         # This exercises the double OuterRef form with AutoField as pk.
+         self.assertCountEqual(outer, [first, second])
+ 
+@@ -582,7 +580,7 @@ class BasicExpressionsTests(TestCase):
+         Company.objects.filter(num_employees__lt=50).update(ceo=Employee.objects.get(firstname='Frank'))
+         inner = Company.objects.filter(
+             ceo=OuterRef('pk')
+-        ).values('ceo').annotate(total_employees=models.Sum('num_employees')).values('total_employees')
++        ).values('ceo').annotate(total_employees=Sum('num_employees')).values('total_employees')
+         outer = Employee.objects.annotate(total_employees=Subquery(inner)).filter(salary__lte=Subquery(inner))
+         self.assertSequenceEqual(
+             outer.order_by('-total_employees').values('salary', 'total_employees'),
+@@ -632,7 +630,7 @@ class BasicExpressionsTests(TestCase):
+ 
+     def test_explicit_output_field(self):
+         class FuncA(Func):
+-            output_field = models.CharField()
++            output_field = CharField()
+ 
+         class FuncB(Func):
+             pass
+@@ -656,13 +654,13 @@ class BasicExpressionsTests(TestCase):
+                 Company.objects.annotate(
+                     salary_raise=OuterRef('num_employees') + F('num_employees'),
+                 ).order_by('-salary_raise').values('salary_raise')[:1],
+-                output_field=models.IntegerField(),
++                output_field=IntegerField(),
+             ),
+         ).get(pk=self.gmbh.pk)
+         self.assertEqual(gmbh_salary.max_ceo_salary_raise, 2332)
+ 
+     def test_pickle_expression(self):
+-        expr = Value(1, output_field=models.IntegerField())
++        expr = Value(1, output_field=IntegerField())
+         expr.convert_value  # populate cached property
+         self.assertEqual(pickle.loads(pickle.dumps(expr)), expr)
+ 
+@@ -697,7 +695,7 @@ class BasicExpressionsTests(TestCase):
+                 When(Exists(is_ceo), then=True),
+                 When(Exists(is_poc), then=True),
+                 default=False,
+-                output_field=models.BooleanField(),
++                output_field=BooleanField(),
+             ),
+         )
+         self.assertSequenceEqual(qs, [self.example_inc.ceo, self.foobar_ltd.ceo, self.max])
+@@ -986,18 +984,18 @@ class SimpleExpressionTests(SimpleTestCase):
+     def test_equal(self):
+         self.assertEqual(Expression(), Expression())
+         self.assertEqual(
+-            Expression(models.IntegerField()),
+-            Expression(output_field=models.IntegerField())
++            Expression(IntegerField()),
++            Expression(output_field=IntegerField())
+         )
+-        self.assertEqual(Expression(models.IntegerField()), mock.ANY)
++        self.assertEqual(Expression(IntegerField()), mock.ANY)
+         self.assertNotEqual(
+-            Expression(models.IntegerField()),
+-            Expression(models.CharField())
++            Expression(IntegerField()),
++            Expression(CharField())
+         )
+ 
+-        class TestModel(models.Model):
+-            field = models.IntegerField()
+-            other_field = models.IntegerField()
++        class TestModel(Model):
++            field = IntegerField()
++            other_field = IntegerField()
+ 
+         self.assertNotEqual(
+             Expression(TestModel._meta.get_field('field')),
+@@ -1007,17 +1005,17 @@ class SimpleExpressionTests(SimpleTestCase):
+     def test_hash(self):
+         self.assertEqual(hash(Expression()), hash(Expression()))
+         self.assertEqual(
+-            hash(Expression(models.IntegerField())),
+-            hash(Expression(output_field=models.IntegerField()))
++            hash(Expression(IntegerField())),
++            hash(Expression(output_field=IntegerField()))
+         )
+         self.assertNotEqual(
+-            hash(Expression(models.IntegerField())),
+-            hash(Expression(models.CharField())),
++            hash(Expression(IntegerField())),
++            hash(Expression(CharField())),
+         )
+ 
+-        class TestModel(models.Model):
+-            field = models.IntegerField()
+-            other_field = models.IntegerField()
++        class TestModel(Model):
++            field = IntegerField()
++            other_field = IntegerField()
+ 
+         self.assertNotEqual(
+             hash(Expression(TestModel._meta.get_field('field'))),
+@@ -1392,8 +1390,8 @@ class FTimeDeltaTests(TestCase):
+         self.assertEqual(delta_math, ['e4'])
+ 
+         queryset = Experiment.objects.annotate(shifted=ExpressionWrapper(
+-            F('start') + Value(None, output_field=models.DurationField()),
+-            output_field=models.DateTimeField(),
++            F('start') + Value(None, output_field=DurationField()),
++            output_field=DateTimeField(),
+         ))
+         self.assertIsNone(queryset.first().shifted)
+ 
+@@ -1401,7 +1399,7 @@ class FTimeDeltaTests(TestCase):
+     def test_date_subtraction(self):
+         queryset = Experiment.objects.annotate(
+             completion_duration=ExpressionWrapper(
+-                F('completed') - F('assigned'), output_field=models.DurationField()
++                F('completed') - F('assigned'), output_field=DurationField()
+             )
+         )
+ 
+@@ -1415,14 +1413,14 @@ class FTimeDeltaTests(TestCase):
+         self.assertEqual(less_than_5_days, {'e0', 'e1', 'e2'})
+ 
+         queryset = Experiment.objects.annotate(difference=ExpressionWrapper(
+-            F('completed') - Value(None, output_field=models.DateField()),
+-            output_field=models.DurationField(),
++            F('completed') - Value(None, output_field=DateField()),
++            output_field=DurationField(),
+         ))
+         self.assertIsNone(queryset.first().difference)
+ 
+         queryset = Experiment.objects.annotate(shifted=ExpressionWrapper(
+-            F('completed') - Value(None, output_field=models.DurationField()),
+-            output_field=models.DateField(),
++            F('completed') - Value(None, output_field=DurationField()),
++            output_field=DateField(),
+         ))
+         self.assertIsNone(queryset.first().shifted)
+ 
+@@ -1431,7 +1429,7 @@ class FTimeDeltaTests(TestCase):
+         subquery = Experiment.objects.filter(pk=OuterRef('pk')).values('completed')
+         queryset = Experiment.objects.annotate(
+             difference=ExpressionWrapper(
+-                subquery - F('completed'), output_field=models.DurationField(),
++                subquery - F('completed'), output_field=DurationField(),
+             ),
+         ).filter(difference=datetime.timedelta())
+         self.assertTrue(queryset.exists())
+@@ -1441,8 +1439,8 @@ class FTimeDeltaTests(TestCase):
+         Time.objects.create(time=datetime.time(12, 30, 15, 2345))
+         queryset = Time.objects.annotate(
+             difference=ExpressionWrapper(
+-                F('time') - Value(datetime.time(11, 15, 0), output_field=models.TimeField()),
+-                output_field=models.DurationField(),
++                F('time') - Value(datetime.time(11, 15, 0), output_field=TimeField()),
++                output_field=DurationField(),
+             )
+         )
+         self.assertEqual(
+@@ -1451,14 +1449,14 @@ class FTimeDeltaTests(TestCase):
+         )
+ 
+         queryset = Time.objects.annotate(difference=ExpressionWrapper(
+-            F('time') - Value(None, output_field=models.TimeField()),
+-            output_field=models.DurationField(),
++            F('time') - Value(None, output_field=TimeField()),
++            output_field=DurationField(),
+         ))
+         self.assertIsNone(queryset.first().difference)
+ 
+         queryset = Time.objects.annotate(shifted=ExpressionWrapper(
+-            F('time') - Value(None, output_field=models.DurationField()),
+-            output_field=models.TimeField(),
++            F('time') - Value(None, output_field=DurationField()),
++            output_field=TimeField(),
+         ))
+         self.assertIsNone(queryset.first().shifted)
+ 
+@@ -1468,7 +1466,7 @@ class FTimeDeltaTests(TestCase):
+         subquery = Time.objects.filter(pk=OuterRef('pk')).values('time')
+         queryset = Time.objects.annotate(
+             difference=ExpressionWrapper(
+-                subquery - F('time'), output_field=models.DurationField(),
++                subquery - F('time'), output_field=DurationField(),
+             ),
+         ).filter(difference=datetime.timedelta())
+         self.assertTrue(queryset.exists())
+@@ -1486,14 +1484,14 @@ class FTimeDeltaTests(TestCase):
+         self.assertEqual(over_estimate, ['e4'])
+ 
+         queryset = Experiment.objects.annotate(difference=ExpressionWrapper(
+-            F('start') - Value(None, output_field=models.DateTimeField()),
+-            output_field=models.DurationField(),
++            F('start') - Value(None, output_field=DateTimeField()),
++            output_field=DurationField(),
+         ))
+         self.assertIsNone(queryset.first().difference)
+ 
+         queryset = Experiment.objects.annotate(shifted=ExpressionWrapper(
+-            F('start') - Value(None, output_field=models.DurationField()),
+-            output_field=models.DateTimeField(),
++            F('start') - Value(None, output_field=DurationField()),
++            output_field=DateTimeField(),
+         ))
+         self.assertIsNone(queryset.first().shifted)
+ 
+@@ -1502,7 +1500,7 @@ class FTimeDeltaTests(TestCase):
+         subquery = Experiment.objects.filter(pk=OuterRef('pk')).values('start')
+         queryset = Experiment.objects.annotate(
+             difference=ExpressionWrapper(
+-                subquery - F('start'), output_field=models.DurationField(),
++                subquery - F('start'), output_field=DurationField(),
+             ),
+         ).filter(difference=datetime.timedelta())
+         self.assertTrue(queryset.exists())
+@@ -1512,7 +1510,7 @@ class FTimeDeltaTests(TestCase):
+         delta = datetime.timedelta(microseconds=8999999999999999)
+         Experiment.objects.update(end=F('start') + delta)
+         qs = Experiment.objects.annotate(
+-            delta=ExpressionWrapper(F('end') - F('start'), output_field=models.DurationField())
++            delta=ExpressionWrapper(F('end') - F('start'), output_field=DurationField())
+         )
+         for e in qs:
+             self.assertEqual(e.delta, delta)
+@@ -1530,14 +1528,14 @@ class FTimeDeltaTests(TestCase):
+         delta = datetime.timedelta(microseconds=8999999999999999)
+         qs = Experiment.objects.annotate(dt=ExpressionWrapper(
+             F('start') + delta,
+-            output_field=models.DateTimeField(),
++            output_field=DateTimeField(),
+         ))
+         for e in qs:
+             self.assertEqual(e.dt, e.start + delta)
+ 
+     def test_date_minus_duration(self):
+         more_than_4_days = Experiment.objects.filter(
+-            assigned__lt=F('completed') - Value(datetime.timedelta(days=4), output_field=models.DurationField())
++            assigned__lt=F('completed') - Value(datetime.timedelta(days=4), output_field=DurationField())
+         )
+         self.assertQuerysetEqual(more_than_4_days, ['e3', 'e4', 'e5'], lambda e: e.name)
+ 
+@@ -1661,7 +1659,7 @@ class ReprTests(SimpleTestCase):
+         self.assertEqual(repr(F('published')), "F(published)")
+         self.assertEqual(repr(F('cost') + F('tax')), "<CombinedExpression: F(cost) + F(tax)>")
+         self.assertEqual(
+-            repr(ExpressionWrapper(F('cost') + F('tax'), models.IntegerField())),
++            repr(ExpressionWrapper(F('cost') + F('tax'), IntegerField())),
+             "ExpressionWrapper(F(cost) + F(tax))"
+         )
+         self.assertEqual(repr(Func('published', function='TO_CHAR')), "Func(F(published), function=TO_CHAR)")
+diff --git a/tests/expressions_case/tests.py b/tests/expressions_case/tests.py
+index d1a58f5d88..f85def932a 100644
+--- a/tests/expressions_case/tests.py
++++ b/tests/expressions_case/tests.py
+@@ -5,9 +5,11 @@ from operator import attrgetter, itemgetter
+ from uuid import UUID
+ 
+ from django.core.exceptions import FieldError
+-from django.db import models
+-from django.db.models import F, Max, Min, Q, Sum, Value
+-from django.db.models.expressions import Case, When
++from django.db.models import (
++    BinaryField, Case, CharField, Count, DurationField, F,
++    GenericIPAddressField, IntegerField, Max, Min, Q, Sum, TextField,
++    TimeField, UUIDField, Value, When,
++)
+ from django.test import SimpleTestCase, TestCase
+ 
+ from .models import CaseTestModel, Client, FKCaseTestModel, O2OCaseTestModel
+@@ -57,7 +59,7 @@ class CaseExpressionTests(TestCase):
+         # GROUP BY on Oracle fails with TextField/BinaryField; see #24096.
+         cls.non_lob_fields = [
+             f.name for f in CaseTestModel._meta.get_fields()
+-            if not (f.is_relation and f.auto_created) and not isinstance(f, (models.BinaryField, models.TextField))
++            if not (f.is_relation and f.auto_created) and not isinstance(f, (BinaryField, TextField))
+         ]
+ 
+     def test_annotate(self):
+@@ -66,7 +68,7 @@ class CaseExpressionTests(TestCase):
+                 When(integer=1, then=Value('one')),
+                 When(integer=2, then=Value('two')),
+                 default=Value('other'),
+-                output_field=models.CharField(),
++                output_field=CharField(),
+             )).order_by('pk'),
+             [(1, 'one'), (2, 'two'), (3, 'other'), (2, 'two'), (3, 'other'), (3, 'other'), (4, 'other')],
+             transform=attrgetter('integer', 'test')
+@@ -77,7 +79,7 @@ class CaseExpressionTests(TestCase):
+             CaseTestModel.objects.annotate(test=Case(
+                 When(integer=1, then=1),
+                 When(integer=2, then=2),
+-                output_field=models.IntegerField(),
++                output_field=IntegerField(),
+             )).order_by('pk'),
+             [(1, 1), (2, 2), (3, None), (2, 2), (3, None), (3, None), (4, None)],
+             transform=attrgetter('integer', 'test')
+@@ -99,7 +101,7 @@ class CaseExpressionTests(TestCase):
+             CaseTestModel.objects.annotate(f_test=Case(
+                 When(integer2=F('integer'), then=Value('equal')),
+                 When(integer2=F('integer') + 1, then=Value('+1')),
+-                output_field=models.CharField(),
++                output_field=CharField(),
+             )).order_by('pk'),
+             [(1, 'equal'), (2, '+1'), (3, '+1'), (2, 'equal'), (3, '+1'), (3, 'equal'), (4, '+1')],
+             transform=attrgetter('integer', 'f_test')
+@@ -133,7 +135,7 @@ class CaseExpressionTests(TestCase):
+                 When(integer2=F('o2o_rel__integer'), then=Value('equal')),
+                 When(integer2=F('o2o_rel__integer') + 1, then=Value('+1')),
+                 default=Value('other'),
+-                output_field=models.CharField(),
++                output_field=CharField(),
+             )).order_by('pk'),
+             [(1, 'equal'), (2, '+1'), (3, '+1'), (2, 'equal'), (3, '+1'), (3, 'equal'), (4, 'other')],
+             transform=attrgetter('integer', 'join_test')
+@@ -146,7 +148,7 @@ class CaseExpressionTests(TestCase):
+                 When(o2o_rel__integer=2, then=Value('two')),
+                 When(o2o_rel__integer=3, then=Value('three')),
+                 default=Value('other'),
+-                output_field=models.CharField(),
++                output_field=CharField(),
+             )).order_by('pk'),
+             [(1, 'one'), (2, 'two'), (3, 'three'), (2, 'two'), (3, 'three'), (3, 'three'), (4, 'one')],
+             transform=attrgetter('integer', 'join_test')
+@@ -176,7 +178,7 @@ class CaseExpressionTests(TestCase):
+                 f_test=Case(
+                     When(integer2=F('integer'), then=Value('equal')),
+                     When(integer2=F('f_plus_1'), then=Value('+1')),
+-                    output_field=models.CharField(),
++                    output_field=CharField(),
+                 ),
+             ).order_by('pk'),
+             [(1, 'equal'), (2, '+1'), (3, '+1'), (2, 'equal'), (3, '+1'), (3, 'equal'), (4, '+1')],
+@@ -193,7 +195,7 @@ class CaseExpressionTests(TestCase):
+                     When(f_minus_2=0, then=Value('zero')),
+                     When(f_minus_2=1, then=Value('one')),
+                     default=Value('other'),
+-                    output_field=models.CharField(),
++                    output_field=CharField(),
+                 ),
+             ).order_by('pk'),
+             [(1, 'negative one'), (2, 'zero'), (3, 'one'), (2, 'zero'), (3, 'one'), (3, 'one'), (4, 'other')],
+@@ -224,7 +226,7 @@ class CaseExpressionTests(TestCase):
+                 test=Case(
+                     When(integer2=F('min'), then=Value('min')),
+                     When(integer2=F('max'), then=Value('max')),
+-                    output_field=models.CharField(),
++                    output_field=CharField(),
+                 ),
+             ).order_by('pk'),
+             [(1, 1, 'min'), (2, 3, 'max'), (3, 4, 'max'), (2, 2, 'min'), (3, 4, 'max'), (3, 3, 'min'), (4, 5, 'min')],
+@@ -240,7 +242,7 @@ class CaseExpressionTests(TestCase):
+                     When(max=3, then=Value('max = 3')),
+                     When(max=4, then=Value('max = 4')),
+                     default=Value(''),
+-                    output_field=models.CharField(),
++                    output_field=CharField(),
+                 ),
+             ).order_by('pk'),
+             [(1, 1, ''), (2, 3, 'max = 3'), (3, 4, 'max = 4'), (2, 3, 'max = 3'),
+@@ -254,7 +256,7 @@ class CaseExpressionTests(TestCase):
+                 When(integer=1, then=Value('one')),
+                 When(integer=2, then=Value('two')),
+                 default=Value('other'),
+-                output_field=models.CharField(),
++                output_field=CharField(),
+             )).exclude(test='other').order_by('pk'),
+             [(1, 'one'), (2, 'two'), (2, 'two')],
+             transform=attrgetter('integer', 'test')
+@@ -267,7 +269,7 @@ class CaseExpressionTests(TestCase):
+                 When(integer=2, then=Value('two')),
+                 When(integer=3, then=Value('three')),
+                 default=Value('other'),
+-                output_field=models.CharField(),
++                output_field=CharField(),
+             )).order_by('test').values_list('integer', flat=True)),
+             [1, 4, 3, 3, 3, 2, 2]
+         )
+@@ -276,7 +278,7 @@ class CaseExpressionTests(TestCase):
+         objects = CaseTestModel.objects.annotate(
+             selected=Case(
+                 When(pk__in=[], then=Value('selected')),
+-                default=Value('not selected'), output_field=models.CharField()
++                default=Value('not selected'), output_field=CharField()
+             )
+         )
+         self.assertEqual(len(objects), CaseTestModel.objects.count())
+@@ -289,7 +291,7 @@ class CaseExpressionTests(TestCase):
+                     When(integer=1, then=2),
+                     When(integer=2, then=1),
+                     default=3,
+-                    output_field=models.IntegerField(),
++                    output_field=IntegerField(),
+                 ) + 1,
+             ).order_by('pk'),
+             [(1, 3), (2, 2), (3, 4), (2, 2), (3, 4), (3, 4), (4, 4)],
+@@ -303,7 +305,7 @@ class CaseExpressionTests(TestCase):
+                     test=Case(
+                         When(integer=F('integer2'), then='pk'),
+                         When(integer=4, then='pk'),
+-                        output_field=models.IntegerField(),
++                        output_field=IntegerField(),
+                     ),
+                 ).values('test')).order_by('pk'),
+             [(1, 1), (2, 2), (3, 3), (4, 5)],
+@@ -314,7 +316,7 @@ class CaseExpressionTests(TestCase):
+         SOME_CASE = Case(
+             When(pk=0, then=Value('0')),
+             default=Value('1'),
+-            output_field=models.CharField(),
++            output_field=CharField(),
+         )
+         self.assertQuerysetEqual(
+             CaseTestModel.objects.annotate(somecase=SOME_CASE).order_by('pk'),
+@@ -325,21 +327,21 @@ class CaseExpressionTests(TestCase):
+     def test_aggregate(self):
+         self.assertEqual(
+             CaseTestModel.objects.aggregate(
+-                one=models.Sum(Case(
++                one=Sum(Case(
+                     When(integer=1, then=1),
+-                    output_field=models.IntegerField(),
++                    output_field=IntegerField(),
+                 )),
+-                two=models.Sum(Case(
++                two=Sum(Case(
+                     When(integer=2, then=1),
+-                    output_field=models.IntegerField(),
++                    output_field=IntegerField(),
+                 )),
+-                three=models.Sum(Case(
++                three=Sum(Case(
+                     When(integer=3, then=1),
+-                    output_field=models.IntegerField(),
++                    output_field=IntegerField(),
+                 )),
+-                four=models.Sum(Case(
++                four=Sum(Case(
+                     When(integer=4, then=1),
+-                    output_field=models.IntegerField(),
++                    output_field=IntegerField(),
+                 )),
+             ),
+             {'one': 1, 'two': 2, 'three': 3, 'four': 1}
+@@ -348,9 +350,9 @@ class CaseExpressionTests(TestCase):
+     def test_aggregate_with_expression_as_value(self):
+         self.assertEqual(
+             CaseTestModel.objects.aggregate(
+-                one=models.Sum(Case(When(integer=1, then='integer'))),
+-                two=models.Sum(Case(When(integer=2, then=F('integer') - 1))),
+-                three=models.Sum(Case(When(integer=3, then=F('integer') + 1))),
++                one=Sum(Case(When(integer=1, then='integer'))),
++                two=Sum(Case(When(integer=2, then=F('integer') - 1))),
++                three=Sum(Case(When(integer=3, then=F('integer') + 1))),
+             ),
+             {'one': 1, 'two': 2, 'three': 12}
+         )
+@@ -358,13 +360,13 @@ class CaseExpressionTests(TestCase):
+     def test_aggregate_with_expression_as_condition(self):
+         self.assertEqual(
+             CaseTestModel.objects.aggregate(
+-                equal=models.Sum(Case(
++                equal=Sum(Case(
+                     When(integer2=F('integer'), then=1),
+-                    output_field=models.IntegerField(),
++                    output_field=IntegerField(),
+                 )),
+-                plus_one=models.Sum(Case(
++                plus_one=Sum(Case(
+                     When(integer2=F('integer') + 1, then=1),
+-                    output_field=models.IntegerField(),
++                    output_field=IntegerField(),
+                 )),
+             ),
+             {'equal': 3, 'plus_one': 4}
+@@ -376,7 +378,7 @@ class CaseExpressionTests(TestCase):
+                 When(integer=2, then=3),
+                 When(integer=3, then=4),
+                 default=1,
+-                output_field=models.IntegerField(),
++                output_field=IntegerField(),
+             )).order_by('pk'),
+             [(1, 1), (2, 3), (3, 4), (3, 4)],
+             transform=attrgetter('integer', 'integer2')
+@@ -387,7 +389,7 @@ class CaseExpressionTests(TestCase):
+             CaseTestModel.objects.filter(integer2=Case(
+                 When(integer=2, then=3),
+                 When(integer=3, then=4),
+-                output_field=models.IntegerField(),
++                output_field=IntegerField(),
+             )).order_by('pk'),
+             [(2, 3), (3, 4), (3, 4)],
+             transform=attrgetter('integer', 'integer2')
+@@ -409,7 +411,7 @@ class CaseExpressionTests(TestCase):
+             CaseTestModel.objects.filter(string=Case(
+                 When(integer2=F('integer'), then=Value('2')),
+                 When(integer2=F('integer') + 1, then=Value('3')),
+-                output_field=models.CharField(),
++                output_field=CharField(),
+             )).order_by('pk'),
+             [(3, 4, '3'), (2, 2, '2'), (3, 4, '3')],
+             transform=attrgetter('integer', 'integer2', 'string')
+@@ -431,7 +433,7 @@ class CaseExpressionTests(TestCase):
+             CaseTestModel.objects.filter(integer=Case(
+                 When(integer2=F('o2o_rel__integer') + 1, then=2),
+                 When(integer2=F('o2o_rel__integer'), then=3),
+-                output_field=models.IntegerField(),
++                output_field=IntegerField(),
+             )).order_by('pk'),
+             [(2, 3), (3, 3)],
+             transform=attrgetter('integer', 'integer2')
+@@ -443,7 +445,7 @@ class CaseExpressionTests(TestCase):
+                 When(o2o_rel__integer=1, then=1),
+                 When(o2o_rel__integer=2, then=3),
+                 When(o2o_rel__integer=3, then=4),
+-                output_field=models.IntegerField(),
++                output_field=IntegerField(),
+             )).order_by('pk'),
+             [(1, 1), (2, 3), (3, 4), (3, 4)],
+             transform=attrgetter('integer', 'integer2')
+@@ -472,7 +474,7 @@ class CaseExpressionTests(TestCase):
+                 integer=Case(
+                     When(integer2=F('integer'), then=2),
+                     When(integer2=F('f_plus_1'), then=3),
+-                    output_field=models.IntegerField(),
++                    output_field=IntegerField(),
+                 ),
+             ).order_by('pk'),
+             [(3, 4), (2, 2), (3, 4)],
+@@ -488,7 +490,7 @@ class CaseExpressionTests(TestCase):
+                     When(f_plus_1=3, then=3),
+                     When(f_plus_1=4, then=4),
+                     default=1,
+-                    output_field=models.IntegerField(),
++                    output_field=IntegerField(),
+                 ),
+             ).order_by('pk'),
+             [(1, 1), (2, 3), (3, 4), (3, 4)],
+@@ -599,7 +601,7 @@ class CaseExpressionTests(TestCase):
+                 integer=Case(
+                     When(integer2=F('o2o_rel__integer') + 1, then=2),
+                     When(integer2=F('o2o_rel__integer'), then=3),
+-                    output_field=models.IntegerField(),
++                    output_field=IntegerField(),
+                 ),
+             )
+ 
+@@ -611,7 +613,7 @@ class CaseExpressionTests(TestCase):
+                     When(o2o_rel__integer=2, then=Value('two')),
+                     When(o2o_rel__integer=3, then=Value('three')),
+                     default=Value('other'),
+-                    output_field=models.CharField(),
++                    output_field=CharField(),
+                 ),
+             )
+ 
+@@ -631,9 +633,9 @@ class CaseExpressionTests(TestCase):
+     def test_update_binary(self):
+         CaseTestModel.objects.update(
+             binary=Case(
+-                When(integer=1, then=Value(b'one', output_field=models.BinaryField())),
+-                When(integer=2, then=Value(b'two', output_field=models.BinaryField())),
+-                default=Value(b'', output_field=models.BinaryField()),
++                When(integer=1, then=Value(b'one', output_field=BinaryField())),
++                When(integer=2, then=Value(b'two', output_field=BinaryField())),
++                default=Value(b'', output_field=BinaryField()),
+             ),
+         )
+         self.assertQuerysetEqual(
+@@ -714,8 +716,8 @@ class CaseExpressionTests(TestCase):
+             duration=Case(
+                 # fails on sqlite if output_field is not set explicitly on all
+                 # Values containing timedeltas
+-                When(integer=1, then=Value(timedelta(1), output_field=models.DurationField())),
+-                When(integer=2, then=Value(timedelta(2), output_field=models.DurationField())),
++                When(integer=1, then=Value(timedelta(1), output_field=DurationField())),
++                When(integer=2, then=Value(timedelta(2), output_field=DurationField())),
+             ),
+         )
+         self.assertQuerysetEqual(
+@@ -798,7 +800,7 @@ class CaseExpressionTests(TestCase):
+                 # fails on postgresql if output_field is not set explicitly
+                 When(integer=1, then=Value('1.1.1.1')),
+                 When(integer=2, then=Value('2.2.2.2')),
+-                output_field=models.GenericIPAddressField(),
++                output_field=GenericIPAddressField(),
+             ),
+         )
+         self.assertQuerysetEqual(
+@@ -902,8 +904,8 @@ class CaseExpressionTests(TestCase):
+     def test_update_string(self):
+         CaseTestModel.objects.filter(string__in=['1', '2']).update(
+             string=Case(
+-                When(integer=1, then=Value('1', output_field=models.CharField())),
+-                When(integer=2, then=Value('2', output_field=models.CharField())),
++                When(integer=1, then=Value('1', output_field=CharField())),
++                When(integer=2, then=Value('2', output_field=CharField())),
+             ),
+         )
+         self.assertQuerysetEqual(
+@@ -931,8 +933,8 @@ class CaseExpressionTests(TestCase):
+             time=Case(
+                 # fails on sqlite if output_field is not set explicitly on all
+                 # Values containing times
+-                When(integer=1, then=Value(time(1), output_field=models.TimeField())),
+-                When(integer=2, then=Value(time(2), output_field=models.TimeField())),
++                When(integer=1, then=Value(time(1), output_field=TimeField())),
++                When(integer=2, then=Value(time(2), output_field=TimeField())),
+             ),
+         )
+         self.assertQuerysetEqual(
+@@ -965,11 +967,11 @@ class CaseExpressionTests(TestCase):
+                 # Values containing UUIDs
+                 When(integer=1, then=Value(
+                     UUID('11111111111111111111111111111111'),
+-                    output_field=models.UUIDField(),
++                    output_field=UUIDField(),
+                 )),
+                 When(integer=2, then=Value(
+                     UUID('22222222222222222222222222222222'),
+-                    output_field=models.UUIDField(),
++                    output_field=UUIDField(),
+                 )),
+             ),
+         )
+@@ -1009,7 +1011,7 @@ class CaseExpressionTests(TestCase):
+                     When(integer__lt=2, then=Value('less than 2')),
+                     When(integer__gt=2, then=Value('greater than 2')),
+                     default=Value('equal to 2'),
+-                    output_field=models.CharField(),
++                    output_field=CharField(),
+                 ),
+             ).order_by('pk'),
+             [
+@@ -1025,7 +1027,7 @@ class CaseExpressionTests(TestCase):
+                 test=Case(
+                     When(integer=2, integer2=3, then=Value('when')),
+                     default=Value('default'),
+-                    output_field=models.CharField(),
++                    output_field=CharField(),
+                 ),
+             ).order_by('pk'),
+             [
+@@ -1041,7 +1043,7 @@ class CaseExpressionTests(TestCase):
+                 test=Case(
+                     When(Q(integer=2) | Q(integer2=3), then=Value('when')),
+                     default=Value('default'),
+-                    output_field=models.CharField(),
++                    output_field=CharField(),
+                 ),
+             ).order_by('pk'),
+             [
+@@ -1057,7 +1059,7 @@ class CaseExpressionTests(TestCase):
+                 When(integer=1, then=2),
+                 When(integer=2, then=1),
+                 default=3,
+-                output_field=models.IntegerField(),
++                output_field=IntegerField(),
+             )).order_by('test', 'pk'),
+             [(2, 1), (2, 1), (1, 2)],
+             transform=attrgetter('integer', 'test')
+@@ -1069,7 +1071,7 @@ class CaseExpressionTests(TestCase):
+                 When(integer=1, then=2),
+                 When(integer=2, then=1),
+                 default=3,
+-                output_field=models.IntegerField(),
++                output_field=IntegerField(),
+             )).order_by(F('test').asc(), 'pk'),
+             [(2, 1), (2, 1), (1, 2)],
+             transform=attrgetter('integer', 'test')
+@@ -1088,7 +1090,7 @@ class CaseExpressionTests(TestCase):
+                 foo=Case(
+                     When(fk_rel__pk=1, then=2),
+                     default=3,
+-                    output_field=models.IntegerField()
++                    output_field=IntegerField()
+                 ),
+             ),
+             [(o, 3)],
+@@ -1100,7 +1102,7 @@ class CaseExpressionTests(TestCase):
+                 foo=Case(
+                     When(fk_rel__isnull=True, then=2),
+                     default=3,
+-                    output_field=models.IntegerField()
++                    output_field=IntegerField()
+                 ),
+             ),
+             [(o, 2)],
+@@ -1120,12 +1122,12 @@ class CaseExpressionTests(TestCase):
+                 foo=Case(
+                     When(fk_rel__pk=1, then=2),
+                     default=3,
+-                    output_field=models.IntegerField()
++                    output_field=IntegerField()
+                 ),
+                 bar=Case(
+                     When(fk_rel__pk=1, then=4),
+                     default=5,
+-                    output_field=models.IntegerField()
++                    output_field=IntegerField()
+                 ),
+             ),
+             [(o, 3, 5)],
+@@ -1137,12 +1139,12 @@ class CaseExpressionTests(TestCase):
+                 foo=Case(
+                     When(fk_rel__isnull=True, then=2),
+                     default=3,
+-                    output_field=models.IntegerField()
++                    output_field=IntegerField()
+                 ),
+                 bar=Case(
+                     When(fk_rel__isnull=True, then=4),
+                     default=5,
+-                    output_field=models.IntegerField()
++                    output_field=IntegerField()
+                 ),
+             ),
+             [(o, 2, 4)],
+@@ -1152,9 +1154,9 @@ class CaseExpressionTests(TestCase):
+     def test_m2m_exclude(self):
+         CaseTestModel.objects.create(integer=10, integer2=1, string='1')
+         qs = CaseTestModel.objects.values_list('id', 'integer').annotate(
+-            cnt=models.Sum(
++            cnt=Sum(
+                 Case(When(~Q(fk_rel__integer=1), then=1), default=2),
+-                output_field=models.IntegerField()
++                output_field=IntegerField()
+             ),
+         ).order_by('integer')
+         # The first o has 2 as its fk_rel__integer=1, thus it hits the
+@@ -1174,14 +1176,14 @@ class CaseExpressionTests(TestCase):
+         # Need to use values before annotate so that Oracle will not group
+         # by fields it isn't capable of grouping by.
+         qs = CaseTestModel.objects.values_list('id', 'integer').annotate(
+-            cnt=models.Sum(
++            cnt=Sum(
+                 Case(When(~Q(fk_rel__integer=1), then=1), default=2),
+-                output_field=models.IntegerField()
++                output_field=IntegerField()
+             ),
+         ).annotate(
+-            cnt2=models.Sum(
++            cnt2=Sum(
+                 Case(When(~Q(fk_rel__integer=1), then=1), default=2),
+-                output_field=models.IntegerField()
++                output_field=IntegerField()
+             ),
+         ).order_by('integer')
+         self.assertEqual(str(qs.query).count(' JOIN '), 1)
+@@ -1218,7 +1220,7 @@ class CaseDocumentationExamples(TestCase):
+                     When(account_type=Client.GOLD, then=Value('5%')),
+                     When(account_type=Client.PLATINUM, then=Value('10%')),
+                     default=Value('0%'),
+-                    output_field=models.CharField(),
++                    output_field=CharField(),
+                 ),
+             ).order_by('pk'),
+             [('Jane Doe', '0%'), ('James Smith', '5%'), ('Jack Black', '10%')],
+@@ -1234,7 +1236,7 @@ class CaseDocumentationExamples(TestCase):
+                     When(registered_on__lte=a_year_ago, then=Value('10%')),
+                     When(registered_on__lte=a_month_ago, then=Value('5%')),
+                     default=Value('0%'),
+-                    output_field=models.CharField(),
++                    output_field=CharField(),
+                 ),
+             ).order_by('pk'),
+             [('Jane Doe', '5%'), ('James Smith', '0%'), ('Jack Black', '10%')],
+@@ -1275,26 +1277,26 @@ class CaseDocumentationExamples(TestCase):
+         )
+         self.assertEqual(
+             Client.objects.aggregate(
+-                regular=models.Count('pk', filter=Q(account_type=Client.REGULAR)),
+-                gold=models.Count('pk', filter=Q(account_type=Client.GOLD)),
+-                platinum=models.Count('pk', filter=Q(account_type=Client.PLATINUM)),
++                regular=Count('pk', filter=Q(account_type=Client.REGULAR)),
++                gold=Count('pk', filter=Q(account_type=Client.GOLD)),
++                platinum=Count('pk', filter=Q(account_type=Client.PLATINUM)),
+             ),
+             {'regular': 2, 'gold': 1, 'platinum': 3}
+         )
+         # This was the example before the filter argument was added.
+         self.assertEqual(
+             Client.objects.aggregate(
+-                regular=models.Sum(Case(
++                regular=Sum(Case(
+                     When(account_type=Client.REGULAR, then=1),
+-                    output_field=models.IntegerField(),
++                    output_field=IntegerField(),
+                 )),
+-                gold=models.Sum(Case(
++                gold=Sum(Case(
+                     When(account_type=Client.GOLD, then=1),
+-                    output_field=models.IntegerField(),
++                    output_field=IntegerField(),
+                 )),
+-                platinum=models.Sum(Case(
++                platinum=Sum(Case(
+                     When(account_type=Client.PLATINUM, then=1),
+-                    output_field=models.IntegerField(),
++                    output_field=IntegerField(),
+                 )),
+             ),
+             {'regular': 2, 'gold': 1, 'platinum': 3}
+@@ -1318,12 +1320,12 @@ class CaseDocumentationExamples(TestCase):
+         expression_1 = Case(
+             When(account_type__in=[Client.REGULAR, Client.GOLD], then=1),
+             default=2,
+-            output_field=models.IntegerField(),
++            output_field=IntegerField(),
+         )
+         expression_2 = Case(
+             When(account_type__in=(Client.REGULAR, Client.GOLD), then=1),
+             default=2,
+-            output_field=models.IntegerField(),
++            output_field=IntegerField(),
+         )
+         expression_3 = Case(When(account_type__in=[Client.REGULAR, Client.GOLD], then=1), default=2)
+         expression_4 = Case(When(account_type__in=[Client.PLATINUM, Client.GOLD], then=2), default=1)
+@@ -1347,7 +1349,7 @@ class CaseWhenTests(SimpleTestCase):
+         with self.assertRaisesMessage(TypeError, msg):
+             When(condition=object())
+         with self.assertRaisesMessage(TypeError, msg):
+-            When(condition=Value(1, output_field=models.IntegerField()))
++            When(condition=Value(1, output_field=IntegerField()))
+         with self.assertRaisesMessage(TypeError, msg):
+             When()
+ 
+diff --git a/tests/expressions_window/tests.py b/tests/expressions_window/tests.py
+index 686594584f..30ed64f529 100644
+--- a/tests/expressions_window/tests.py
++++ b/tests/expressions_window/tests.py
+@@ -4,10 +4,9 @@ from unittest import mock, skipIf
+ from django.core.exceptions import FieldError
+ from django.db import NotSupportedError, connection
+ from django.db.models import (
+-    BooleanField, Case, F, Func, OuterRef, Q, RowRange, Subquery, Value,
+-    ValueRange, When, Window, WindowFrame,
++    Avg, BooleanField, Case, F, Func, Max, Min, OuterRef, Q, RowRange,
++    Subquery, Sum, Value, ValueRange, When, Window, WindowFrame,
+ )
+-from django.db.models.aggregates import Avg, Max, Min, Sum
+ from django.db.models.functions import (
+     CumeDist, DenseRank, ExtractYear, FirstValue, Lag, LastValue, Lead,
+     NthValue, Ntile, PercentRank, Rank, RowNumber, Upper,
+diff --git a/tests/foreign_object/models/customers.py b/tests/foreign_object/models/customers.py
+index 24c080f407..7e1a3ac370 100644
+--- a/tests/foreign_object/models/customers.py
++++ b/tests/foreign_object/models/customers.py
+@@ -1,5 +1,4 @@
+ from django.db import models
+-from django.db.models.fields.related import ForeignObject
+ 
+ 
+ class Address(models.Model):
+@@ -15,7 +14,7 @@ class Address(models.Model):
+ class Customer(models.Model):
+     company = models.CharField(max_length=1)
+     customer_id = models.IntegerField()
+-    address = ForeignObject(
++    address = models.ForeignObject(
+         Address, models.CASCADE, null=True,
+         # order mismatches the Contact ForeignObject.
+         from_fields=['company', 'customer_id'],
+@@ -31,7 +30,7 @@ class Customer(models.Model):
+ class Contact(models.Model):
+     company_code = models.CharField(max_length=1)
+     customer_code = models.IntegerField()
+-    customer = ForeignObject(
++    customer = models.ForeignObject(
+         Customer, models.CASCADE, related_name='contacts',
+         to_fields=['customer_id', 'company'],
+         from_fields=['customer_code', 'company_code'],
+diff --git a/tests/foreign_object/models/empty_join.py b/tests/foreign_object/models/empty_join.py
+index 08d1edb18a..8ccecc55cb 100644
+--- a/tests/foreign_object/models/empty_join.py
++++ b/tests/foreign_object/models/empty_join.py
+@@ -1,12 +1,10 @@
+ from django.db import models
+-from django.db.models.fields.related import (
+-    ForeignObjectRel, ReverseManyToOneDescriptor,
+-)
++from django.db.models.fields.related import ReverseManyToOneDescriptor
+ from django.db.models.lookups import StartsWith
+ from django.db.models.query_utils import PathInfo
+ 
+ 
+-class CustomForeignObjectRel(ForeignObjectRel):
++class CustomForeignObjectRel(models.ForeignObjectRel):
+     """
+     Define some extra Field methods so this Rel acts more like a Field, which
+     lets us use ReverseManyToOneDescriptor in both directions.
+diff --git a/tests/foreign_object/tests.py b/tests/foreign_object/tests.py
+index 7fed5557eb..b211c6e328 100644
+--- a/tests/foreign_object/tests.py
++++ b/tests/foreign_object/tests.py
+@@ -3,7 +3,6 @@ from operator import attrgetter
+ 
+ from django.core.exceptions import FieldError
+ from django.db import models
+-from django.db.models.fields.related import ForeignObject
+ from django.test import SimpleTestCase, TestCase, skipUnlessDBFeature
+ from django.test.utils import isolate_apps
+ from django.utils import translation
+@@ -436,7 +435,7 @@ class TestModelCheckTests(SimpleTestCase):
+             a = models.PositiveIntegerField()
+             b = models.PositiveIntegerField()
+             value = models.CharField(max_length=255)
+-            parent = ForeignObject(
++            parent = models.ForeignObject(
+                 Parent,
+                 on_delete=models.SET_NULL,
+                 from_fields=('a', 'b'),
+@@ -461,7 +460,7 @@ class TestModelCheckTests(SimpleTestCase):
+             b = models.PositiveIntegerField()
+             c = models.PositiveIntegerField()
+             d = models.CharField(max_length=255)
+-            parent = ForeignObject(
++            parent = models.ForeignObject(
+                 Parent,
+                 on_delete=models.SET_NULL,
+                 from_fields=('a', 'b', 'c'),
+diff --git a/tests/generic_relations_regress/models.py b/tests/generic_relations_regress/models.py
+index 06f5888fbe..4d5620b877 100644
+--- a/tests/generic_relations_regress/models.py
++++ b/tests/generic_relations_regress/models.py
+@@ -3,7 +3,6 @@ from django.contrib.contenttypes.fields import (
+ )
+ from django.contrib.contenttypes.models import ContentType
+ from django.db import models
+-from django.db.models.deletion import ProtectedError
+ 
+ __all__ = ('Link', 'Place', 'Restaurant', 'Person', 'Address',
+            'CharLink', 'TextLink', 'OddRelation1', 'OddRelation2',
+@@ -214,7 +213,7 @@ class Related(models.Model):
+ 
+ 
+ def prevent_deletes(sender, instance, **kwargs):
+-    raise ProtectedError("Not allowed to delete.", [instance])
++    raise models.ProtectedError("Not allowed to delete.", [instance])
+ 
+ 
+ models.signals.pre_delete.connect(prevent_deletes, sender=Node)
+diff --git a/tests/generic_relations_regress/tests.py b/tests/generic_relations_regress/tests.py
+index fc7447fa51..0c62283f01 100644
+--- a/tests/generic_relations_regress/tests.py
++++ b/tests/generic_relations_regress/tests.py
+@@ -1,6 +1,5 @@
+-from django.db.models import Q, Sum
+-from django.db.models.deletion import ProtectedError
+-from django.db.utils import IntegrityError
++from django.db import IntegrityError
++from django.db.models import ProtectedError, Q, Sum
+ from django.forms.models import modelform_factory
+ from django.test import TestCase, skipIfDBFeature
+ 
+diff --git a/tests/gis_tests/test_fields.py b/tests/gis_tests/test_fields.py
+index 5ccaf2df68..c9e6833767 100644
+--- a/tests/gis_tests/test_fields.py
++++ b/tests/gis_tests/test_fields.py
+@@ -1,6 +1,6 @@
+ import copy
+ 
+-from django.contrib.gis.db.models.fields import GeometryField
++from django.contrib.gis.db.models import GeometryField
+ from django.contrib.gis.db.models.sql import AreaField, DistanceField
+ from django.test import SimpleTestCase
+ 
+diff --git a/tests/gis_tests/test_gis_tests_utils.py b/tests/gis_tests/test_gis_tests_utils.py
+index 32d072fd9b..96eea8a9c2 100644
+--- a/tests/gis_tests/test_gis_tests_utils.py
++++ b/tests/gis_tests/test_gis_tests_utils.py
+@@ -1,5 +1,4 @@
+ from django.db import connection, models
+-from django.db.models.expressions import Func
+ from django.test import SimpleTestCase
+ 
+ from .utils import FuncTestMixin
+@@ -8,7 +7,7 @@ from .utils import FuncTestMixin
+ def test_mutation(raises=True):
+     def wrapper(mutation_func):
+         def test(test_case_instance, *args, **kwargs):
+-            class TestFunc(Func):
++            class TestFunc(models.Func):
+                 output_field = models.IntegerField()
+ 
+                 def __init__(self):
+diff --git a/tests/gis_tests/utils.py b/tests/gis_tests/utils.py
+index 23a99eb66c..d9f81e3c5d 100644
+--- a/tests/gis_tests/utils.py
++++ b/tests/gis_tests/utils.py
+@@ -5,7 +5,7 @@ from unittest import mock
+ 
+ from django.conf import settings
+ from django.db import DEFAULT_DB_ALIAS, connection
+-from django.db.models.expressions import Func
++from django.db.models import Func
+ 
+ 
+ def skipUnlessGISLookup(*gis_lookups):
+diff --git a/tests/indexes/tests.py b/tests/indexes/tests.py
+index 04ab036139..5ef2835f4e 100644
+--- a/tests/indexes/tests.py
++++ b/tests/indexes/tests.py
+@@ -2,10 +2,7 @@ import datetime
+ from unittest import skipIf, skipUnless
+ 
+ from django.db import connection
+-from django.db.models import Index
+-from django.db.models.deletion import CASCADE
+-from django.db.models.fields.related import ForeignKey
+-from django.db.models.query_utils import Q
++from django.db.models import CASCADE, ForeignKey, Index, Q
+ from django.test import (
+     TestCase, TransactionTestCase, skipIfDBFeature, skipUnlessDBFeature,
+ )
+diff --git a/tests/introspection/tests.py b/tests/introspection/tests.py
+index 5e6fd3d741..bafd620232 100644
+--- a/tests/introspection/tests.py
++++ b/tests/introspection/tests.py
+@@ -1,8 +1,7 @@
+ from unittest import mock, skipUnless
+ 
+-from django.db import connection
++from django.db import DatabaseError, connection
+ from django.db.models import Index
+-from django.db.utils import DatabaseError
+ from django.test import TransactionTestCase, skipUnlessDBFeature
+ 
+ from .models import (
+diff --git a/tests/invalid_models_tests/test_relative_fields.py b/tests/invalid_models_tests/test_relative_fields.py
+index 786573672f..4211973cf3 100644
+--- a/tests/invalid_models_tests/test_relative_fields.py
++++ b/tests/invalid_models_tests/test_relative_fields.py
+@@ -2,7 +2,6 @@ from unittest import mock
+ 
+ from django.core.checks import Error, Warning as DjangoWarning
+ from django.db import connection, models
+-from django.db.models.fields.related import ForeignObject
+ from django.test.testcases import SimpleTestCase
+ from django.test.utils import isolate_apps, override_settings
+ 
+@@ -608,7 +607,7 @@ class RelativeFieldTests(SimpleTestCase):
+         class Child(models.Model):
+             a = models.PositiveIntegerField()
+             b = models.PositiveIntegerField()
+-            parent = ForeignObject(
++            parent = models.ForeignObject(
+                 Parent,
+                 on_delete=models.SET_NULL,
+                 from_fields=('a', 'b'),
+@@ -633,7 +632,7 @@ class RelativeFieldTests(SimpleTestCase):
+         class Child(models.Model):
+             a = models.PositiveIntegerField()
+             b = models.PositiveIntegerField()
+-            parent = ForeignObject(
++            parent = models.ForeignObject(
+                 'invalid_models_tests.Parent',
+                 on_delete=models.SET_NULL,
+                 from_fields=('a', 'b'),
+@@ -1441,7 +1440,7 @@ class M2mThroughFieldsTests(SimpleTestCase):
+             a = models.PositiveIntegerField()
+             b = models.PositiveIntegerField()
+             value = models.CharField(max_length=255)
+-            parent = ForeignObject(
++            parent = models.ForeignObject(
+                 Parent,
+                 on_delete=models.SET_NULL,
+                 from_fields=('a', 'b'),
+@@ -1477,7 +1476,7 @@ class M2mThroughFieldsTests(SimpleTestCase):
+             b = models.PositiveIntegerField()
+             d = models.PositiveIntegerField()
+             value = models.CharField(max_length=255)
+-            parent = ForeignObject(
++            parent = models.ForeignObject(
+                 Parent,
+                 on_delete=models.SET_NULL,
+                 from_fields=('a', 'b', 'd'),
+diff --git a/tests/lookup/test_decimalfield.py b/tests/lookup/test_decimalfield.py
+index c6d17bce84..5d75b8336d 100644
+--- a/tests/lookup/test_decimalfield.py
++++ b/tests/lookup/test_decimalfield.py
+@@ -1,5 +1,4 @@
+-from django.db.models.aggregates import Sum
+-from django.db.models.expressions import F
++from django.db.models import F, Sum
+ from django.test import TestCase
+ 
+ from .models import Product, Stock
+diff --git a/tests/lookup/test_lookups.py b/tests/lookup/test_lookups.py
+index 9b2d90fdd9..c3aa48ddad 100644
+--- a/tests/lookup/test_lookups.py
++++ b/tests/lookup/test_lookups.py
+@@ -1,7 +1,6 @@
+ from datetime import datetime
+ 
+-from django.db.models import Value
+-from django.db.models.fields import DateTimeField
++from django.db.models import DateTimeField, Value
+ from django.db.models.lookups import YearLookup
+ from django.test import SimpleTestCase
+ 
+diff --git a/tests/lookup/tests.py b/tests/lookup/tests.py
+index e6334fece1..baefdf9701 100644
+--- a/tests/lookup/tests.py
++++ b/tests/lookup/tests.py
+@@ -5,8 +5,7 @@ from operator import attrgetter
+ 
+ from django.core.exceptions import FieldError
+ from django.db import connection
+-from django.db.models import Max
+-from django.db.models.expressions import Exists, OuterRef
++from django.db.models import Exists, Max, OuterRef
+ from django.db.models.functions import Substr
+ from django.test import TestCase, skipUnlessDBFeature
+ from django.utils.deprecation import RemovedInDjango40Warning
+diff --git a/tests/many_to_one/tests.py b/tests/many_to_one/tests.py
+index a926574b15..d769b206b9 100644
+--- a/tests/many_to_one/tests.py
++++ b/tests/many_to_one/tests.py
+@@ -2,8 +2,7 @@ import datetime
+ from copy import deepcopy
+ 
+ from django.core.exceptions import FieldError, MultipleObjectsReturned
+-from django.db import models, transaction
+-from django.db.utils import IntegrityError
++from django.db import IntegrityError, models, transaction
+ from django.test import TestCase
+ from django.utils.translation import gettext_lazy
+ 
+diff --git a/tests/migrations/test_executor.py b/tests/migrations/test_executor.py
+index ddba8d12e8..38391cdccf 100644
+--- a/tests/migrations/test_executor.py
++++ b/tests/migrations/test_executor.py
+@@ -1,12 +1,11 @@
+ from unittest import mock
+ 
+ from django.apps.registry import apps as global_apps
+-from django.db import connection
++from django.db import DatabaseError, connection
+ from django.db.migrations.exceptions import InvalidMigrationPlan
+ from django.db.migrations.executor import MigrationExecutor
+ from django.db.migrations.graph import MigrationGraph
+ from django.db.migrations.recorder import MigrationRecorder
+-from django.db.utils import DatabaseError
+ from django.test import (
+     SimpleTestCase, modify_settings, override_settings, skipUnlessDBFeature,
+ )
+diff --git a/tests/migrations/test_operations.py b/tests/migrations/test_operations.py
+index 02971d7a9f..2fb633d41e 100644
+--- a/tests/migrations/test_operations.py
++++ b/tests/migrations/test_operations.py
+@@ -1,12 +1,12 @@
+ from django.core.exceptions import FieldDoesNotExist
+-from django.db import connection, migrations, models, transaction
++from django.db import (
++    IntegrityError, connection, migrations, models, transaction,
++)
+ from django.db.migrations.migration import Migration
+ from django.db.migrations.operations import CreateModel
+ from django.db.migrations.operations.fields import FieldOperation
+ from django.db.migrations.state import ModelState, ProjectState
+-from django.db.models.fields import NOT_PROVIDED
+ from django.db.transaction import atomic
+-from django.db.utils import IntegrityError
+ from django.test import SimpleTestCase, override_settings, skipUnlessDBFeature
+ 
+ from .models import FoodManager, FoodQuerySet, UnicodeModel
+@@ -979,7 +979,7 @@ class OperationTests(OperationTestBase):
+             f for n, f in new_state.models["test_adflpd", "pony"].fields
+             if n == "height"
+         ][0]
+-        self.assertEqual(field.default, NOT_PROVIDED)
++        self.assertEqual(field.default, models.NOT_PROVIDED)
+         # Test the database alteration
+         project_state.apps.get_model("test_adflpd", "pony").objects.create(
+             weight=4,
+diff --git a/tests/model_fields/models.py b/tests/model_fields/models.py
+index 0fd5910339..a7efe199ab 100644
+--- a/tests/model_fields/models.py
++++ b/tests/model_fields/models.py
+@@ -8,10 +8,7 @@ from django.contrib.contenttypes.fields import (
+ from django.contrib.contenttypes.models import ContentType
+ from django.core.files.storage import FileSystemStorage
+ from django.db import models
+-from django.db.models.fields.files import ImageField, ImageFieldFile
+-from django.db.models.fields.related import (
+-    ForeignKey, ForeignObject, ManyToManyField, OneToOneField,
+-)
++from django.db.models.fields.files import ImageFieldFile
+ from django.utils.translation import gettext_lazy as _
+ 
+ try:
+@@ -255,7 +252,7 @@ if Image:
+             self.was_opened = True
+             super().open()
+ 
+-    class TestImageField(ImageField):
++    class TestImageField(models.ImageField):
+         attr_class = TestImageFieldFile
+ 
+     # Set up a temp directory for file storage.
+@@ -359,20 +356,20 @@ class AllFieldsModel(models.Model):
+     url = models.URLField()
+     uuid = models.UUIDField()
+ 
+-    fo = ForeignObject(
++    fo = models.ForeignObject(
+         'self',
+         on_delete=models.CASCADE,
+         from_fields=['positive_integer'],
+         to_fields=['id'],
+         related_name='reverse'
+     )
+-    fk = ForeignKey(
++    fk = models.ForeignKey(
+         'self',
+         models.CASCADE,
+         related_name='reverse2'
+     )
+-    m2m = ManyToManyField('self')
+-    oto = OneToOneField('self', models.CASCADE)
++    m2m = models.ManyToManyField('self')
++    oto = models.OneToOneField('self', models.CASCADE)
+ 
+     object_id = models.PositiveIntegerField()
+     content_type = models.ForeignKey(ContentType, models.CASCADE)
+diff --git a/tests/model_fields/test_field_flags.py b/tests/model_fields/test_field_flags.py
+index 0e9256207c..cbc066ac58 100644
+--- a/tests/model_fields/test_field_flags.py
++++ b/tests/model_fields/test_field_flags.py
+@@ -3,15 +3,11 @@ from django.contrib.contenttypes.fields import (
+     GenericForeignKey, GenericRelation,
+ )
+ from django.db import models
+-from django.db.models.fields.related import (
+-    ForeignKey, ForeignObject, ForeignObjectRel, ManyToManyField, ManyToOneRel,
+-    OneToOneField,
+-)
+ 
+ from .models import AllFieldsModel
+ 
+ NON_CONCRETE_FIELDS = (
+-    ForeignObject,
++    models.ForeignObject,
+     GenericForeignKey,
+     GenericRelation,
+ )
+@@ -23,32 +19,32 @@ NON_EDITABLE_FIELDS = (
+ )
+ 
+ RELATION_FIELDS = (
+-    ForeignKey,
+-    ForeignObject,
+-    ManyToManyField,
+-    OneToOneField,
++    models.ForeignKey,
++    models.ForeignObject,
++    models.ManyToManyField,
++    models.OneToOneField,
+     GenericForeignKey,
+     GenericRelation,
+ )
+ 
+ MANY_TO_MANY_CLASSES = {
+-    ManyToManyField,
++    models.ManyToManyField,
+ }
+ 
+ MANY_TO_ONE_CLASSES = {
+-    ForeignObject,
+-    ForeignKey,
++    models.ForeignObject,
++    models.ForeignKey,
+     GenericForeignKey,
+ }
+ 
+ ONE_TO_MANY_CLASSES = {
+-    ForeignObjectRel,
+-    ManyToOneRel,
++    models.ForeignObjectRel,
++    models.ManyToOneRel,
+     GenericRelation,
+ }
+ 
+ ONE_TO_ONE_CLASSES = {
+-    OneToOneField,
++    models.OneToOneField,
+ }
+ 
+ FLAG_PROPERTIES = (
+diff --git a/tests/model_fields/test_filefield.py b/tests/model_fields/test_filefield.py
+index 022121b883..d4e70d6041 100644
+--- a/tests/model_fields/test_filefield.py
++++ b/tests/model_fields/test_filefield.py
+@@ -8,7 +8,7 @@ from pathlib import Path
+ from django.core.files import File, temp
+ from django.core.files.base import ContentFile
+ from django.core.files.uploadedfile import TemporaryUploadedFile
+-from django.db.utils import IntegrityError
++from django.db import IntegrityError
+ from django.test import TestCase, override_settings
+ 
+ from .models import Document
+diff --git a/tests/model_fields/test_promises.py b/tests/model_fields/test_promises.py
+index b31b679f51..8e7f54b194 100644
+--- a/tests/model_fields/test_promises.py
++++ b/tests/model_fields/test_promises.py
+@@ -1,14 +1,14 @@
+ import datetime
+ from decimal import Decimal
+ 
+-from django.db.models.fields import (
++from django.db.models import (
+     AutoField, BinaryField, BooleanField, CharField, DateField, DateTimeField,
+-    DecimalField, EmailField, FilePathField, FloatField, GenericIPAddressField,
+-    IntegerField, IPAddressField, NullBooleanField, PositiveBigIntegerField,
+-    PositiveIntegerField, PositiveSmallIntegerField, SlugField,
+-    SmallIntegerField, TextField, TimeField, URLField,
++    DecimalField, EmailField, FileField, FilePathField, FloatField,
++    GenericIPAddressField, ImageField, IntegerField, IPAddressField,
++    NullBooleanField, PositiveBigIntegerField, PositiveIntegerField,
++    PositiveSmallIntegerField, SlugField, SmallIntegerField, TextField,
++    TimeField, URLField,
+ )
+-from django.db.models.fields.files import FileField, ImageField
+ from django.test import SimpleTestCase
+ from django.utils.functional import lazy
+ 
+diff --git a/tests/model_indexes/tests.py b/tests/model_indexes/tests.py
+index 6a31109031..15ec702937 100644
+--- a/tests/model_indexes/tests.py
++++ b/tests/model_indexes/tests.py
+@@ -2,7 +2,6 @@ from unittest import mock
+ 
+ from django.conf import settings
+ from django.db import connection, models
+-from django.db.models.query_utils import Q
+ from django.test import SimpleTestCase, TestCase, skipUnlessDBFeature
+ from django.test.utils import isolate_apps
+ 
+@@ -17,7 +16,7 @@ class SimpleIndexesTests(SimpleTestCase):
+     def test_repr(self):
+         index = models.Index(fields=['title'])
+         multi_col_index = models.Index(fields=['title', 'author'])
+-        partial_index = models.Index(fields=['title'], name='long_books_idx', condition=Q(pages__gt=400))
++        partial_index = models.Index(fields=['title'], name='long_books_idx', condition=models.Q(pages__gt=400))
+         self.assertEqual(repr(index), "<Index: fields='title'>")
+         self.assertEqual(repr(multi_col_index), "<Index: fields='title, author'>")
+         self.assertEqual(repr(partial_index), "<Index: fields='title', condition=(AND: ('pages__gt', 400))>")
+@@ -60,7 +59,7 @@ class SimpleIndexesTests(SimpleTestCase):
+ 
+     def test_condition_requires_index_name(self):
+         with self.assertRaisesMessage(ValueError, 'An index must be named to use condition.'):
+-            models.Index(condition=Q(pages__gt=400))
++            models.Index(condition=models.Q(pages__gt=400))
+ 
+     def test_condition_must_be_q(self):
+         with self.assertRaisesMessage(ValueError, 'Index.condition must be a Q instance.'):
+@@ -114,7 +113,7 @@ class SimpleIndexesTests(SimpleTestCase):
+         index = models.Index(
+             name='big_book_index',
+             fields=['title'],
+-            condition=Q(pages__gt=400),
++            condition=models.Q(pages__gt=400),
+         )
+         index.set_name_with_model(Book)
+         path, args, kwargs = index.deconstruct()
+@@ -125,7 +124,7 @@ class SimpleIndexesTests(SimpleTestCase):
+             {
+                 'fields': ['title'],
+                 'name': 'model_index_title_196f42_idx',
+-                'condition': Q(pages__gt=400),
++                'condition': models.Q(pages__gt=400),
+             }
+         )
+ 
+diff --git a/tests/model_meta/tests.py b/tests/model_meta/tests.py
+index 0a3049c6dc..ad58b336bd 100644
+--- a/tests/model_meta/tests.py
++++ b/tests/model_meta/tests.py
+@@ -3,7 +3,9 @@ from django.contrib.contenttypes.fields import (
+     GenericForeignKey, GenericRelation,
+ )
+ from django.core.exceptions import FieldDoesNotExist
+-from django.db.models.fields import CharField, Field, related
++from django.db.models import (
++    CharField, Field, ForeignObjectRel, ManyToManyField,
++)
+ from django.db.models.options import EMPTY_RELATION_TREE, IMMUTABLE_WARNING
+ from django.test import SimpleTestCase
+ 
+@@ -175,17 +177,17 @@ class GetFieldByNameTests(OptionsBaseTests):
+     def test_get_m2m_field(self):
+         field_info = self._details(Person, Person._meta.get_field('m2m_base'))
+         self.assertEqual(field_info[1:], (BasePerson, True, True))
+-        self.assertIsInstance(field_info[0], related.ManyToManyField)
++        self.assertIsInstance(field_info[0], ManyToManyField)
+ 
+     def test_get_related_object(self):
+         field_info = self._details(Person, Person._meta.get_field('relating_baseperson'))
+         self.assertEqual(field_info[1:], (BasePerson, False, False))
+-        self.assertIsInstance(field_info[0], related.ForeignObjectRel)
++        self.assertIsInstance(field_info[0], ForeignObjectRel)
+ 
+     def test_get_related_m2m(self):
+         field_info = self._details(Person, Person._meta.get_field('relating_people'))
+         self.assertEqual(field_info[1:], (None, False, True))
+-        self.assertIsInstance(field_info[0], related.ForeignObjectRel)
++        self.assertIsInstance(field_info[0], ForeignObjectRel)
+ 
+     def test_get_generic_relation(self):
+         field_info = self._details(Person, Person._meta.get_field('generic_relation_base'))
+diff --git a/tests/ordering/models.py b/tests/ordering/models.py
+index 62df09351f..f5a237fe45 100644
+--- a/tests/ordering/models.py
++++ b/tests/ordering/models.py
+@@ -14,7 +14,6 @@ undefined -- not random, just undefined.
+ """
+ 
+ from django.db import models
+-from django.db.models.expressions import OrderBy
+ 
+ 
+ class Author(models.Model):
+@@ -35,7 +34,7 @@ class Article(models.Model):
+             '-pub_date',
+             models.F('headline'),
+             models.F('author__name').asc(),
+-            OrderBy(models.F('second_author__name')),
++            models.OrderBy(models.F('second_author__name')),
+         )
+ 
+     def __str__(self):
+diff --git a/tests/postgres_tests/test_aggregates.py b/tests/postgres_tests/test_aggregates.py
+index a1dbe4441c..c97ed8e62d 100644
+--- a/tests/postgres_tests/test_aggregates.py
++++ b/tests/postgres_tests/test_aggregates.py
+@@ -1,7 +1,6 @@
+ import json
+ 
+-from django.db.models import CharField, Q
+-from django.db.models.expressions import F, OuterRef, Subquery, Value
++from django.db.models import CharField, F, OuterRef, Q, Subquery, Value
+ from django.db.models.functions import Cast, Concat, Substr
+ from django.test.utils import Approximate
+ 
+diff --git a/tests/postgres_tests/test_constraints.py b/tests/postgres_tests/test_constraints.py
+index b22821294a..ccdd7b818d 100644
+--- a/tests/postgres_tests/test_constraints.py
++++ b/tests/postgres_tests/test_constraints.py
+@@ -1,10 +1,8 @@
+ import datetime
+ from unittest import mock
+ 
+-from django.db import connection, transaction
+-from django.db.models import F, Func, Q
+-from django.db.models.constraints import CheckConstraint
+-from django.db.utils import IntegrityError
++from django.db import IntegrityError, connection, transaction
++from django.db.models import CheckConstraint, F, Func, Q
+ from django.utils import timezone
+ 
+ from . import PostgreSQLTestCase
+diff --git a/tests/postgres_tests/test_hstore.py b/tests/postgres_tests/test_hstore.py
+index dbb1357c41..478e0e77ca 100644
+--- a/tests/postgres_tests/test_hstore.py
++++ b/tests/postgres_tests/test_hstore.py
+@@ -2,7 +2,8 @@ import json
+ 
+ from django.core import checks, exceptions, serializers
+ from django.db import connection
+-from django.db.models.expressions import OuterRef, RawSQL, Subquery
++from django.db.models import OuterRef, Subquery
++from django.db.models.expressions import RawSQL
+ from django.forms import Form
+ from django.test.utils import CaptureQueriesContext, isolate_apps
+ 
+diff --git a/tests/postgres_tests/test_indexes.py b/tests/postgres_tests/test_indexes.py
+index 91cac631e2..acdf1f4771 100644
+--- a/tests/postgres_tests/test_indexes.py
++++ b/tests/postgres_tests/test_indexes.py
+@@ -4,11 +4,9 @@ from django.contrib.postgres.indexes import (
+     BloomIndex, BrinIndex, BTreeIndex, GinIndex, GistIndex, HashIndex,
+     SpGistIndex,
+ )
+-from django.db import connection
+-from django.db.models import CharField
++from django.db import NotSupportedError, connection
++from django.db.models import CharField, Q
+ from django.db.models.functions import Length
+-from django.db.models.query_utils import Q
+-from django.db.utils import NotSupportedError
+ from django.test import skipUnlessDBFeature
+ from django.test.utils import register_lookup
+ 
+diff --git a/tests/postgres_tests/test_operations.py b/tests/postgres_tests/test_operations.py
+index 7be6de9eff..95c88d5fe0 100644
+--- a/tests/postgres_tests/test_operations.py
++++ b/tests/postgres_tests/test_operations.py
+@@ -2,9 +2,8 @@ import unittest
+ 
+ from migrations.test_base import OperationTestBase
+ 
+-from django.db import connection, models
++from django.db import NotSupportedError, connection
+ from django.db.models import Index
+-from django.db.utils import NotSupportedError
+ from django.test import modify_settings
+ 
+ try:
+@@ -26,7 +25,7 @@ class AddIndexConcurrentlyTests(OperationTestBase):
+         new_state = project_state.clone()
+         operation = AddIndexConcurrently(
+             'Pony',
+-            models.Index(fields=['pink'], name='pony_pink_idx'),
++            Index(fields=['pink'], name='pony_pink_idx'),
+         )
+         msg = (
+             'The AddIndexConcurrently operation cannot be executed inside '
+diff --git a/tests/prefetch_related/models.py b/tests/prefetch_related/models.py
+index 5540dfecf1..a3c0237d8e 100644
+--- a/tests/prefetch_related/models.py
++++ b/tests/prefetch_related/models.py
+@@ -5,7 +5,7 @@ from django.contrib.contenttypes.fields import (
+ )
+ from django.contrib.contenttypes.models import ContentType
+ from django.db import models
+-from django.db.models.query import ModelIterable, QuerySet
++from django.db.models.query import ModelIterable
+ from django.utils.functional import cached_property
+ 
+ 
+@@ -104,7 +104,7 @@ class ModelIterableSubclass(ModelIterable):
+     pass
+ 
+ 
+-class TeacherQuerySet(QuerySet):
++class TeacherQuerySet(models.QuerySet):
+     def __init__(self, *args, **kwargs):
+         super().__init__(*args, **kwargs)
+         self._iterable_class = ModelIterableSubclass
+diff --git a/tests/prefetch_related/tests.py b/tests/prefetch_related/tests.py
+index 226dfb8ab9..c7db0667bb 100644
+--- a/tests/prefetch_related/tests.py
++++ b/tests/prefetch_related/tests.py
+@@ -3,8 +3,8 @@ from unittest import mock
+ from django.contrib.contenttypes.models import ContentType
+ from django.core.exceptions import ObjectDoesNotExist
+ from django.db import connection
+-from django.db.models import Prefetch, QuerySet
+-from django.db.models.query import get_prefetcher, prefetch_related_objects
++from django.db.models import Prefetch, QuerySet, prefetch_related_objects
++from django.db.models.query import get_prefetcher
+ from django.db.models.sql import Query
+ from django.test import TestCase, override_settings
+ from django.test.utils import CaptureQueriesContext
+diff --git a/tests/queries/test_qs_combinators.py b/tests/queries/test_qs_combinators.py
+index 71309ecf1b..1d159e1fed 100644
+--- a/tests/queries/test_qs_combinators.py
++++ b/tests/queries/test_qs_combinators.py
+@@ -1,6 +1,5 @@
+-from django.db import connection
++from django.db import DatabaseError, NotSupportedError, connection
+ from django.db.models import Exists, F, IntegerField, OuterRef, Value
+-from django.db.utils import DatabaseError, NotSupportedError
+ from django.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
+ 
+ from .models import Number, ReservedName
+diff --git a/tests/schema/fields.py b/tests/schema/fields.py
+index 5f3244b767..e4b62eab39 100644
+--- a/tests/schema/fields.py
++++ b/tests/schema/fields.py
+@@ -2,8 +2,8 @@ from functools import partial
+ 
+ from django.db import models
+ from django.db.models.fields.related import (
+-    RECURSIVE_RELATIONSHIP_CONSTANT, ManyToManyDescriptor, ManyToManyField,
+-    ManyToManyRel, RelatedField, create_many_to_many_intermediary_model,
++    RECURSIVE_RELATIONSHIP_CONSTANT, ManyToManyDescriptor, RelatedField,
++    create_many_to_many_intermediary_model,
+ )
+ 
+ 
+@@ -20,7 +20,7 @@ class CustomManyToManyField(RelatedField):
+             to._meta
+         except AttributeError:
+             to = str(to)
+-        kwargs['rel'] = ManyToManyRel(
++        kwargs['rel'] = models.ManyToManyRel(
+             self, to,
+             related_name=related_name,
+             related_query_name=related_query_name,
+@@ -50,13 +50,13 @@ class CustomManyToManyField(RelatedField):
+         return 'ManyToManyField'
+ 
+     # Copy those methods from ManyToManyField because they don't call super() internally
+-    contribute_to_related_class = ManyToManyField.__dict__['contribute_to_related_class']
+-    _get_m2m_attr = ManyToManyField.__dict__['_get_m2m_attr']
+-    _get_m2m_reverse_attr = ManyToManyField.__dict__['_get_m2m_reverse_attr']
+-    _get_m2m_db_table = ManyToManyField.__dict__['_get_m2m_db_table']
++    contribute_to_related_class = models.ManyToManyField.__dict__['contribute_to_related_class']
++    _get_m2m_attr = models.ManyToManyField.__dict__['_get_m2m_attr']
++    _get_m2m_reverse_attr = models.ManyToManyField.__dict__['_get_m2m_reverse_attr']
++    _get_m2m_db_table = models.ManyToManyField.__dict__['_get_m2m_db_table']
+ 
+ 
+-class InheritedManyToManyField(ManyToManyField):
++class InheritedManyToManyField(models.ManyToManyField):
+     pass
+ 
+ 
+diff --git a/tests/schema/tests.py b/tests/schema/tests.py
+index d8f23606c1..7d16cf3655 100644
+--- a/tests/schema/tests.py
++++ b/tests/schema/tests.py
+@@ -6,22 +6,16 @@ from unittest import mock
+ 
+ from django.core.management.color import no_style
+ from django.db import (
+-    DatabaseError, IntegrityError, OperationalError, connection,
++    DatabaseError, DataError, IntegrityError, OperationalError, connection,
+ )
+-from django.db.models import Index, Model, Q
+-from django.db.models.constraints import CheckConstraint, UniqueConstraint
+-from django.db.models.deletion import CASCADE, PROTECT
+-from django.db.models.fields import (
+-    AutoField, BigAutoField, BigIntegerField, BinaryField, BooleanField,
+-    CharField, DateField, DateTimeField, IntegerField, PositiveIntegerField,
+-    SlugField, SmallAutoField, SmallIntegerField, TextField, TimeField,
+-    UUIDField,
+-)
+-from django.db.models.fields.related import (
+-    ForeignKey, ForeignObject, ManyToManyField, OneToOneField,
++from django.db.models import (
++    CASCADE, PROTECT, AutoField, BigAutoField, BigIntegerField, BinaryField,
++    BooleanField, CharField, CheckConstraint, DateField, DateTimeField,
++    ForeignKey, ForeignObject, Index, IntegerField, ManyToManyField, Model,
++    OneToOneField, PositiveIntegerField, Q, SlugField, SmallAutoField,
++    SmallIntegerField, TextField, TimeField, UniqueConstraint, UUIDField,
+ )
+ from django.db.transaction import TransactionManagementError, atomic
+-from django.db.utils import DataError
+ from django.test import (
+     TransactionTestCase, skipIfDBFeature, skipUnlessDBFeature,
+ )
++ git diff 335c9c94acf263901fb023404408880245b0c4b4
+diff --git a/django/forms/models.py b/django/forms/models.py
+index dafc11f995..5644fa7275 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -1173,12 +1173,6 @@ class ModelChoiceIterator:
+ 
+ class ModelChoiceField(ChoiceField):
+     """A ChoiceField whose choices are a model QuerySet."""
+-    # This class is a subclass of ChoiceField for purity, but it doesn't
+-    # actually use any of ChoiceField's implementation.
+-    default_error_messages = {
+-        'invalid_choice': _('Select a valid choice. That choice is not one of'
+-                            ' the available choices.'),
+-    }
+     iterator = ModelChoiceIterator
+ 
+     def __init__(self, queryset, *, empty_label="---------",
+@@ -1200,6 +1194,18 @@ class ModelChoiceField(ChoiceField):
+         self.limit_choices_to = limit_choices_to   # limit the queryset later.
+         self.to_field_name = to_field_name
+ 
++        self._set_queryset(queryset)
++        self._set_empty_label(empty_label)
++
++    def _set_empty_label(self, empty_label):
++        # Check if the field is not blank in the model
++        if self.queryset is not None and self.queryset.model is not None:
++            model_field = self.queryset.model._meta.get_field(self.to_field_name or 'pk')
++            if not model_field.blank and self.required:
++                self.empty_label = None
++            else:
++                self.empty_label = empty_label
++
+     def get_limit_choices_to(self):
+         """
+         Return ``limit_choices_to`` for this form field.
+diff --git a/django/forms/widgets.py b/django/forms/widgets.py
+index 40ac1d3162..055a577030 100644
+--- a/django/forms/widgets.py
++++ b/django/forms/widgets.py
+@@ -759,9 +759,42 @@ class RadioSelect(ChoiceWidget):
+     template_name = 'django/forms/widgets/radio.html'
+     option_template_name = 'django/forms/widgets/radio_option.html'
+ 
++    def get_context(self, name, value, attrs):
++        context = super().get_context(name, value, attrs)
++        if hasattr(self.choices, 'field') and hasattr(self.choices.field, 'queryset'):
++            model_field = self.choices.field.queryset.model._meta.get_field(self.choices.field.to_field_name or 'pk')
++            if self.choices.field.required and not model_field.blank:
++                context['widget']['optgroups'] = [
++                    (group, [option for option in options if option['value'] != ''], index)
++                    for group, options, index in context['widget']['optgroups']
++                ]
++        return context
+ 
+-class CheckboxSelectMultiple(ChoiceWidget):
+-    allow_multiple_selected = True
++    def optgroups(self, name, value, attrs=None):
++        groups = super().optgroups(name, value, attrs)
++        # Check if this is a ModelChoiceField and if the related model field is not blank
++        if hasattr(self.choices, 'field') and hasattr(self.choices.field, 'queryset'):
++            model_field = self.choices.field.queryset.model._meta.get_field(self.choices.field.to_field_name or 'pk')
++            if not model_field.blank:
++                # Filter out the empty option
++                return [(group, [option for option in options if option['value'] != ''], index)
++                        for group, options, index in groups]
++        return groups
++
++    def value_omitted_from_data(self, data, files, name):
++        # HTML checkboxes don't appear in POST data if not checked, so it's
++        # never known if the value is actually omitted.
++        return False
++
++    def id_for_label(self, id_, index=None):
++        """"
++        Don't include for="field_0" in <label> because clicking such a label
++        would toggle the first checkbox.
++        """
++        if index is None:
++            return ''
++        return super().id_for_label(id_, index)
++class CheckboxSelectMultiple(SelectMultiple):
+     input_type = 'checkbox'
+     template_name = 'django/forms/widgets/checkbox_select.html'
+     option_template_name = 'django/forms/widgets/checkbox_option.html'
+@@ -785,7 +818,6 @@ class CheckboxSelectMultiple(ChoiceWidget):
+             return ''
+         return super().id_for_label(id_, index)
+ 
+-
+ class MultiWidget(Widget):
+     """
+     A widget that is composed of multiple widgets.
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: asgiref>=3.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (3.4.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (0.4.4)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref>=3.2->Django==3.1) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.1
+    Uninstalling Django-3.1:
+      Successfully uninstalled Django-3.1
+  Running setup.py develop for Django
+Successfully installed Django-3.1
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 335c9c94acf263901fb023404408880245b0c4b4 tests/model_forms/models.py tests/model_forms/test_modelchoicefield.py tests/model_forms/tests.py
+Updated 0 paths from 691e9683de
++ git apply -v -
+Checking patch tests/model_forms/models.py...
+Checking patch tests/model_forms/test_modelchoicefield.py...
+Checking patch tests/model_forms/tests.py...
+Applied patch tests/model_forms/models.py cleanly.
+Applied patch tests/model_forms/test_modelchoicefield.py cleanly.
+Applied patch tests/model_forms/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 model_forms.models model_forms.test_modelchoicefield model_forms.tests
+Testing against Django installed in '/testbed/django'
+Importing application model_forms
+Traceback (most recent call last):
+  File "/testbed/django/db/models/options.py", line 575, in get_field
+    return self.fields_map[field_name]
+KeyError: 'pk'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "./tests/runtests.py", line 571, in <module>
+    options.start_at, options.start_after, options.pdb, options.buffer,
+  File "./tests/runtests.py", line 309, in django_tests
+    extra_tests=extra_tests,
+  File "/testbed/django/test/runner.py", line 693, in run_tests
+    suite = self.build_suite(test_labels, extra_tests)
+  File "/testbed/django/test/runner.py", line 550, in build_suite
+    tests = self.test_loader.loadTestsFromName(label)
+  File "/opt/miniconda3/envs/testbed/lib/python3.6/unittest/loader.py", line 153, in loadTestsFromName
+    module = __import__(module_name)
+  File "/testbed/tests/model_forms/tests.py", line 108, in <module>
+    class ArticleForm(forms.ModelForm):
+  File "/testbed/django/forms/models.py", line 257, in __new__
+    apply_limit_choices_to=False,
+  File "/testbed/django/forms/models.py", line 174, in fields_for_model
+    formfield = f.formfield(**kwargs)
+  File "/testbed/django/db/models/fields/related.py", line 1662, in formfield
+    return super().formfield(**defaults)
+  File "/testbed/django/db/models/fields/related.py", line 419, in formfield
+    return super().formfield(**defaults)
+  File "/testbed/django/db/models/fields/__init__.py", line 924, in formfield
+    return form_class(**defaults)
+  File "/testbed/django/forms/models.py", line 1305, in __init__
+    super().__init__(queryset, empty_label=None, **kwargs)
+  File "/testbed/django/forms/models.py", line 1198, in __init__
+    self._set_empty_label(empty_label)
+  File "/testbed/django/forms/models.py", line 1203, in _set_empty_label
+    model_field = self.queryset.model._meta.get_field(self.to_field_name or 'pk')
+  File "/testbed/django/db/models/options.py", line 577, in get_field
+    raise FieldDoesNotExist("%s has no field named '%s'" % (self.object_name, field_name))
+django.core.exceptions.FieldDoesNotExist: Category has no field named 'pk'
++ git checkout 335c9c94acf263901fb023404408880245b0c4b4 tests/model_forms/models.py tests/model_forms/test_modelchoicefield.py tests/model_forms/tests.py
+Updated 3 paths from 691e9683de

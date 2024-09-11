@@ -1,0 +1,591 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sympy/functions/elementary/miscellaneous.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test_min_max_no_args.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 28d913d3cead6c5646307ffa6540b21d65059dfd
+Merge: 86e2c4e140 f91afbe267
+Author: Chris Smith <smichr@gmail.com>
+Date:   Wed Jan 16 18:30:21 2019 -0600
+
+    Merge pull request #15722 from sylee957/improve_qr_decomposition
+    
+    Expand QR Decomposition capabilities
+
++ git diff 28d913d3cead6c5646307ffa6540b21d65059dfd
+diff --git a/sympy/functions/elementary/miscellaneous.py b/sympy/functions/elementary/miscellaneous.py
+index 5f9fe73c5c..85db91bb79 100644
+--- a/sympy/functions/elementary/miscellaneous.py
++++ b/sympy/functions/elementary/miscellaneous.py
+@@ -646,27 +646,11 @@ class Max(MinMaxBase, Application):
+     """
+     Return, if possible, the maximum value of the list.
+ 
+-    When number of arguments is equal one, then
+-    return this argument.
+-
+-    When number of arguments is equal two, then
+-    return, if possible, the value from (a, b) that is >= the other.
+-
+-    In common case, when the length of list greater than 2, the task
+-    is more complicated. Return only the arguments, which are greater
+-    than others, if it is possible to determine directional relation.
+-
+-    If is not possible to determine such a relation, return a partially
+-    evaluated result.
+-
+-    Assumptions are used to make the decision too.
+-
+-    Also, only comparable arguments are permitted.
++    When called with no arguments, it returns positive infinity.
+ 
+     It is named ``Max`` and not ``max`` to avoid conflicts
+     with the built-in function ``max``.
+ 
+-
+     Examples
+     ========
+ 
+@@ -675,53 +659,19 @@ class Max(MinMaxBase, Application):
+     >>> p = Symbol('p', positive=True)
+     >>> n = Symbol('n', negative=True)
+ 
++    >>> Max()
++    oo
+     >>> Max(x, -2)                  #doctest: +SKIP
+     Max(x, -2)
+     >>> Max(x, -2).subs(x, 3)
+     3
+     >>> Max(p, -2)
+     p
+-    >>> Max(x, y)
++    >>> Max(x, y)                   #doctest: +SKIP
+     Max(x, y)
+-    >>> Max(x, y) == Max(y, x)
+-    True
+-    >>> Max(x, Max(y, z))           #doctest: +SKIP
+-    Max(x, y, z)
+-    >>> Max(n, 8, p, 7, -oo)        #doctest: +SKIP
+-    Max(8, p)
+-    >>> Max (1, x, oo)
++    >>> Max(n, 8, p, 7, p, oo)
+     oo
+ 
+-    * Algorithm
+-
+-    The task can be considered as searching of supremums in the
+-    directed complete partial orders [1]_.
+-
+-    The source values are sequentially allocated by the isolated subsets
+-    in which supremums are searched and result as Max arguments.
+-
+-    If the resulted supremum is single, then it is returned.
+-
+-    The isolated subsets are the sets of values which are only the comparable
+-    with each other in the current set. E.g. natural numbers are comparable with
+-    each other, but not comparable with the `x` symbol. Another example: the
+-    symbol `x` with negative assumption is comparable with a natural number.
+-
+-    Also there are "least" elements, which are comparable with all others,
+-    and have a zero property (maximum or minimum for all elements). E.g. `oo`.
+-    In case of it the allocation operation is terminated and only this value is
+-    returned.
+-
+-    Assumption:
+-       - if A > B > C then A > C
+-       - if A == B then B can be removed
+-
+-    References
+-    ==========
+-
+-    .. [1] https://en.wikipedia.org/wiki/Directed_complete_partial_order
+-    .. [2] https://en.wikipedia.org/wiki/Lattice_%28order%29
+-
+     See Also
+     ========
+ 
+@@ -730,6 +680,14 @@ class Max(MinMaxBase, Application):
+     zero = S.Infinity
+     identity = S.NegativeInfinity
+ 
++    @classmethod
++    def __new__(cls, *args, **options):
++        if not args:
++            return cls.zero
++        if len(args) == 1:
++            return args[0]
++        return super(Max, cls).__new__(cls, *args, **options)
++
+     def fdiff( self, argindex ):
+         from sympy import Heaviside
+         n = len(self.args)
+@@ -768,6 +726,8 @@ class Min(MinMaxBase, Application):
+     It is named ``Min`` and not ``min`` to avoid conflicts
+     with the built-in function ``min``.
+ 
++    When called with no arguments, it returns negative infinity.
++
+     Examples
+     ========
+ 
+@@ -776,6 +736,8 @@ class Min(MinMaxBase, Application):
+     >>> p = Symbol('p', positive=True)
+     >>> n = Symbol('n', negative=True)
+ 
++    >>> Min()
++    -oo
+     >>> Min(x, -2)                  #doctest: +SKIP
+     Min(x, -2)
+     >>> Min(x, -2).subs(x, 3)
+@@ -795,6 +757,14 @@ class Min(MinMaxBase, Application):
+     zero = S.NegativeInfinity
+     identity = S.Infinity
+ 
++    @classmethod
++    def __new__(cls, *args, **options):
++        if not args:
++            return cls.zero
++        if len(args) == 1:
++            return args[0]
++        return super(Min, cls).__new__(cls, *args, **options)
++
+     def fdiff( self, argindex ):
+         from sympy import Heaviside
+         n = len(self.args)
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: mpmath>=0.19 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from sympy==1.4.dev0) (1.3.0)
+Installing collected packages: sympy
+  Attempting uninstall: sympy
+    Found existing installation: sympy 1.4.dev0
+    Uninstalling sympy-1.4.dev0:
+      Successfully uninstalled sympy-1.4.dev0
+  Running setup.py develop for sympy
+Successfully installed sympy-1.4.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 28d913d3cead6c5646307ffa6540b21d65059dfd sympy/functions/elementary/tests/test_miscellaneous.py
+Updated 0 paths from 18fdb4b49e
++ git apply -v -
+Checking patch sympy/functions/elementary/tests/test_miscellaneous.py...
+Hunk #1 succeeded at 85 (offset -1 lines).
+Hunk #2 succeeded at 157 (offset -1 lines).
+Applied patch sympy/functions/elementary/tests/test_miscellaneous.py cleanly.
++ PYTHONWARNINGS=ignore::UserWarning,ignore::SyntaxWarning
++ bin/test -C --verbose sympy/functions/elementary/tests/test_miscellaneous.py
+============================= test process starts ==============================
+executable:         /opt/miniconda3/envs/testbed/bin/python  (3.9.19-final-0) [CPython]
+architecture:       64-bit
+cache:              no
+ground types:       python 
+numpy:              None
+random seed:        64061638
+hash randomization: on (PYTHONHASHSEED=786946772)
+
+sympy/functions/elementary/tests/test_miscellaneous.py[14] 
+test_Min E
+test_Max E
+test_minmax_assumptions E
+test_issue_8413 E
+test_root ok
+test_real_root ok
+test_issue_11463 numpy not installed. s
+test_rewrite_MaxMin_as_Heaviside E
+test_rewrite_MaxMin_as_Piecewise E
+test_issue_11099 E
+test_issue_12638 E
+test_instantiation_evaluation E
+test_rewrite_as_Abs E
+test_issue_14000 ok                                                       [FAIL]
+
+
+________________________________________________________________________________
+_______ sympy/functions/elementary/tests/test_miscellaneous.py:test_Min ________
+Traceback (most recent call last):
+  File "/testbed/sympy/functions/elementary/tests/test_miscellaneous.py", line 31, in test_Min
+    assert Min(5, 4) == 4
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 766, in __new__
+    return super(Min, cls).__new__(cls, *args, **options)
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 350, in __new__
+    args = frozenset(cls._new_args_filter(args))
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 523, in _new_args_filter
+    raise ValueError("The argument '%s' is not comparable." % arg)
+ValueError: The argument 'Min' is not comparable.
+________________________________________________________________________________
+_______ sympy/functions/elementary/tests/test_miscellaneous.py:test_Max ________
+Traceback (most recent call last):
+  File "/testbed/sympy/functions/elementary/tests/test_miscellaneous.py", line 156, in test_Max
+    assert Max(5, 4) == 5
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 689, in __new__
+    return super(Max, cls).__new__(cls, *args, **options)
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 350, in __new__
+    args = frozenset(cls._new_args_filter(args))
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 523, in _new_args_filter
+    raise ValueError("The argument '%s' is not comparable." % arg)
+ValueError: The argument 'Max' is not comparable.
+________________________________________________________________________________
+ sympy/functions/elementary/tests/test_miscellaneous.py:test_minmax_assumptions 
+Traceback (most recent call last):
+  File "/testbed/sympy/functions/elementary/tests/test_miscellaneous.py", line 231, in test_minmax_assumptions
+    assert ext(x, y).is_real
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 689, in __new__
+    return super(Max, cls).__new__(cls, *args, **options)
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 350, in __new__
+    args = frozenset(cls._new_args_filter(args))
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 523, in _new_args_filter
+    raise ValueError("The argument '%s' is not comparable." % arg)
+ValueError: The argument 'Max' is not comparable.
+________________________________________________________________________________
+____ sympy/functions/elementary/tests/test_miscellaneous.py:test_issue_8413 ____
+Traceback (most recent call last):
+  File "/testbed/sympy/functions/elementary/tests/test_miscellaneous.py", line 286, in test_issue_8413
+    assert Min(floor(x), x) == floor(x)
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 766, in __new__
+    return super(Min, cls).__new__(cls, *args, **options)
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 350, in __new__
+    args = frozenset(cls._new_args_filter(args))
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 523, in _new_args_filter
+    raise ValueError("The argument '%s' is not comparable." % arg)
+ValueError: The argument 'Min' is not comparable.
+________________________________________________________________________________
+ sympy/functions/elementary/tests/test_miscellaneous.py:test_rewrite_MaxMin_as_Heaviside 
+Traceback (most recent call last):
+  File "/testbed/sympy/functions/elementary/tests/test_miscellaneous.py", line 358, in test_rewrite_MaxMin_as_Heaviside
+    assert Max(0, x).rewrite(Heaviside) == x*Heaviside(x)
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 689, in __new__
+    return super(Max, cls).__new__(cls, *args, **options)
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 350, in __new__
+    args = frozenset(cls._new_args_filter(args))
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 523, in _new_args_filter
+    raise ValueError("The argument '%s' is not comparable." % arg)
+ValueError: The argument 'Max' is not comparable.
+________________________________________________________________________________
+ sympy/functions/elementary/tests/test_miscellaneous.py:test_rewrite_MaxMin_as_Piecewise 
+Traceback (most recent call last):
+  File "/testbed/sympy/functions/elementary/tests/test_miscellaneous.py", line 378, in test_rewrite_MaxMin_as_Piecewise
+    assert Max(a, b).rewrite(Piecewise) == Piecewise((a, a >= b), (b, True))
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 689, in __new__
+    return super(Max, cls).__new__(cls, *args, **options)
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 350, in __new__
+    args = frozenset(cls._new_args_filter(args))
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 523, in _new_args_filter
+    raise ValueError("The argument '%s' is not comparable." % arg)
+ValueError: The argument 'Max' is not comparable.
+________________________________________________________________________________
+___ sympy/functions/elementary/tests/test_miscellaneous.py:test_issue_11099 ____
+Traceback (most recent call last):
+  File "/testbed/sympy/functions/elementary/tests/test_miscellaneous.py", line 396, in test_issue_11099
+    assert Min(x, y).evalf(subs=fixed_test_data) == \
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 766, in __new__
+    return super(Min, cls).__new__(cls, *args, **options)
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 350, in __new__
+    args = frozenset(cls._new_args_filter(args))
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 523, in _new_args_filter
+    raise ValueError("The argument '%s' is not comparable." % arg)
+ValueError: The argument 'Min' is not comparable.
+________________________________________________________________________________
+___ sympy/functions/elementary/tests/test_miscellaneous.py:test_issue_12638 ____
+Traceback (most recent call last):
+  File "/testbed/sympy/functions/elementary/tests/test_miscellaneous.py", line 412, in test_issue_12638
+    assert Min(a, b, c, Max(a, b)) == Min(a, b, c)
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 689, in __new__
+    return super(Max, cls).__new__(cls, *args, **options)
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 350, in __new__
+    args = frozenset(cls._new_args_filter(args))
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 523, in _new_args_filter
+    raise ValueError("The argument '%s' is not comparable." % arg)
+ValueError: The argument 'Max' is not comparable.
+________________________________________________________________________________
+ sympy/functions/elementary/tests/test_miscellaneous.py:test_instantiation_evaluation 
+Traceback (most recent call last):
+  File "/testbed/sympy/functions/elementary/tests/test_miscellaneous.py", line 419, in test_instantiation_evaluation
+    assert Min(1, Max(2, x)) == 1
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 689, in __new__
+    return super(Max, cls).__new__(cls, *args, **options)
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 350, in __new__
+    args = frozenset(cls._new_args_filter(args))
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 523, in _new_args_filter
+    raise ValueError("The argument '%s' is not comparable." % arg)
+ValueError: The argument 'Max' is not comparable.
+________________________________________________________________________________
+__ sympy/functions/elementary/tests/test_miscellaneous.py:test_rewrite_as_Abs __
+Traceback (most recent call last):
+  File "/testbed/sympy/functions/elementary/tests/test_miscellaneous.py", line 445, in test_rewrite_as_Abs
+    test(Min(x, y))
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 766, in __new__
+    return super(Min, cls).__new__(cls, *args, **options)
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 350, in __new__
+    args = frozenset(cls._new_args_filter(args))
+  File "/testbed/sympy/functions/elementary/miscellaneous.py", line 523, in _new_args_filter
+    raise ValueError("The argument '%s' is not comparable." % arg)
+ValueError: The argument 'Min' is not comparable.
+
+===== tests finished: 3 passed, 1 skipped, 10 exceptions, in 0.78 seconds ======
+DO *NOT* COMMIT!
++ git checkout 28d913d3cead6c5646307ffa6540b21d65059dfd sympy/functions/elementary/tests/test_miscellaneous.py
+Updated 1 path from 18fdb4b49e

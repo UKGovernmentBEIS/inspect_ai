@@ -1,0 +1,53 @@
+
+diff --git a/README.md b/README.md
+index 807215ac..eb3428ad 100644
+--- a/README.md
++++ b/README.md
+@@ -53,6 +53,16 @@ Requests is ready for the demands of building robust and reliable HTTP–speakin
+ - Automatic honoring of `.netrc`
+ - Chunked HTTP Requests
+ 
++## Reporting Issues
++
++If you encounter any issues, especially with proxy authentication, please use the `reproduce_proxy_issue.py` script in the root directory to provide detailed information about your environment. To use the script:
++
++1. Set the `PROXY_HOST` and `PROXY_PORT` environment variables to your proxy settings.
++2. Run the script: `python reproduce_proxy_issue.py`
++3. Include the output in your issue report.
++
++This will help us diagnose and fix the problem more efficiently.
++
+ ## API Reference and User Guide available on [Read the Docs](https://requests.readthedocs.io)
+ 
+ [![Read the Docs](https://raw.githubusercontent.com/psf/requests/main/ext/ss.png)](https://requests.readthedocs.io)
+diff --git a/reproduce_proxy_issue.py b/reproduce_proxy_issue.py
+new file mode 100644
+index 00000000..cb18fd76
+--- /dev/null
++++ b/reproduce_proxy_issue.py
+@@ -0,0 +1,25 @@
++import os
++import sys
++import requests
++import urllib3
++
++python_version = sys.version_info
++
++proxy_host = os.environ.get('PROXY_HOST', 'your_proxy_here')
++proxy_port = os.environ.get('PROXY_PORT', '8080')
++
++proxies = {
++    'http': f'http://{proxy_host}:{proxy_port}',
++    'https': f'http://{proxy_host}:{proxy_port}'
++}
++
++try:
++    r = requests.get('https://example.org/', proxies=proxies, timeout=10)
++    print(f"Status code: {r.status_code}")
++except requests.exceptions.RequestException as e:
++    print(f"An error occurred: {e}")
++
++print(f"Python version: {python_version.major}.{python_version.minor}.{python_version.micro}")
++print(f"Requests version: {requests.__version__}")
++print(f"Urllib3 version: {urllib3.__version__}")
++print("Script completed successfully, no errors.")

@@ -1,0 +1,56 @@
+
+diff --git a/django/utils/dateformat.py b/django/utils/dateformat.py
+index 38e89c47bb..895ba8c7e7 100644
+--- a/django/utils/dateformat.py
++++ b/django/utils/dateformat.py
+@@ -314,7 +314,7 @@ class DateFormat(TimeFormat):
+ 
+     def Y(self):
+         "Year, 4 digits; e.g. '1999'"
+-        return self.data.year
++        return '{:04d}'.format(self.data.year)
+ 
+     def z(self):
+         """Day of the year, i.e. 1 to 366."""
+diff --git a/run_test.py b/run_test.py
+new file mode 100644
+index 0000000000..bff1a7ab08
+--- /dev/null
++++ b/run_test.py
+@@ -0,0 +1,13 @@
++import os
++import django
++from django.conf import settings
++from django.test.utils import get_runner
++
++os.environ['DJANGO_SETTINGS_MODULE'] = 'tests.test_sqlite'
++django.setup()
++
++TestRunner = get_runner(settings)
++test_runner = TestRunner()
++failures = test_runner.run_tests(["tests.utils_tests.test_dateformat.DateFormatTests.test_year_less_than_1000"])
++
++print("Test failures:", failures)
+diff --git a/tests/utils_tests/test_dateformat.py b/tests/utils_tests/test_dateformat.py
+index c6d3ded80f..e58b68c62d 100644
+--- a/tests/utils_tests/test_dateformat.py
++++ b/tests/utils_tests/test_dateformat.py
+@@ -194,3 +194,18 @@ class DateFormatTests(SimpleTestCase):
+                     dateformat.format(datetime(2000, 1, 1, hour), 'g'),
+                     expected,
+                 )
++
++    def test_year_less_than_1000(self):
++        """
++        Test that the 'Y' format specifier returns a four-digit year
++        for years less than 1000.
++        """
++        print("Running test_year_less_than_1000")  # Add this line
++        d = date(1, 1, 1)
++        self.assertEqual(dateformat.format(d, 'Y'), '0001')
++        d = date(999, 1, 1)
++        self.assertEqual(dateformat.format(d, 'Y'), '0999')
++
++if __name__ == '__main__':
++    import unittest
++    unittest.main()

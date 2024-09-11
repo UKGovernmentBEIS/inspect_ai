@@ -1,0 +1,27 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..4bce4719dc
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,4 @@
++from sympy import *
++x = Symbol('x')
++print(simplify(cos(x)**I))
++print("Script completed successfully, no errors.")
+diff --git a/sympy/simplify/fu.py b/sympy/simplify/fu.py
+index ad1130ef96..e7ce089370 100644
+--- a/sympy/simplify/fu.py
++++ b/sympy/simplify/fu.py
+@@ -501,9 +501,9 @@ def _f(rv):
+         if not (rv.is_Pow and rv.base.func == f):
+             return rv
+ 
+-        if (rv.exp < 0) == True:
++        if rv.exp.is_complex and rv.exp.as_real_imag()[0] < 0:
+             return rv
+-        if (rv.exp > max) == True:
++        if rv.exp.is_complex and rv.exp.as_real_imag()[0] > max:
+             return rv
+         if rv.exp == 2:
+             return h(g(rv.base.args[0])**2)

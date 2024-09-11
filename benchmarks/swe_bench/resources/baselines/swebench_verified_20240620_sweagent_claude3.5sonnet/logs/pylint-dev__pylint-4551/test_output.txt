@@ -1,0 +1,516 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   pylint/pyreverse/diagrams.py
+	modified:   pylint/pyreverse/inspector.py
+	modified:   tests/unittest_pyreverse_inspector.py
+	modified:   tests/unittest_pyreverse_writer.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 99589b08de8c5a2c6cc61e13a37420a868c80599
+Author: Pierre Sassoulas <pierre.sassoulas@gmail.com>
+Date:   Tue Jun 22 08:19:06 2021 +0200
+
+    Upgrade astroid to 2.6.0 (#4602)
+
+diff --git a/ChangeLog b/ChangeLog
+index 90412b9a1..c2b1382d7 100644
+--- a/ChangeLog
++++ b/ChangeLog
+@@ -9,6 +9,8 @@ Release date: TBA
+ ..
+   Put new features and bugfixes here and also in 'doc/whatsnew/2.9.rst'
+ 
++* astroid has been upgraded to 2.6.0
++
+ * ``setuptools_scm`` has been removed and replaced by ``tbump`` in order to not
+   have hidden runtime dependencies to setuptools
+ 
+diff --git a/requirements_test_min.txt b/requirements_test_min.txt
+index b48e37dcd..790e5af76 100644
+--- a/requirements_test_min.txt
++++ b/requirements_test_min.txt
+@@ -1,4 +1,4 @@
+ -e .
+-astroid==2.6.0-dev0  # Pinned to a specific version for tests
++astroid==2.6.0  # Pinned to a specific version for tests
+ pytest~=6.2
+ pytest-benchmark~=3.4
+diff --git a/setup.cfg b/setup.cfg
+index 056e2a62c..35d960c6f 100644
+--- a/setup.cfg
++++ b/setup.cfg
+@@ -41,7 +41,7 @@ project_urls =
+ [options]
+ packages = find:
+ install_requires =
+-    astroid>=2.6.0-dev0,<2.7 # (You should also upgrade requirements_test_min.txt)
++    astroid>=2.6.0,<2.7 # (You should also upgrade requirements_test_min.txt)
+     isort>=4.2.5,<6
+     mccabe>=0.6,<0.7
+     toml>=0.7.1
++ git diff 99589b08de8c5a2c6cc61e13a37420a868c80599
+diff --git a/pylint/pyreverse/diagrams.py b/pylint/pyreverse/diagrams.py
+index bf9f67af6..e4cbc6514 100644
+--- a/pylint/pyreverse/diagrams.py
++++ b/pylint/pyreverse/diagrams.py
+@@ -77,7 +77,7 @@ class ClassDiagram(Figure, FilterMixIn):
+         raise KeyError(relation_type)
+ 
+     def get_attrs(self, node):
+-        """return visible attributes, possibly with class name"""
++        """return visible attributes, possibly with class name and type hints"""
+         attrs = []
+         properties = [
+             (n, m)
+@@ -92,11 +92,22 @@ class ClassDiagram(Figure, FilterMixIn):
+             if not self.show_attr(node_name):
+                 continue
+             names = self.class_names(associated_nodes)
++            type_hint = self.get_type_hint(node, node_name)
+             if names:
+-                node_name = "{} : {}".format(node_name, ", ".join(names))
++                node_name = f"{node_name} : {', '.join(names)}"
++            elif type_hint:
++                node_name = f"{node_name} : {type_hint}"
+             attrs.append(node_name)
+         return sorted(attrs)
+ 
++    def get_type_hint(self, node, attr_name):
++        """Extract type hint for an attribute"""
++        if attr_name in node.instance_attrs:
++            attr_node = node.instance_attrs[attr_name][0]
++            if isinstance(attr_node, astroid.AnnAssign):
++                return attr_node.annotation.as_string()
++        return None
++
+     def get_methods(self, node):
+         """return visible methods"""
+         methods = [
+diff --git a/pylint/pyreverse/inspector.py b/pylint/pyreverse/inspector.py
+index 8fa122022..7814d25b7 100644
+--- a/pylint/pyreverse/inspector.py
++++ b/pylint/pyreverse/inspector.py
+@@ -340,7 +340,11 @@ def project_from_files(
+         if ast is None:
+             continue
+         project.path = project.path or ast.file
++        full_name = ast.name
++        if project_name != "no name":
++            full_name = f"{project_name}.{ast.name}"
+         project.add_module(ast)
++        project.locals[full_name] = ast  # Add this line to include full module name
+         base_name = ast.name
+         # recurse in package except if __init__ was explicitly given
+         if ast.package and something.find("__init__") == -1:
+@@ -351,5 +355,37 @@ def project_from_files(
+                 ast = func_wrapper(astroid_manager.ast_from_file, fpath)
+                 if ast is None or ast.name == base_name:
+                     continue
++                full_name = f"{project_name}.{ast.name}"
+                 project.add_module(ast)
++                project.locals[full_name] = ast  # Add this line to include full module name
+     return project
++
++def visit_classdef(self, node):
++    """visit class node"""
++    print(f"Visiting class: {node.name}")  # Debug print
++    super().visit_classdef(node)
++    print(f"Class body: {[type(child) for child in node.body]}")
++    for child in node.body:
++        if isinstance(child, astroid.AnnAssign):
++            if isinstance(child.target, astroid.AssignName):
++                print(f"AnnAssign: {child.target.name}, annotation type: {type(child.annotation)}")
++                if isinstance(child.annotation, astroid.Name):
++                    node.instance_attrs_type[child.target.name] = [child.annotation]
++                elif isinstance(child.annotation, astroid.Subscript):
++                    node.instance_attrs_type[child.target.name] = [child.annotation.value]
++        elif isinstance(child, astroid.FunctionDef):
++            print(f"FunctionDef: {child.name}")
++            if child.name == '__init__':
++                print(f"__init__ args: {[arg.name for arg in child.args.args]}")
++                for arg in child.args.args[1:]:  # Skip 'self'
++                    if arg.annotation:
++                        print(f"FunctionDef arg: {arg.name}, annotation type: {type(arg.annotation)}")
++                        if isinstance(arg.annotation, astroid.Name):
++                            node.instance_attrs_type[arg.name] = [arg.annotation]
++                        elif isinstance(arg.annotation, astroid.Subscript):
++                            node.instance_attrs_type[arg.name] = [arg.annotation.value]
++    if self.project.oimport_for_class:
++        node.instance_attrs_type.update(self.compute_instance_attrs_type(node))
++    self.set_implements(node)
++    self.pending[node] = []
++    print(f"Final instance_attrs_type: {node.instance_attrs_type}")
+diff --git a/tests/unittest_pyreverse_inspector.py b/tests/unittest_pyreverse_inspector.py
+index e1ff6378e..c2e0469f7 100644
+--- a/tests/unittest_pyreverse_inspector.py
++++ b/tests/unittest_pyreverse_inspector.py
+@@ -24,7 +24,9 @@ from pylint.pyreverse import inspector
+ 
+ @pytest.fixture
+ def project():
++    print("Creating project...")
+     project = get_project("data", "data")
++    print(f"Project created: {project}")
+     linker = inspector.Linker(project)
+     linker.visit(project)
+     return project
+@@ -125,6 +127,21 @@ def test_from_directory(project):
+     assert project.path.endswith(expected)
+ 
+ 
+-def test_project_node(project):
+-    expected = ["data", "data.clientmodule_test", "data.suppliermodule_test"]
+-    assert sorted(project.keys()) == expected
++def test_type_hints(project):
++    module = astroid.parse('''
++class MyClass:
++    def __init__(self, a: str = None):
++        self.a = a
++''')
++    klass = module['MyClass']
++    linker = inspector.Linker(project)
++    print("Before visiting class:")
++    print(f"klass has instance_attrs_type: {'instance_attrs_type' in klass.__dict__}")
++    linker.visit_classdef(klass)
++    print("After visiting class:")
++    print(f"klass has instance_attrs_type: {'instance_attrs_type' in klass.__dict__}")
++    print(f"klass.instance_attrs_type: {klass.instance_attrs_type}")
++    assert hasattr(klass, 'instance_attrs_type')
++    assert 'a' in klass.instance_attrs_type
++    assert isinstance(klass.instance_attrs_type['a'][0], astroid.Name)
++    assert klass.instance_attrs_type['a'][0].name == 'str'
+diff --git a/tests/unittest_pyreverse_writer.py b/tests/unittest_pyreverse_writer.py
+index 98bb01488..bb69dfaf1 100644
+--- a/tests/unittest_pyreverse_writer.py
++++ b/tests/unittest_pyreverse_writer.py
+@@ -71,11 +71,15 @@ def _file_lines(path):
+ 
+ def get_project(module, name="No Name"):
+     """return an astroid project representation"""
++    print(f"get_project called with module: {module}, name: {name}")
+ 
+     def _astroid_wrapper(func, modname):
++        print(f"_astroid_wrapper called with modname: {modname}")
+         return func(modname)
+ 
+-    return project_from_files([module], _astroid_wrapper, project_name=name)
++    project = project_from_files([module], _astroid_wrapper, project_name=name)
++    print(f"project_from_files returned: {project}")
++    return project
+ 
+ 
+ DOT_FILES = ["packages_No_Name.dot", "classes_No_Name.dot"]
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: astroid<2.7,>=2.6.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==2.9.0.dev1) (2.6.5)
+Requirement already satisfied: isort<6,>=4.2.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==2.9.0.dev1) (5.9.2)
+Requirement already satisfied: mccabe<0.7,>=0.6 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==2.9.0.dev1) (0.6.1)
+Requirement already satisfied: toml>=0.7.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==2.9.0.dev1) (0.10.2)
+Requirement already satisfied: lazy-object-proxy>=1.4.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from astroid<2.7,>=2.6.0->pylint==2.9.0.dev1) (1.10.0)
+Requirement already satisfied: wrapt<1.13,>=1.11 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from astroid<2.7,>=2.6.0->pylint==2.9.0.dev1) (1.12.1)
+Requirement already satisfied: setuptools>=20.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from astroid<2.7,>=2.6.0->pylint==2.9.0.dev1) (69.5.1)
+Installing collected packages: pylint
+  Attempting uninstall: pylint
+    Found existing installation: pylint 2.9.0.dev1
+    Uninstalling pylint-2.9.0.dev1:
+      Successfully uninstalled pylint-2.9.0.dev1
+  Running setup.py develop for pylint
+Successfully installed pylint-2.9.0.dev1
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 99589b08de8c5a2c6cc61e13a37420a868c80599 tests/unittest_pyreverse_writer.py
+Updated 1 path from 1a619db38
++ git apply -v -
+Checking patch tests/unittest_pyreverse_writer.py...
+Applied patch tests/unittest_pyreverse_writer.py cleanly.
++ pytest -rA tests/unittest_pyreverse_writer.py
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-6.2.5, py-1.11.0, pluggy-1.5.0
+benchmark: 3.4.1 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: /testbed, configfile: setup.cfg
+plugins: benchmark-3.4.1, cov-2.12.1, forked-1.6.0, profiling-1.7.0, xdist-2.5.0
+collected 0 items / 1 error
+
+==================================== ERRORS ====================================
+_____________ ERROR collecting tests/unittest_pyreverse_writer.py ______________
+ImportError while importing test module '/testbed/tests/unittest_pyreverse_writer.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/miniconda3/envs/testbed/lib/python3.9/importlib/__init__.py:127: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/unittest_pyreverse_writer.py:32: in <module>
+    from pylint.pyreverse.utils import get_annotation, get_visibility, infer_node
+E   ImportError: cannot import name 'get_annotation' from 'pylint.pyreverse.utils' (/testbed/pylint/pyreverse/utils.py)
+=============================== warnings summary ===============================
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/astroid/interpreter/_import/util.py:6
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/astroid/interpreter/_import/util.py:6: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+    import pkg_resources
+
+-- Docs: https://docs.pytest.org/en/stable/warnings.html
+=========================== short test summary info ============================
+ERROR tests/unittest_pyreverse_writer.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+========================= 1 warning, 1 error in 0.31s ==========================
++ git checkout 99589b08de8c5a2c6cc61e13a37420a868c80599 tests/unittest_pyreverse_writer.py
+Updated 1 path from 1a619db38

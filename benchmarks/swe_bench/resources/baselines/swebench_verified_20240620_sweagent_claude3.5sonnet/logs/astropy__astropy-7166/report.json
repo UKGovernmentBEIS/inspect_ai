@@ -1,0 +1,35 @@
+{
+    "astropy__astropy-7166": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "astropy/utils/tests/test_misc.py::test_inherit_docstrings"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "astropy/utils/tests/test_misc.py::test_isiterable",
+                    "astropy/utils/tests/test_misc.py::test_signal_number_to_name_no_failure",
+                    "astropy/utils/tests/test_misc.py::test_skip_hidden",
+                    "astropy/utils/tests/test_misc.py::test_JsonCustomEncoder",
+                    "astropy/utils/tests/test_misc.py::test_check_broadcast",
+                    "astropy/utils/tests/test_misc.py::test_dtype_bytes_or_chars"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

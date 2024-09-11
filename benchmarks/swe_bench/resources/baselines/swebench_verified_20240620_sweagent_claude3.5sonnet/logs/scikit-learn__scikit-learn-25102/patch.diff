@@ -1,0 +1,92 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..124a0d73d
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,25 @@
++import numpy as np
++from sklearn.datasets import load_iris
++from sklearn.feature_selection import SelectKBest
++from sklearn.feature_selection import chi2
++
++X, y = load_iris(return_X_y=True, as_frame=True)
++X = X.astype(
++   {
++       "petal width (cm)": np.float16,
++       "petal length (cm)": np.float16,
++   }
++)
++X["cat"] = y.astype("category")
++
++print("Original dtypes:")
++print(X.dtypes)
++
++selector = SelectKBest(chi2, k=2)
++selector.set_output(transform="pandas")
++X_out = selector.fit_transform(X, y)
++
++print("\nOutput dtypes:")
++print(X_out.dtypes)
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sklearn/utils/_set_output.py b/sklearn/utils/_set_output.py
+index 335773c6a..519666df1 100644
+--- a/sklearn/utils/_set_output.py
++++ b/sklearn/utils/_set_output.py
+@@ -12,6 +12,7 @@ def _wrap_in_pandas_container(
+     *,
+     columns,
+     index=None,
++    dtypes=None,
+ ):
+     """Create a Pandas DataFrame.
+ 
+@@ -36,6 +37,9 @@ def _wrap_in_pandas_container(
+     index : array-like, default=None
+         Index for data.
+ 
++    dtypes : dict, default=None
++        Dictionary of column name to dtype, to preserve original dtypes.
++
+     Returns
+     -------
+     dataframe : DataFrame
+@@ -57,9 +61,18 @@ def _wrap_in_pandas_container(
+             data_to_wrap.columns = columns
+         if index is not None:
+             data_to_wrap.index = index
++        if dtypes is not None:
++            # Filter dtypes to only include existing columns
++            existing_dtypes = {col: dtype for col, dtype in dtypes.items() if col in data_to_wrap.columns}
++            data_to_wrap = data_to_wrap.astype(existing_dtypes)
+         return data_to_wrap
+ 
+-    return pd.DataFrame(data_to_wrap, index=index, columns=columns)
++    df = pd.DataFrame(data_to_wrap, index=index, columns=columns)
++    if dtypes is not None:
++        # Filter dtypes to only include existing columns
++        existing_dtypes = {col: dtype for col, dtype in dtypes.items() if col in df.columns}
++        df = df.astype(existing_dtypes)
++    return df
+ 
+ 
+ def _get_output_config(method, estimator=None):
+@@ -127,10 +140,17 @@ def _wrap_data_with_container(method, data_to_wrap, original_input, estimator):
+         return data_to_wrap
+ 
+     # dense_config == "pandas"
++    pd = check_pandas_support("Setting output container to 'pandas'")
++    if isinstance(original_input, pd.DataFrame):
++        dtypes = original_input.dtypes.to_dict()
++    else:
++        dtypes = None
++
+     return _wrap_in_pandas_container(
+         data_to_wrap=data_to_wrap,
+         index=getattr(original_input, "index", None),
+         columns=estimator.get_feature_names_out,
++        dtypes=dtypes,
+     )
+ 
+ 

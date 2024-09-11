@@ -1,0 +1,2136 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   src/_pytest/capture.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test_capfd.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 41d211c24a6781843b174379d6d6538f5c17adb9
+Author: Ran Benita <ran@unusedvar.com>
+Date:   Mon Jul 20 17:24:39 2020 +0300
+
+    testing: use a tighter check if `bash` is available (#7520)
+    
+    This fixes CI on Windows since GitHub Actions started installing WSL on
+    their images which apparently installs some wrapper `bash` which does
+    not run actual bash.
+
+diff --git a/testing/test_parseopt.py b/testing/test_parseopt.py
+index 8cfb9e4a9..59b729d94 100644
+--- a/testing/test_parseopt.py
++++ b/testing/test_parseopt.py
+@@ -1,7 +1,7 @@
+ import argparse
+ import os
+ import shlex
+-import shutil
++import subprocess
+ import sys
+ 
+ import py
+@@ -288,8 +288,19 @@ class TestParser:
+ 
+ 
+ def test_argcomplete(testdir, monkeypatch) -> None:
+-    if not shutil.which("bash"):
+-        pytest.skip("bash not available")
++    try:
++        bash_version = subprocess.run(
++            ["bash", "--version"],
++            stdout=subprocess.PIPE,
++            stderr=subprocess.PIPE,
++            universal_newlines=True,
++        ).stdout
++    except OSError:
++        pytest.skip("bash is not available")
++    if "GNU bash" not in bash_version:
++        # See #7518.
++        pytest.skip("not a real bash")
++
+     script = str(testdir.tmpdir.join("test_argcomplete"))
+ 
+     with open(str(script), "w") as fp:
++ git diff 41d211c24a6781843b174379d6d6538f5c17adb9
+diff --git a/src/_pytest/capture.py b/src/_pytest/capture.py
+index 3f9c60fb9..7399bed16 100644
+--- a/src/_pytest/capture.py
++++ b/src/_pytest/capture.py
+@@ -190,15 +190,23 @@ class EncodedFile(io.TextIOWrapper):
+         return self.buffer.mode.replace("b", "")
+ 
+ 
++class PreserveCRBuffer(io.BytesIO):
++    def __init__(self):
++        super().__init__()
++
++    def write(self, b):
++        return super().write(b.replace(b'\r\n', b'\n').replace(b'\n', b'\r\n'))
++
+ class CaptureIO(io.TextIOWrapper):
+     def __init__(self) -> None:
+         super().__init__(io.BytesIO(), encoding="UTF-8", newline="", write_through=True)
+ 
+     def getvalue(self) -> str:
+         assert isinstance(self.buffer, io.BytesIO)
+-        return self.buffer.getvalue().decode("UTF-8")
+-
++        return self.buffer.getvalue().decode(self.encoding).replace('\n', '\r')
+ 
++    def write(self, s: str) -> int:
++        return super().write(s.replace('\r\n', '\n').replace('\n', '\r\n'))
+ class TeeCaptureIO(CaptureIO):
+     def __init__(self, other: TextIO) -> None:
+         self._other = other
+@@ -335,11 +343,14 @@ class SysCapture(SysCaptureBinary):
+     EMPTY_BUFFER = ""  # type: ignore[assignment]
+ 
+     def snap(self):
+-        res = self.tmpfile.getvalue()
+-        self.tmpfile.seek(0)
+-        self.tmpfile.truncate()
++        res = super().snap()
++        if isinstance(res, bytes):
++            decoded = res.decode(getattr(self.tmpfile, 'encoding', 'utf-8'))
++            final = decoded.replace('\n', '\r')
++            return final
+         return res
+ 
++
+     def writeorg(self, data):
+         self._assert_state("writeorg", ("started", "suspended"))
+         self._old.write(data)
+@@ -387,7 +398,7 @@ class FDCaptureBinary:
+                 # TODO: Remove type ignore, fixed in next mypy release.
+                 TemporaryFile(buffering=0),  # type: ignore[arg-type]
+                 encoding="utf-8",
+-                errors="replace",
++                errors="strict",
+                 write_through=True,
+             )
+             if targetfd in patchsysdict:
+@@ -566,6 +577,8 @@ class MultiCapture:
+             err = self.err.snap()
+         else:
+             err = ""
++        out = out.replace('\n', '\r') if isinstance(out, str) else out
++        err = err.replace('\n', '\r') if isinstance(err, str) else err
+         return CaptureResult(out, err)
+ 
+ 
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: attrs>=17.4.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==6.0.0rc2.dev51+g41d211c24.d20240725) (23.1.0)
+Requirement already satisfied: iniconfig in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==6.0.0rc2.dev51+g41d211c24.d20240725) (2.0.0)
+Requirement already satisfied: more-itertools>=4.0.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==6.0.0rc2.dev51+g41d211c24.d20240725) (10.1.0)
+Requirement already satisfied: packaging in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==6.0.0rc2.dev51+g41d211c24.d20240725) (23.1)
+Requirement already satisfied: pluggy<1.0,>=0.12 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==6.0.0rc2.dev51+g41d211c24.d20240725) (0.13.1)
+Requirement already satisfied: py>=1.8.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==6.0.0rc2.dev51+g41d211c24.d20240725) (1.11.0)
+Requirement already satisfied: toml in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==6.0.0rc2.dev51+g41d211c24.d20240725) (0.10.2)
+Building wheels for collected packages: pytest
+  Building editable for pytest (pyproject.toml): started
+  Building editable for pytest (pyproject.toml): finished with status 'done'
+  Created wheel for pytest: filename=pytest-6.0.0rc2.dev51+g41d211c24.d20240725-0.editable-py3-none-any.whl size=5306 sha256=dc503ed636f7878cf7abcd51563660b90b922433e771a06376310bdad569c6b1
+  Stored in directory: /tmp/pip-ephem-wheel-cache-28m4ltpf/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built pytest
+Installing collected packages: pytest
+  Attempting uninstall: pytest
+    Found existing installation: pytest 6.0.0rc2.dev51+g41d211c24
+    Uninstalling pytest-6.0.0rc2.dev51+g41d211c24:
+      Successfully uninstalled pytest-6.0.0rc2.dev51+g41d211c24
+Successfully installed pytest-6.0.0rc2.dev51+g41d211c24.d20240725
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 41d211c24a6781843b174379d6d6538f5c17adb9 testing/test_capture.py
+Updated 0 paths from 626158e22
++ git apply -v -
+Checking patch testing/test_capture.py...
+Applied patch testing/test_capture.py cleanly.
++ pytest -rA testing/test_capture.py
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1
+rootdir: /testbed, configfile: pyproject.toml
+collected 129 items
+
+testing/test_capture.py .FF.FF...FF........FF.FF.F.....FF.FF.....F.FF.FF [ 37%]
+.F.....s....s........x.............F.FF..F.F..s.......F...........FFFFFF [ 93%]
+......FF.                                                                [100%]
+
+=================================== FAILURES ===================================
+_______________ TestCaptureManager.test_capturing_basic_api[sys] _______________
+
+self = <test_capture.TestCaptureManager object at 0x7fc7ecdaa730>
+method = 'sys'
+
+    @pytest.mark.parametrize("method", ["no", "sys", "fd"])
+    def test_capturing_basic_api(self, method):
+        capouter = StdCaptureFD()
+        old = sys.stdout, sys.stderr, sys.stdin
+        try:
+            capman = CaptureManager(method)
+            capman.start_global_capturing()
+            capman.suspend_global_capture()
+            outerr = capman.read_global_capture()
+            assert outerr == ("", "")
+            capman.suspend_global_capture()
+            outerr = capman.read_global_capture()
+            assert outerr == ("", "")
+            print("hello")
+            capman.suspend_global_capture()
+            out, err = capman.read_global_capture()
+            if method == "no":
+                assert old == (sys.stdout, sys.stderr, sys.stdin)
+            else:
+                assert not out
+            capman.resume_global_capture()
+            print("hello")
+            capman.suspend_global_capture()
+            out, err = capman.read_global_capture()
+            if method != "no":
+>               assert out == "hello\n"
+E               AssertionError: assert 'hello\r\r' == 'hello\n'
+E                 - hello
+E                 ?      ^
+E                 + hello
+E                 ?      ^
+E                 +
+
+testing/test_capture.py:74: AssertionError
+----------------------------- Captured stdout call -----------------------------
+hello
+_______________ TestCaptureManager.test_capturing_basic_api[fd] ________________
+
+self = <test_capture.TestCaptureManager object at 0x7fc7ec7cadf0>, method = 'fd'
+
+    @pytest.mark.parametrize("method", ["no", "sys", "fd"])
+    def test_capturing_basic_api(self, method):
+        capouter = StdCaptureFD()
+        old = sys.stdout, sys.stderr, sys.stdin
+        try:
+            capman = CaptureManager(method)
+            capman.start_global_capturing()
+            capman.suspend_global_capture()
+            outerr = capman.read_global_capture()
+            assert outerr == ("", "")
+            capman.suspend_global_capture()
+            outerr = capman.read_global_capture()
+            assert outerr == ("", "")
+            print("hello")
+            capman.suspend_global_capture()
+            out, err = capman.read_global_capture()
+            if method == "no":
+                assert old == (sys.stdout, sys.stderr, sys.stdin)
+            else:
+                assert not out
+            capman.resume_global_capture()
+            print("hello")
+            capman.suspend_global_capture()
+            out, err = capman.read_global_capture()
+            if method != "no":
+>               assert out == "hello\n"
+E               AssertionError: assert 'hello\r' == 'hello\n'
+E                 - hello
+E                 ?      ^
+E                 + hello
+E                 ?      ^
+
+testing/test_capture.py:74: AssertionError
+----------------------------- Captured stdout call -----------------------------
+hello
+_____________ TestCaptureFixture.test_cafd_preserves_newlines[\n] ______________
+
+self = <test_capture.TestCaptureFixture object at 0x7fc7ec4d7a90>
+capfd = <_pytest.capture.CaptureFixture object at 0x7fc7ec4d7610>, nl = '\n'
+
+    @pytest.mark.parametrize("nl", ("\n", "\r\n", "\r"))
+    def test_cafd_preserves_newlines(self, capfd, nl):
+        print("test", end=nl)
+        out, err = capfd.readouterr()
+>       assert out.endswith(nl)
+E       AssertionError: assert False
+E        +  where False = <built-in method endswith of str object at 0x7fc7ec545070>('\n')
+E        +    where <built-in method endswith of str object at 0x7fc7ec545070> = 'test\r'.endswith
+
+testing/test_capture.py:521: AssertionError
+____________ TestCaptureFixture.test_cafd_preserves_newlines[\r\n] _____________
+
+self = <test_capture.TestCaptureFixture object at 0x7fc7ecc13dc0>
+capfd = <_pytest.capture.CaptureFixture object at 0x7fc7ecc13c10>, nl = '\r\n'
+
+    @pytest.mark.parametrize("nl", ("\n", "\r\n", "\r"))
+    def test_cafd_preserves_newlines(self, capfd, nl):
+        print("test", end=nl)
+        out, err = capfd.readouterr()
+>       assert out.endswith(nl)
+E       AssertionError: assert False
+E        +  where False = <built-in method endswith of str object at 0x7fc7ec6ac4b0>('\r\n')
+E        +    where <built-in method endswith of str object at 0x7fc7ec6ac4b0> = 'test\r'.endswith
+
+testing/test_capture.py:521: AssertionError
+___________________ TestCaptureIO.test_write_bytes_to_buffer ___________________
+
+self = <test_capture.TestCaptureIO object at 0x7fc7ec4d7a30>
+
+    def test_write_bytes_to_buffer(self):
+        """In python3, stdout / stderr are text io wrappers (exposing a buffer
+        property of the underlying bytestream).  See issue #1407
+        """
+        f = capture.CaptureIO()
+        f.buffer.write(b"foo\r\n")
+>       assert f.getvalue() == "foo\r\n"
+E       AssertionError: assert 'foo\r\r' == 'foo\r\n'
+E         - foo
+E         ?    -
+E         + foo
+E         +
+
+testing/test_capture.py:824: AssertionError
+_________________ TestTeeCaptureIO.test_write_bytes_to_buffer __________________
+
+self = <test_capture.TestTeeCaptureIO object at 0x7fc7ec6ef4c0>
+
+    def test_write_bytes_to_buffer(self):
+        """In python3, stdout / stderr are text io wrappers (exposing a buffer
+        property of the underlying bytestream).  See issue #1407
+        """
+        f = capture.CaptureIO()
+        f.buffer.write(b"foo\r\n")
+>       assert f.getvalue() == "foo\r\n"
+E       AssertionError: assert 'foo\r\r' == 'foo\r\n'
+E         - foo
+E         ?    -
+E         + foo
+E         +
+
+testing/test_capture.py:824: AssertionError
+__________________ TestStdCapture.test_capturing_reset_simple __________________
+
+self = <test_capture.TestStdCapture object at 0x7fc7ec572400>
+
+    def test_capturing_reset_simple(self):
+        with self.getcapture() as cap:
+            print("hello world")
+            sys.stderr.write("hello error\n")
+            out, err = cap.readouterr()
+>       assert out == "hello world\n"
+E       AssertionError: assert 'hello world\r\r' == 'hello world\n'
+E         - hello world
+E         ?            ^
+E         + hello world
+E         ?            ^
+E         +
+
+testing/test_capture.py:1015: AssertionError
+___________________ TestStdCapture.test_capturing_readouterr ___________________
+
+self = <test_capture.TestStdCapture object at 0x7fc7ec957820>
+
+    def test_capturing_readouterr(self):
+        with self.getcapture() as cap:
+            print("hello world")
+            sys.stderr.write("hello error\n")
+            out, err = cap.readouterr()
+>           assert out == "hello world\n"
+E           AssertionError: assert 'hello world\r\r' == 'hello world\n'
+E             - hello world
+E             ?            ^
+E             + hello world
+E             ?            ^
+E             +
+
+testing/test_capture.py:1023: AssertionError
+_______________ TestStdCapture.test_capturing_readouterr_unicode _______________
+
+self = <test_capture.TestStdCapture object at 0x7fc7ec8339d0>
+
+    def test_capturing_readouterr_unicode(self):
+        with self.getcapture() as cap:
+            print("hxąć")
+            out, err = cap.readouterr()
+>       assert out == "hxąć\n"
+E       AssertionError: assert 'hxąć\r\r' == 'hxąć\n'
+E         - hxąć
+E         ?     ^
+E         + hxąć
+E         ?     ^
+E         +
+
+testing/test_capture.py:1041: AssertionError
+____________________ TestStdCapture.test_reset_twice_error _____________________
+
+self = <test_capture.TestStdCapture object at 0x7fc7ec6ca610>
+
+    def test_reset_twice_error(self):
+        with self.getcapture() as cap:
+            print("hello")
+            out, err = cap.readouterr()
+        pytest.raises(ValueError, cap.stop_capturing)
+>       assert out == "hello\n"
+E       AssertionError: assert 'hello\r\r' == 'hello\n'
+E         - hello
+E         ?      ^
+E         + hello
+E         ?      ^
+E         +
+
+testing/test_capture.py:1048: AssertionError
+________________ TestStdCapture.test_capturing_error_recursive _________________
+
+self = <test_capture.TestStdCapture object at 0x7fc7ecacf820>
+
+    def test_capturing_error_recursive(self):
+        with self.getcapture() as cap1:
+            print("cap1")
+            with self.getcapture() as cap2:
+                print("cap2")
+                out2, err2 = cap2.readouterr()
+                out1, err1 = cap1.readouterr()
+>       assert out1 == "cap1\n"
+E       AssertionError: assert 'cap1\r\r' == 'cap1\n'
+E         - cap1
+E         ?     ^
+E         + cap1
+E         ?     ^
+E         +
+
+testing/test_capture.py:1074: AssertionError
+________________ TestTeeStdCapture.test_capturing_reset_simple _________________
+
+self = <test_capture.TestTeeStdCapture object at 0x7fc7ec7d0b50>
+
+    def test_capturing_reset_simple(self):
+        with self.getcapture() as cap:
+            print("hello world")
+            sys.stderr.write("hello error\n")
+            out, err = cap.readouterr()
+>       assert out == "hello world\n"
+E       AssertionError: assert 'hello world\r\r' == 'hello world\n'
+E         - hello world
+E         ?            ^
+E         + hello world
+E         ?            ^
+E         +
+
+testing/test_capture.py:1015: AssertionError
+----------------------------- Captured stdout call -----------------------------
+hello world
+----------------------------- Captured stderr call -----------------------------
+hello error
+_________________ TestTeeStdCapture.test_capturing_readouterr __________________
+
+self = <test_capture.TestTeeStdCapture object at 0x7fc7ecb5a4f0>
+
+    def test_capturing_readouterr(self):
+        with self.getcapture() as cap:
+            print("hello world")
+            sys.stderr.write("hello error\n")
+            out, err = cap.readouterr()
+>           assert out == "hello world\n"
+E           AssertionError: assert 'hello world\r\r' == 'hello world\n'
+E             - hello world
+E             ?            ^
+E             + hello world
+E             ?            ^
+E             +
+
+testing/test_capture.py:1023: AssertionError
+----------------------------- Captured stdout call -----------------------------
+hello world
+----------------------------- Captured stderr call -----------------------------
+hello error
+_____________ TestTeeStdCapture.test_capturing_readouterr_unicode ______________
+
+self = <test_capture.TestTeeStdCapture object at 0x7fc7ec8e3910>
+
+    def test_capturing_readouterr_unicode(self):
+        with self.getcapture() as cap:
+            print("hxąć")
+            out, err = cap.readouterr()
+>       assert out == "hxąć\n"
+E       AssertionError: assert 'hxąć\r\r' == 'hxąć\n'
+E         - hxąć
+E         ?     ^
+E         + hxąć
+E         ?     ^
+E         +
+
+testing/test_capture.py:1041: AssertionError
+----------------------------- Captured stdout call -----------------------------
+hxąć
+___________________ TestTeeStdCapture.test_reset_twice_error ___________________
+
+self = <test_capture.TestTeeStdCapture object at 0x7fc7ec81e4f0>
+
+    def test_reset_twice_error(self):
+        with self.getcapture() as cap:
+            print("hello")
+            out, err = cap.readouterr()
+        pytest.raises(ValueError, cap.stop_capturing)
+>       assert out == "hello\n"
+E       AssertionError: assert 'hello\r\r' == 'hello\n'
+E         - hello
+E         ?      ^
+E         + hello
+E         ?      ^
+E         +
+
+testing/test_capture.py:1048: AssertionError
+----------------------------- Captured stdout call -----------------------------
+hello
+_______________ TestTeeStdCapture.test_capturing_error_recursive _______________
+
+self = <test_capture.TestTeeStdCapture object at 0x7fc7ec498430>
+
+    def test_capturing_error_recursive(self):
+        """ for TeeStdCapture since we passthrough stderr/stdout, cap1
+        should get all output, while cap2 should only get "cap2\n" """
+    
+        with self.getcapture() as cap1:
+            print("cap1")
+            with self.getcapture() as cap2:
+                print("cap2")
+                out2, err2 = cap2.readouterr()
+                out1, err1 = cap1.readouterr()
+>       assert out1 == "cap1\ncap2\n"
+E       AssertionError: assert 'cap1\r\rcap2\r\r' == 'cap1\ncap2\n'
+E         - cap1
+E         ?     ^
+E         + cap1
+E         ?     ^
+E         + 
+E         - cap2
+E         ?     ^...
+E         
+E         ...Full output truncated (4 lines hidden), use '-vv' to show
+
+testing/test_capture.py:1121: AssertionError
+----------------------------- Captured stdout call -----------------------------
+cap1cap2
+_________________ TestStdCaptureFD.test_capturing_reset_simple _________________
+
+self = <test_capture.TestStdCaptureFD object at 0x7fc7ec4958e0>
+
+    def test_capturing_reset_simple(self):
+        with self.getcapture() as cap:
+            print("hello world")
+            sys.stderr.write("hello error\n")
+            out, err = cap.readouterr()
+>       assert out == "hello world\n"
+E       AssertionError: assert 'hello world\r' == 'hello world\n'
+E         - hello world
+E         ?            ^
+E         + hello world
+E         ?            ^
+
+testing/test_capture.py:1015: AssertionError
+__________________ TestStdCaptureFD.test_capturing_readouterr __________________
+
+self = <test_capture.TestStdCaptureFD object at 0x7fc7ec503fd0>
+
+    def test_capturing_readouterr(self):
+        with self.getcapture() as cap:
+            print("hello world")
+            sys.stderr.write("hello error\n")
+            out, err = cap.readouterr()
+>           assert out == "hello world\n"
+E           AssertionError: assert 'hello world\r' == 'hello world\n'
+E             - hello world
+E             ?            ^
+E             + hello world
+E             ?            ^
+
+testing/test_capture.py:1023: AssertionError
+______________ TestStdCaptureFD.test_capturing_readouterr_unicode ______________
+
+self = <test_capture.TestStdCaptureFD object at 0x7fc7ec499370>
+
+    def test_capturing_readouterr_unicode(self):
+        with self.getcapture() as cap:
+            print("hxąć")
+            out, err = cap.readouterr()
+>       assert out == "hxąć\n"
+E       AssertionError: assert 'hxąć\r' == 'hxąć\n'
+E         - hxąć
+E         ?     ^
+E         + hxąć
+E         ?     ^
+
+testing/test_capture.py:1041: AssertionError
+___________________ TestStdCaptureFD.test_reset_twice_error ____________________
+
+self = <test_capture.TestStdCaptureFD object at 0x7fc7ec56d1f0>
+
+    def test_reset_twice_error(self):
+        with self.getcapture() as cap:
+            print("hello")
+            out, err = cap.readouterr()
+        pytest.raises(ValueError, cap.stop_capturing)
+>       assert out == "hello\n"
+E       AssertionError: assert 'hello\r' == 'hello\n'
+E         - hello
+E         ?      ^
+E         + hello
+E         ?      ^
+
+testing/test_capture.py:1048: AssertionError
+_______________ TestStdCaptureFD.test_capturing_error_recursive ________________
+
+self = <test_capture.TestStdCaptureFD object at 0x7fc7ec6d2430>
+
+    def test_capturing_error_recursive(self):
+        with self.getcapture() as cap1:
+            print("cap1")
+            with self.getcapture() as cap2:
+                print("cap2")
+                out2, err2 = cap2.readouterr()
+                out1, err1 = cap1.readouterr()
+>       assert out1 == "cap1\n"
+E       AssertionError: assert 'cap1\r' == 'cap1\n'
+E         - cap1
+E         ?     ^
+E         + cap1
+E         ?     ^
+
+testing/test_capture.py:1074: AssertionError
+_____________________ TestCaptureFixture.test_capsysbinary _____________________
+
+self = <test_capture.TestCaptureFixture object at 0x7fc7ebf171c0>
+testdir = <Testdir local('/tmp/pytest-of-root/pytest-0/test_capsysbinary0')>
+
+    def test_capsysbinary(self, testdir):
+        p1 = testdir.makepyfile(
+            r"""
+            def test_hello(capsysbinary):
+                import sys
+    
+                sys.stdout.buffer.write(b'hello')
+    
+                # Some likely un-decodable bytes.
+                sys.stdout.buffer.write(b'\xfe\x98\x20')
+    
+                sys.stdout.buffer.flush()
+    
+                # Ensure writing in text mode still works and is captured.
+                # https://github.com/pytest-dev/pytest/issues/6871
+                print("world", flush=True)
+    
+                out, err = capsysbinary.readouterr()
+                assert out == b'hello\xfe\x98\x20world\n'
+                assert err == b''
+    
+                print("stdout after")
+                print("stderr after", file=sys.stderr)
+            """
+        )
+        result = testdir.runpytest(str(p1), "-rA")
+>       result.stdout.fnmatch_lines(
+            [
+                "*- Captured stdout call -*",
+                "stdout after",
+                "*- Captured stderr call -*",
+                "stderr after",
+                "*= 1 passed in *",
+            ]
+        )
+E       Failed: nomatch: '*- Captured stdout call -*'
+E           and: '============================= test session starts =============================='
+E           and: ''
+E           and: 'platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1'
+E           and: ''
+E           and: 'rootdir: /tmp/pytest-of-root/pytest-0/test_capsysbinary0'
+E           and: ''
+E           and: 'collected 1 item'
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: 'test_capsysbinary.py F                                                   [100%]'
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: '=================================== FAILURES ==================================='
+E           and: ''
+E           and: '__________________________________ test_hello __________________________________'
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: 'capsysbinary = <_pytest.capture.CaptureFixture object at 0x7fc7ebe6f3a0>'
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: '    def test_hello(capsysbinary):'
+E           and: ''
+E           and: '        import sys'
+E           and: ''
+E           and: '    '
+E           and: ''
+E           and: "        sys.stdout.buffer.write(b'hello')"
+E           and: ''
+E           and: '    '
+E           and: ''
+E           and: '        # Some likely un-decodable bytes.'
+E           and: ''
+E           and: "        sys.stdout.buffer.write(b'\\xfe\\x98\\x20')"
+E           and: ''
+E           and: '    '
+E           and: ''
+E           and: '        sys.stdout.buffer.flush()'
+E           and: ''
+E           and: '    '
+E           and: ''
+E           and: '        # Ensure writing in text mode still works and is captured.'
+E           and: ''
+E           and: '        # https://github.com/pytest-dev/pytest/issues/6871'
+E           and: ''
+E           and: '        print("world", flush=True)'
+E           and: ''
+E           and: '    '
+E           and: ''
+E           and: '        out, err = capsysbinary.readouterr()'
+E           and: ''
+E           and: ">       assert out == b'hello\\xfe\\x98\\x20world\\n'"
+E           and: ''
+E           and: "E       AssertionError: assert b'hello\\xfe\\x98 world\\r\\n' == b'hello\\xfe\\x98 world\\n'"
+E           and: ''
+E           and: "E         At index 13 diff: b'\\r' != b'\\n'"
+E           and: ''
+E           and: 'E         Use -v to get the full diff'
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: 'test_capsysbinary.py:16: AssertionError'
+E           and: ''
+E           and: '=========================== short test summary info ============================'
+E           and: ''
+E           and: "FAILED test_capsysbinary.py::test_hello - AssertionError: assert b'hello\\xfe\\..."
+E           and: ''
+E           and: '============================== 1 failed in 0.01s ==============================='
+E           and: ''
+E       remains unmatched: '*- Captured stdout call -*'
+
+/testbed/testing/test_capture.py:563: Failed
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capsysbinary0collected 1 itemtest_capsysbinary.py F                                                   [100%]=================================== FAILURES ===================================__________________________________ test_hello __________________________________capsysbinary = <_pytest.capture.CaptureFixture object at 0x7fc7ebe6f3a0>    def test_hello(capsysbinary):        import sys            sys.stdout.buffer.write(b'hello')            # Some likely un-decodable bytes.        sys.stdout.buffer.write(b'\xfe\x98\x20')            sys.stdout.buffer.flush()            # Ensure writing in text mode still works and is captured.        # https://github.com/pytest-dev/pytest/issues/6871        print("world", flush=True)            out, err = capsysbinary.readouterr()>       assert out == b'hello\xfe\x98\x20world\n'E       AssertionError: assert b'hello\xfe\x98 world\r\n' == b'hello\xfe\x98 world\n'E         At index 13 diff: b'\r' != b'\n'E         Use -v to get the full difftest_capsysbinary.py:16: AssertionError=========================== short test summary info ============================FAILED test_capsysbinary.py::test_hello - AssertionError: assert b'hello\xfe\...============================== 1 failed in 0.01s ===============================
+____ TestCaptureFixture.test_fixture_use_by_other_fixtures_teardown[capsys] ____
+
+self = <test_capture.TestCaptureFixture object at 0x7fc7ebce13d0>
+testdir = <Testdir local('/tmp/pytest-of-root/pytest-0/test_fixture_use_by_other_fixtures_teardown0')>
+cap = 'capsys'
+
+    @pytest.mark.parametrize("cap", ["capsys", "capfd"])
+    def test_fixture_use_by_other_fixtures_teardown(self, testdir, cap):
+        """Ensure we can access setup and teardown buffers from teardown when using capsys/capfd (##3033)"""
+        testdir.makepyfile(
+            """\
+            import sys
+            import pytest
+            import os
+    
+            @pytest.fixture()
+            def fix({cap}):
+                print("setup out")
+                sys.stderr.write("setup err\\n")
+                yield
+                out, err = {cap}.readouterr()
+                assert out == 'setup out\\ncall out\\n'
+                assert err == 'setup err\\ncall err\\n'
+    
+            def test_a(fix):
+                print("call out")
+                sys.stderr.write("call err\\n")
+        """.format(
+                cap=cap
+            )
+        )
+        reprec = testdir.inline_run()
+>       reprec.assertoutcome(passed=1)
+E       AssertionError: ([<TestReport 'test_fixture_use_by_other_fixtures_teardown.py::test_a' when='call' outcome='passed'>], [], [<TestReport 'test_fixture_use_by_other_fixtures_teardown.py::test_a' when='teardown' outcome='failed'>])
+E       assert {'failed': 1,... 'skipped': 0} == {'failed': 0,... 'skipped': 0}
+E         Omitting 2 identical items, use -vv to show
+E         Differing items:
+E         {'failed': 1} != {'failed': 0}
+E         Use -v to get the full diff
+
+/testbed/testing/test_capture.py:699: AssertionError
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_fixture_use_by_other_fixtures_teardown0collected 1 itemtest_fixture_use_by_other_fixtures_teardown.py .E                        [100%]==================================== ERRORS ====================================_________________________ ERROR at teardown of test_a __________________________capsys = <_pytest.capture.CaptureFixture object at 0x7fc7ebd3be50>    @pytest.fixture()    def fix(capsys):        print("setup out")        sys.stderr.write("setup err\n")        yield        out, err = capsys.readouterr()>       assert out == 'setup out\ncall out\n'E       AssertionError: assert 'setup out\r\rcall out\r\r' == 'setup out\ncall out\n'E         - setup outE         ?          ^E         + setup outE         ?          ^E         + E         - call outE         ?         ^...E         E         ...Full output truncated (4 lines hidden), use '-vv' to showtest_fixture_use_by_other_fixtures_teardown.py:11: AssertionError---------------------------- Captured stdout setup -----------------------------setup out---------------------------- Captured stderr setup -----------------------------setup err----------------------------- Captured stdout call -----------------------------call out----------------------------- Captured stderr call -----------------------------call err=========================== short test summary info ============================ERROR test_fixture_use_by_other_fixtures_teardown.py::test_a - AssertionError...========================== 1 passed, 1 error in 0.02s ==========================
+____ TestCaptureFixture.test_fixture_use_by_other_fixtures_teardown[capfd] _____
+
+self = <test_capture.TestCaptureFixture object at 0x7fc7ebd201c0>
+testdir = <Testdir local('/tmp/pytest-of-root/pytest-0/test_fixture_use_by_other_fixtures_teardown1')>
+cap = 'capfd'
+
+    @pytest.mark.parametrize("cap", ["capsys", "capfd"])
+    def test_fixture_use_by_other_fixtures_teardown(self, testdir, cap):
+        """Ensure we can access setup and teardown buffers from teardown when using capsys/capfd (##3033)"""
+        testdir.makepyfile(
+            """\
+            import sys
+            import pytest
+            import os
+    
+            @pytest.fixture()
+            def fix({cap}):
+                print("setup out")
+                sys.stderr.write("setup err\\n")
+                yield
+                out, err = {cap}.readouterr()
+                assert out == 'setup out\\ncall out\\n'
+                assert err == 'setup err\\ncall err\\n'
+    
+            def test_a(fix):
+                print("call out")
+                sys.stderr.write("call err\\n")
+        """.format(
+                cap=cap
+            )
+        )
+        reprec = testdir.inline_run()
+>       reprec.assertoutcome(passed=1)
+E       AssertionError: ([<TestReport 'test_fixture_use_by_other_fixtures_teardown.py::test_a' when='call' outcome='passed'>], [], [<TestReport 'test_fixture_use_by_other_fixtures_teardown.py::test_a' when='teardown' outcome='failed'>])
+E       assert {'failed': 1,... 'skipped': 0} == {'failed': 0,... 'skipped': 0}
+E         Omitting 2 identical items, use -vv to show
+E         Differing items:
+E         {'failed': 1} != {'failed': 0}
+E         Use -v to get the full diff
+
+/testbed/testing/test_capture.py:699: AssertionError
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_fixture_use_by_other_fixtures_teardown1collected 1 itemtest_fixture_use_by_other_fixtures_teardown.py .E                        [100%]==================================== ERRORS ====================================_________________________ ERROR at teardown of test_a __________________________capfd = <_pytest.capture.CaptureFixture object at 0x7fc7ebe0c3a0>    @pytest.fixture()    def fix(capfd):        print("setup out")        sys.stderr.write("setup err\n")        yield        out, err = capfd.readouterr()>       assert out == 'setup out\ncall out\n'E       AssertionError: assert 'setup out\rcall out\r' == 'setup out\ncall out\n'E         - setup outE         ?          ^E         + setup outE         ?          ^E         - call outE         ?         ^E         + call out...E         E         ...Full output truncated (2 lines hidden), use '-vv' to showtest_fixture_use_by_other_fixtures_teardown.py:11: AssertionError---------------------------- Captured stdout setup -----------------------------setup out---------------------------- Captured stderr setup -----------------------------setup err----------------------------- Captured stdout call -----------------------------call out----------------------------- Captured stderr call -----------------------------call err=========================== short test summary info ============================ERROR test_fixture_use_by_other_fixtures_teardown.py::test_a - AssertionError...========================== 1 passed, 1 error in 0.02s ==========================
+_______________________ test_capture_badoutput_issue412 ________________________
+
+testdir = <Testdir local('/tmp/pytest-of-root/pytest-0/test_capture_badoutput_issue4120')>
+
+    def test_capture_badoutput_issue412(testdir):
+        testdir.makepyfile(
+            """
+            import os
+    
+            def test_func():
+                omg = bytearray([1,129,1])
+                os.write(1, omg)
+                assert 0
+            """
+        )
+        result = testdir.runpytest("--capture=fd")
+>       result.stdout.fnmatch_lines(
+            """
+            *def test_func*
+            *assert 0*
+            *Captured*
+            *1 failed*
+        """
+        )
+E       Failed: nomatch: '*def test_func*'
+E           and: '============================= test session starts =============================='
+E           and: ''
+E           and: 'platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1'
+E           and: ''
+E           and: 'rootdir: /tmp/pytest-of-root/pytest-0/test_capture_badoutput_issue4120'
+E           and: ''
+E           and: 'collected 1 item'
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: 'test_capture_badoutput_issue412.py FE                                    [100%]'
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: '==================================== ERRORS ===================================='
+E           and: ''
+E           and: '________________________ ERROR at teardown of test_func ________________________'
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: 'self = <contextlib._GeneratorContextManager object at 0x7fc7ebdb6be0>'
+E           and: ''
+E           and: 'typ = None, value = None, traceback = None'
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: '    def __exit__(self, typ, value, traceback):'
+E           and: ''
+E           and: '        if typ is None:'
+E           and: ''
+E           and: '            try:'
+E           and: ''
+E           and: '>               next(self.gen)'
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: '/opt/miniconda3/envs/testbed/lib/python3.9/contextlib.py:126: '
+E           and: ''
+E           and: '_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ '
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: 'self = <encodings.utf_8.IncrementalDecoder object at 0x7fc7ebcae640>'
+E           and: ''
+E           and: "input = b'\\x01\\x81\\x01', final = True"
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: '    def decode(self, input, final=False):'
+E           and: ''
+E           and: '        # decode input (taking the buffer into account)'
+E           and: ''
+E           and: '        data = self.buffer + input'
+E           and: ''
+E           and: '>       (result, consumed) = self._buffer_decode(data, self.errors, final)'
+E           and: ''
+E           and: "E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x81 in position 1: invalid start byte"
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: '/opt/miniconda3/envs/testbed/lib/python3.9/codecs.py:322: UnicodeDecodeError'
+E           and: ''
+E           and: '=================================== FAILURES ==================================='
+E           and: ''
+E           and: '__________________________________ test_func ___________________________________'
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: 'self = <contextlib._GeneratorContextManager object at 0x7fc7ebcb9220>'
+E           and: ''
+E           and: 'typ = None, value = None, traceback = None'
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: '    def __exit__(self, typ, value, traceback):'
+E           and: ''
+E           and: '        if typ is None:'
+E           and: ''
+E           and: '            try:'
+E           and: ''
+E           and: '>               next(self.gen)'
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: '/opt/miniconda3/envs/testbed/lib/python3.9/contextlib.py:126: '
+E           and: ''
+E           and: '_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ '
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: 'self = <encodings.utf_8.IncrementalDecoder object at 0x7fc7ebcae640>'
+E           and: ''
+E           and: "input = b'\\x01\\x81\\x01', final = True"
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: '    def decode(self, input, final=False):'
+E           and: ''
+E           and: '        # decode input (taking the buffer into account)'
+E           and: ''
+E           and: '        data = self.buffer + input'
+E           and: ''
+E           and: '>       (result, consumed) = self._buffer_decode(data, self.errors, final)'
+E           and: ''
+E           and: "E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x81 in position 1: invalid start byte"
+E           and: ''
+E           and: ''
+E           and: ''
+E           and: '/opt/miniconda3/envs/testbed/lib/python3.9/codecs.py:322: UnicodeDecodeError'
+E           and: ''
+E           and: '=========================== short test summary info ============================'
+E           and: ''
+E           and: "FAILED test_capture_badoutput_issue412.py::test_func - UnicodeDecodeError: 'u..."
+E           and: ''
+E           and: "ERROR test_capture_badoutput_issue412.py::test_func - UnicodeDecodeError: 'ut..."
+E           and: ''
+E           and: '========================== 1 failed, 1 error in 0.06s =========================='
+E           and: ''
+E       remains unmatched: '*def test_func*'
+
+/testbed/testing/test_capture.py:742: Failed
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capture_badoutput_issue4120collected 1 itemtest_capture_badoutput_issue412.py FE                                    [100%]==================================== ERRORS ====================================________________________ ERROR at teardown of test_func ________________________self = <contextlib._GeneratorContextManager object at 0x7fc7ebdb6be0>typ = None, value = None, traceback = None    def __exit__(self, typ, value, traceback):        if typ is None:            try:>               next(self.gen)/opt/miniconda3/envs/testbed/lib/python3.9/contextlib.py:126: _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ self = <encodings.utf_8.IncrementalDecoder object at 0x7fc7ebcae640>input = b'\x01\x81\x01', final = True    def decode(self, input, final=False):        # decode input (taking the buffer into account)        data = self.buffer + input>       (result, consumed) = self._buffer_decode(data, self.errors, final)E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x81 in position 1: invalid start byte/opt/miniconda3/envs/testbed/lib/python3.9/codecs.py:322: UnicodeDecodeError=================================== FAILURES ===================================__________________________________ test_func ___________________________________self = <contextlib._GeneratorContextManager object at 0x7fc7ebcb9220>typ = None, value = None, traceback = None    def __exit__(self, typ, value, traceback):        if typ is None:            try:>               next(self.gen)/opt/miniconda3/envs/testbed/lib/python3.9/contextlib.py:126: _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ self = <encodings.utf_8.IncrementalDecoder object at 0x7fc7ebcae640>input = b'\x01\x81\x01', final = True    def decode(self, input, final=False):        # decode input (taking the buffer into account)        data = self.buffer + input>       (result, consumed) = self._buffer_decode(data, self.errors, final)E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x81 in position 1: invalid start byte/opt/miniconda3/envs/testbed/lib/python3.9/codecs.py:322: UnicodeDecodeError=========================== short test summary info ============================FAILED test_capture_badoutput_issue412.py::test_func - UnicodeDecodeError: 'u...ERROR test_capture_badoutput_issue412.py::test_func - UnicodeDecodeError: 'ut...========================== 1 failed, 1 error in 0.06s ==========================
+----------------------------- Captured stderr call -----------------------------
+Traceback (most recent call last):  File "/testbed/src/_pytest/pytester.py", line 1004, in runpytest_inprocess    reprec = self.inline_run(*args, **kwargs)  File "/testbed/src/_pytest/pytester.py", line 970, in inline_run    ret = pytest.main(list(args), plugins=plugins)  File "/testbed/src/_pytest/config/__init__.py", line 157, in main    ret = config.hook.pytest_cmdline_main(  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/hooks.py", line 286, in __call__    return self._hookexec(self, self.get_hookimpls(), kwargs)  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/manager.py", line 93, in _hookexec    return self._inner_hookexec(hook, methods, kwargs)  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/manager.py", line 84, in <lambda>    self._inner_hookexec = lambda hook, methods, kwargs: hook.multicall(  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/callers.py", line 208, in _multicall    return outcome.get_result()  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/callers.py", line 80, in get_result    raise ex[1].with_traceback(ex[2])  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/callers.py", line 187, in _multicall    res = hook_impl.function(*args)  File "/testbed/src/_pytest/main.py", line 289, in pytest_cmdline_main    return wrap_session(config, _main)  File "/testbed/src/_pytest/main.py", line 284, in wrap_session    config._ensure_unconfigure()  File "/testbed/src/_pytest/config/__init__.py", line 920, in _ensure_unconfigure    fin()  File "/testbed/src/_pytest/capture.py", line 644, in stop_global_capturing    self._global_capturing.pop_outerr_to_orig()  File "/testbed/src/_pytest/capture.py", line 532, in pop_outerr_to_orig    out, err = self.readouterr()  File "/testbed/src/_pytest/capture.py", line 573, in readouterr    out = self.out.snap()  File "/testbed/src/_pytest/capture.py", line 492, in snap    res = self.tmpfile.read()  File "/opt/miniconda3/envs/testbed/lib/python3.9/codecs.py", line 322, in decode    (result, consumed) = self._buffer_decode(data, self.errors, final)UnicodeDecodeError: 'utf-8' codec can't decode byte 0x81 in position 1: invalid start byte
+__________________________ test_capture_binary_output __________________________
+
+testdir = <Testdir local('/tmp/pytest-of-root/pytest-0/test_capture_binary_output0')>
+
+    def test_capture_binary_output(testdir):
+        testdir.makepyfile(
+            r"""
+            import pytest
+    
+            def test_a():
+                import sys
+                import subprocess
+                subprocess.call([sys.executable, __file__])
+    
+            def test_foo():
+                import os;os.write(1, b'\xc3')
+    
+            if __name__ == '__main__':
+                test_foo()
+            """
+        )
+        result = testdir.runpytest("--assert=plain")
+>       result.assert_outcomes(passed=2)
+E       AssertionError: assert {'errors': 3,...pped': 0, ...} == {'errors': 0,...pped': 0, ...}
+E         Omitting 3 identical items, use -vv to show
+E         Differing items:
+E         {'passed': 0} != {'passed': 2}
+E         {'errors': 3} != {'errors': 0}
+E         {'failed': 1} != {'failed': 0}
+E         Use -v to get the full diff
+
+/testbed/testing/test_capture.py:783: AssertionError
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capture_binary_output0collected 2 itemstest_capture_binary_output.py FEEE                                       [100%]==================================== ERRORS ====================================_________________________ ERROR at teardown of test_a __________________________self = <contextlib._GeneratorContextManager object at 0x7fc7eba4a6a0>typ = None, value = None, traceback = None    def __exit__(self, typ, value, traceback):        if typ is None:            try:>               next(self.gen)/opt/miniconda3/envs/testbed/lib/python3.9/contextlib.py:126: _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ self = <encodings.utf_8.IncrementalDecoder object at 0x7fc7ebb531c0>input = b'\xc3', final = True    def decode(self, input, final=False):        # decode input (taking the buffer into account)        data = self.buffer + input>       (result, consumed) = self._buffer_decode(data, self.errors, final)E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0xc3 in position 0: unexpected end of data/opt/miniconda3/envs/testbed/lib/python3.9/codecs.py:322: UnicodeDecodeError__________________________ ERROR at setup of test_foo __________________________self = <contextlib._GeneratorContextManager object at 0x7fc7ebb5d8e0>typ = None, value = None, traceback = None    def __exit__(self, typ, value, traceback):        if typ is None:            try:>               next(self.gen)/opt/miniconda3/envs/testbed/lib/python3.9/contextlib.py:126: _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ self = <encodings.utf_8.IncrementalDecoder object at 0x7fc7ebb531c0>input = b'\xc3', final = True    def decode(self, input, final=False):        # decode input (taking the buffer into account)        data = self.buffer + input>       (result, consumed) = self._buffer_decode(data, self.errors, final)E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0xc3 in position 0: unexpected end of data/opt/miniconda3/envs/testbed/lib/python3.9/codecs.py:322: UnicodeDecodeError________________________ ERROR at teardown of test_foo _________________________self = <contextlib._GeneratorContextManager object at 0x7fc7ebac2160>typ = None, value = None, traceback = None    def __exit__(self, typ, value, traceback):        if typ is None:            try:>               next(self.gen)/opt/miniconda3/envs/testbed/lib/python3.9/contextlib.py:126: _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ self = <encodings.utf_8.IncrementalDecoder object at 0x7fc7ebb531c0>input = b'\xc3', final = True    def decode(self, input, final=False):        # decode input (taking the buffer into account)        data = self.buffer + input>       (result, consumed) = self._buffer_decode(data, self.errors, final)E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0xc3 in position 0: unexpected end of data/opt/miniconda3/envs/testbed/lib/python3.9/codecs.py:322: UnicodeDecodeError=================================== FAILURES ===================================____________________________________ test_a ____________________________________self = <contextlib._GeneratorContextManager object at 0x7fc7ebb5d6d0>typ = None, value = None, traceback = None    def __exit__(self, typ, value, traceback):        if typ is None:            try:>               next(self.gen)/opt/miniconda3/envs/testbed/lib/python3.9/contextlib.py:126: _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ self = <encodings.utf_8.IncrementalDecoder object at 0x7fc7ebb531c0>input = b'\xc3', final = True    def decode(self, input, final=False):        # decode input (taking the buffer into account)        data = self.buffer + input>       (result, consumed) = self._buffer_decode(data, self.errors, final)E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0xc3 in position 0: unexpected end of data/opt/miniconda3/envs/testbed/lib/python3.9/codecs.py:322: UnicodeDecodeError=========================== short test summary info ============================FAILED test_capture_binary_output.py::test_a - UnicodeDecodeError: 'utf-8' co...ERROR test_capture_binary_output.py::test_a - UnicodeDecodeError: 'utf-8' cod...ERROR test_capture_binary_output.py::test_foo - UnicodeDecodeError: 'utf-8' c...ERROR test_capture_binary_output.py::test_foo - UnicodeDecodeError: 'utf-8' c...========================= 1 failed, 3 errors in 0.31s ==========================
+----------------------------- Captured stderr call -----------------------------
+Traceback (most recent call last):  File "/testbed/src/_pytest/pytester.py", line 1004, in runpytest_inprocess    reprec = self.inline_run(*args, **kwargs)  File "/testbed/src/_pytest/pytester.py", line 970, in inline_run    ret = pytest.main(list(args), plugins=plugins)  File "/testbed/src/_pytest/config/__init__.py", line 157, in main    ret = config.hook.pytest_cmdline_main(  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/hooks.py", line 286, in __call__    return self._hookexec(self, self.get_hookimpls(), kwargs)  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/manager.py", line 93, in _hookexec    return self._inner_hookexec(hook, methods, kwargs)  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/manager.py", line 84, in <lambda>    self._inner_hookexec = lambda hook, methods, kwargs: hook.multicall(  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/callers.py", line 208, in _multicall    return outcome.get_result()  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/callers.py", line 80, in get_result    raise ex[1].with_traceback(ex[2])  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pluggy/callers.py", line 187, in _multicall    res = hook_impl.function(*args)  File "/testbed/src/_pytest/main.py", line 289, in pytest_cmdline_main    return wrap_session(config, _main)  File "/testbed/src/_pytest/main.py", line 284, in wrap_session    config._ensure_unconfigure()  File "/testbed/src/_pytest/config/__init__.py", line 920, in _ensure_unconfigure    fin()  File "/testbed/src/_pytest/capture.py", line 644, in stop_global_capturing    self._global_capturing.pop_outerr_to_orig()  File "/testbed/src/_pytest/capture.py", line 532, in pop_outerr_to_orig    out, err = self.readouterr()  File "/testbed/src/_pytest/capture.py", line 573, in readouterr    out = self.out.snap()  File "/testbed/src/_pytest/capture.py", line 492, in snap    res = self.tmpfile.read()  File "/opt/miniconda3/envs/testbed/lib/python3.9/codecs.py", line 322, in decode    (result, consumed) = self._buffer_decode(data, self.errors, final)UnicodeDecodeError: 'utf-8' codec can't decode byte 0xc3 in position 0: unexpected end of data
+________________________ test_error_attribute_issue555 _________________________
+
+testdir = <Testdir local('/tmp/pytest-of-root/pytest-0/test_error_attribute_issue5550')>
+
+    def test_error_attribute_issue555(testdir):
+        testdir.makepyfile(
+            """
+            import sys
+            def test_capattr():
+                assert sys.stdout.errors == "replace"
+                assert sys.stderr.errors == "replace"
+        """
+        )
+        reprec = testdir.inline_run()
+>       reprec.assertoutcome(passed=1)
+E       AssertionError: ([], [], [<TestReport 'test_error_attribute_issue555.py::test_capattr' when='call' outcome='failed'>])
+E       assert {'failed': 1,... 'skipped': 0} == {'failed': 0,... 'skipped': 0}
+E         Omitting 1 identical items, use -vv to show
+E         Differing items:
+E         {'passed': 0} != {'passed': 1}
+E         {'failed': 1} != {'failed': 0}
+E         Use -v to get the full diff
+
+/testbed/testing/test_capture.py:1355: AssertionError
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_error_attribute_issue5550collected 1 itemtest_error_attribute_issue555.py F                                       [100%]=================================== FAILURES ===================================_________________________________ test_capattr _________________________________    def test_capattr():>       assert sys.stdout.errors == "replace"E       AssertionError: assert 'strict' == 'replace'E         - replaceE         + stricttest_error_attribute_issue555.py:3: AssertionError=========================== short test summary info ============================FAILED test_error_attribute_issue555.py::test_capattr - AssertionError: asser...============================== 1 failed in 0.01s ===============================
+________ TestCaptureFixture.test_disabled_capture_fixture[True-capsys] _________
+
+self = <test_capture.TestCaptureFixture object at 0x7fc7eb9ce1c0>
+testdir = <Testdir local('/tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture0')>
+fixture = 'capsys', no_capture = True
+
+    @pytest.mark.parametrize("fixture", ["capsys", "capfd"])
+    @pytest.mark.parametrize("no_capture", [True, False])
+    def test_disabled_capture_fixture(self, testdir, fixture, no_capture):
+        testdir.makepyfile(
+            """\
+            def test_disabled({fixture}):
+                print('captured before')
+                with {fixture}.disabled():
+                    print('while capture is disabled')
+                print('captured after')
+                assert {fixture}.readouterr() == ('captured before\\ncaptured after\\n', '')
+    
+            def test_normal():
+                print('test_normal executed')
+        """.format(
+                fixture=fixture
+            )
+        )
+        args = ("-s",) if no_capture else ()
+        result = testdir.runpytest_subprocess(*args)
+>       result.stdout.fnmatch_lines(["*while capture is disabled*", "*= 2 passed in *"])
+E       Failed: nomatch: '*while capture is disabled*'
+E           and: '============================= test session starts =============================='
+E           and: 'platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1'
+E           and: 'rootdir: /tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture0'
+E           and: 'collected 2 items'
+E           and: ''
+E       fnmatch: '*while capture is disabled*'
+E          with: 'test_disabled_capture_fixture.py while capture is disabled'
+E       nomatch: '*= 2 passed in *'
+E           and: 'Ftest_normal executed'
+E           and: '.'
+E           and: ''
+E           and: '=================================== FAILURES ==================================='
+E           and: '________________________________ test_disabled _________________________________'
+E           and: ''
+E           and: 'capsys = <_pytest.capture.CaptureFixture object at 0x7fc6b7ea3a30>'
+E           and: ''
+E           and: '    def test_disabled(capsys):'
+E           and: "        print('captured before')"
+E           and: '        with capsys.disabled():'
+E           and: "            print('while capture is disabled')"
+E           and: "        print('captured after')"
+E           and: ">       assert capsys.readouterr() == ('captured before\\ncaptured after\\n', '')"
+E           and: "E       AssertionError: assert CaptureResult...\\r\\r', err='') == ('captured be... after\\n', '')"
+E           and: "E         At index 0 diff: 'captured before\\r\\rcaptured after\\r\\r' != 'captured before\\ncaptured after\\n'"
+E           and: 'E         Use -v to get the full diff'
+E           and: ''
+E           and: 'test_disabled_capture_fixture.py:6: AssertionError'
+E           and: '=========================== short test summary info ============================'
+E           and: 'FAILED test_disabled_capture_fixture.py::test_disabled - AssertionError: asse...'
+E           and: '========================= 1 failed, 1 passed in 0.05s =========================='
+E       remains unmatched: '*= 2 passed in *'
+
+/testbed/testing/test_capture.py:628: Failed
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture0/runpytest-0 -s     in: /tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture0============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture0collected 2 itemstest_disabled_capture_fixture.py while capture is disabledFtest_normal executed.=================================== FAILURES ===================================________________________________ test_disabled _________________________________capsys = <_pytest.capture.CaptureFixture object at 0x7fc6b7ea3a30>    def test_disabled(capsys):        print('captured before')        with capsys.disabled():            print('while capture is disabled')        print('captured after')>       assert capsys.readouterr() == ('captured before\ncaptured after\n', '')E       AssertionError: assert CaptureResult...\r\r', err='') == ('captured be... after\n', '')E         At index 0 diff: 'captured before\r\rcaptured after\r\r' != 'captured before\ncaptured after\n'E         Use -v to get the full difftest_disabled_capture_fixture.py:6: AssertionError=========================== short test summary info ============================FAILED test_disabled_capture_fixture.py::test_disabled - AssertionError: asse...========================= 1 failed, 1 passed in 0.05s ==========================
+_________ TestCaptureFixture.test_disabled_capture_fixture[True-capfd] _________
+
+self = <test_capture.TestCaptureFixture object at 0x7fc7eb9ce850>
+testdir = <Testdir local('/tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture1')>
+fixture = 'capfd', no_capture = True
+
+    @pytest.mark.parametrize("fixture", ["capsys", "capfd"])
+    @pytest.mark.parametrize("no_capture", [True, False])
+    def test_disabled_capture_fixture(self, testdir, fixture, no_capture):
+        testdir.makepyfile(
+            """\
+            def test_disabled({fixture}):
+                print('captured before')
+                with {fixture}.disabled():
+                    print('while capture is disabled')
+                print('captured after')
+                assert {fixture}.readouterr() == ('captured before\\ncaptured after\\n', '')
+    
+            def test_normal():
+                print('test_normal executed')
+        """.format(
+                fixture=fixture
+            )
+        )
+        args = ("-s",) if no_capture else ()
+        result = testdir.runpytest_subprocess(*args)
+>       result.stdout.fnmatch_lines(["*while capture is disabled*", "*= 2 passed in *"])
+E       Failed: nomatch: '*while capture is disabled*'
+E           and: '============================= test session starts =============================='
+E           and: 'platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1'
+E           and: 'rootdir: /tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture1'
+E           and: 'collected 2 items'
+E           and: ''
+E       fnmatch: '*while capture is disabled*'
+E          with: 'test_disabled_capture_fixture.py while capture is disabled'
+E       nomatch: '*= 2 passed in *'
+E           and: 'Ftest_normal executed'
+E           and: '.'
+E           and: ''
+E           and: '=================================== FAILURES ==================================='
+E           and: '________________________________ test_disabled _________________________________'
+E           and: ''
+E           and: 'capfd = <_pytest.capture.CaptureFixture object at 0x7f6dc472a9a0>'
+E           and: ''
+E           and: '    def test_disabled(capfd):'
+E           and: "        print('captured before')"
+E           and: '        with capfd.disabled():'
+E           and: "            print('while capture is disabled')"
+E           and: "        print('captured after')"
+E           and: ">       assert capfd.readouterr() == ('captured before\\ncaptured after\\n', '')"
+E           and: "E       AssertionError: assert CaptureResult...er\\r', err='') == ('captured be... after\\n', '')"
+E           and: "E         At index 0 diff: 'captured before\\rcaptured after\\r' != 'captured before\\ncaptured after\\n'"
+E           and: 'E         Use -v to get the full diff'
+E           and: ''
+E           and: 'test_disabled_capture_fixture.py:6: AssertionError'
+E           and: '=========================== short test summary info ============================'
+E           and: 'FAILED test_disabled_capture_fixture.py::test_disabled - AssertionError: asse...'
+E           and: '========================= 1 failed, 1 passed in 0.07s =========================='
+E       remains unmatched: '*= 2 passed in *'
+
+/testbed/testing/test_capture.py:628: Failed
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture1/runpytest-0 -s     in: /tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture1============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture1collected 2 itemstest_disabled_capture_fixture.py while capture is disabledFtest_normal executed.=================================== FAILURES ===================================________________________________ test_disabled _________________________________capfd = <_pytest.capture.CaptureFixture object at 0x7f6dc472a9a0>    def test_disabled(capfd):        print('captured before')        with capfd.disabled():            print('while capture is disabled')        print('captured after')>       assert capfd.readouterr() == ('captured before\ncaptured after\n', '')E       AssertionError: assert CaptureResult...er\r', err='') == ('captured be... after\n', '')E         At index 0 diff: 'captured before\rcaptured after\r' != 'captured before\ncaptured after\n'E         Use -v to get the full difftest_disabled_capture_fixture.py:6: AssertionError=========================== short test summary info ============================FAILED test_disabled_capture_fixture.py::test_disabled - AssertionError: asse...========================= 1 failed, 1 passed in 0.07s ==========================
+________ TestCaptureFixture.test_disabled_capture_fixture[False-capsys] ________
+
+self = <test_capture.TestCaptureFixture object at 0x7fc7eb9ce040>
+testdir = <Testdir local('/tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture2')>
+fixture = 'capsys', no_capture = False
+
+    @pytest.mark.parametrize("fixture", ["capsys", "capfd"])
+    @pytest.mark.parametrize("no_capture", [True, False])
+    def test_disabled_capture_fixture(self, testdir, fixture, no_capture):
+        testdir.makepyfile(
+            """\
+            def test_disabled({fixture}):
+                print('captured before')
+                with {fixture}.disabled():
+                    print('while capture is disabled')
+                print('captured after')
+                assert {fixture}.readouterr() == ('captured before\\ncaptured after\\n', '')
+    
+            def test_normal():
+                print('test_normal executed')
+        """.format(
+                fixture=fixture
+            )
+        )
+        args = ("-s",) if no_capture else ()
+        result = testdir.runpytest_subprocess(*args)
+>       result.stdout.fnmatch_lines(["*while capture is disabled*", "*= 2 passed in *"])
+E       Failed: nomatch: '*while capture is disabled*'
+E           and: '============================= test session starts =============================='
+E           and: 'platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1'
+E           and: 'rootdir: /tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture2'
+E           and: 'collected 2 items'
+E           and: ''
+E       fnmatch: '*while capture is disabled*'
+E          with: 'test_disabled_capture_fixture.py while capture is disabled'
+E       nomatch: '*= 2 passed in *'
+E           and: 'F.                                      [100%]'
+E           and: ''
+E           and: '=================================== FAILURES ==================================='
+E           and: '________________________________ test_disabled _________________________________'
+E           and: ''
+E           and: 'capsys = <_pytest.capture.CaptureFixture object at 0x7fee0ae81cd0>'
+E           and: ''
+E           and: '    def test_disabled(capsys):'
+E           and: "        print('captured before')"
+E           and: '        with capsys.disabled():'
+E           and: "            print('while capture is disabled')"
+E           and: "        print('captured after')"
+E           and: ">       assert capsys.readouterr() == ('captured before\\ncaptured after\\n', '')"
+E           and: "E       AssertionError: assert CaptureResult...\\r\\r', err='') == ('captured be... after\\n', '')"
+E           and: "E         At index 0 diff: 'captured before\\r\\rcaptured after\\r\\r' != 'captured before\\ncaptured after\\n'"
+E           and: 'E         Use -v to get the full diff'
+E           and: ''
+E           and: 'test_disabled_capture_fixture.py:6: AssertionError'
+E           and: '=========================== short test summary info ============================'
+E           and: 'FAILED test_disabled_capture_fixture.py::test_disabled - AssertionError: asse...'
+E           and: '========================= 1 failed, 1 passed in 0.06s =========================='
+E       remains unmatched: '*= 2 passed in *'
+
+/testbed/testing/test_capture.py:628: Failed
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture2/runpytest-0     in: /tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture2============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture2collected 2 itemstest_disabled_capture_fixture.py while capture is disabledF.                                      [100%]=================================== FAILURES ===================================________________________________ test_disabled _________________________________capsys = <_pytest.capture.CaptureFixture object at 0x7fee0ae81cd0>    def test_disabled(capsys):        print('captured before')        with capsys.disabled():            print('while capture is disabled')        print('captured after')>       assert capsys.readouterr() == ('captured before\ncaptured after\n', '')E       AssertionError: assert CaptureResult...\r\r', err='') == ('captured be... after\n', '')E         At index 0 diff: 'captured before\r\rcaptured after\r\r' != 'captured before\ncaptured after\n'E         Use -v to get the full difftest_disabled_capture_fixture.py:6: AssertionError=========================== short test summary info ============================FAILED test_disabled_capture_fixture.py::test_disabled - AssertionError: asse...========================= 1 failed, 1 passed in 0.06s ==========================
+________ TestCaptureFixture.test_disabled_capture_fixture[False-capfd] _________
+
+self = <test_capture.TestCaptureFixture object at 0x7fc7eb9c92e0>
+testdir = <Testdir local('/tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture3')>
+fixture = 'capfd', no_capture = False
+
+    @pytest.mark.parametrize("fixture", ["capsys", "capfd"])
+    @pytest.mark.parametrize("no_capture", [True, False])
+    def test_disabled_capture_fixture(self, testdir, fixture, no_capture):
+        testdir.makepyfile(
+            """\
+            def test_disabled({fixture}):
+                print('captured before')
+                with {fixture}.disabled():
+                    print('while capture is disabled')
+                print('captured after')
+                assert {fixture}.readouterr() == ('captured before\\ncaptured after\\n', '')
+    
+            def test_normal():
+                print('test_normal executed')
+        """.format(
+                fixture=fixture
+            )
+        )
+        args = ("-s",) if no_capture else ()
+        result = testdir.runpytest_subprocess(*args)
+>       result.stdout.fnmatch_lines(["*while capture is disabled*", "*= 2 passed in *"])
+E       Failed: nomatch: '*while capture is disabled*'
+E           and: '============================= test session starts =============================='
+E           and: 'platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1'
+E           and: 'rootdir: /tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture3'
+E           and: 'collected 2 items'
+E           and: ''
+E       fnmatch: '*while capture is disabled*'
+E          with: 'test_disabled_capture_fixture.py while capture is disabled'
+E       nomatch: '*= 2 passed in *'
+E           and: 'F.                                      [100%]'
+E           and: ''
+E           and: '=================================== FAILURES ==================================='
+E           and: '________________________________ test_disabled _________________________________'
+E           and: ''
+E           and: 'capfd = <_pytest.capture.CaptureFixture object at 0x7fe02b84fd00>'
+E           and: ''
+E           and: '    def test_disabled(capfd):'
+E           and: "        print('captured before')"
+E           and: '        with capfd.disabled():'
+E           and: "            print('while capture is disabled')"
+E           and: "        print('captured after')"
+E           and: ">       assert capfd.readouterr() == ('captured before\\ncaptured after\\n', '')"
+E           and: "E       AssertionError: assert CaptureResult...er\\r', err='') == ('captured be... after\\n', '')"
+E           and: "E         At index 0 diff: 'captured before\\rcaptured after\\r' != 'captured before\\ncaptured after\\n'"
+E           and: 'E         Use -v to get the full diff'
+E           and: ''
+E           and: 'test_disabled_capture_fixture.py:6: AssertionError'
+E           and: '=========================== short test summary info ============================'
+E           and: 'FAILED test_disabled_capture_fixture.py::test_disabled - AssertionError: asse...'
+E           and: '========================= 1 failed, 1 passed in 0.05s =========================='
+E       remains unmatched: '*= 2 passed in *'
+
+/testbed/testing/test_capture.py:628: Failed
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture3/runpytest-0     in: /tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture3============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_disabled_capture_fixture3collected 2 itemstest_disabled_capture_fixture.py while capture is disabledF.                                      [100%]=================================== FAILURES ===================================________________________________ test_disabled _________________________________capfd = <_pytest.capture.CaptureFixture object at 0x7fe02b84fd00>    def test_disabled(capfd):        print('captured before')        with capfd.disabled():            print('while capture is disabled')        print('captured after')>       assert capfd.readouterr() == ('captured before\ncaptured after\n', '')E       AssertionError: assert CaptureResult...er\r', err='') == ('captured be... after\n', '')E         At index 0 diff: 'captured before\rcaptured after\r' != 'captured before\ncaptured after\n'E         Use -v to get the full difftest_disabled_capture_fixture.py:6: AssertionError=========================== short test summary info ============================FAILED test_disabled_capture_fixture.py::test_disabled - AssertionError: asse...========================= 1 failed, 1 passed in 0.05s ==========================
+________ TestCaptureFixture.test_fixture_use_by_other_fixtures[capsys] _________
+
+self = <test_capture.TestCaptureFixture object at 0x7fc7eb9c95b0>
+testdir = <Testdir local('/tmp/pytest-of-root/pytest-0/test_fixture_use_by_other_fixtures0')>
+fixture = 'capsys'
+
+    @pytest.mark.parametrize("fixture", ["capsys", "capfd"])
+    def test_fixture_use_by_other_fixtures(self, testdir, fixture):
+        """
+        Ensure that capsys and capfd can be used by other fixtures during setup and teardown.
+        """
+        testdir.makepyfile(
+            """\
+            import sys
+            import pytest
+    
+            @pytest.fixture
+            def captured_print({fixture}):
+                print('stdout contents begin')
+                print('stderr contents begin', file=sys.stderr)
+                out, err = {fixture}.readouterr()
+    
+                yield out, err
+    
+                print('stdout contents end')
+                print('stderr contents end', file=sys.stderr)
+                out, err = {fixture}.readouterr()
+                assert out == 'stdout contents end\\n'
+                assert err == 'stderr contents end\\n'
+    
+            def test_captured_print(captured_print):
+                out, err = captured_print
+                assert out == 'stdout contents begin\\n'
+                assert err == 'stderr contents begin\\n'
+        """.format(
+                fixture=fixture
+            )
+        )
+        result = testdir.runpytest_subprocess()
+>       result.stdout.fnmatch_lines(["*1 passed*"])
+E       Failed: nomatch: '*1 passed*'
+E           and: '============================= test session starts =============================='
+E           and: 'platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1'
+E           and: 'rootdir: /tmp/pytest-of-root/pytest-0/test_fixture_use_by_other_fixtures0'
+E           and: 'collected 1 item'
+E           and: ''
+E           and: 'test_fixture_use_by_other_fixtures.py FE                                 [100%]'
+E           and: ''
+E           and: '==================================== ERRORS ===================================='
+E           and: '___________________ ERROR at teardown of test_captured_print ___________________'
+E           and: ''
+E           and: 'capsys = <_pytest.capture.CaptureFixture object at 0x7f66586f1d30>'
+E           and: ''
+E           and: '    @pytest.fixture'
+E           and: '    def captured_print(capsys):'
+E           and: "        print('stdout contents begin')"
+E           and: "        print('stderr contents begin', file=sys.stderr)"
+E           and: '        out, err = capsys.readouterr()'
+E           and: '    '
+E           and: '        yield out, err'
+E           and: '    '
+E           and: "        print('stdout contents end')"
+E           and: "        print('stderr contents end', file=sys.stderr)"
+E           and: '        out, err = capsys.readouterr()'
+E           and: ">       assert out == 'stdout contents end\\n'"
+E           and: "E       AssertionError: assert 'stdout contents end\\r\\r' == 'stdout contents end\\n'"
+E           and: 'E         - stdout contents end'
+E           and: 'E         ?                    ^'
+E           and: 'E         + stdout contents end'
+E           and: 'E         ?                    ^'
+E           and: 'E         +'
+E           and: ''
+E           and: 'test_fixture_use_by_other_fixtures.py:15: AssertionError'
+E           and: '=================================== FAILURES ==================================='
+E           and: '_____________________________ test_captured_print ______________________________'
+E           and: ''
+E           and: "captured_print = ('stdout contents begin\\r\\r', 'stderr contents begin\\r\\r')"
+E           and: ''
+E           and: '    def test_captured_print(captured_print):'
+E           and: '        out, err = captured_print'
+E           and: ">       assert out == 'stdout contents begin\\n'"
+E           and: "E       AssertionError: assert 'stdout contents begin\\r\\r' == 'stdout contents begin\\n'"
+E           and: 'E         - stdout contents begin'
+E           and: 'E         ?                      ^'
+E           and: 'E         + stdout contents begin'
+E           and: 'E         ?                      ^'
+E           and: 'E         +'
+E           and: ''
+E           and: 'test_fixture_use_by_other_fixtures.py:20: AssertionError'
+E           and: '=========================== short test summary info ============================'
+E           and: 'FAILED test_fixture_use_by_other_fixtures.py::test_captured_print - Assertion...'
+E           and: 'ERROR test_fixture_use_by_other_fixtures.py::test_captured_print - AssertionE...'
+E           and: '========================== 1 failed, 1 error in 0.05s =========================='
+E       remains unmatched: '*1 passed*'
+
+/testbed/testing/test_capture.py:669: Failed
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_fixture_use_by_other_fixtures0/runpytest-0     in: /tmp/pytest-of-root/pytest-0/test_fixture_use_by_other_fixtures0============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_fixture_use_by_other_fixtures0collected 1 itemtest_fixture_use_by_other_fixtures.py FE                                 [100%]==================================== ERRORS ====================================___________________ ERROR at teardown of test_captured_print ___________________capsys = <_pytest.capture.CaptureFixture object at 0x7f66586f1d30>    @pytest.fixture    def captured_print(capsys):        print('stdout contents begin')        print('stderr contents begin', file=sys.stderr)        out, err = capsys.readouterr()            yield out, err            print('stdout contents end')        print('stderr contents end', file=sys.stderr)        out, err = capsys.readouterr()>       assert out == 'stdout contents end\n'E       AssertionError: assert 'stdout contents end\r\r' == 'stdout contents end\n'E         - stdout contents endE         ?                    ^E         + stdout contents endE         ?                    ^E         +test_fixture_use_by_other_fixtures.py:15: AssertionError=================================== FAILURES ===================================_____________________________ test_captured_print ______________________________captured_print = ('stdout contents begin\r\r', 'stderr contents begin\r\r')    def test_captured_print(captured_print):        out, err = captured_print>       assert out == 'stdout contents begin\n'E       AssertionError: assert 'stdout contents begin\r\r' == 'stdout contents begin\n'E         - stdout contents beginE         ?                      ^E         + stdout contents beginE         ?                      ^E         +test_fixture_use_by_other_fixtures.py:20: AssertionError=========================== short test summary info ============================FAILED test_fixture_use_by_other_fixtures.py::test_captured_print - Assertion...ERROR test_fixture_use_by_other_fixtures.py::test_captured_print - AssertionE...========================== 1 failed, 1 error in 0.05s ==========================
+_________ TestCaptureFixture.test_fixture_use_by_other_fixtures[capfd] _________
+
+self = <test_capture.TestCaptureFixture object at 0x7fc7eb898b50>
+testdir = <Testdir local('/tmp/pytest-of-root/pytest-0/test_fixture_use_by_other_fixtures1')>
+fixture = 'capfd'
+
+    @pytest.mark.parametrize("fixture", ["capsys", "capfd"])
+    def test_fixture_use_by_other_fixtures(self, testdir, fixture):
+        """
+        Ensure that capsys and capfd can be used by other fixtures during setup and teardown.
+        """
+        testdir.makepyfile(
+            """\
+            import sys
+            import pytest
+    
+            @pytest.fixture
+            def captured_print({fixture}):
+                print('stdout contents begin')
+                print('stderr contents begin', file=sys.stderr)
+                out, err = {fixture}.readouterr()
+    
+                yield out, err
+    
+                print('stdout contents end')
+                print('stderr contents end', file=sys.stderr)
+                out, err = {fixture}.readouterr()
+                assert out == 'stdout contents end\\n'
+                assert err == 'stderr contents end\\n'
+    
+            def test_captured_print(captured_print):
+                out, err = captured_print
+                assert out == 'stdout contents begin\\n'
+                assert err == 'stderr contents begin\\n'
+        """.format(
+                fixture=fixture
+            )
+        )
+        result = testdir.runpytest_subprocess()
+>       result.stdout.fnmatch_lines(["*1 passed*"])
+E       Failed: nomatch: '*1 passed*'
+E           and: '============================= test session starts =============================='
+E           and: 'platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1'
+E           and: 'rootdir: /tmp/pytest-of-root/pytest-0/test_fixture_use_by_other_fixtures1'
+E           and: 'collected 1 item'
+E           and: ''
+E           and: 'test_fixture_use_by_other_fixtures.py FE                                 [100%]'
+E           and: ''
+E           and: '==================================== ERRORS ===================================='
+E           and: '___________________ ERROR at teardown of test_captured_print ___________________'
+E           and: ''
+E           and: 'capfd = <_pytest.capture.CaptureFixture object at 0x7f64a3aa4070>'
+E           and: ''
+E           and: '    @pytest.fixture'
+E           and: '    def captured_print(capfd):'
+E           and: "        print('stdout contents begin')"
+E           and: "        print('stderr contents begin', file=sys.stderr)"
+E           and: '        out, err = capfd.readouterr()'
+E           and: '    '
+E           and: '        yield out, err'
+E           and: '    '
+E           and: "        print('stdout contents end')"
+E           and: "        print('stderr contents end', file=sys.stderr)"
+E           and: '        out, err = capfd.readouterr()'
+E           and: ">       assert out == 'stdout contents end\\n'"
+E           and: "E       AssertionError: assert 'stdout contents end\\r' == 'stdout contents end\\n'"
+E           and: 'E         - stdout contents end'
+E           and: 'E         ?                    ^'
+E           and: 'E         + stdout contents end'
+E           and: 'E         ?                    ^'
+E           and: ''
+E           and: 'test_fixture_use_by_other_fixtures.py:15: AssertionError'
+E           and: '=================================== FAILURES ==================================='
+E           and: '_____________________________ test_captured_print ______________________________'
+E           and: ''
+E           and: "captured_print = ('stdout contents begin\\r', 'stderr contents begin\\r')"
+E           and: ''
+E           and: '    def test_captured_print(captured_print):'
+E           and: '        out, err = captured_print'
+E           and: ">       assert out == 'stdout contents begin\\n'"
+E           and: "E       AssertionError: assert 'stdout contents begin\\r' == 'stdout contents begin\\n'"
+E           and: 'E         - stdout contents begin'
+E           and: 'E         ?                      ^'
+E           and: 'E         + stdout contents begin'
+E           and: 'E         ?                      ^'
+E           and: ''
+E           and: 'test_fixture_use_by_other_fixtures.py:20: AssertionError'
+E           and: '=========================== short test summary info ============================'
+E           and: 'FAILED test_fixture_use_by_other_fixtures.py::test_captured_print - Assertion...'
+E           and: 'ERROR test_fixture_use_by_other_fixtures.py::test_captured_print - AssertionE...'
+E           and: '========================== 1 failed, 1 error in 0.05s =========================='
+E       remains unmatched: '*1 passed*'
+
+/testbed/testing/test_capture.py:669: Failed
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_fixture_use_by_other_fixtures1/runpytest-0     in: /tmp/pytest-of-root/pytest-0/test_fixture_use_by_other_fixtures1============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_fixture_use_by_other_fixtures1collected 1 itemtest_fixture_use_by_other_fixtures.py FE                                 [100%]==================================== ERRORS ====================================___________________ ERROR at teardown of test_captured_print ___________________capfd = <_pytest.capture.CaptureFixture object at 0x7f64a3aa4070>    @pytest.fixture    def captured_print(capfd):        print('stdout contents begin')        print('stderr contents begin', file=sys.stderr)        out, err = capfd.readouterr()            yield out, err            print('stdout contents end')        print('stderr contents end', file=sys.stderr)        out, err = capfd.readouterr()>       assert out == 'stdout contents end\n'E       AssertionError: assert 'stdout contents end\r' == 'stdout contents end\n'E         - stdout contents endE         ?                    ^E         + stdout contents endE         ?                    ^test_fixture_use_by_other_fixtures.py:15: AssertionError=================================== FAILURES ===================================_____________________________ test_captured_print ______________________________captured_print = ('stdout contents begin\r', 'stderr contents begin\r')    def test_captured_print(captured_print):        out, err = captured_print>       assert out == 'stdout contents begin\n'E       AssertionError: assert 'stdout contents begin\r' == 'stdout contents begin\n'E         - stdout contents beginE         ?                      ^E         + stdout contents beginE         ?                      ^test_fixture_use_by_other_fixtures.py:20: AssertionError=========================== short test summary info ============================FAILED test_fixture_use_by_other_fixtures.py::test_captured_print - Assertion...ERROR test_fixture_use_by_other_fixtures.py::test_captured_print - AssertionE...========================== 1 failed, 1 error in 0.05s ==========================
+____________________ test_capture_with_live_logging[capsys] ____________________
+
+testdir = <Testdir local('/tmp/pytest-of-root/pytest-0/test_capture_with_live_logging0')>
+capture_fixture = 'capsys'
+
+    @pytest.mark.parametrize("capture_fixture", ["capsys", "capfd"])
+    def test_capture_with_live_logging(testdir, capture_fixture):
+        # Issue 3819
+        # capture should work with live cli logging
+    
+        testdir.makepyfile(
+            """
+            import logging
+            import sys
+    
+            logger = logging.getLogger(__name__)
+    
+            def test_capture({0}):
+                print("hello")
+                sys.stderr.write("world\\n")
+                captured = {0}.readouterr()
+                assert captured.out == "hello\\n"
+                assert captured.err == "world\\n"
+    
+                logging.info("something")
+                print("next")
+                logging.info("something")
+    
+                captured = {0}.readouterr()
+                assert captured.out == "next\\n"
+            """.format(
+                capture_fixture
+            )
+        )
+    
+        result = testdir.runpytest_subprocess("--log-cli-level=INFO")
+>       assert result.ret == 0
+E       assert <ExitCode.TESTS_FAILED: 1> == 0
+E        +  where <ExitCode.TESTS_FAILED: 1> = <RunResult ret=ExitCode.TESTS_FAILED len(stdout.lines)=28 len(stderr.lines)=0 duration=0.42s>.ret
+
+/testbed/testing/test_capture.py:1515: AssertionError
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_capture_with_live_logging0/runpytest-0 --log-cli-level=INFO     in: /tmp/pytest-of-root/pytest-0/test_capture_with_live_logging0============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capture_with_live_logging0collected 1 itemtest_capture_with_live_logging.py::test_capture FAILED                   [100%]=================================== FAILURES ===================================_________________________________ test_capture _________________________________capsys = <_pytest.capture.CaptureFixture object at 0x7facc8d071f0>    def test_capture(capsys):        print("hello")        sys.stderr.write("world\n")        captured = capsys.readouterr()>       assert captured.out == "hello\n"E       AssertionError: assert 'hello\r\r' == 'hello\n'E         - helloE         ?      ^E         + helloE         ?      ^E         +test_capture_with_live_logging.py:10: AssertionError=========================== short test summary info ============================FAILED test_capture_with_live_logging.py::test_capture - AssertionError: asse...============================== 1 failed in 0.07s ===============================
+____________________ test_capture_with_live_logging[capfd] _____________________
+
+testdir = <Testdir local('/tmp/pytest-of-root/pytest-0/test_capture_with_live_logging1')>
+capture_fixture = 'capfd'
+
+    @pytest.mark.parametrize("capture_fixture", ["capsys", "capfd"])
+    def test_capture_with_live_logging(testdir, capture_fixture):
+        # Issue 3819
+        # capture should work with live cli logging
+    
+        testdir.makepyfile(
+            """
+            import logging
+            import sys
+    
+            logger = logging.getLogger(__name__)
+    
+            def test_capture({0}):
+                print("hello")
+                sys.stderr.write("world\\n")
+                captured = {0}.readouterr()
+                assert captured.out == "hello\\n"
+                assert captured.err == "world\\n"
+    
+                logging.info("something")
+                print("next")
+                logging.info("something")
+    
+                captured = {0}.readouterr()
+                assert captured.out == "next\\n"
+            """.format(
+                capture_fixture
+            )
+        )
+    
+        result = testdir.runpytest_subprocess("--log-cli-level=INFO")
+>       assert result.ret == 0
+E       assert <ExitCode.TESTS_FAILED: 1> == 0
+E        +  where <ExitCode.TESTS_FAILED: 1> = <RunResult ret=ExitCode.TESTS_FAILED len(stdout.lines)=27 len(stderr.lines)=0 duration=0.39s>.ret
+
+/testbed/testing/test_capture.py:1515: AssertionError
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_capture_with_live_logging1/runpytest-0 --log-cli-level=INFO     in: /tmp/pytest-of-root/pytest-0/test_capture_with_live_logging1============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capture_with_live_logging1collected 1 itemtest_capture_with_live_logging.py::test_capture FAILED                   [100%]=================================== FAILURES ===================================_________________________________ test_capture _________________________________capfd = <_pytest.capture.CaptureFixture object at 0x7fb29926d220>    def test_capture(capfd):        print("hello")        sys.stderr.write("world\n")        captured = capfd.readouterr()>       assert captured.out == "hello\n"E       AssertionError: assert 'hello\r' == 'hello\n'E         - helloE         ?      ^E         + helloE         ?      ^test_capture_with_live_logging.py:10: AssertionError=========================== short test summary info ============================FAILED test_capture_with_live_logging.py::test_capture - AssertionError: asse...============================== 1 failed in 0.05s ===============================
+==================================== PASSES ====================================
+_______________ TestCaptureManager.test_capturing_basic_api[no] ________________
+----------------------------- Captured stdout call -----------------------------
+hellohello
+___________________ TestFDCapture.test_simple_resume_suspend ___________________
+----------------------------- Captured stdout call -----------------------------
+worldqlwkej
+_____________________ TestStdCapture.test_just_out_capture _____________________
+----------------------------- Captured stderr call -----------------------------
+world
+_____________________ TestStdCapture.test_just_err_capture _____________________
+----------------------------- Captured stdout call -----------------------------
+hello
+_________________ TestStdCapture.test_stdin_nulled_by_default __________________
+----------------------------- Captured stdout call -----------------------------
+XXX this test may well hang instead of crashingXXX which indicates an error in the underlying capturingXXX mechanisms
+_________________ TestTeeStdCapture.test_capturing_done_simple _________________
+----------------------------- Captured stdout call -----------------------------
+hello
+----------------------------- Captured stderr call -----------------------------
+world
+________ TestTeeStdCapture.test_capture_results_accessible_by_attribute ________
+----------------------------- Captured stdout call -----------------------------
+hello
+----------------------------- Captured stderr call -----------------------------
+world
+_________ TestTeeStdCapture.test_capturing_modify_sysouterr_in_between _________
+----------------------------- Captured stdout call -----------------------------
+hello
+----------------------------- Captured stderr call -----------------------------
+world
+___________________ TestTeeStdCapture.test_just_out_capture ____________________
+----------------------------- Captured stdout call -----------------------------
+hello
+----------------------------- Captured stderr call -----------------------------
+world
+___________________ TestTeeStdCapture.test_just_err_capture ____________________
+----------------------------- Captured stdout call -----------------------------
+hello
+----------------------------- Captured stderr call -----------------------------
+world
+________________ TestTeeStdCapture.test_stdin_nulled_by_default ________________
+----------------------------- Captured stdout call -----------------------------
+XXX this test may well hang instead of crashingXXX which indicates an error in the underlying capturingXXX mechanisms
+____________________ TestStdCaptureFD.test_just_out_capture ____________________
+----------------------------- Captured stderr call -----------------------------
+world
+____________________ TestStdCaptureFD.test_just_err_capture ____________________
+----------------------------- Captured stdout call -----------------------------
+hello
+________________ TestStdCaptureFD.test_stdin_nulled_by_default _________________
+----------------------------- Captured stdout call -----------------------------
+XXX this test may well hang instead of crashingXXX which indicates an error in the underlying capturingXXX mechanisms
+________________________ test_stderr_write_returns_len _________________________
+----------------------------- Captured stderr call -----------------------------
+Foo
+__________________________ test_capturing_unicode[fd] __________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capturing_unicode0collected 1 itemtest_capturing_unicode.py .                                              [100%]============================== 1 passed in 0.01s ===============================
+_________________________ test_capturing_unicode[sys] __________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capturing_unicode1collected 1 itemtest_capturing_unicode.py .                                              [100%]============================== 1 passed in 0.01s ===============================
+__________________ test_capturing_bytes_in_utf8_encoding[fd] ___________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capturing_bytes_in_utf8_encoding0collected 1 itemtest_capturing_bytes_in_utf8_encoding.py .                               [100%]============================== 1 passed in 0.01s ===============================
+__________________ test_capturing_bytes_in_utf8_encoding[sys] __________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capturing_bytes_in_utf8_encoding1collected 1 itemtest_capturing_bytes_in_utf8_encoding.py .                               [100%]============================== 1 passed in 0.01s ===============================
+____________________________ test_collect_capturing ____________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_collect_capturing0collected 0 items / 1 error==================================== ERRORS ====================================__________________ ERROR collecting test_collect_capturing.py __________________ImportError while importing test module '/tmp/pytest-of-root/pytest-0/test_collect_capturing0/test_collect_capturing.py'.Hint: make sure your test modules/packages have valid Python names.Traceback:/opt/miniconda3/envs/testbed/lib/python3.9/importlib/__init__.py:127: in import_module    return _bootstrap._gcd_import(name[level:], package, level)test_collect_capturing.py:5: in <module>    import xyz42123E   ModuleNotFoundError: No module named 'xyz42123'------------------------------- Captured stdout --------------------------------collect 13 failure------------------------------- Captured stderr --------------------------------collect 13_stderr failure=========================== short test summary info ============================ERROR test_collect_capturing.py!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!=============================== 1 error in 0.08s ===============================
+________________ TestPerTestCapturing.test_capture_and_fixtures ________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capture_and_fixtures0collected 2 itemstest_capture_and_fixtures.py FF                                          [100%]=================================== FAILURES ===================================__________________________________ test_func1 __________________________________    def test_func1():        print("in func1")>       assert 0E       assert 0test_capture_and_fixtures.py:7: AssertionError---------------------------- Captured stdout setup -----------------------------setup modulesetup test_func1----------------------------- Captured stdout call -----------------------------in func1__________________________________ test_func2 __________________________________    def test_func2():        print("in func2")>       assert 0E       assert 0test_capture_and_fixtures.py:10: AssertionError---------------------------- Captured stdout setup -----------------------------setup test_func2----------------------------- Captured stdout call -----------------------------in func2=========================== short test summary info ============================FAILED test_capture_and_fixtures.py::test_func1 - assert 0FAILED test_capture_and_fixtures.py::test_func2 - assert 0============================== 2 failed in 0.02s ===============================
+___________________ TestPerTestCapturing.test_no_carry_over ____________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_no_carry_over0collected 2 itemstest_no_carry_over.py .F                                                 [100%]=================================== FAILURES ===================================__________________________________ test_func2 __________________________________    def test_func2():        print("in func2")>       assert 0E       assert 0test_no_carry_over.py:5: AssertionError----------------------------- Captured stdout call -----------------------------in func2=========================== short test summary info ============================FAILED test_no_carry_over.py::test_func2 - assert 0========================= 1 failed, 1 passed in 0.01s ==========================
+_________________ TestPerTestCapturing.test_teardown_capturing _________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_teardown_capturing0collected 1 itemtest_teardown_capturing.py .E                                            [100%]==================================== ERRORS ====================================_______________________ ERROR at teardown of test_func1 ________________________function = <function test_func1 at 0x7fc7ec225ee0>    def teardown_function(function):        print("teardown func1")>       assert 0E       assert 0test_teardown_capturing.py:5: AssertionError---------------------------- Captured stdout setup -----------------------------setup func1----------------------------- Captured stdout call -----------------------------in func1--------------------------- Captured stdout teardown ---------------------------teardown func1=========================== short test summary info ============================ERROR test_teardown_capturing.py::test_func1 - assert 0========================== 1 passed, 1 error in 0.02s ==========================
+______________ TestPerTestCapturing.test_teardown_capturing_final ______________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_teardown_capturing_final0collected 1 itemtest_teardown_capturing_final.py .E                                      [100%]==================================== ERRORS ====================================________________________ ERROR at teardown of test_func ________________________mod = <module 'test_teardown_capturing_final' from '/tmp/pytest-of-root/pytest-0/test_teardown_capturing_final0/test_teardown_capturing_final.py'>    def teardown_module(mod):        print("teardown module")>       assert 0E       assert 0test_teardown_capturing_final.py:3: AssertionError--------------------------- Captured stdout teardown ---------------------------teardown module=========================== short test summary info ============================ERROR test_teardown_capturing_final.py::test_func - assert 0========================== 1 passed, 1 error in 0.01s ==========================
+__________________ TestPerTestCapturing.test_capturing_outerr __________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capturing_outerr0collected 2 itemstest_capturing_outerr.py .F                                              [100%]=================================== FAILURES ===================================_____________________________ test_capturing_error _____________________________    def test_capturing_error():        print(1)        sys.stderr.write(str(2))>       raise ValueErrorE       ValueErrortest_capturing_outerr.py:8: ValueError----------------------------- Captured stdout call -----------------------------1----------------------------- Captured stderr call -----------------------------2=========================== short test summary info ============================FAILED test_capturing_outerr.py::test_capturing_error - ValueError========================= 1 failed, 1 passed in 0.01s ==========================
+_________________ TestCaptureFixture.test_std_functional[opt0] _________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_std_functional0collected 1 itemtest_std_functional.py .                                                 [100%]============================== 1 passed in 0.01s ===============================
+_________________ TestCaptureFixture.test_std_functional[opt1] _________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_std_functional1collected 1 itemtest_std_functional.py .============================== 1 passed in 0.01s ===============================
+_____________________ TestCaptureFixture.test_capsyscapfd ______________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capsyscapfd0collected 2 itemstest_capsyscapfd.py EE                                                   [100%]==================================== ERRORS ====================================__________________________ ERROR at setup of test_one __________________________file /tmp/pytest-of-root/pytest-0/test_capsyscapfd0/test_capsyscapfd.py, line 1  def test_one(capsys, capfd):E       cannot use capfd and capsys at the same time/tmp/pytest-of-root/pytest-0/test_capsyscapfd0/test_capsyscapfd.py:1__________________________ ERROR at setup of test_two __________________________file /tmp/pytest-of-root/pytest-0/test_capsyscapfd0/test_capsyscapfd.py, line 3  def test_two(capfd, capsys):E       cannot use capsys and capfd at the same time/tmp/pytest-of-root/pytest-0/test_capsyscapfd0/test_capsyscapfd.py:3=========================== short test summary info ============================ERROR test_capsyscapfd.py::test_oneERROR test_capsyscapfd.py::test_two============================== 2 errors in 0.01s ===============================
+______________ TestCaptureFixture.test_capturing_getfixturevalue _______________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capturing_getfixturevalue0collected 2 itemstest_capturing_getfixturevalue.py FF                                     [100%]=================================== FAILURES ===================================___________________________________ test_one ___________________________________file /tmp/pytest-of-root/pytest-0/test_capturing_getfixturevalue0/test_capturing_getfixturevalue.py, line 1  def test_one(capsys, request):E       cannot use capfd and capsys at the same time/tmp/pytest-of-root/pytest-0/test_capturing_getfixturevalue0/test_capturing_getfixturevalue.py:1___________________________________ test_two ___________________________________file /tmp/pytest-of-root/pytest-0/test_capturing_getfixturevalue0/test_capturing_getfixturevalue.py, line 3  def test_two(capfd, request):E       cannot use capsys and capfd at the same time/tmp/pytest-of-root/pytest-0/test_capturing_getfixturevalue0/test_capturing_getfixturevalue.py:3=========================== short test summary info ============================FAILED test_capturing_getfixturevalue.py::test_oneFAILED test_capturing_getfixturevalue.py::test_two============================== 2 failed in 0.01s ===============================
+__________________ TestCaptureFixture.test_capsyscapfdbinary ___________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capsyscapfdbinary0collected 1 itemtest_capsyscapfdbinary.py E                                              [100%]==================================== ERRORS ====================================__________________________ ERROR at setup of test_one __________________________file /tmp/pytest-of-root/pytest-0/test_capsyscapfdbinary0/test_capsyscapfdbinary.py, line 1  def test_one(capsys, capfdbinary):E       cannot use capfdbinary and capsys at the same time/tmp/pytest-of-root/pytest-0/test_capsyscapfdbinary0/test_capsyscapfdbinary.py:1=========================== short test summary info ============================ERROR test_capsyscapfdbinary.py::test_one=============================== 1 error in 0.01s ===============================
+___ TestCaptureFixture.test_capture_is_represented_on_failure_issue128[sys] ____
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capture_is_represented_on_failure_issue1280collected 1 itemtest_capture_is_represented_on_failure_issue128.py F                     [100%]=================================== FAILURES ===================================__________________________________ test_hello __________________________________capsys = <_pytest.capture.CaptureFixture object at 0x7fc7ec003250>    def test_hello(capsys):        print("xxx42xxx")>       assert 0E       assert 0test_capture_is_represented_on_failure_issue128.py:3: AssertionError----------------------------- Captured stdout call -----------------------------xxx42xxx=========================== short test summary info ============================FAILED test_capture_is_represented_on_failure_issue128.py::test_hello - assert 0============================== 1 failed in 0.01s ===============================
+____ TestCaptureFixture.test_capture_is_represented_on_failure_issue128[fd] ____
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capture_is_represented_on_failure_issue1281collected 1 itemtest_capture_is_represented_on_failure_issue128.py F                     [100%]=================================== FAILURES ===================================__________________________________ test_hello __________________________________capfd = <_pytest.capture.CaptureFixture object at 0x7fc7ebf59550>    def test_hello(capfd):        print("xxx42xxx")>       assert 0E       assert 0test_capture_is_represented_on_failure_issue128.py:3: AssertionError----------------------------- Captured stdout call -----------------------------xxx42xxx=========================== short test summary info ============================FAILED test_capture_is_represented_on_failure_issue128.py::test_hello - assert 0============================== 1 failed in 0.01s ===============================
+___________________ TestCaptureFixture.test_stdfd_functional ___________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_stdfd_functional0collected 1 itemtest_stdfd_functional.py .                                               [100%]============================== 1 passed in 0.01s ===============================
+_____________________ TestCaptureFixture.test_capfdbinary ______________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capfdbinary0collected 1 itemtest_capfdbinary.py .                                                    [100%]============================== 1 passed in 0.01s ===============================
+________________ TestCaptureFixture.test_partial_setup_failure _________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_partial_setup_failure0collected 1 itemtest_partial_setup_failure.py E                                          [100%]==================================== ERRORS ====================================_________________________ ERROR at setup of test_hello _________________________file /tmp/pytest-of-root/pytest-0/test_partial_setup_failure0/test_partial_setup_failure.py, line 1  def test_hello(capsys, missingarg):E       fixture 'missingarg' not found>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory>       use 'pytest --fixtures [testpath]' for help on them./tmp/pytest-of-root/pytest-0/test_partial_setup_failure0/test_partial_setup_failure.py:1=========================== short test summary info ============================ERROR test_partial_setup_failure.py::test_hello=============================== 1 error in 0.01s ===============================
+__________________ test_setup_failure_does_not_kill_capturing __________________
+----------------------------- Captured stdout call -----------------------------
+PLUGIN registered: <_pytest.config.PytestPluginManager object at 0x7fc7ebc25af0>PLUGIN registered: <_pytest.config.Config object at 0x7fc7ebdda340>PLUGIN registered: <module '_pytest.mark' from '/testbed/src/_pytest/mark/__init__.py'>PLUGIN registered: <module '_pytest.main' from '/testbed/src/_pytest/main.py'>PLUGIN registered: <module '_pytest.runner' from '/testbed/src/_pytest/runner.py'>PLUGIN registered: <module '_pytest.fixtures' from '/testbed/src/_pytest/fixtures.py'>PLUGIN registered: <module '_pytest.helpconfig' from '/testbed/src/_pytest/helpconfig.py'>PLUGIN registered: <module '_pytest.python' from '/testbed/src/_pytest/python.py'>PLUGIN registered: <module '_pytest.terminal' from '/testbed/src/_pytest/terminal.py'>PLUGIN registered: <module '_pytest.debugging' from '/testbed/src/_pytest/debugging.py'>PLUGIN registered: <module '_pytest.unittest' from '/testbed/src/_pytest/unittest.py'>PLUGIN registered: <module '_pytest.capture' from '/testbed/src/_pytest/capture.py'>PLUGIN registered: <module '_pytest.skipping' from '/testbed/src/_pytest/skipping.py'>PLUGIN registered: <module '_pytest.tmpdir' from '/testbed/src/_pytest/tmpdir.py'>PLUGIN registered: <module '_pytest.monkeypatch' from '/testbed/src/_pytest/monkeypatch.py'>PLUGIN registered: <module '_pytest.recwarn' from '/testbed/src/_pytest/recwarn.py'>PLUGIN registered: <module '_pytest.pastebin' from '/testbed/src/_pytest/pastebin.py'>PLUGIN registered: <module '_pytest.nose' from '/testbed/src/_pytest/nose.py'>PLUGIN registered: <module '_pytest.assertion' from '/testbed/src/_pytest/assertion/__init__.py'>PLUGIN registered: <module '_pytest.junitxml' from '/testbed/src/_pytest/junitxml.py'>PLUGIN registered: <module '_pytest.resultlog' from '/testbed/src/_pytest/resultlog.py'>PLUGIN registered: <module '_pytest.doctest' from '/testbed/src/_pytest/doctest.py'>PLUGIN registered: <module '_pytest.cacheprovider' from '/testbed/src/_pytest/cacheprovider.py'>PLUGIN registered: <module '_pytest.freeze_support' from '/testbed/src/_pytest/freeze_support.py'>PLUGIN registered: <module '_pytest.setuponly' from '/testbed/src/_pytest/setuponly.py'>PLUGIN registered: <module '_pytest.setupplan' from '/testbed/src/_pytest/setupplan.py'>PLUGIN registered: <module '_pytest.stepwise' from '/testbed/src/_pytest/stepwise.py'>PLUGIN registered: <module '_pytest.warnings' from '/testbed/src/_pytest/warnings.py'>PLUGIN registered: <module '_pytest.logging' from '/testbed/src/_pytest/logging.py'>PLUGIN registered: <module '_pytest.reports' from '/testbed/src/_pytest/reports.py'>PLUGIN registered: <module '_pytest.faulthandler' from '/testbed/src/_pytest/faulthandler.py'>PLUGIN registered: <_pytest.pytester.Testdir.inline_run.<locals>.Collect object at 0x7fc7ebc25b80>PLUGIN registered: <CaptureManager _method='fd' _global_capturing=<MultiCapture out=<FDCapture 1 oldfd=13 _state='suspended' tmpfile=<_io.TextIOWrapper name="<_io.FileIO name=14 mode='rb+' closefd=True>" mode='r+' encoding='utf-8'>> err=<FDCapture 2 oldfd=15 _state='suspended' tmpfile=<_io.TextIOWrapper name="<_io.FileIO name=16 mode='rb+' closefd=True>" mode='r+' encoding='utf-8'>> in_=<FDCapture 0 oldfd=11 _state='started' tmpfile=<_io.TextIOWrapper name='/dev/null' mode='r' encoding='UTF-8'>> _state='suspended' _in_suspended=False> _capture_fixture=None>PLUGIN registered: <Session test_setup_failure_does_not_kill_capturing0 exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>PLUGIN registered: <_pytest.cacheprovider.LFPlugin object at 0x7fc7ebdf79d0>PLUGIN registered: <_pytest.cacheprovider.NFPlugin object at 0x7fc7ebdf79a0>PLUGIN registered: <_pytest.stepwise.StepwisePlugin object at 0x7fc7ebdf7310>PLUGIN registered: <_pytest.terminal.TerminalReporter object at 0x7fc7ebdf70d0>PLUGIN registered: <_pytest.logging.LoggingPlugin object at 0x7fc7ebdf71c0>PLUGIN registered: <_pytest.fixtures.FixtureManager object at 0x7fc7ebbe4f10>============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1using: pytest-6.0.0rc2.dev51+g41d211c24.d20240725 pylib-1.11.0active plugins:    140496630602480     : <_pytest.config.PytestPluginManager object at 0x7fc7ebc25af0>    pytestconfig        : <_pytest.config.Config object at 0x7fc7ebdda340>    mark                : /testbed/src/_pytest/mark/__init__.py    main                : /testbed/src/_pytest/main.py    runner              : /testbed/src/_pytest/runner.py    fixtures            : /testbed/src/_pytest/fixtures.py    helpconfig          : /testbed/src/_pytest/helpconfig.py    python              : /testbed/src/_pytest/python.py    terminal            : /testbed/src/_pytest/terminal.py    debugging           : /testbed/src/_pytest/debugging.py    unittest            : /testbed/src/_pytest/unittest.py    capture             : /testbed/src/_pytest/capture.py    skipping            : /testbed/src/_pytest/skipping.py    tmpdir              : /testbed/src/_pytest/tmpdir.py    monkeypatch         : /testbed/src/_pytest/monkeypatch.py    recwarn             : /testbed/src/_pytest/recwarn.py    pastebin            : /testbed/src/_pytest/pastebin.py    nose                : /testbed/src/_pytest/nose.py    assertion           : /testbed/src/_pytest/assertion/__init__.py    junitxml            : /testbed/src/_pytest/junitxml.py    resultlog           : /testbed/src/_pytest/resultlog.py    doctest             : /testbed/src/_pytest/doctest.py    cacheprovider       : /testbed/src/_pytest/cacheprovider.py    freeze_support      : /testbed/src/_pytest/freeze_support.py    setuponly           : /testbed/src/_pytest/setuponly.py    setupplan           : /testbed/src/_pytest/setupplan.py    stepwise            : /testbed/src/_pytest/stepwise.py    warnings            : /testbed/src/_pytest/warnings.py    logging             : /testbed/src/_pytest/logging.py    reports             : /testbed/src/_pytest/reports.py    faulthandler        : /testbed/src/_pytest/faulthandler.py    140496630602624     : <_pytest.pytester.Testdir.inline_run.<locals>.Collect object at 0x7fc7ebc25b80>    capturemanager      : <CaptureManager _method='fd' _global_capturing=<MultiCapture out=<FDCapture 1 oldfd=13 _state='suspended' tmpfile=<_io.TextIOWrapper name="<_io.FileIO name=14 mode='rb+' closefd=True>" mode='r+' encoding='utf-8'>> err=<FDCapture 2 oldfd=15 _state='suspended' tmpfile=<_io.TextIOWrapper name="<_io.FileIO name=16 mode='rb+' closefd=True>" mode='r+' encoding='utf-8'>> in_=<FDCapture 0 oldfd=11 _state='started' tmpfile=<_io.TextIOWrapper name='/dev/null' mode='r' encoding='UTF-8'>> _state='suspended' _in_suspended=False> _capture_fixture=None>    session             : <Session test_setup_failure_does_not_kill_capturing0 exitstatus=<ExitCode.OK: 0> testsfailed=0 testscollected=0>    lfplugin            : <_pytest.cacheprovider.LFPlugin object at 0x7fc7ebdf79d0>    nfplugin            : <_pytest.cacheprovider.NFPlugin object at 0x7fc7ebdf79a0>    stepwiseplugin      : <_pytest.stepwise.StepwisePlugin object at 0x7fc7ebdf7310>    terminalreporter    : <_pytest.terminal.TerminalReporter object at 0x7fc7ebdf70d0>    logging-plugin      : <_pytest.logging.LoggingPlugin object at 0x7fc7ebdf71c0>    funcmanage          : <_pytest.fixtures.FixtureManager object at 0x7fc7ebbe4f10>rootdir: /tmp/pytest-of-root/pytest-0/test_setup_failure_does_not_kill_capturing0PLUGIN registered: <module 'sub1.conftest' from '/tmp/pytest-of-root/pytest-0/test_setup_failure_does_not_kill_capturing0/sub1/conftest.py'>collected 1 itemsub1/test_mod.py E                                                       [100%]==================================== ERRORS ====================================_________________________ ERROR at setup of test_func1 _________________________item = <Function test_func1>    def pytest_runtest_setup(item):>       raise ValueError(42)E       ValueError: 42sub1/conftest.py:2: ValueError=========================== short test summary info ============================ERROR sub1/test_mod.py::test_func1 - ValueError: 42=============================== 1 error in 0.02s ===============================
+_____________________ test_capture_conftest_runtest_setup ______________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capture_conftest_runtest_setup0collected 1 itemtest_capture_conftest_runtest_setup.py .                                 [100%]============================== 1 passed in 0.01s ===============================
+______________________ test_capture_early_option_parsing _______________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1 -- /opt/miniconda3/envs/testbed/bin/pythoncachedir: .pytest_cacherootdir: /tmp/pytest-of-root/pytest-0/test_capture_early_option_parsing0collecting ... collected 1 itemtest_capture_early_option_parsing.py::test_func hello19PASSED============================== 1 passed in 0.01s ===============================
+____________ test_capturing_and_logging_fundamentals[SysCapture(2)] ____________
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python /tmp/pytest-of-root/pytest-0/test_capturing_and_logging_fundamentals0/test_capturing_and_logging_fundamentals.py     in: /tmp/pytest-of-root/pytest-0/test_capturing_and_logging_fundamentals0suspend, captured CaptureResult(out='', err='WARNING:root:hello1\r\r')suspend2, captured CaptureResult(out='', err='WARNING:root:hello3\r\r')
+----------------------------- Captured stderr call -----------------------------
+WARNING:root:hello2
+_______ test_capturing_and_logging_fundamentals[SysCapture(2, tee=True)] _______
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python /tmp/pytest-of-root/pytest-0/test_capturing_and_logging_fundamentals1/test_capturing_and_logging_fundamentals.py     in: /tmp/pytest-of-root/pytest-0/test_capturing_and_logging_fundamentals1suspend, captured CaptureResult(out='', err='WARNING:root:hello1\r\r')suspend2, captured CaptureResult(out='', err='WARNING:root:hello3\r\r')
+----------------------------- Captured stderr call -----------------------------
+WARNING:root:hello1WARNING:root:hello2WARNING:root:hello2WARNING:root:hello3
+____________ test_capturing_and_logging_fundamentals[FDCapture(2)] _____________
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python /tmp/pytest-of-root/pytest-0/test_capturing_and_logging_fundamentals2/test_capturing_and_logging_fundamentals.py     in: /tmp/pytest-of-root/pytest-0/test_capturing_and_logging_fundamentals2suspend, captured CaptureResult(out='', err='WARNING:root:hello1\r')suspend2, captured CaptureResult(out='', err='WARNING:root:hello3\r')
+----------------------------- Captured stderr call -----------------------------
+WARNING:root:hello2
+_____________________ test_dontreadfrominput_has_encoding ______________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_dontreadfrominput_has_encoding0collected 1 itemtest_dontreadfrominput_has_encoding.py .                                 [100%]============================== 1 passed in 0.01s ===============================
+_______________________ test_typeerror_encodedfile_write _______________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_typeerror_encodedfile_write0collected 1 itemtest_typeerror_encodedfile_write.py F=================================== FAILURES ===================================__________________________________ test_fails __________________________________    def test_fails():        import sys>       sys.stdout.write(b"foo")test_typeerror_encodedfile_write.py:3: _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ self = <_io.TextIOWrapper encoding='UTF-8'>, s = b'foo'    def write(self, s: str) -> int:>       return super().write(s.replace('\r\n', '\n').replace('\n', '\r\n'))E       TypeError: a bytes-like object is required, not 'str'/testbed/src/_pytest/capture.py:209: TypeError=========================== short test summary info ============================FAILED test_typeerror_encodedfile_write.py::test_fails - TypeError: a bytes-l...============================== 1 failed in 0.03s ============================================================ test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_typeerror_encodedfile_write0collected 1 itemtest_typeerror_encodedfile_write.py F                                    [100%]=================================== FAILURES ===================================__________________________________ test_fails __________________________________    def test_fails():        import sys>       sys.stdout.write(b"foo")E       TypeError: write() argument must be str, not bytestest_typeerror_encodedfile_write.py:3: TypeError=========================== short test summary info ============================FAILED test_typeerror_encodedfile_write.py::test_fails - TypeError: write() a...============================== 1 failed in 0.01s ===============================
+_____________ TestLoggingInteraction.test_logging_stream_ownership _____________
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_logging_stream_ownership0/runpytest-0 /tmp/pytest-of-root/pytest-0/test_logging_stream_ownership0/test_logging_stream_ownership.py     in: /tmp/pytest-of-root/pytest-0/test_logging_stream_ownership0============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_logging_stream_ownership0collected 1 itemtest_logging_stream_ownership.py F                                       [100%]=================================== FAILURES ===================================_________________________________ test_logging _________________________________    def test_logging():        import logging        import pytest>       stream = capture.CaptureIO()E       NameError: name 'capture' is not definedtest_logging_stream_ownership.py:4: NameError=========================== short test summary info ============================FAILED test_logging_stream_ownership.py::test_logging - NameError: name 'capt...============================== 1 failed in 0.03s ===============================
+_______ TestLoggingInteraction.test_logging_and_immediate_setupteardown ________
+----------------------------- Captured stdout call -----------------------------
+('--capture=sys',)running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_logging_and_immediate_setupteardown0/runpytest-0 /tmp/pytest-of-root/pytest-0/test_logging_and_immediate_setupteardown0/test_logging_and_immediate_setupteardown.py --capture=sys     in: /tmp/pytest-of-root/pytest-0/test_logging_and_immediate_setupteardown0============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_logging_and_immediate_setupteardown0collected 1 itemtest_logging_and_immediate_setupteardown.py FE                           [100%]==================================== ERRORS ====================================______________________ ERROR at teardown of test_logging _______________________function = <function test_logging at 0x7f753d0575e0>    def teardown_function(function):        logging.warning("hello3")>       assert 0E       assert 0test_logging_and_immediate_setupteardown.py:11: AssertionError------------------------------ Captured log setup ------------------------------WARNING  root:test_logging_and_immediate_setupteardown.py:3 hello1------------------------------ Captured log call -------------------------------WARNING  root:test_logging_and_immediate_setupteardown.py:6 hello2---------------------------- Captured log teardown -----------------------------WARNING  root:test_logging_and_immediate_setupteardown.py:10 hello3=================================== FAILURES ===================================_________________________________ test_logging _________________________________    def test_logging():        logging.warning("hello2")>       assert 0E       assert 0test_logging_and_immediate_setupteardown.py:7: AssertionError------------------------------ Captured log setup ------------------------------WARNING  root:test_logging_and_immediate_setupteardown.py:3 hello1------------------------------ Captured log call -------------------------------WARNING  root:test_logging_and_immediate_setupteardown.py:6 hello2=========================== short test summary info ============================FAILED test_logging_and_immediate_setupteardown.py::test_logging - assert 0ERROR test_logging_and_immediate_setupteardown.py::test_logging - assert 0========================== 1 failed, 1 error in 0.04s ==========================('--capture=fd',)running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_logging_and_immediate_setupteardown0/runpytest-1 /tmp/pytest-of-root/pytest-0/test_logging_and_immediate_setupteardown0/test_logging_and_immediate_setupteardown.py --capture=fd     in: /tmp/pytest-of-root/pytest-0/test_logging_and_immediate_setupteardown0============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_logging_and_immediate_setupteardown0collected 1 itemtest_logging_and_immediate_setupteardown.py FE                           [100%]==================================== ERRORS ====================================______________________ ERROR at teardown of test_logging _______________________function = <function test_logging at 0x7fd638a264c0>    def teardown_function(function):        logging.warning("hello3")>       assert 0E       assert 0test_logging_and_immediate_setupteardown.py:11: AssertionError------------------------------ Captured log setup ------------------------------WARNING  root:test_logging_and_immediate_setupteardown.py:3 hello1------------------------------ Captured log call -------------------------------WARNING  root:test_logging_and_immediate_setupteardown.py:6 hello2---------------------------- Captured log teardown -----------------------------WARNING  root:test_logging_and_immediate_setupteardown.py:10 hello3=================================== FAILURES ===================================_________________________________ test_logging _________________________________    def test_logging():        logging.warning("hello2")>       assert 0E       assert 0test_logging_and_immediate_setupteardown.py:7: AssertionError------------------------------ Captured log setup ------------------------------WARNING  root:test_logging_and_immediate_setupteardown.py:3 hello1------------------------------ Captured log call -------------------------------WARNING  root:test_logging_and_immediate_setupteardown.py:6 hello2=========================== short test summary info ============================FAILED test_logging_and_immediate_setupteardown.py::test_logging - assert 0ERROR test_logging_and_immediate_setupteardown.py::test_logging - assert 0========================== 1 failed, 1 error in 0.04s ==========================
+_________ TestLoggingInteraction.test_logging_and_crossscope_fixtures __________
+----------------------------- Captured stdout call -----------------------------
+('--capture=sys',)running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_logging_and_crossscope_fixtures0/runpytest-0 /tmp/pytest-of-root/pytest-0/test_logging_and_crossscope_fixtures0/test_logging_and_crossscope_fixtures.py --capture=sys     in: /tmp/pytest-of-root/pytest-0/test_logging_and_crossscope_fixtures0============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_logging_and_crossscope_fixtures0collected 1 itemtest_logging_and_crossscope_fixtures.py FE                               [100%]==================================== ERRORS ====================================______________________ ERROR at teardown of test_logging _______________________function = <module 'test_logging_and_crossscope_fixtures' from '/tmp/pytest-of-root/pytest-0/test_logging_and_crossscope_fixtures0/test_logging_and_crossscope_fixtures.py'>    def teardown_module(function):        logging.warning("hello3")>       assert 0E       assert 0test_logging_and_crossscope_fixtures.py:11: AssertionError------------------------------ Captured log setup ------------------------------WARNING  root:test_logging_and_crossscope_fixtures.py:3 hello1------------------------------ Captured log call -------------------------------WARNING  root:test_logging_and_crossscope_fixtures.py:6 hello2---------------------------- Captured log teardown -----------------------------WARNING  root:test_logging_and_crossscope_fixtures.py:10 hello3=================================== FAILURES ===================================_________________________________ test_logging _________________________________    def test_logging():        logging.warning("hello2")>       assert 0E       assert 0test_logging_and_crossscope_fixtures.py:7: AssertionError------------------------------ Captured log setup ------------------------------WARNING  root:test_logging_and_crossscope_fixtures.py:3 hello1------------------------------ Captured log call -------------------------------WARNING  root:test_logging_and_crossscope_fixtures.py:6 hello2=========================== short test summary info ============================FAILED test_logging_and_crossscope_fixtures.py::test_logging - assert 0ERROR test_logging_and_crossscope_fixtures.py::test_logging - assert 0========================== 1 failed, 1 error in 0.05s ==========================('--capture=fd',)running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_logging_and_crossscope_fixtures0/runpytest-1 /tmp/pytest-of-root/pytest-0/test_logging_and_crossscope_fixtures0/test_logging_and_crossscope_fixtures.py --capture=fd     in: /tmp/pytest-of-root/pytest-0/test_logging_and_crossscope_fixtures0============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_logging_and_crossscope_fixtures0collected 1 itemtest_logging_and_crossscope_fixtures.py FE                               [100%]==================================== ERRORS ====================================______________________ ERROR at teardown of test_logging _______________________function = <module 'test_logging_and_crossscope_fixtures' from '/tmp/pytest-of-root/pytest-0/test_logging_and_crossscope_fixtures0/test_logging_and_crossscope_fixtures.py'>    def teardown_module(function):        logging.warning("hello3")>       assert 0E       assert 0test_logging_and_crossscope_fixtures.py:11: AssertionError------------------------------ Captured log setup ------------------------------WARNING  root:test_logging_and_crossscope_fixtures.py:3 hello1------------------------------ Captured log call -------------------------------WARNING  root:test_logging_and_crossscope_fixtures.py:6 hello2---------------------------- Captured log teardown -----------------------------WARNING  root:test_logging_and_crossscope_fixtures.py:10 hello3=================================== FAILURES ===================================_________________________________ test_logging _________________________________    def test_logging():        logging.warning("hello2")>       assert 0E       assert 0test_logging_and_crossscope_fixtures.py:7: AssertionError------------------------------ Captured log setup ------------------------------WARNING  root:test_logging_and_crossscope_fixtures.py:3 hello1------------------------------ Captured log call -------------------------------WARNING  root:test_logging_and_crossscope_fixtures.py:6 hello2=========================== short test summary info ============================FAILED test_logging_and_crossscope_fixtures.py::test_logging - assert 0ERROR test_logging_and_crossscope_fixtures.py::test_logging - assert 0========================== 1 failed, 1 error in 0.06s ==========================
+_____________ TestLoggingInteraction.test_conftestlogging_is_shown _____________
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_conftestlogging_is_shown0/runpytest-0 -s -p no:capturelog     in: /tmp/pytest-of-root/pytest-0/test_conftestlogging_is_shown0============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_conftestlogging_is_shown0collected 0 items============================ no tests ran in 0.01s =============================
+----------------------------- Captured stderr call -----------------------------
+WARNING:root:hello435
+_________ TestLoggingInteraction.test_conftestlogging_and_test_logging _________
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_conftestlogging_and_test_logging0/runpytest-0 /tmp/pytest-of-root/pytest-0/test_conftestlogging_and_test_logging0/test_conftestlogging_and_test_logging.py -p no:capturelog     in: /tmp/pytest-of-root/pytest-0/test_conftestlogging_and_test_logging0============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_conftestlogging_and_test_logging0collected 1 itemtest_conftestlogging_and_test_logging.py F                               [100%]=================================== FAILURES ===================================__________________________________ test_hello __________________________________    def test_hello():        import logging        logging.warning("hello433")>       assert 0E       assert 0test_conftestlogging_and_test_logging.py:4: AssertionError----------------------------- Captured stderr call -----------------------------WARNING:root:hello433------------------------------ Captured log call -------------------------------WARNING  root:test_conftestlogging_and_test_logging.py:3 hello433=========================== short test summary info ============================FAILED test_conftestlogging_and_test_logging.py::test_hello - assert 0============================== 1 failed in 0.04s ===============================
+____________ TestLoggingInteraction.test_logging_after_cap_stopped _____________
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_logging_after_cap_stopped0/runpytest-0 /tmp/pytest-of-root/pytest-0/test_logging_after_cap_stopped0/test_logging_after_cap_stopped.py --log-cli-level info     in: /tmp/pytest-of-root/pytest-0/test_logging_after_cap_stopped0============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_logging_after_cap_stopped0collected 1 itemtest_logging_after_cap_stopped.py::test_hello -------------------------------- live log call ---------------------------------WARNING  root:test_logging_after_cap_stopped.py:3 hello433---------------------------- live log sessionfinish ----------------------------WARNING  conftest:conftest.py:9 Logging on teardown!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! KeyboardInterrupt !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!/tmp/pytest-of-root/pytest-0/test_logging_after_cap_stopped0/test_logging_after_cap_stopped.py:5: KeyboardInterrupt(to show a full traceback on KeyboardInterrupt use --full-trace)============================ no tests ran in 0.28s =============================
+_________ TestCaptureFixture.test_keyboardinterrupt_disables_capturing _________
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_keyboardinterrupt_disables_capturing0/runpytest-0 /tmp/pytest-of-root/pytest-0/test_keyboardinterrupt_disables_capturing0/test_keyboardinterrupt_disables_capturing.py     in: /tmp/pytest-of-root/pytest-0/test_keyboardinterrupt_disables_capturing0============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_keyboardinterrupt_disables_capturing0collected 1 itemtest_keyboardinterrupt_disables_capturing.py !!!!!!!!!!!!!!!!!!!!!!!!!!!!!! KeyboardInterrupt !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!/tmp/pytest-of-root/pytest-0/test_keyboardinterrupt_disables_capturing0/test_keyboardinterrupt_disables_capturing.py:4: KeyboardInterrupt(to show a full traceback on KeyboardInterrupt use --full-trace)============================ no tests ran in 0.29s =============================
+_________________ TestCaptureFixture.test_capture_and_logging __________________
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_capture_and_logging0/runpytest-0 /tmp/pytest-of-root/pytest-0/test_capture_and_logging0/test_capture_and_logging.py     in: /tmp/pytest-of-root/pytest-0/test_capture_and_logging0============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_capture_and_logging0collected 1 itemtest_capture_and_logging.py .                                            [100%]============================== 1 passed in 0.01s ===============================
+_________________________ test_error_during_readouterr _________________________
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_error_during_readouterr0/runpytest-0 -p pytest_xyz --version     in: /tmp/pytest-of-root/pytest-0/test_error_during_readouterr0
+----------------------------- Captured stderr call -----------------------------
+pytest 6.0.0rc2.dev51+g41d211c24.d20240725Traceback (most recent call last):  File "/opt/miniconda3/envs/testbed/lib/python3.9/runpy.py", line 197, in _run_module_as_main    return _run_code(code, main_globals, None,  File "/opt/miniconda3/envs/testbed/lib/python3.9/runpy.py", line 87, in _run_code    exec(code, run_globals)  File "/testbed/src/pytest/__main__.py", line 7, in <module>    raise SystemExit(pytest.console_main())  File "/testbed/src/_pytest/config/__init__.py", line 180, in console_main    code = main()  File "/testbed/src/_pytest/config/__init__.py", line 165, in main    config._ensure_unconfigure()  File "/testbed/src/_pytest/config/__init__.py", line 920, in _ensure_unconfigure    fin()  File "/testbed/src/_pytest/capture.py", line 644, in stop_global_capturing    self._global_capturing.pop_outerr_to_orig()  File "/testbed/src/_pytest/capture.py", line 532, in pop_outerr_to_orig    out, err = self.readouterr()  File "/testbed/src/_pytest/capture.py", line 573, in readouterr    out = self.out.snap()  File "/tmp/pytest-of-root/pytest-0/test_error_during_readouterr0/pytest_xyz.py", line 4, in bad_snap    raise Exception('boom')Exception: boom
+_____________________ TestStdCaptureFD.test_simple_only_fd _____________________
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_simple_only_fd0/runpytest-0     in: /tmp/pytest-of-root/pytest-0/test_simple_only_fd0============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_simple_only_fd0collected 1 itemtest_simple_only_fd.py F                                                 [100%]=================================== FAILURES ===================================____________________________________ test_x ____________________________________    def test_x():        os.write(1, b"hello\n")>       assert 0E       assert 0test_simple_only_fd.py:4: AssertionError----------------------------- Captured stdout call -----------------------------hello=========================== short test summary info ============================FAILED test_simple_only_fd.py::test_x - assert 0============================== 1 failed in 0.05s ===============================
+___________ TestStdCaptureFDinvalidFD.test_stdcapture_fd_invalid_fd ____________
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_stdcapture_fd_invalid_fd0/runpytest-0 --capture=fd     in: /tmp/pytest-of-root/pytest-0/test_stdcapture_fd_invalid_fd0============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_stdcapture_fd_invalid_fd0collected 3 itemstest_stdcapture_fd_invalid_fd.py ...                                     [100%]============================== 3 passed in 0.03s ===============================
+_________________________ test_close_and_capture_again _________________________
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_close_and_capture_again0/runpytest-0     in: /tmp/pytest-of-root/pytest-0/test_close_and_capture_again0============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_close_and_capture_again0collected 2 itemstest_close_and_capture_again.py .F                                       [100%]=================================== FAILURES ===================================______________________________ test_capture_again ______________________________    def test_capture_again():        os.write(1, b"hello\n")>       assert 0E       assert 0test_close_and_capture_again.py:6: AssertionError----------------------------- Captured stdout call -----------------------------hello=========================== short test summary info ============================FAILED test_close_and_capture_again.py::test_capture_again - assert 0========================= 1 failed, 1 passed in 0.04s ==========================
+______________________ test_crash_on_closing_tmpfile_py27 ______________________
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_crash_on_closing_tmpfile_py270/runpytest-0 /tmp/pytest-of-root/pytest-0/test_crash_on_closing_tmpfile_py270/test_crash_on_closing_tmpfile_py27.py     in: /tmp/pytest-of-root/pytest-0/test_crash_on_closing_tmpfile_py270============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_crash_on_closing_tmpfile_py270collected 1 itemtest_crash_on_closing_tmpfile_py27.py .                                  [100%]============================== 1 passed in 0.17s ===============================
+____________________ test_global_capture_with_live_logging _____________________
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_global_capture_with_live_logging0/runpytest-0 --log-cli-level=INFO     in: /tmp/pytest-of-root/pytest-0/test_global_capture_with_live_logging0============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_global_capture_with_live_logging0collected 1 itemtest_global_capture_with_live_logging.py::test_global -------------------------------- live log setup --------------------------------INFO     root:test_global_capture_with_live_logging.py:10 fix setup-------------------------------- live log call ---------------------------------INFO     root:test_global_capture_with_live_logging.py:17 something in testPASSED                                                                   [100%]------------------------------ live log teardown -------------------------------INFO     root:test_global_capture_with_live_logging.py:12 fix teardown============================== 1 passed in 0.02s ===============================
+________________________ test_logging_while_collecting _________________________
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_logging_while_collecting0/runpytest-0 /tmp/pytest-of-root/pytest-0/test_logging_while_collecting0/test_logging_while_collecting.py     in: /tmp/pytest-of-root/pytest-0/test_logging_while_collecting0============================= test session starts ==============================platform linux -- Python 3.9.19, pytest-6.0.0rc2.dev51+g41d211c24.d20240725, py-1.11.0, pluggy-0.13.1rootdir: /tmp/pytest-of-root/pytest-0/test_logging_while_collecting0collected 1 itemtest_logging_while_collecting.py F                                       [100%]=================================== FAILURES ===================================_________________________________ test_logging _________________________________    def test_logging():        logging.warning("during call")>       assert FalseE       assert Falsetest_logging_while_collecting.py:7: AssertionError------------------------------ Captured log call -------------------------------WARNING  root:test_logging_while_collecting.py:6 during call=========================== short test summary info ============================FAILED test_logging_while_collecting.py::test_logging - assert False============================== 1 failed in 0.04s ===============================
+=========================== short test summary info ============================
+PASSED testing/test_capture.py::TestCaptureManager::test_capturing_basic_api[no]
+PASSED testing/test_capture.py::TestCaptureManager::test_init_capturing
+PASSED testing/test_capture.py::TestCaptureFixture::test_cafd_preserves_newlines[\r]
+PASSED testing/test_capture.py::TestCaptureIO::test_text
+PASSED testing/test_capture.py::TestCaptureIO::test_unicode_and_str_mixture
+PASSED testing/test_capture.py::TestTeeCaptureIO::test_text
+PASSED testing/test_capture.py::TestTeeCaptureIO::test_unicode_and_str_mixture
+PASSED testing/test_capture.py::test_dontreadfrominput
+PASSED testing/test_capture.py::TestFDCapture::test_stderr
+PASSED testing/test_capture.py::TestFDCapture::test_stdin
+PASSED testing/test_capture.py::TestFDCapture::test_simple_resume_suspend
+PASSED testing/test_capture.py::TestFDCapture::test_capfd_sys_stdout_mode
+PASSED testing/test_capture.py::TestStdCapture::test_capturing_done_simple
+PASSED testing/test_capture.py::TestStdCapture::test_capture_results_accessible_by_attribute
+PASSED testing/test_capture.py::TestStdCapture::test_capturing_modify_sysouterr_in_between
+PASSED testing/test_capture.py::TestStdCapture::test_just_out_capture
+PASSED testing/test_capture.py::TestStdCapture::test_just_err_capture
+PASSED testing/test_capture.py::TestStdCapture::test_stdin_restored
+PASSED testing/test_capture.py::TestStdCapture::test_stdin_nulled_by_default
+PASSED testing/test_capture.py::TestTeeStdCapture::test_capturing_done_simple
+PASSED testing/test_capture.py::TestTeeStdCapture::test_capture_results_accessible_by_attribute
+PASSED testing/test_capture.py::TestTeeStdCapture::test_capturing_modify_sysouterr_in_between
+PASSED testing/test_capture.py::TestTeeStdCapture::test_just_out_capture
+PASSED testing/test_capture.py::TestTeeStdCapture::test_just_err_capture
+PASSED testing/test_capture.py::TestTeeStdCapture::test_stdin_restored
+PASSED testing/test_capture.py::TestTeeStdCapture::test_stdin_nulled_by_default
+PASSED testing/test_capture.py::TestStdCaptureFD::test_capturing_done_simple
+PASSED testing/test_capture.py::TestStdCaptureFD::test_capture_results_accessible_by_attribute
+PASSED testing/test_capture.py::TestStdCaptureFD::test_capturing_modify_sysouterr_in_between
+PASSED testing/test_capture.py::TestStdCaptureFD::test_just_out_capture
+PASSED testing/test_capture.py::TestStdCaptureFD::test_just_err_capture
+PASSED testing/test_capture.py::TestStdCaptureFD::test_stdin_restored
+PASSED testing/test_capture.py::TestStdCaptureFD::test_stdin_nulled_by_default
+PASSED testing/test_capture.py::TestStdCaptureFD::test_intermingling
+PASSED testing/test_capture.py::test_capture_not_started_but_reset
+PASSED testing/test_capture.py::test_using_capsys_fixture_works_with_sys_stdout_encoding
+PASSED testing/test_capture.py::test_capsys_results_accessible_by_attribute
+PASSED testing/test_capture.py::test_fdcapture_tmpfile_remains_the_same
+PASSED testing/test_capture.py::test_stderr_write_returns_len
+PASSED testing/test_capture.py::test__get_multicapture
+PASSED testing/test_capture.py::test_capturing_unicode[fd]
+PASSED testing/test_capture.py::test_capturing_unicode[sys]
+PASSED testing/test_capture.py::test_capturing_bytes_in_utf8_encoding[fd]
+PASSED testing/test_capture.py::test_capturing_bytes_in_utf8_encoding[sys]
+PASSED testing/test_capture.py::test_collect_capturing
+PASSED testing/test_capture.py::TestPerTestCapturing::test_capture_and_fixtures
+PASSED testing/test_capture.py::TestPerTestCapturing::test_no_carry_over
+PASSED testing/test_capture.py::TestPerTestCapturing::test_teardown_capturing
+PASSED testing/test_capture.py::TestPerTestCapturing::test_teardown_capturing_final
+PASSED testing/test_capture.py::TestPerTestCapturing::test_capturing_outerr
+PASSED testing/test_capture.py::TestCaptureFixture::test_std_functional[opt0]
+PASSED testing/test_capture.py::TestCaptureFixture::test_std_functional[opt1]
+PASSED testing/test_capture.py::TestCaptureFixture::test_capsyscapfd
+PASSED testing/test_capture.py::TestCaptureFixture::test_capturing_getfixturevalue
+PASSED testing/test_capture.py::TestCaptureFixture::test_capsyscapfdbinary
+PASSED testing/test_capture.py::TestCaptureFixture::test_capture_is_represented_on_failure_issue128[sys]
+PASSED testing/test_capture.py::TestCaptureFixture::test_capture_is_represented_on_failure_issue128[fd]
+PASSED testing/test_capture.py::TestCaptureFixture::test_stdfd_functional
+PASSED testing/test_capture.py::TestCaptureFixture::test_capfdbinary
+PASSED testing/test_capture.py::TestCaptureFixture::test_partial_setup_failure
+PASSED testing/test_capture.py::test_setup_failure_does_not_kill_capturing
+PASSED testing/test_capture.py::test_capture_conftest_runtest_setup
+PASSED testing/test_capture.py::test_capture_early_option_parsing
+PASSED testing/test_capture.py::TestFDCapture::test_simple
+PASSED testing/test_capture.py::TestFDCapture::test_simple_many
+PASSED testing/test_capture.py::TestFDCapture::test_simple_fail_second_start
+PASSED testing/test_capture.py::TestFDCapture::test_writeorg
+PASSED testing/test_capture.py::TestStdCaptureFDinvalidFD::test_fdcapture_invalid_fd_with_fd_reuse
+PASSED testing/test_capture.py::TestStdCaptureFDinvalidFD::test_fdcapture_invalid_fd_without_fd_reuse
+PASSED testing/test_capture.py::test_capturing_and_logging_fundamentals[SysCapture(2)]
+PASSED testing/test_capture.py::test_capturing_and_logging_fundamentals[SysCapture(2, tee=True)]
+PASSED testing/test_capture.py::test_capturing_and_logging_fundamentals[FDCapture(2)]
+PASSED testing/test_capture.py::test_dontreadfrominput_has_encoding
+PASSED testing/test_capture.py::test_typeerror_encodedfile_write
+PASSED testing/test_capture.py::test_encodedfile_writelines
+PASSED testing/test_capture.py::TestLoggingInteraction::test_logging_stream_ownership
+PASSED testing/test_capture.py::TestLoggingInteraction::test_logging_and_immediate_setupteardown
+PASSED testing/test_capture.py::TestLoggingInteraction::test_logging_and_crossscope_fixtures
+PASSED testing/test_capture.py::TestLoggingInteraction::test_conftestlogging_is_shown
+PASSED testing/test_capture.py::TestLoggingInteraction::test_conftestlogging_and_test_logging
+PASSED testing/test_capture.py::TestLoggingInteraction::test_logging_after_cap_stopped
+PASSED testing/test_capture.py::TestCaptureFixture::test_keyboardinterrupt_disables_capturing
+PASSED testing/test_capture.py::TestCaptureFixture::test_capture_and_logging
+PASSED testing/test_capture.py::test_error_during_readouterr
+PASSED testing/test_capture.py::TestStdCaptureFD::test_simple_only_fd
+PASSED testing/test_capture.py::TestStdCaptureFDinvalidFD::test_stdcapture_fd_invalid_fd
+PASSED testing/test_capture.py::test_close_and_capture_again
+PASSED testing/test_capture.py::test_crash_on_closing_tmpfile_py27
+PASSED testing/test_capture.py::test_global_capture_with_live_logging
+PASSED testing/test_capture.py::test_logging_while_collecting
+SKIPPED [2] testing/test_capture.py:875: could not run 'lsof' (FileNotFoundError(2, 'No such file or directory'))
+SKIPPED [1] testing/test_capture.py:1358: only py3.6+ on windows
+XFAIL testing/test_capture.py::TestPerTestCapturing::test_capture_scope_cache
+  unimplemented feature
+FAILED testing/test_capture.py::TestCaptureManager::test_capturing_basic_api[sys]
+FAILED testing/test_capture.py::TestCaptureManager::test_capturing_basic_api[fd]
+FAILED testing/test_capture.py::TestCaptureFixture::test_cafd_preserves_newlines[\n]
+FAILED testing/test_capture.py::TestCaptureFixture::test_cafd_preserves_newlines[\r\n]
+FAILED testing/test_capture.py::TestCaptureIO::test_write_bytes_to_buffer - A...
+FAILED testing/test_capture.py::TestTeeCaptureIO::test_write_bytes_to_buffer
+FAILED testing/test_capture.py::TestStdCapture::test_capturing_reset_simple
+FAILED testing/test_capture.py::TestStdCapture::test_capturing_readouterr - A...
+FAILED testing/test_capture.py::TestStdCapture::test_capturing_readouterr_unicode
+FAILED testing/test_capture.py::TestStdCapture::test_reset_twice_error - Asse...
+FAILED testing/test_capture.py::TestStdCapture::test_capturing_error_recursive
+FAILED testing/test_capture.py::TestTeeStdCapture::test_capturing_reset_simple
+FAILED testing/test_capture.py::TestTeeStdCapture::test_capturing_readouterr
+FAILED testing/test_capture.py::TestTeeStdCapture::test_capturing_readouterr_unicode
+FAILED testing/test_capture.py::TestTeeStdCapture::test_reset_twice_error - A...
+FAILED testing/test_capture.py::TestTeeStdCapture::test_capturing_error_recursive
+FAILED testing/test_capture.py::TestStdCaptureFD::test_capturing_reset_simple
+FAILED testing/test_capture.py::TestStdCaptureFD::test_capturing_readouterr
+FAILED testing/test_capture.py::TestStdCaptureFD::test_capturing_readouterr_unicode
+FAILED testing/test_capture.py::TestStdCaptureFD::test_reset_twice_error - As...
+FAILED testing/test_capture.py::TestStdCaptureFD::test_capturing_error_recursive
+FAILED testing/test_capture.py::TestCaptureFixture::test_capsysbinary - Faile...
+FAILED testing/test_capture.py::TestCaptureFixture::test_fixture_use_by_other_fixtures_teardown[capsys]
+FAILED testing/test_capture.py::TestCaptureFixture::test_fixture_use_by_other_fixtures_teardown[capfd]
+FAILED testing/test_capture.py::test_capture_badoutput_issue412 - Failed: nom...
+FAILED testing/test_capture.py::test_capture_binary_output - AssertionError: ...
+FAILED testing/test_capture.py::test_error_attribute_issue555 - AssertionErro...
+FAILED testing/test_capture.py::TestCaptureFixture::test_disabled_capture_fixture[True-capsys]
+FAILED testing/test_capture.py::TestCaptureFixture::test_disabled_capture_fixture[True-capfd]
+FAILED testing/test_capture.py::TestCaptureFixture::test_disabled_capture_fixture[False-capsys]
+FAILED testing/test_capture.py::TestCaptureFixture::test_disabled_capture_fixture[False-capfd]
+FAILED testing/test_capture.py::TestCaptureFixture::test_fixture_use_by_other_fixtures[capsys]
+FAILED testing/test_capture.py::TestCaptureFixture::test_fixture_use_by_other_fixtures[capfd]
+FAILED testing/test_capture.py::test_capture_with_live_logging[capsys] - asse...
+FAILED testing/test_capture.py::test_capture_with_live_logging[capfd] - asser...
+============= 35 failed, 90 passed, 3 skipped, 1 xfailed in 15.03s =============
++ git checkout 41d211c24a6781843b174379d6d6538f5c17adb9 testing/test_capture.py
+Updated 1 path from 626158e22

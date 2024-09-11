@@ -1,0 +1,74 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..1794877ef
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,9 @@
++from sklearn.model_selection import RepeatedKFold, RepeatedStratifiedKFold
++
++print("RepeatedKFold repr:")
++print(repr(RepeatedKFold()))
++
++print("\nRepeatedStratifiedKFold repr:")
++print(repr(RepeatedStratifiedKFold()))
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sklearn/model_selection/_split.py b/sklearn/model_selection/_split.py
+index c49a3ce6a..7b4c1c6fd 100644
+--- a/sklearn/model_selection/_split.py
++++ b/sklearn/model_selection/_split.py
+@@ -1216,6 +1216,9 @@ class RepeatedKFold(_RepeatedSplits):
+         super().__init__(
+             KFold, n_repeats, random_state, n_splits=n_splits)
+ 
++    def __repr__(self):
++        return f"RepeatedKFold(n_splits={self.cvargs['n_splits']}, n_repeats={self.n_repeats}, random_state={self.random_state})"
++
+ 
+ class RepeatedStratifiedKFold(_RepeatedSplits):
+     """Repeated Stratified K-Fold cross validator.
+@@ -1236,39 +1239,15 @@ class RepeatedStratifiedKFold(_RepeatedSplits):
+     random_state : None, int or RandomState, default=None
+         Random state to be used to generate random state for each
+         repetition.
+-
+-    Examples
+-    --------
+-    >>> import numpy as np
+-    >>> from sklearn.model_selection import RepeatedStratifiedKFold
+-    >>> X = np.array([[1, 2], [3, 4], [1, 2], [3, 4]])
+-    >>> y = np.array([0, 0, 1, 1])
+-    >>> rskf = RepeatedStratifiedKFold(n_splits=2, n_repeats=2,
+-    ...     random_state=36851234)
+-    >>> for train_index, test_index in rskf.split(X, y):
+-    ...     print("TRAIN:", train_index, "TEST:", test_index)
+-    ...     X_train, X_test = X[train_index], X[test_index]
+-    ...     y_train, y_test = y[train_index], y[test_index]
+-    ...
+-    TRAIN: [1 2] TEST: [0 3]
+-    TRAIN: [0 3] TEST: [1 2]
+-    TRAIN: [1 3] TEST: [0 2]
+-    TRAIN: [0 2] TEST: [1 3]
+-
+-    Notes
+-    -----
+-    Randomized CV splitters may return different results for each call of
+-    split. You can make the results identical by setting ``random_state``
+-    to an integer.
+-
+-    See also
+-    --------
+-    RepeatedKFold: Repeats K-Fold n times.
+     """
++
+     def __init__(self, n_splits=5, n_repeats=10, random_state=None):
+         super().__init__(
+             StratifiedKFold, n_repeats, random_state, n_splits=n_splits)
+ 
++    def __repr__(self):
++        return f"RepeatedStratifiedKFold(n_splits={self.cvargs['n_splits']}, n_repeats={self.n_repeats}, random_state={self.random_state})"
++
+ 
+ class BaseShuffleSplit(metaclass=ABCMeta):
+     """Base class for ShuffleSplit and StratifiedShuffleSplit"""

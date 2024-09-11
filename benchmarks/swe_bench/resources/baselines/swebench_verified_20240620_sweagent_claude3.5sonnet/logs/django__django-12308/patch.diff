@@ -1,0 +1,58 @@
+
+diff --git a/django/contrib/admin/utils.py b/django/contrib/admin/utils.py
+index e4ddc8f017..abc87af63b 100644
+--- a/django/contrib/admin/utils.py
++++ b/django/contrib/admin/utils.py
+@@ -379,6 +379,8 @@ def help_text_for_field(name, model):
+ 
+ def display_for_field(value, field, empty_value_display):
+     from django.contrib.admin.templatetags.admin_list import _boolean_icon
++    from django.db import models
++    import json
+ 
+     if getattr(field, 'flatchoices', None):
+         return dict(field.flatchoices).get(value, empty_value_display)
+@@ -398,6 +400,11 @@ def display_for_field(value, field, empty_value_display):
+         return formats.number_format(value)
+     elif isinstance(field, models.FileField) and value:
+         return format_html('<a href="{}">{}</a>', value.url, value)
++    elif isinstance(field, models.JSONField):
++        try:
++            return json.dumps(value)
++        except TypeError:
++            return 'Invalid JSON'
+     else:
+         return display_for_value(value, empty_value_display)
+ 
+diff --git a/tests/admin_utils/test_jsonfield_admin.py b/tests/admin_utils/test_jsonfield_admin.py
+new file mode 100644
+index 0000000000..836334c4d1
+--- /dev/null
++++ b/tests/admin_utils/test_jsonfield_admin.py
+@@ -0,0 +1,26 @@
++from django.contrib.admin.utils import display_for_field
++from django.db import models
++from django.test import TestCase, override_settings
++
++class JSONFieldModel(models.Model):
++    data = models.JSONField()
++
++    class Meta:
++        app_label = 'admin_utils'
++
++@override_settings(INSTALLED_APPS=['django.contrib.admin', 'django.contrib.auth', 'django.contrib.contenttypes', 'tests.admin_utils'])
++class JSONFieldAdminTest(TestCase):
++    def test_jsonfield_display(self):
++        field = JSONFieldModel._meta.get_field('data')
++        test_value = {"foo": "bar"}
++        result = display_for_field(test_value, field, '')
++        self.assertEqual(result, '{"foo": "bar"}')
++
++        # Test with None value
++        result = display_for_field(None, field, '')
++        self.assertEqual(result, '')
++
++        # Test with invalid JSON
++        invalid_json = {"foo": set()}  # set is not JSON serializable
++        result = display_for_field(invalid_json, field, '')
++        self.assertIn("Invalid JSON", result)

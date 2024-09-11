@@ -1,0 +1,53 @@
+
+diff --git a/lib/matplotlib/cbook/__init__.py b/lib/matplotlib/cbook/__init__.py
+index 34c6ddb861..d9e8083eb6 100644
+--- a/lib/matplotlib/cbook/__init__.py
++++ b/lib/matplotlib/cbook/__init__.py
+@@ -1,10 +1,12 @@
+-"""
+-A collection of utility functions and classes.  Originally, many
+-(but not all) were from the Python Cookbook -- hence the name cbook.
+-
+-This module is safe to import from anywhere within Matplotlib;
+-it imports Matplotlib only at runtime.
+-"""
++import collections
++import collections.abc
++import contextlib
++import functools
++import itertools
++import math
++import operator
++import os
++from pathlib import Path
+ 
+ import collections
+ import collections.abc
+@@ -1746,7 +1748,7 @@ def _safe_first_finite(obj, *, skip_nonfinite=True):
+         raise RuntimeError("matplotlib does not "
+                            "support generators as input")
+     else:
+-        return next(val for val in obj if safe_isfinite(val))
++        return next((val for val in obj if safe_isfinite(val)), np.nan)
+ 
+ 
+ def sanitize_sequence(data):
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..922ebb3001
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,13 @@
++import numpy as np
++import matplotlib.pyplot as plt
++from matplotlib.cbook import _safe_first_finite
++
++# Test _safe_first_finite function
++print(_safe_first_finite([np.nan, np.nan]))  # Should print nan
++
++f, ax = plt.subplots()
++ax.bar([np.nan], [np.nan])
++ax.bar([np.nan], [0])
++ax.bar([0], [np.nan])
++
++print("Script completed successfully, no errors.")

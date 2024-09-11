@@ -1,0 +1,587 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sympy/core/relational.py
+	modified:   sympy/sets/sets.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_issue.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 33b47e4bd60e2302e42616141e76285038b724d6
+Merge: 6d27585c5b 7d414cdead
+Author: Oscar Benjamin <oscar.j.benjamin@gmail.com>
+Date:   Wed Dec 23 11:47:17 2020 +0000
+
+    Merge pull request #20646 from Mohitbalwani26/refactor(test_ode)
+    
+    refactor lie_group examples
+
++ git diff 33b47e4bd60e2302e42616141e76285038b724d6
+diff --git a/sympy/core/relational.py b/sympy/core/relational.py
+index e2e0b7fbcc..012547d83a 100644
+--- a/sympy/core/relational.py
++++ b/sympy/core/relational.py
+@@ -670,7 +670,9 @@ def _eval_simplify(self, **kwargs):
+         if isinstance(eq, Equality):
+             # send back Ne with the new args
+             return self.func(*eq.args)
+-        return eq.negated  # result of Ne is the negated Eq
++        if eq == S.EmptySet:
++            return S.false  # An empty set is never unequal to itself
++        return eq.negated if hasattr(eq, 'negated') else S.false
+ 
+ 
+ Ne = Unequality
+diff --git a/sympy/sets/sets.py b/sympy/sets/sets.py
+index 3c4aa86e36..b47a62d3a1 100644
+--- a/sympy/sets/sets.py
++++ b/sympy/sets/sets.py
+@@ -774,6 +774,22 @@ def _flatten(sets):
+                 else:
+                     yield s
+         return ProductSet(*_flatten(self.sets))
++    def _eval_Eq(self, other):
++        if isinstance(other, ProductSet) and len(self.sets) == len(other.sets):
++            return And(*[Eq(s1, s2) for s1, s2 in zip(self.sets, other.sets)])
++        elif isinstance(other, FiniteSet):
++            return And(*[other.contains(elem) for elem in self])
++        return None
++    def _eval_is_subset(self, other):
++        if isinstance(other, ProductSet) and len(self.sets) == len(other.sets):
++            return And(*[s1.is_subset(s2) for s1, s2 in zip(self.sets, other.sets)])
++        elif isinstance(other, FiniteSet):
++            return And(*[other.contains(elem) for elem in self])
++        return None
++    def _eval_rewrite_as_FiniteSet(self, *args):
++        from itertools import product
++        return FiniteSet(*[tuple(elem) for elem in product(*self.sets)])
++
+ 
+ 
+ 
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: mpmath>=0.19 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from sympy==1.8.dev0) (1.3.0)
+Installing collected packages: sympy
+  Attempting uninstall: sympy
+    Found existing installation: sympy 1.8.dev0
+    Uninstalling sympy-1.8.dev0:
+      Successfully uninstalled sympy-1.8.dev0
+  Running setup.py develop for sympy
+Successfully installed sympy-1.8.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 33b47e4bd60e2302e42616141e76285038b724d6 sympy/sets/tests/test_sets.py
+Updated 0 paths from 4d2f564d97
++ git apply -v -
+Checking patch sympy/sets/tests/test_sets.py...
+Applied patch sympy/sets/tests/test_sets.py cleanly.
++ PYTHONWARNINGS=ignore::UserWarning,ignore::SyntaxWarning
++ bin/test -C --verbose sympy/sets/tests/test_sets.py
+============================= test process starts ==============================
+executable:         /opt/miniconda3/envs/testbed/bin/python  (3.9.19-final-0) [CPython]
+architecture:       64-bit
+cache:              no
+ground types:       python 
+numpy:              None
+random seed:        17455028
+hash randomization: on (PYTHONHASHSEED=3862481600)
+
+sympy/sets/tests/test_sets.py[100] 
+test_imageset ok
+test_is_empty ok
+test_is_finiteset ok
+test_deprecated_is_EmptySet ok
+test_interval_arguments ok
+test_interval_symbolic_end_points ok
+test_interval_is_empty ok
+test_union ok
+test_union_iter ok
+test_union_is_empty ok
+test_difference ok
+test_Complement F
+test_set_operations_nonsets ok
+test_complement E
+test_intersect1 ok
+test_intersection ok
+test_issue_9623 ok
+test_is_disjoint ok
+test_ProductSet__len__ ok
+test_ProductSet ok
+test_ProductSet_of_single_arg_is_not_arg ok
+test_ProductSet_is_empty ok
+test_interval_subs ok
+test_interval_to_mpi ok
+test_set_evalf ok
+test_measure ok
+test_is_subset ok
+test_is_proper_subset ok
+test_is_superset ok
+test_is_proper_superset ok
+test_contains ok
+test_interval_symbolic ok
+test_union_contains ok
+test_is_number ok
+test_Interval_is_left_unbounded ok
+test_Interval_is_right_unbounded ok
+test_Interval_as_relational ok
+test_Finite_as_relational ok
+test_Union_as_relational ok
+test_Intersection_as_relational ok
+test_Complement_as_relational ok
+test_Complement_as_relational_fail f
+test_SymmetricDifference_as_relational ok
+test_EmptySet ok
+test_finite_basic ok
+test_product_basic E
+test_real ok
+test_supinf ok
+test_universalset ok
+test_Union_of_ProductSets_shares ok
+test_Interval_free_symbols ok
+test_image_interval ok
+test_image_piecewise ok
+test_image_Intersection f
+test_image_FiniteSet ok
+test_image_Union ok
+test_image_EmptySet ok
+test_issue_5724_7680 ok
+test_boundary ok
+test_boundary_Union ok
+test_union_boundary_of_joining_sets f
+test_boundary_ProductSet ok
+test_boundary_ProductSet_line ok
+test_is_open ok
+test_is_closed ok
+test_closure ok
+test_interior ok
+test_issue_7841 ok
+test_Eq F
+test_SymmetricDifference ok
+test_issue_9536 ok
+test_issue_9637 ok
+test_issue_9808 ok
+test_issue_9956 ok
+test_issue_Symbol_inter ok
+test_issue_11827 ok
+test_issue_10113 ok
+test_issue_10248 ok
+test_issue_9447 ok
+test_issue_10337 ok
+test_issue_10326 ok
+test_issue_2799 ok
+test_issue_9706 ok
+test_issue_8257 ok
+test_issue_10931 ok
+test_issue_11174 ok
+test_issue_18505 ok
+test_finite_set_intersection ok
+test_union_intersection_constructor ok
+test_Union_contains ok
+test_issue_16878b f
+test_DisjointUnion E
+test_DisjointUnion_is_empty ok
+test_DisjointUnion_is_iterable ok
+test_DisjointUnion_contains ok
+test_DisjointUnion_iter ok
+test_DisjointUnion_len ok
+test_issue_20089 ok
+test_issue_19378 F
+test_issue_20379 ok                                                       [FAIL]
+
+
+________________________________ slowest tests _________________________________
+sympy/sets/tests/test_sets.py::test_image_interval - Took 61.987 seconds
+________________________________________________________________________________
+________________ sympy/sets/tests/test_sets.py:test_complement _________________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_sets.py", line 412, in test_complement
+    notsquare = square.complement(S.Reals*S.Reals)
+  File "/testbed/sympy/sets/sets.py", line 184, in complement
+    return Complement(universe, self)
+  File "/testbed/sympy/sets/sets.py", line 1574, in __new__
+    return Complement.reduce(a, b)
+  File "/testbed/sympy/sets/sets.py", line 1590, in reduce
+    result = B._complement(A)
+  File "/testbed/sympy/sets/sets.py", line 200, in _complement
+    return Union(*overlaps)
+  File "/testbed/sympy/sets/sets.py", line 1198, in __new__
+    return simplify_union(args)
+  File "/testbed/sympy/sets/sets.py", line 2380, in simplify_union
+    new_set = union_sets(s, t)
+  File "/testbed/sympy/multipledispatch/dispatcher.py", line 243, in __call__
+    return func(*args, **kwargs)
+  File "/testbed/sympy/sets/handlers/union.py", line 67, in union_sets
+    if b.is_subset(a):
+  File "/testbed/sympy/sets/sets.py", line 378, in is_subset
+    ret = self._eval_is_subset(other)
+  File "/testbed/sympy/sets/sets.py", line 785, in _eval_is_subset
+    return And(*[s1.is_subset(s2) for s1, s2 in zip(self.sets, other.sets)])
+  File "/testbed/sympy/core/operations.py", line 489, in __new__
+    _args = frozenset(cls._new_args_filter(args))
+  File "/testbed/sympy/logic/boolalg.py", line 681, in _new_args_filter
+    args = BooleanFunction.binary_check_and_simplify(*args)
+  File "/testbed/sympy/core/operations.py", line 482, in <genexpr>
+    args = (_sympify_(arg) for arg in args)
+  File "/testbed/sympy/core/sympify.py", line 512, in _sympify
+    return sympify(a, strict=True)
+  File "/testbed/sympy/core/sympify.py", line 371, in sympify
+    raise SympifyError(a)
+sympy.core.sympify.SympifyError: SympifyError: None
+________________________________________________________________________________
+_______________ sympy/sets/tests/test_sets.py:test_product_basic _______________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_sets.py", line 1015, in test_product_basic
+    assert square.complement(Interval(-oo, oo)*Interval(-oo, oo)) == Union(
+  File "/testbed/sympy/sets/sets.py", line 184, in complement
+    return Complement(universe, self)
+  File "/testbed/sympy/sets/sets.py", line 1574, in __new__
+    return Complement.reduce(a, b)
+  File "/testbed/sympy/sets/sets.py", line 1590, in reduce
+    result = B._complement(A)
+  File "/testbed/sympy/sets/sets.py", line 200, in _complement
+    return Union(*overlaps)
+  File "/testbed/sympy/sets/sets.py", line 1198, in __new__
+    return simplify_union(args)
+  File "/testbed/sympy/sets/sets.py", line 2380, in simplify_union
+    new_set = union_sets(s, t)
+  File "/testbed/sympy/multipledispatch/dispatcher.py", line 243, in __call__
+    return func(*args, **kwargs)
+  File "/testbed/sympy/sets/handlers/union.py", line 67, in union_sets
+    if b.is_subset(a):
+  File "/testbed/sympy/sets/sets.py", line 378, in is_subset
+    ret = self._eval_is_subset(other)
+  File "/testbed/sympy/sets/sets.py", line 785, in _eval_is_subset
+    return And(*[s1.is_subset(s2) for s1, s2 in zip(self.sets, other.sets)])
+  File "/testbed/sympy/core/operations.py", line 489, in __new__
+    _args = frozenset(cls._new_args_filter(args))
+  File "/testbed/sympy/logic/boolalg.py", line 681, in _new_args_filter
+    args = BooleanFunction.binary_check_and_simplify(*args)
+  File "/testbed/sympy/core/operations.py", line 482, in <genexpr>
+    args = (_sympify_(arg) for arg in args)
+  File "/testbed/sympy/core/sympify.py", line 512, in _sympify
+    return sympify(a, strict=True)
+  File "/testbed/sympy/core/sympify.py", line 371, in sympify
+    raise SympifyError(a)
+sympy.core.sympify.SympifyError: SympifyError: None
+________________________________________________________________________________
+_______________ sympy/sets/tests/test_sets.py:test_DisjointUnion _______________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_sets.py", line 1515, in test_DisjointUnion
+    assert DisjointUnion(FiniteSet(x), FiniteSet(y, z)).rewrite(Union) == (FiniteSet(x) * FiniteSet(0)) + (FiniteSet(y, z) * FiniteSet(1))
+  File "/testbed/sympy/core/basic.py", line 1770, in rewrite
+    return self._eval_rewrite(None, rule, **hints)
+  File "/testbed/sympy/core/basic.py", line 1689, in _eval_rewrite
+    rewritten = getattr(self, rule)(*args, **hints)
+  File "/testbed/sympy/sets/sets.py", line 2117, in _eval_rewrite_as_Union
+    dj_union = Union(dj_union, cross)
+  File "/testbed/sympy/sets/sets.py", line 1198, in __new__
+    return simplify_union(args)
+  File "/testbed/sympy/sets/sets.py", line 2380, in simplify_union
+    new_set = union_sets(s, t)
+  File "/testbed/sympy/multipledispatch/dispatcher.py", line 243, in __call__
+    return func(*args, **kwargs)
+  File "/testbed/sympy/sets/handlers/union.py", line 67, in union_sets
+    if b.is_subset(a):
+  File "/testbed/sympy/sets/sets.py", line 378, in is_subset
+    ret = self._eval_is_subset(other)
+  File "/testbed/sympy/sets/sets.py", line 785, in _eval_is_subset
+    return And(*[s1.is_subset(s2) for s1, s2 in zip(self.sets, other.sets)])
+  File "/testbed/sympy/core/operations.py", line 489, in __new__
+    _args = frozenset(cls._new_args_filter(args))
+  File "/testbed/sympy/logic/boolalg.py", line 681, in _new_args_filter
+    args = BooleanFunction.binary_check_and_simplify(*args)
+  File "/testbed/sympy/core/operations.py", line 482, in <genexpr>
+    args = (_sympify_(arg) for arg in args)
+  File "/testbed/sympy/core/sympify.py", line 512, in _sympify
+    return sympify(a, strict=True)
+  File "/testbed/sympy/core/sympify.py", line 371, in sympify
+    raise SympifyError(a)
+sympy.core.sympify.SympifyError: SympifyError: None
+
+________________________________________________________________________________
+________________ sympy/sets/tests/test_sets.py:test_Complement _________________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_sets.py", line 328, in test_Complement
+    assert unchanged(Complement, ProductSet(A, A), B)
+AssertionError
+________________________________________________________________________________
+____________________ sympy/sets/tests/test_sets.py:test_Eq _____________________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_sets.py", line 1254, in test_Eq
+    assert Eq(ProductSet({1}, {2}), Interval(1, 2)) is S.false
+AssertionError
+________________________________________________________________________________
+________________ sympy/sets/tests/test_sets.py:test_issue_19378 ________________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_sets.py", line 1604, in test_issue_19378
+    assert b.is_subset(c) is True
+AssertionError
+
+ tests finished: 90 passed, 3 failed, 4 expected to fail, 3 exceptions, 
+in 80.60 seconds 
+DO *NOT* COMMIT!
++ git checkout 33b47e4bd60e2302e42616141e76285038b724d6 sympy/sets/tests/test_sets.py
+Updated 1 path from 4d2f564d97

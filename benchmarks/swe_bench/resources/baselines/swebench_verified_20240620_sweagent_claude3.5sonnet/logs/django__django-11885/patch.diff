@@ -1,0 +1,102 @@
+
+diff --git a/django/db/models/deletion.py b/django/db/models/deletion.py
+index ae82d26340..b311582904 100644
+--- a/django/db/models/deletion.py
++++ b/django/db/models/deletion.py
+@@ -279,6 +279,22 @@ class Collector:
+             if not found:
+                 return
+         self.data = {model: self.data[model] for model in sorted_models}
++    def _combine_fast_deletes(self):
++        """
++        Combine fast deletes into a single queryset per model to reduce the
++        number of queries, but limit the combination to avoid overly large queries.
++        """
++        combined_deletes = []
++        for qs in self.fast_deletes:
++            if not combined_deletes or combined_deletes[-1].model != qs.model:
++                combined_deletes.append(qs)
++            else:
++                last_qs = combined_deletes[-1]
++                if last_qs.count() + qs.count() <= 1000:  # Limit to 1000 objects per query
++                    combined_deletes[-1] = last_qs | qs
++                else:
++                    combined_deletes.append(qs)
++        return combined_deletes
+ 
+     def delete(self):
+         # sort instance collections
+@@ -292,15 +308,6 @@ class Collector:
+         # number of objects deleted for each model label
+         deleted_counter = Counter()
+ 
+-        # Optimize for the case with a single obj and no dependencies
+-        if len(self.data) == 1 and len(instances) == 1:
+-            instance = list(instances)[0]
+-            if self.can_fast_delete(instance):
+-                with transaction.mark_for_rollback_on_error():
+-                    count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)
+-                setattr(instance, model._meta.pk.attname, None)
+-                return count, {model._meta.label: count}
+-
+         with transaction.atomic(using=self.using, savepoint=False):
+             # send pre_delete signals
+             for model, obj in self.instances_with_model():
+@@ -310,7 +317,8 @@ class Collector:
+                     )
+ 
+             # fast deletes
+-            for qs in self.fast_deletes:
++            combined_fast_deletes = self._combine_fast_deletes()
++            for qs in combined_fast_deletes:
+                 count = qs._raw_delete(using=self.using)
+                 deleted_counter[qs.model._meta.label] += count
+ 
+@@ -347,3 +355,8 @@ class Collector:
+             for instance in instances:
+                 setattr(instance, model._meta.pk.attname, None)
+         return sum(deleted_counter.values()), dict(deleted_counter)
++        return sum(deleted_counter.values()), dict(deleted_counter)
++        for model, instances in self.data.items():
++            for instance in instances:
++                setattr(instance, model._meta.pk.attname, None)
++        return sum(deleted_counter.values()), dict(deleted_counter)
+diff --git a/tests/run_tests.py b/tests/run_tests.py
+new file mode 100644
+index 0000000000..80bb872069
+--- /dev/null
++++ b/tests/run_tests.py
+@@ -0,0 +1,12 @@
++import os
++import django
++from django.conf import settings
++from django.test.utils import get_runner
++
++if __name__ == "__main__":
++    os.environ['DJANGO_SETTINGS_MODULE'] = 'tests.settings'
++    django.setup()
++    TestRunner = get_runner(settings)
++    test_runner = TestRunner()
++    failures = test_runner.run_tests(["model_fields.test_foreignkey"])
++    exit(bool(failures))
+diff --git a/tests/test_settings.py b/tests/test_settings.py
+new file mode 100644
+index 0000000000..bf20c7f252
+--- /dev/null
++++ b/tests/test_settings.py
+@@ -0,0 +1,15 @@
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'django.contrib.auth',
++    'tests',
++]
++
++SECRET_KEY = 'fake-key'
++USE_TZ = True

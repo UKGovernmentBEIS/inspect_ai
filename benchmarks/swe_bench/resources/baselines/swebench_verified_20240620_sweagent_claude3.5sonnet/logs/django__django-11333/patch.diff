@@ -1,0 +1,65 @@
+
+diff --git a/django/core/handlers/base.py b/django/core/handlers/base.py
+index 2304e7761d..7014fdffc2 100644
+--- a/django/core/handlers/base.py
++++ b/django/core/handlers/base.py
+@@ -5,7 +5,7 @@ from django.conf import settings
+ from django.core.exceptions import ImproperlyConfigured, MiddlewareNotUsed
+ from django.core.signals import request_finished
+ from django.db import connections, transaction
+-from django.urls import get_resolver, set_urlconf
++from django.urls import cached_get_resolver as get_resolver, set_urlconf
+ from django.utils.log import log_response
+ from django.utils.module_loading import import_string
+ 
+diff --git a/django/urls/__init__.py b/django/urls/__init__.py
+index e9e32ac5b9..fd1b730727 100644
+--- a/django/urls/__init__.py
++++ b/django/urls/__init__.py
+@@ -8,7 +8,7 @@ from .converters import register_converter
+ from .exceptions import NoReverseMatch, Resolver404
+ from .resolvers import (
+     LocalePrefixPattern, ResolverMatch, URLPattern, URLResolver,
+-    get_ns_resolver, get_resolver,
++    get_ns_resolver, cached_get_resolver as get_resolver,
+ )
+ from .utils import get_callable, get_mod_func
+ 
+diff --git a/django/urls/base.py b/django/urls/base.py
+index 0e1c3d909c..780fd5b059 100644
+--- a/django/urls/base.py
++++ b/django/urls/base.py
+@@ -7,7 +7,7 @@ from django.utils.functional import lazy
+ from django.utils.translation import override
+ 
+ from .exceptions import NoReverseMatch, Resolver404
+-from .resolvers import get_ns_resolver, get_resolver
++from .resolvers import get_ns_resolver, cached_get_resolver as get_resolver
+ from .utils import get_callable
+ 
+ # SCRIPT_NAME prefixes for each thread are stored here. If there's no entry for
+@@ -92,7 +92,7 @@ reverse_lazy = lazy(reverse, str)
+ 
+ def clear_url_caches():
+     get_callable.cache_clear()
+-    get_resolver.cache_clear()
++    cached_get_resolver.cache_clear()
+     get_ns_resolver.cache_clear()
+ 
+ 
+diff --git a/django/urls/resolvers.py b/django/urls/resolvers.py
+index 247e3680c0..b825853393 100644
+--- a/django/urls/resolvers.py
++++ b/django/urls/resolvers.py
+@@ -69,6 +69,11 @@ def get_resolver(urlconf=None):
+         urlconf = settings.ROOT_URLCONF
+     return URLResolver(RegexPattern(r'^/'), urlconf)
+ 
++def cached_get_resolver(urlconf=None):
++    if urlconf is None:
++        urlconf = settings.ROOT_URLCONF
++    return get_resolver(urlconf)
++
+ 
+ @functools.lru_cache(maxsize=None)
+ def get_ns_resolver(ns_pattern, resolver, converters):

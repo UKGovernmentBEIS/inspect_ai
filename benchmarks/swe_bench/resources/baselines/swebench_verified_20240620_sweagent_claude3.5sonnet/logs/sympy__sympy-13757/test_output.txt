@@ -1,0 +1,661 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sympy/polys/polytools.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit a5e6a101869e027e7930e694f8b1cfb082603453
+Merge: 8a3956d911 82317ab2d0
+Author: Kalevi Suominen <jksuom@gmail.com>
+Date:   Sat Dec 16 10:52:36 2017 +0200
+
+    Merge pull request #13678 from symbolique/master
+    
+    Fix is_real for trigonometric and hyperbolic functions
+
++ git diff a5e6a101869e027e7930e694f8b1cfb082603453
+diff --git a/sympy/polys/polytools.py b/sympy/polys/polytools.py
+index d5ac051f63..33f04f03ab 100644
+--- a/sympy/polys/polytools.py
++++ b/sympy/polys/polytools.py
+@@ -4038,24 +4038,27 @@ def __rsub__(f, g):
+         return g.sub(f)
+ 
+     @_sympifyit('g', NotImplemented)
++
+     def __mul__(f, g):
++        if isinstance(g, (Symbol, Expr)):
++            return f.mul(f.__class__(g, *f.gens))
+         if not g.is_Poly:
+             try:
+                 g = f.__class__(g, *f.gens)
+             except PolynomialError:
+                 return f.as_expr()*g
+-
+         return f.mul(g)
+ 
+     @_sympifyit('g', NotImplemented)
+     def __rmul__(f, g):
++        if isinstance(g, (Symbol, Expr)):
++            return f.mul(f.__class__(g, *f.gens))
+         if not g.is_Poly:
+             try:
+                 g = f.__class__(g, *f.gens)
+             except PolynomialError:
+                 return g*f.as_expr()
+-
+-        return g.mul(f)
++        return f.mul(g)
+ 
+     @_sympifyit('n', NotImplemented)
+     def __pow__(f, n):
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: mpmath>=0.19 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from sympy==1.1.2.dev0) (1.3.0)
+Installing collected packages: sympy
+  Attempting uninstall: sympy
+    Found existing installation: sympy 1.1.2.dev0
+    Uninstalling sympy-1.1.2.dev0:
+      Successfully uninstalled sympy-1.1.2.dev0
+  Running setup.py develop for sympy
+Successfully installed sympy-1.1.2.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout a5e6a101869e027e7930e694f8b1cfb082603453 sympy/core/tests/test_match.py sympy/polys/tests/test_polytools.py
+Updated 0 paths from 03f321666c
++ git apply -v -
+Checking patch sympy/core/tests/test_match.py...
+Checking patch sympy/polys/tests/test_polytools.py...
+Applied patch sympy/core/tests/test_match.py cleanly.
+Applied patch sympy/polys/tests/test_polytools.py cleanly.
++ PYTHONWARNINGS=ignore::UserWarning,ignore::SyntaxWarning
++ bin/test -C --verbose sympy/core/tests/test_match.py sympy/polys/tests/test_polytools.py
+/testbed/sympy/core/basic.py:3: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Mapping, defaultdict
+/testbed/sympy/core/containers.py:271: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  class OrderedSet(collections.MutableSet):
+/testbed/sympy/plotting/plot.py:28: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Callable
+/testbed/sympy/core/basic.py:3: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Mapping, defaultdict
+/testbed/sympy/core/containers.py:271: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  class OrderedSet(collections.MutableSet):
+/testbed/sympy/plotting/plot.py:28: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Callable
+============================= test process starts ==============================
+executable:         /opt/miniconda3/envs/testbed/bin/python  (3.9.19-final-0) [CPython]
+architecture:       64-bit
+cache:              no
+ground types:       python 
+numpy:              None
+random seed:        67372130
+hash randomization: on (PYTHONHASHSEED=34462753)
+
+sympy/core/tests/test_match.py[37] 
+test_symbol ok
+test_add ok
+test_power ok
+test_match_exclude ok
+test_mul ok
+test_mul_noncommutative ok
+test_complex ok
+test_functions ok
+test_functions_X1 f
+test_interface ok
+test_derivative1 ok
+test_derivative_bug1 ok
+test_derivative2 ok
+test_match_deriv_bug1 E
+test_match_bug2 ok
+test_match_bug3 ok
+test_match_bug4 ok
+test_match_bug5 ok
+test_match_bug6 ok
+test_match_polynomial ok
+test_exclude ok
+test_floats ok
+test_Derivative_bug1 E
+test_match_wild_wild ok
+test__combine_inverse ok
+test_issue_3773 ok
+test_issue_3883 ok
+test_issue_4418 E
+test_issue_4700 ok
+test_issue_5168 ok
+test_issue_4559 ok
+test_issue_4883 f
+test_issue_4319 ok
+test_issue_3778 ok
+test_issue_6103 ok
+test_issue_3539 ok
+test_gh_issue_2711 ok                                                     [FAIL]
+
+sympy/polys/tests/test_polytools.py[142] 
+test_Poly_from_dict ok
+test_Poly_from_list ok
+test_Poly_from_poly ok
+test_Poly_from_expr ok
+test_Poly__new__ ok
+test_Poly__args ok
+test_Poly__gens ok
+test_Poly_zero ok
+test_Poly_one ok
+test_Poly__unify ok
+test_Poly_free_symbols ok
+test_PurePoly_free_symbols ok
+test_Poly__eq__ ok
+test_PurePoly__eq__ ok
+test_PurePoly_Poly ok
+test_Poly_get_domain ok
+test_Poly_set_domain ok
+test_Poly_get_modulus ok
+test_Poly_set_modulus ok
+test_Poly_add_ground ok
+test_Poly_sub_ground ok
+test_Poly_mul_ground ok
+test_Poly_quo_ground ok
+test_Poly_exquo_ground ok
+test_Poly_abs ok
+test_Poly_neg ok
+test_Poly_add ok
+test_Poly_sub ok
+test_Poly_mul E
+test_issue_13079 F
+test_Poly_sqr ok
+test_Poly_pow ok
+test_Poly_divmod ok
+test_Poly_eq_ne ok
+test_Poly_nonzero ok
+test_Poly_properties ok
+test_Poly_is_irreducible ok
+test_Poly_subs ok
+test_Poly_replace ok
+test_Poly_reorder ok
+test_Poly_ltrim ok
+test_Poly_has_only_gens ok
+test_Poly_to_ring ok
+test_Poly_to_field ok
+test_Poly_to_exact ok
+test_Poly_retract ok
+test_Poly_slice ok
+test_Poly_coeffs ok
+test_Poly_monoms ok
+test_Poly_terms ok
+test_Poly_all_coeffs ok
+test_Poly_all_monoms ok
+test_Poly_all_terms ok
+test_Poly_termwise ok
+test_Poly_length ok
+test_Poly_as_dict ok
+test_Poly_as_expr ok
+test_Poly_lift ok
+test_Poly_deflate ok
+test_Poly_inject ok
+test_Poly_eject ok
+test_Poly_exclude ok
+test_Poly__gen_to_level ok
+test_Poly_degree ok
+test_Poly_degree_list ok
+test_Poly_total_degree ok
+test_Poly_homogenize ok
+test_Poly_homogeneous_order ok
+test_Poly_LC ok
+test_Poly_TC ok
+test_Poly_EC ok
+test_Poly_coeff ok
+test_Poly_nth ok
+test_Poly_LM ok
+test_Poly_LM_custom_order ok
+test_Poly_EM ok
+test_Poly_LT ok
+test_Poly_ET ok
+test_Poly_max_norm ok
+test_Poly_l1_norm ok
+test_Poly_clear_denoms ok
+test_Poly_rat_clear_denoms ok
+test_Poly_integrate ok
+test_Poly_diff ok
+test_issue_9585 E
+test_Poly_eval ok
+test_Poly___call__ ok
+test_parallel_poly_from_expr ok
+test_pdiv ok
+test_div ok
+test_gcdex ok
+test_revert ok
+test_subresultants ok
+test_resultant ok
+test_discriminant ok
+test_dispersion ok
+test_gcd_list ok
+test_lcm_list ok
+test_gcd ok
+test_gcd_numbers_vs_polys ok
+test_terms_gcd ok
+test_trunc ok
+test_monic ok
+test_content ok
+test_primitive ok
+test_compose ok
+test_shift ok
+test_transform ok
+test_sturm ok
+test_gff ok
+test_norm ok
+test_sqf_norm ok
+test_sqf ok
+test_factor E
+test_factor_large ok
+test_factor_noeval f
+test_intervals ok
+test_refine_root ok
+test_count_roots ok
+test_Poly_root ok
+test_real_roots ok
+test_all_roots ok
+test_nroots ok
+test_ground_roots ok
+test_nth_power_roots_poly ok
+test_torational_factor_list ok
+test_cancel ok
+test_reduced ok
+test_groebner ok
+test_fglm ok
+test_is_zero_dimensional ok
+test_GroebnerBasis ok
+test_poly ok
+test_keep_coeff ok
+test_poly_matching_consistency f
+test_issue_5786 f
+test_noncommutative ok
+test_to_rational_coeffs ok
+test_factor_terms ok
+test_issue_11198 ok
+test_Poly_precision ok
+test_issue_12400 ok                                                       [FAIL]
+
+
+________________________________________________________________________________
+_____________ sympy/core/tests/test_match.py:test_match_deriv_bug1 _____________
+  File "/testbed/sympy/core/tests/test_match.py", line 279, in test_match_deriv_bug1
+    e = diff(l(x), x)/x - diff(diff(n(x), x), x)/2 - \
+  File "/testbed/sympy/core/function.py", line 1900, in diff
+    return Derivative(f, *symbols, **kwargs)
+  File "/testbed/sympy/core/function.py", line 1227, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_____________ sympy/core/tests/test_match.py:test_Derivative_bug1 ______________
+  File "/testbed/sympy/core/tests/test_match.py", line 372, in test_Derivative_bug1
+    eq = f(x).diff(x)
+  File "/testbed/sympy/core/expr.py", line 3008, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1227, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+________________ sympy/core/tests/test_match.py:test_issue_4418 ________________
+  File "/testbed/sympy/core/tests/test_match.py", line 455, in test_issue_4418
+    eq = diff(g(x)*f(x).diff(x), x)
+  File "/testbed/sympy/core/expr.py", line 3008, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1227, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+______________ sympy/polys/tests/test_polytools.py:test_Poly_mul _______________
+  File "/testbed/sympy/polys/tests/test_polytools.py", line 675, in test_Poly_mul
+    assert Poly(1, x) * sin(x) == sin(x)
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/polys/polytools.py", line 4044, in __mul__
+    return f.mul(f.__class__(g, *f.gens))
+  File "/testbed/sympy/polys/polytools.py", line 128, in __new__
+    return cls._from_expr(rep, opt)
+  File "/testbed/sympy/polys/polytools.py", line 238, in _from_expr
+    rep, opt = _dict_from_expr(rep, opt)
+  File "/testbed/sympy/polys/polyutils.py", line 365, in _dict_from_expr
+    rep, gens = _dict_from_expr_if_gens(expr, opt)
+  File "/testbed/sympy/polys/polyutils.py", line 304, in _dict_from_expr_if_gens
+    (poly,), gens = _parallel_dict_from_expr_if_gens((expr,), opt)
+  File "/testbed/sympy/polys/polyutils.py", line 214, in _parallel_dict_from_expr_if_gens
+    raise PolynomialError("%s contains an element of the generators set" % factor)
+sympy.polys.polyerrors.PolynomialError: sin(x) contains an element of the generators set
+________________________________________________________________________________
+_____________ sympy/polys/tests/test_polytools.py:test_issue_9585 ______________
+  File "/testbed/sympy/polys/tests/test_polytools.py", line 1457, in test_issue_9585
+    assert Derivative(Poly(x**2 + x), x).doit() == Poly(2*x + 1)
+  File "/testbed/sympy/core/function.py", line 1366, in doit
+    return self.func(expr, *self.variables, **hints)
+  File "/testbed/sympy/core/function.py", line 1227, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_______________ sympy/polys/tests/test_polytools.py:test_factor ________________
+  File "/testbed/sympy/polys/tests/test_polytools.py", line 2373, in test_factor
+    f = sqrt(expand((r**2 + 1)*(p + 1)*(p - 1)*(p - 2)**3))
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 140, in __mul__
+    return Mul(self, other)
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1100, in _eval_is_zero
+    z = a.is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 676, in _eval_is_negative
+    if s != self and s.is_negative and a.is_nonpositive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 679, in _eval_is_negative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3008, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1227, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+
+________________________________________________________________________________
+_____________ sympy/polys/tests/test_polytools.py:test_issue_13079 _____________
+  File "/testbed/sympy/polys/tests/test_polytools.py", line 682, in test_issue_13079
+    assert x*Poly(x) == Poly(x**2, x, domain='ZZ')
+AssertionError
+
+ tests finished: 167 passed, 1 failed, 5 expected to fail, 6 exceptions, 
+in 13.47 seconds 
+DO *NOT* COMMIT!
++ git checkout a5e6a101869e027e7930e694f8b1cfb082603453 sympy/core/tests/test_match.py sympy/polys/tests/test_polytools.py
+Updated 2 paths from 03f321666c

@@ -1,0 +1,139 @@
+
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index 822968ef56..5e4c0d23ff 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -1258,8 +1258,9 @@ class When(Expression):
+                 "When() supports a Q object, a boolean expression, or lookups "
+                 "as a condition."
+             )
+-        if isinstance(condition, Q) and not condition:
+-            raise ValueError("An empty Q() can't be used as a When() condition.")
++        # Remove the check for empty Q objects
++        # if isinstance(condition, Q) and not condition:
++        #     raise ValueError("An empty Q() can't be used as a When() condition.")
+         super().__init__(output_field=None)
+         self.condition = condition
+         self.result = self._parse_expressions(then)[0]
+@@ -1298,7 +1299,14 @@ class When(Expression):
+         connection.ops.check_expression_support(self)
+         template_params = extra_context
+         sql_params = []
+-        condition_sql, condition_params = compiler.compile(self.condition)
++        if isinstance(self.condition, Q) and not self.condition:
++            # Handle empty Q object by returning None
++            return None, []
++        else:
++            condition_sql, condition_params = compiler.compile(self.condition)
++        if not condition_sql.strip():
++            # Handle empty condition by returning None
++            return None, []
+         template_params["condition"] = condition_sql
+         sql_params.extend(condition_params)
+         result_sql, result_params = compiler.compile(self.result)
+@@ -1372,8 +1380,6 @@ class Case(SQLiteNumericMixin, Expression):
+     def copy(self):
+         c = super().copy()
+         c.cases = c.cases[:]
+-        return c
+-
+     def as_sql(
+         self, compiler, connection, template=None, case_joiner=None, **extra_context
+     ):
+@@ -1384,25 +1390,26 @@ class Case(SQLiteNumericMixin, Expression):
+         case_parts = []
+         sql_params = []
+         for case in self.cases:
+-            try:
+-                case_sql, case_params = compiler.compile(case)
+-            except EmptyResultSet:
+-                continue
+-            case_parts.append(case_sql)
+-            sql_params.extend(case_params)
+-        default_sql, default_params = compiler.compile(self.default)
++            case_sql, case_params = compiler.compile(case)
++            if case_sql:  # Only add non-None case parts
++                case_parts.append(case_sql)
++                sql_params.extend(case_params)
+         if not case_parts:
+-            return default_sql, default_params
+-        case_joiner = case_joiner or self.case_joiner
+-        template_params["cases"] = case_joiner.join(case_parts)
+-        template_params["default"] = default_sql
+-        sql_params.extend(default_params)
+-        template = template or template_params.get("template", self.template)
++            # If all cases are empty or None, just return the default
++            return compiler.compile(self.default)
++        template_params["cases"] = " ".join(case_parts)
++        if self.default is None:
++            template_params["default"] = "NULL"
++        else:
++            default_sql, default_params = compiler.compile(self.default)
++            template_params["default"] = default_sql
++            sql_params.extend(default_params)
++        template = template or self.template
+         sql = template % template_params
+         if self._output_field_or_none is not None:
+             sql = connection.ops.unification_cast_sql(self.output_field) % sql
++        print(f"Generated SQL for Case: {sql}")  # Add this line to print the SQL
+         return sql, sql_params
+-
+     def get_group_by_cols(self, alias=None):
+         if not self.cases:
+             return self.default.get_group_by_cols(alias)
+diff --git a/reproduce_case_crash.py b/reproduce_case_crash.py
+new file mode 100644
+index 0000000000..c603e74dad
+--- /dev/null
++++ b/reproduce_case_crash.py
+@@ -0,0 +1,50 @@
++import os
++import django
++from django.db.models import Case, When, Value, BooleanField, Q
++from django.conf import settings
++import logging
++
++# Set up logging
++logging.basicConfig()
++logging.getLogger('django.db.backends').setLevel(logging.DEBUG)
++
++# Set up Django environment
++if not settings.configured:
++    settings.configure(
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.auth',
++            'django.contrib.contenttypes',
++        ],
++    )
++django.setup()
++
++from django.contrib.auth.models import User
++
++# Reproduce the issue
++try:
++    query = User.objects.annotate(
++        _a=Case(
++            When(~Q(pk__in=[]), then=Value(True)),
++            default=Value(False),
++            output_field=BooleanField(),
++        )
++    ).order_by("-_a").values("pk")
++    
++    # Print the generated SQL
++    print("Generated SQL:")
++    print(query.query)
++    
++    # Force query execution
++    result = list(query)
++    print(f"Query result: {result}")
++    print("Query executed successfully.")
++except Exception as e:
++    print(f"Error occurred: {e}")
++
++print("Script completed.")

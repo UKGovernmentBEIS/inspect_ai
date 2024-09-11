@@ -1,0 +1,648 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/models/fields/files.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	tests/model_fields/test_filefield_deconstruct.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit ece18207cbb64dd89014e279ac636a6c9829828e
+Author: Tim Park <timpark0807@gmail.com>
+Date:   Sat Aug 29 12:17:58 2020 -0700
+
+    Fixed #31858 -- Reallowed whitespaces in URL paths outside of parameters.
+    
+    Regression in 22394bd3a18a7d9a8957a0b431f8ae4e5ca03a8c.
+    
+    Thanks David Smith for the review.
+
+diff --git a/django/urls/resolvers.py b/django/urls/resolvers.py
+index 9f4d84d5a2..5e3e6dea16 100644
+--- a/django/urls/resolvers.py
++++ b/django/urls/resolvers.py
+@@ -208,8 +208,6 @@ def _route_to_regex(route, is_endpoint=False):
+     For example, 'foo/<int:pk>' returns '^foo\\/(?P<pk>[0-9]+)'
+     and {'pk': <django.urls.converters.IntConverter>}.
+     """
+-    if not set(route).isdisjoint(string.whitespace):
+-        raise ImproperlyConfigured("URL route '%s' cannot contain whitespace." % route)
+     original_route = route
+     parts = ['^']
+     converters = {}
+@@ -218,6 +216,11 @@ def _route_to_regex(route, is_endpoint=False):
+         if not match:
+             parts.append(re.escape(route))
+             break
++        elif not set(match.group()).isdisjoint(string.whitespace):
++            raise ImproperlyConfigured(
++                "URL route '%s' cannot contain whitespace in angle brackets "
++                "<…>." % original_route
++            )
+         parts.append(re.escape(route[:match.start()]))
+         route = route[match.end():]
+         parameter = match['parameter']
+diff --git a/tests/urlpatterns/tests.py b/tests/urlpatterns/tests.py
+index 54b7e09813..b6b23ade9e 100644
+--- a/tests/urlpatterns/tests.py
++++ b/tests/urlpatterns/tests.py
+@@ -1,3 +1,4 @@
++import string
+ import uuid
+ 
+ from django.conf.urls import url as conf_url
+@@ -142,10 +143,19 @@ class SimplifiedURLTests(SimpleTestCase):
+         with self.assertRaisesMessage(ImproperlyConfigured, msg):
+             path('foo/<nonexistent:var>/', empty_view)
+ 
+-    def test_space_in_route(self):
+-        msg = "URL route 'space/<int: num>' cannot contain whitespace."
+-        with self.assertRaisesMessage(ImproperlyConfigured, msg):
+-            path('space/<int: num>', empty_view)
++    def test_whitespace_in_route(self):
++        msg = (
++            "URL route 'space/<int:num>/extra/<str:%stest>' cannot contain "
++            "whitespace in angle brackets <…>"
++        )
++        for whitespace in string.whitespace:
++            with self.subTest(repr(whitespace)):
++                with self.assertRaisesMessage(ImproperlyConfigured, msg % whitespace):
++                    path('space/<int:num>/extra/<str:%stest>' % whitespace, empty_view)
++        # Whitespaces are valid in paths.
++        p = path('space%s/<int:num>/' % string.whitespace, empty_view)
++        match = p.resolve('space%s/1/' % string.whitespace)
++        self.assertEqual(match.kwargs, {'num': 1})
+ 
+ 
+ @override_settings(ROOT_URLCONF='urlpatterns.converter_urls')
++ git diff ece18207cbb64dd89014e279ac636a6c9829828e
+diff --git a/django/db/models/fields/files.py b/django/db/models/fields/files.py
+index e10a5bb6d9..cb3c84a3ba 100644
+--- a/django/db/models/fields/files.py
++++ b/django/db/models/fields/files.py
+@@ -228,8 +228,8 @@ class FileField(Field):
+         self._primary_key_set_explicitly = 'primary_key' in kwargs
+ 
+         self.storage = storage or default_storage
+-        if callable(self.storage):
+-            self.storage = self.storage()
++        self._storage_is_callable = callable(self.storage)
++        if not self._storage_is_callable:
+             if not isinstance(self.storage, Storage):
+                 raise TypeError(
+                     "%s.storage must be a subclass/instance of %s.%s"
+@@ -279,7 +279,7 @@ class FileField(Field):
+             del kwargs["max_length"]
+         kwargs['upload_to'] = self.upload_to
+         if self.storage is not default_storage:
+-            kwargs['storage'] = self.storage
++            kwargs['storage'] = self.storage if self._storage_is_callable else self.storage
+         return name, path, args, kwargs
+ 
+     def get_internal_type(self):
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: asgiref>=3.2.10 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (3.4.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (0.4.4)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref>=3.2.10->Django==3.2) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.2
+    Uninstalling Django-3.2:
+      Successfully uninstalled Django-3.2
+  Running setup.py develop for Django
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+Successfully installed Django-3.2
++ git checkout ece18207cbb64dd89014e279ac636a6c9829828e tests/file_storage/tests.py
+Updated 0 paths from 0aeee2b07e
++ git apply -v -
+Checking patch tests/file_storage/tests.py...
+Applied patch tests/file_storage/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 file_storage.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+test_custom_valid_name_callable_upload_to (file_storage.tests.FileFieldStorageTests) ... ok
+test_duplicate_filename (file_storage.tests.FileFieldStorageTests) ... ok
+test_empty_upload_to (file_storage.tests.FileFieldStorageTests) ... ok
+test_extended_length_storage (file_storage.tests.FileFieldStorageTests) ... ok
+test_file_object (file_storage.tests.FileFieldStorageTests) ... ok
+test_file_truncation (file_storage.tests.FileFieldStorageTests) ... ok
+test_filefield_default (file_storage.tests.FileFieldStorageTests) ... ok
+test_filefield_pickling (file_storage.tests.FileFieldStorageTests) ... ok
+test_filefield_read (file_storage.tests.FileFieldStorageTests) ... ok
+test_filefield_reopen (file_storage.tests.FileFieldStorageTests) ... ok
+test_filefield_write (file_storage.tests.FileFieldStorageTests) ... ok
+test_files (file_storage.tests.FileFieldStorageTests) ... ok
+test_pathlib_upload_to (file_storage.tests.FileFieldStorageTests) ... ok
+test_random_upload_to (file_storage.tests.FileFieldStorageTests) ... ok
+test_stringio (file_storage.tests.FileFieldStorageTests) ... ok
+test_base_url (file_storage.tests.CustomStorageTests) ... ok
+test_custom_get_available_name (file_storage.tests.CustomStorageTests) ... ok
+test_delete_deletes_directories (file_storage.tests.CustomStorageTests) ... ok
+test_delete_no_name (file_storage.tests.CustomStorageTests) ... ok
+test_empty_location (file_storage.tests.CustomStorageTests) ... ok
+test_file_access_options (file_storage.tests.CustomStorageTests) ... ok
+test_file_chunks_error (file_storage.tests.CustomStorageTests) ... ok
+test_file_get_accessed_time (file_storage.tests.CustomStorageTests) ... ok
+test_file_get_accessed_time_timezone (file_storage.tests.CustomStorageTests) ... ok
+test_file_get_created_time (file_storage.tests.CustomStorageTests) ... ok
+test_file_get_created_time_timezone (file_storage.tests.CustomStorageTests) ... ok
+test_file_get_modified_time (file_storage.tests.CustomStorageTests) ... ok
+test_file_get_modified_time_timezone (file_storage.tests.CustomStorageTests) ... ok
+test_file_methods_pathlib_path (file_storage.tests.CustomStorageTests) ... ok
+test_file_path (file_storage.tests.CustomStorageTests) ... ok
+test_file_save_with_path (file_storage.tests.CustomStorageTests) ... ok
+test_file_save_without_name (file_storage.tests.CustomStorageTests) ... ok
+test_file_storage_preserves_filename_case (file_storage.tests.CustomStorageTests)
+The storage backend should preserve case of filenames. ... ok
+test_file_storage_prevents_directory_traversal (file_storage.tests.CustomStorageTests) ... ok
+test_file_url (file_storage.tests.CustomStorageTests) ... ok
+test_listdir (file_storage.tests.CustomStorageTests) ... ok
+test_makedirs_race_handling (file_storage.tests.CustomStorageTests) ... ok
+test_remove_race_handling (file_storage.tests.CustomStorageTests) ... ok
+test_save_doesnt_close (file_storage.tests.CustomStorageTests) ... ok
+test_setting_changed (file_storage.tests.CustomStorageTests) ... ok
+test_base_url (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_custom_storage_discarding_empty_content (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_delete_deletes_directories (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_delete_no_name (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_empty_location (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_file_access_options (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_file_chunks_error (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_file_get_accessed_time (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_file_get_accessed_time_timezone (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_file_get_created_time (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_file_get_created_time_timezone (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_file_get_modified_time (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_file_get_modified_time_timezone (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_file_methods_pathlib_path (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_file_path (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_file_save_with_path (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_file_save_without_name (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_file_storage_preserves_filename_case (file_storage.tests.DiscardingFalseContentStorageTests)
+The storage backend should preserve case of filenames. ... ok
+test_file_storage_prevents_directory_traversal (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_file_url (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_listdir (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_makedirs_race_handling (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_remove_race_handling (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_save_doesnt_close (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_setting_changed (file_storage.tests.DiscardingFalseContentStorageTests) ... ok
+test_callable_base_class_error_raises (file_storage.tests.FieldCallableFileStorageTests) ... test_callable_class_storage_file_field (file_storage.tests.FieldCallableFileStorageTests) ... FAIL
+test_callable_function_storage_file_field (file_storage.tests.FieldCallableFileStorageTests) ... FAIL
+test_callable_storage_file_field_in_model (file_storage.tests.FieldCallableFileStorageTests) ... FAIL
+test_deconstruction (file_storage.tests.FieldCallableFileStorageTests) ... ok
+test_file_field_storage_none_uses_default_storage (file_storage.tests.FieldCallableFileStorageTests) ... ok
+test_urllib_request_urlopen (file_storage.tests.FileLikeObjectTestCase) ... ok
+test_race_condition (file_storage.tests.FileSaveRaceConditionTest) ... ok
+test_directory_with_dot (file_storage.tests.FileStoragePathParsing)
+Regression test for #9610. ... ok
+test_first_character_dot (file_storage.tests.FileStoragePathParsing) ... ok
+test_base_url (file_storage.tests.FileStorageTests) ... ok
+test_delete_deletes_directories (file_storage.tests.FileStorageTests) ... ok
+test_delete_no_name (file_storage.tests.FileStorageTests) ... ok
+test_empty_location (file_storage.tests.FileStorageTests) ... ok
+test_file_access_options (file_storage.tests.FileStorageTests) ... ok
+test_file_chunks_error (file_storage.tests.FileStorageTests) ... ok
+test_file_get_accessed_time (file_storage.tests.FileStorageTests) ... ok
+test_file_get_accessed_time_timezone (file_storage.tests.FileStorageTests) ... ok
+test_file_get_created_time (file_storage.tests.FileStorageTests) ... ok
+test_file_get_created_time_timezone (file_storage.tests.FileStorageTests) ... ok
+test_file_get_modified_time (file_storage.tests.FileStorageTests) ... ok
+test_file_get_modified_time_timezone (file_storage.tests.FileStorageTests) ... ok
+test_file_methods_pathlib_path (file_storage.tests.FileStorageTests) ... ok
+test_file_path (file_storage.tests.FileStorageTests) ... ok
+test_file_save_with_path (file_storage.tests.FileStorageTests) ... ok
+test_file_save_without_name (file_storage.tests.FileStorageTests) ... ok
+test_file_storage_preserves_filename_case (file_storage.tests.FileStorageTests)
+The storage backend should preserve case of filenames. ... ok
+test_file_storage_prevents_directory_traversal (file_storage.tests.FileStorageTests) ... ok
+test_file_url (file_storage.tests.FileStorageTests) ... ok
+test_listdir (file_storage.tests.FileStorageTests) ... ok
+test_makedirs_race_handling (file_storage.tests.FileStorageTests) ... ok
+test_remove_race_handling (file_storage.tests.FileStorageTests) ... ok
+test_save_doesnt_close (file_storage.tests.FileStorageTests) ... ok
+test_setting_changed (file_storage.tests.FileStorageTests) ... ok
+test_get_filesystem_storage (file_storage.tests.GetStorageClassTests) ... ok
+test_get_invalid_storage_module (file_storage.tests.GetStorageClassTests) ... ok
+test_get_nonexistent_storage_class (file_storage.tests.GetStorageClassTests) ... ok
+test_get_nonexistent_storage_module (file_storage.tests.GetStorageClassTests) ... ok
+test_base_url (file_storage.tests.OverwritingStorageTests) ... ok
+test_delete_deletes_directories (file_storage.tests.OverwritingStorageTests) ... ok
+test_delete_no_name (file_storage.tests.OverwritingStorageTests) ... ok
+test_empty_location (file_storage.tests.OverwritingStorageTests) ... ok
+test_file_access_options (file_storage.tests.OverwritingStorageTests) ... ok
+test_file_chunks_error (file_storage.tests.OverwritingStorageTests) ... ok
+test_file_get_accessed_time (file_storage.tests.OverwritingStorageTests) ... ok
+test_file_get_accessed_time_timezone (file_storage.tests.OverwritingStorageTests) ... ok
+test_file_get_created_time (file_storage.tests.OverwritingStorageTests) ... ok
+test_file_get_created_time_timezone (file_storage.tests.OverwritingStorageTests) ... ok
+test_file_get_modified_time (file_storage.tests.OverwritingStorageTests) ... ok
+test_file_get_modified_time_timezone (file_storage.tests.OverwritingStorageTests) ... ok
+test_file_methods_pathlib_path (file_storage.tests.OverwritingStorageTests) ... ok
+test_file_path (file_storage.tests.OverwritingStorageTests) ... ok
+test_file_save_with_path (file_storage.tests.OverwritingStorageTests) ... ok
+test_file_save_without_name (file_storage.tests.OverwritingStorageTests) ... ok
+test_file_storage_preserves_filename_case (file_storage.tests.OverwritingStorageTests)
+The storage backend should preserve case of filenames. ... ok
+test_file_storage_prevents_directory_traversal (file_storage.tests.OverwritingStorageTests) ... ok
+test_file_url (file_storage.tests.OverwritingStorageTests) ... ok
+test_listdir (file_storage.tests.OverwritingStorageTests) ... ok
+test_makedirs_race_handling (file_storage.tests.OverwritingStorageTests) ... ok
+test_remove_race_handling (file_storage.tests.OverwritingStorageTests) ... ok
+test_save_doesnt_close (file_storage.tests.OverwritingStorageTests) ... ok
+test_save_overwrite_behavior (file_storage.tests.OverwritingStorageTests)
+Saving to same file name twice overwrites the first file. ... ok
+test_setting_changed (file_storage.tests.OverwritingStorageTests) ... ok
+test_content_saving (file_storage.tests.ContentFileStorageTestCase) ... ok
+test_file_upload_default_permissions (file_storage.tests.FileStoragePermissions) ... ok
+test_file_upload_directory_default_permissions (file_storage.tests.FileStoragePermissions) ... ok
+test_file_upload_directory_permissions (file_storage.tests.FileStoragePermissions) ... ok
+test_file_upload_permissions (file_storage.tests.FileStoragePermissions) ... ok
+test_deconstruction (file_storage.tests.FileSystemStorageTests) ... ok
+test_lazy_base_url_init (file_storage.tests.FileSystemStorageTests) ... ok
+
+======================================================================
+FAIL: test_callable_base_class_error_raises (file_storage.tests.FieldCallableFileStorageTests) (invalid_type=<class 'file_storage.tests.FieldCallableFileStorageTests.test_callable_base_class_error_raises.<locals>.NotStorage'>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/file_storage/tests.py", line 889, in test_callable_base_class_error_raises
+    FileField(storage=invalid_type)
+  File "/opt/miniconda3/envs/testbed/lib/python3.6/contextlib.py", line 88, in __exit__
+    next(self.gen)
+  File "/testbed/django/test/testcases.py", line 692, in _assert_raises_or_warns_cm
+    yield cm
+AssertionError: TypeError not raised
+
+======================================================================
+FAIL: test_callable_base_class_error_raises (file_storage.tests.FieldCallableFileStorageTests) (invalid_type=<class 'str'>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/file_storage/tests.py", line 889, in test_callable_base_class_error_raises
+    FileField(storage=invalid_type)
+  File "/opt/miniconda3/envs/testbed/lib/python3.6/contextlib.py", line 88, in __exit__
+    next(self.gen)
+  File "/testbed/django/test/testcases.py", line 692, in _assert_raises_or_warns_cm
+    yield cm
+AssertionError: TypeError not raised
+
+======================================================================
+FAIL: test_callable_base_class_error_raises (file_storage.tests.FieldCallableFileStorageTests) (invalid_type=<class 'list'>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/file_storage/tests.py", line 889, in test_callable_base_class_error_raises
+    FileField(storage=invalid_type)
+  File "/opt/miniconda3/envs/testbed/lib/python3.6/contextlib.py", line 88, in __exit__
+    next(self.gen)
+  File "/testbed/django/test/testcases.py", line 692, in _assert_raises_or_warns_cm
+    yield cm
+AssertionError: TypeError not raised
+
+======================================================================
+FAIL: test_callable_base_class_error_raises (file_storage.tests.FieldCallableFileStorageTests) (invalid_type=<class 'set'>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/file_storage/tests.py", line 889, in test_callable_base_class_error_raises
+    FileField(storage=invalid_type)
+  File "/opt/miniconda3/envs/testbed/lib/python3.6/contextlib.py", line 88, in __exit__
+    next(self.gen)
+  File "/testbed/django/test/testcases.py", line 692, in _assert_raises_or_warns_cm
+    yield cm
+AssertionError: TypeError not raised
+
+======================================================================
+FAIL: test_callable_base_class_error_raises (file_storage.tests.FieldCallableFileStorageTests) (invalid_type=<class 'tuple'>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/file_storage/tests.py", line 889, in test_callable_base_class_error_raises
+    FileField(storage=invalid_type)
+  File "/opt/miniconda3/envs/testbed/lib/python3.6/contextlib.py", line 88, in __exit__
+    next(self.gen)
+  File "/testbed/django/test/testcases.py", line 692, in _assert_raises_or_warns_cm
+    yield cm
+AssertionError: TypeError not raised
+
+======================================================================
+FAIL: test_callable_class_storage_file_field (file_storage.tests.FieldCallableFileStorageTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/file_storage/tests.py", line 909, in test_callable_class_storage_file_field
+    self.assertIsInstance(obj.storage, BaseStorage)
+AssertionError: <class 'file_storage.tests.FieldCallableFileStorageTests.test_callable_class_storage_file_field.<locals>.GetStorage'> is not an instance of <class 'django.core.files.storage.Storage'>
+
+======================================================================
+FAIL: test_callable_function_storage_file_field (file_storage.tests.FieldCallableFileStorageTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/file_storage/tests.py", line 901, in test_callable_function_storage_file_field
+    self.assertEqual(obj.storage, storage)
+AssertionError: <function FieldCallableFileStorageTests.te[74 chars]52f0> != <django.core.files.storage.FileSystemStora[23 chars]fd30>
+
+======================================================================
+FAIL: test_callable_storage_file_field_in_model (file_storage.tests.FieldCallableFileStorageTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/file_storage/tests.py", line 913, in test_callable_storage_file_field_in_model
+    self.assertEqual(obj.storage_callable.storage, temp_storage)
+AssertionError: <function callable_storage at 0x7f8005412bf8> != <django.core.files.storage.FileSystemStorage object at 0x7f8005297da0>
+
+----------------------------------------------------------------------
+Ran 135 tests in 1.902s
+
+FAILED (failures=8)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application file_storage
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, file_storage, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table file_storage_storage
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
++ git checkout ece18207cbb64dd89014e279ac636a6c9829828e tests/file_storage/tests.py
+Updated 1 path from 0aeee2b07e

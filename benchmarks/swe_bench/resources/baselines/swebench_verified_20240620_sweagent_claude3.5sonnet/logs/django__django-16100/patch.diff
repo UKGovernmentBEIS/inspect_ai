@@ -1,0 +1,13 @@
+
+diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py
+index 5f07a4208a..e46b210a8f 100644
+--- a/django/contrib/admin/options.py
++++ b/django/contrib/admin/options.py
+@@ -1911,6 +1911,7 @@ class ModelAdmin(BaseModelAdmin):
+         return queryset.filter(pk__in=object_pks)
+ 
+     @csrf_protect_m
++    @transaction.atomic
+     def changelist_view(self, request, extra_context=None):
+         """
+         The 'change list' admin view for this model.

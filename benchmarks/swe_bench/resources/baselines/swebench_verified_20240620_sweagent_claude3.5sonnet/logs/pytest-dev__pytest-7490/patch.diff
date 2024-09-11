@@ -1,0 +1,46 @@
+
+diff --git a/src/_pytest/skipping.py b/src/_pytest/skipping.py
+index 335e10996..e2725d4b1 100644
+--- a/src/_pytest/skipping.py
++++ b/src/_pytest/skipping.py
+@@ -254,6 +254,11 @@ def pytest_runtest_call(item: Item) -> Generator[None, None, None]:
+         if xfailed and not xfailed.run:
+             xfail("[NOTRUN] " + xfailed.reason)
+ 
++    # Re-evaluate xfail marks just before yielding
++    item._store[xfailed_key] = xfailed = evaluate_xfail_marks(item)
++    if not item.config.option.runxfail and xfailed and not xfailed.run:
++        xfail("[NOTRUN] " + xfailed.reason)
++
+     yield
+ 
+ 
+@@ -262,6 +267,10 @@ def pytest_runtest_makereport(item: Item, call: CallInfo[None]):
+     outcome = yield
+     rep = outcome.get_result()
+     xfailed = item._store.get(xfailed_key, None)
++    # Re-evaluate xfail marks to catch dynamically added markers
++    if xfailed is None or call.when == "call":
++        xfailed = evaluate_xfail_marks(item)
++        item._store[xfailed_key] = xfailed
+     # unittest special case, see setting of unexpectedsuccess_key
+     if unexpectedsuccess_key in item._store and rep.when == "call":
+         reason = item._store[unexpectedsuccess_key]
+diff --git a/test_foo.py b/test_foo.py
+new file mode 100644
+index 000000000..f7b7abe79
+--- /dev/null
++++ b/test_foo.py
+@@ -0,0 +1,12 @@
++import pytest
++
++def test_xfail_test(request):
++    mark = pytest.mark.xfail(reason="xfail")
++    request.node.add_marker(mark)
++    assert 0
++
++def test_dynamic_xfail(request):
++    assert True  # This should pass
++    mark = pytest.mark.xfail(reason="dynamic xfail")
++    request.node.add_marker(mark)
++    assert False  # This should be marked as xfail

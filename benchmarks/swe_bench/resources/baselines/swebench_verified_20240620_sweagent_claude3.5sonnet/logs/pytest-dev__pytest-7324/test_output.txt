@@ -1,0 +1,610 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	issue_comment.md
+	reproduce.py
+
+nothing added to commit but untracked files present (use "git add" to track)
++ git show
+commit 19ad5889353c7f5f2b65cc2acd346b7a9e95dfcd
+Author: Xinbin Huang <bin.huangxb@gmail.com>
+Date:   Fri Jun 5 04:10:16 2020 -0700
+
+    Add reference to builtin markers to doc (#7321)
+    
+    Co-authored-by: Bruno Oliveira <nicoddemus@gmail.com>
+
+diff --git a/doc/en/mark.rst b/doc/en/mark.rst
+index 3899dab88..6fb665fdf 100644
+--- a/doc/en/mark.rst
++++ b/doc/en/mark.rst
+@@ -4,14 +4,19 @@ Marking test functions with attributes
+ ======================================
+ 
+ By using the ``pytest.mark`` helper you can easily set
+-metadata on your test functions. There are
+-some builtin markers, for example:
++metadata on your test functions. You can find the full list of builtin markers
++in the :ref:`API Reference<marks ref>`. Or you can list all the markers, including
++builtin and custom, using the CLI - :code:`pytest --markers`.
+ 
++Here are some of the builtin markers:
++
++* :ref:`usefixtures <usefixtures>` - use fixtures on a test function or class
++* :ref:`filterwarnings <filterwarnings>` - filter certain warnings of a test function
+ * :ref:`skip <skip>` - always skip a test function
+ * :ref:`skipif <skipif>` - skip a test function if a certain condition is met
+ * :ref:`xfail <xfail>` - produce an "expected failure" outcome if a certain
+   condition is met
+-* :ref:`parametrize <parametrizemark>` to perform multiple calls
++* :ref:`parametrize <parametrizemark>` - perform multiple calls
+   to the same test function.
+ 
+ It's easy to create custom markers or to apply markers
+diff --git a/doc/en/start_doc_server.sh b/doc/en/start_doc_server.sh
+new file mode 100644
+index 000000000..f68677409
+--- /dev/null
++++ b/doc/en/start_doc_server.sh
+@@ -0,0 +1,5 @@
++#!/usr/bin/env bash
++
++MY_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
++cd "${MY_DIR}"/_build/html || exit
++python -m http.server 8000
++ git diff 19ad5889353c7f5f2b65cc2acd346b7a9e95dfcd
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: attrs>=17.4.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==5.4.1.dev457+g19ad58893) (23.1.0)
+Requirement already satisfied: iniconfig in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==5.4.1.dev457+g19ad58893) (2.0.0)
+Requirement already satisfied: more-itertools>=4.0.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==5.4.1.dev457+g19ad58893) (10.1.0)
+Requirement already satisfied: packaging in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==5.4.1.dev457+g19ad58893) (23.1)
+Requirement already satisfied: pluggy<1.0,>=0.12 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==5.4.1.dev457+g19ad58893) (0.13.1)
+Requirement already satisfied: py>=1.5.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==5.4.1.dev457+g19ad58893) (1.11.0)
+Building wheels for collected packages: pytest
+  Building editable for pytest (pyproject.toml): started
+  Building editable for pytest (pyproject.toml): finished with status 'done'
+  Created wheel for pytest: filename=pytest-5.4.1.dev457+g19ad58893-0.editable-py3-none-any.whl size=5110 sha256=c64d9a4de754695a506d7edab793da39ad6cc57f51e25f12e05be664990808f1
+  Stored in directory: /tmp/pip-ephem-wheel-cache-zh_9k7fa/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built pytest
+Installing collected packages: pytest
+  Attempting uninstall: pytest
+    Found existing installation: pytest 5.4.1.dev457+g19ad58893
+    Uninstalling pytest-5.4.1.dev457+g19ad58893:
+      Successfully uninstalled pytest-5.4.1.dev457+g19ad58893
+Successfully installed pytest-5.4.1.dev457+g19ad58893
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 19ad5889353c7f5f2b65cc2acd346b7a9e95dfcd testing/test_mark_expression.py
+Updated 0 paths from 155db3fe4
++ git apply -v -
+Checking patch testing/test_mark_expression.py...
+Applied patch testing/test_mark_expression.py cleanly.
++ pytest -rA testing/test_mark_expression.py
+WARNING: Unknown config ini key: rsyncdirs
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-5.4.1.dev457+g19ad58893, py-1.11.0, pluggy-0.13.1
+rootdir: /testbed, inifile: tox.ini
+collected 83 items
+
+testing/test_mark_expression.py ........................................ [ 48%]
+..................FFF......................                              [100%]
+
+=================================== FAILURES ===================================
+___________________________ test_valid_idents[True] ____________________________
+
+ident = 'True'
+
+    @pytest.mark.parametrize(
+        "ident",
+        (
+            ".",
+            "...",
+            ":::",
+            "a:::c",
+            "a+-b",
+            "אבגד",
+            "aaאבגדcc",
+            "a[bcd]",
+            "1234",
+            "1234abcd",
+            "1234and",
+            "notandor",
+            "not_and_or",
+            "not[and]or",
+            "1234+5678",
+            "123.232",
+            "True",
+            "False",
+            "None",
+            "if",
+            "else",
+            "while",
+        ),
+    )
+    def test_valid_idents(ident: str) -> None:
+>       assert evaluate(ident, {ident: True}.__getitem__)
+
+testing/test_mark_expression.py:140: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+testing/test_mark_expression.py:9: in evaluate
+    return Expression.compile(input).evaluate(matcher)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <class '_pytest.mark.expression.Expression'>, input = 'True'
+
+    @classmethod
+    def compile(self, input: str) -> "Expression":
+        """Compile a match expression.
+    
+        :param input: The input expression - one line.
+        """
+        astexpr = expression(Scanner(input))
+>       code = compile(
+            astexpr, filename="<pytest match expression>", mode="eval",
+        )  # type: types.CodeType
+E       ValueError: Name node can't be used with 'True' constant
+
+src/_pytest/mark/expression.py:202: ValueError
+___________________________ test_valid_idents[False] ___________________________
+
+ident = 'False'
+
+    @pytest.mark.parametrize(
+        "ident",
+        (
+            ".",
+            "...",
+            ":::",
+            "a:::c",
+            "a+-b",
+            "אבגד",
+            "aaאבגדcc",
+            "a[bcd]",
+            "1234",
+            "1234abcd",
+            "1234and",
+            "notandor",
+            "not_and_or",
+            "not[and]or",
+            "1234+5678",
+            "123.232",
+            "True",
+            "False",
+            "None",
+            "if",
+            "else",
+            "while",
+        ),
+    )
+    def test_valid_idents(ident: str) -> None:
+>       assert evaluate(ident, {ident: True}.__getitem__)
+
+testing/test_mark_expression.py:140: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+testing/test_mark_expression.py:9: in evaluate
+    return Expression.compile(input).evaluate(matcher)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <class '_pytest.mark.expression.Expression'>, input = 'False'
+
+    @classmethod
+    def compile(self, input: str) -> "Expression":
+        """Compile a match expression.
+    
+        :param input: The input expression - one line.
+        """
+        astexpr = expression(Scanner(input))
+>       code = compile(
+            astexpr, filename="<pytest match expression>", mode="eval",
+        )  # type: types.CodeType
+E       ValueError: Name node can't be used with 'False' constant
+
+src/_pytest/mark/expression.py:202: ValueError
+___________________________ test_valid_idents[None] ____________________________
+
+ident = 'None'
+
+    @pytest.mark.parametrize(
+        "ident",
+        (
+            ".",
+            "...",
+            ":::",
+            "a:::c",
+            "a+-b",
+            "אבגד",
+            "aaאבגדcc",
+            "a[bcd]",
+            "1234",
+            "1234abcd",
+            "1234and",
+            "notandor",
+            "not_and_or",
+            "not[and]or",
+            "1234+5678",
+            "123.232",
+            "True",
+            "False",
+            "None",
+            "if",
+            "else",
+            "while",
+        ),
+    )
+    def test_valid_idents(ident: str) -> None:
+>       assert evaluate(ident, {ident: True}.__getitem__)
+
+testing/test_mark_expression.py:140: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+testing/test_mark_expression.py:9: in evaluate
+    return Expression.compile(input).evaluate(matcher)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <class '_pytest.mark.expression.Expression'>, input = 'None'
+
+    @classmethod
+    def compile(self, input: str) -> "Expression":
+        """Compile a match expression.
+    
+        :param input: The input expression - one line.
+        """
+        astexpr = expression(Scanner(input))
+>       code = compile(
+            astexpr, filename="<pytest match expression>", mode="eval",
+        )  # type: types.CodeType
+E       ValueError: Name node can't be used with 'None' constant
+
+src/_pytest/mark/expression.py:202: ValueError
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED testing/test_mark_expression.py::test_empty_is_false
+PASSED testing/test_mark_expression.py::test_basic[true-True0]
+PASSED testing/test_mark_expression.py::test_basic[true-True1]
+PASSED testing/test_mark_expression.py::test_basic[false-False]
+PASSED testing/test_mark_expression.py::test_basic[not true-False]
+PASSED testing/test_mark_expression.py::test_basic[not false-True]
+PASSED testing/test_mark_expression.py::test_basic[not not true-True]
+PASSED testing/test_mark_expression.py::test_basic[not not false-False]
+PASSED testing/test_mark_expression.py::test_basic[true and true-True]
+PASSED testing/test_mark_expression.py::test_basic[true and false-False]
+PASSED testing/test_mark_expression.py::test_basic[false and true-False]
+PASSED testing/test_mark_expression.py::test_basic[true and true and true-True]
+PASSED testing/test_mark_expression.py::test_basic[true and true and false-False]
+PASSED testing/test_mark_expression.py::test_basic[true and true and not true-False]
+PASSED testing/test_mark_expression.py::test_basic[false or false-False]
+PASSED testing/test_mark_expression.py::test_basic[false or true-True]
+PASSED testing/test_mark_expression.py::test_basic[true or true-True]
+PASSED testing/test_mark_expression.py::test_basic[true or true or false-True]
+PASSED testing/test_mark_expression.py::test_basic[true and true or false-True]
+PASSED testing/test_mark_expression.py::test_basic[not true or true-True]
+PASSED testing/test_mark_expression.py::test_basic[(not true) or true-True]
+PASSED testing/test_mark_expression.py::test_basic[not (true or true)-False]
+PASSED testing/test_mark_expression.py::test_basic[true and true or false and false-True]
+PASSED testing/test_mark_expression.py::test_basic[true and (true or false) and false-False]
+PASSED testing/test_mark_expression.py::test_basic[true and (true or (not (not false))) and false-False]
+PASSED testing/test_mark_expression.py::test_syntax_oddeties[               true           -True]
+PASSED testing/test_mark_expression.py::test_syntax_oddeties[               ((((((true))))))           -True]
+PASSED testing/test_mark_expression.py::test_syntax_oddeties[     (         ((\t  (((true)))))  \t   \t)-True]
+PASSED testing/test_mark_expression.py::test_syntax_oddeties[(     true     and   (((false))))-False]
+PASSED testing/test_mark_expression.py::test_syntax_oddeties[not not not not true-True]
+PASSED testing/test_mark_expression.py::test_syntax_oddeties[not not not not not true-False]
+PASSED testing/test_mark_expression.py::test_syntax_errors[(-2-expected not OR left parenthesis OR identifier; got end of input]
+PASSED testing/test_mark_expression.py::test_syntax_errors[ (-3-expected not OR left parenthesis OR identifier; got end of input]
+PASSED testing/test_mark_expression.py::test_syntax_errors[)-1-expected not OR left parenthesis OR identifier; got right parenthesis]
+PASSED testing/test_mark_expression.py::test_syntax_errors[) -1-expected not OR left parenthesis OR identifier; got right parenthesis]
+PASSED testing/test_mark_expression.py::test_syntax_errors[not-4-expected not OR left parenthesis OR identifier; got end of input]
+PASSED testing/test_mark_expression.py::test_syntax_errors[not not-8-expected not OR left parenthesis OR identifier; got end of input]
+PASSED testing/test_mark_expression.py::test_syntax_errors[(not)-5-expected not OR left parenthesis OR identifier; got right parenthesis]
+PASSED testing/test_mark_expression.py::test_syntax_errors[and-1-expected not OR left parenthesis OR identifier; got and]
+PASSED testing/test_mark_expression.py::test_syntax_errors[ident and-10-expected not OR left parenthesis OR identifier; got end of input]
+PASSED testing/test_mark_expression.py::test_syntax_errors[ident and or-11-expected not OR left parenthesis OR identifier; got or]
+PASSED testing/test_mark_expression.py::test_syntax_errors[ident ident-7-expected end of input; got identifier]
+PASSED testing/test_mark_expression.py::test_valid_idents[.]
+PASSED testing/test_mark_expression.py::test_valid_idents[...]
+PASSED testing/test_mark_expression.py::test_valid_idents[:::]
+PASSED testing/test_mark_expression.py::test_valid_idents[a:::c]
+PASSED testing/test_mark_expression.py::test_valid_idents[a+-b]
+PASSED testing/test_mark_expression.py::test_valid_idents[\u05d0\u05d1\u05d2\u05d3]
+PASSED testing/test_mark_expression.py::test_valid_idents[aa\u05d0\u05d1\u05d2\u05d3cc]
+PASSED testing/test_mark_expression.py::test_valid_idents[a[bcd]]
+PASSED testing/test_mark_expression.py::test_valid_idents[1234]
+PASSED testing/test_mark_expression.py::test_valid_idents[1234abcd]
+PASSED testing/test_mark_expression.py::test_valid_idents[1234and]
+PASSED testing/test_mark_expression.py::test_valid_idents[notandor]
+PASSED testing/test_mark_expression.py::test_valid_idents[not_and_or]
+PASSED testing/test_mark_expression.py::test_valid_idents[not[and]or]
+PASSED testing/test_mark_expression.py::test_valid_idents[1234+5678]
+PASSED testing/test_mark_expression.py::test_valid_idents[123.232]
+PASSED testing/test_mark_expression.py::test_valid_idents[if]
+PASSED testing/test_mark_expression.py::test_valid_idents[else]
+PASSED testing/test_mark_expression.py::test_valid_idents[while]
+PASSED testing/test_mark_expression.py::test_invalid_idents[/]
+PASSED testing/test_mark_expression.py::test_invalid_idents[\\]
+PASSED testing/test_mark_expression.py::test_invalid_idents[^]
+PASSED testing/test_mark_expression.py::test_invalid_idents[*]
+PASSED testing/test_mark_expression.py::test_invalid_idents[=]
+PASSED testing/test_mark_expression.py::test_invalid_idents[&]
+PASSED testing/test_mark_expression.py::test_invalid_idents[%]
+PASSED testing/test_mark_expression.py::test_invalid_idents[$]
+PASSED testing/test_mark_expression.py::test_invalid_idents[#]
+PASSED testing/test_mark_expression.py::test_invalid_idents[@]
+PASSED testing/test_mark_expression.py::test_invalid_idents[!]
+PASSED testing/test_mark_expression.py::test_invalid_idents[~]
+PASSED testing/test_mark_expression.py::test_invalid_idents[{]
+PASSED testing/test_mark_expression.py::test_invalid_idents[}]
+PASSED testing/test_mark_expression.py::test_invalid_idents["]
+PASSED testing/test_mark_expression.py::test_invalid_idents[']
+PASSED testing/test_mark_expression.py::test_invalid_idents[|]
+PASSED testing/test_mark_expression.py::test_invalid_idents[;]
+PASSED testing/test_mark_expression.py::test_invalid_idents[\u2190]
+FAILED testing/test_mark_expression.py::test_valid_idents[True] - ValueError:...
+FAILED testing/test_mark_expression.py::test_valid_idents[False] - ValueError...
+FAILED testing/test_mark_expression.py::test_valid_idents[None] - ValueError:...
+========================= 3 failed, 80 passed in 0.29s =========================
++ git checkout 19ad5889353c7f5f2b65cc2acd346b7a9e95dfcd testing/test_mark_expression.py
+Updated 1 path from 155db3fe4

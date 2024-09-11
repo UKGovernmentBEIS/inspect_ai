@@ -1,0 +1,991 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test_project/
+
+nothing added to commit but untracked files present (use "git add" to track)
++ git show
+commit e39e727ded673e74016b5d3658d23cbe20234d11
+Author: Mariusz Felisiak <felisiak.mariusz@gmail.com>
+Date:   Fri Aug 28 05:57:36 2020 +0200
+
+    Fixed #31912 -- Removed strict=True in Path.resolve() in project template and CommonPasswordValidator.
+    
+    This caused permission errors when user didn't have permissions to
+    all intermediate directories in a Django installation path.
+    
+    Thanks tytusd and leonyxz for reports.
+    
+    Regression in edeec1247e52de6fc32cee93e96d4ce36003ea4b and
+    26554cf5d1e96db10d0d5f4b69683a22fb82fdf8.
+
+diff --git a/django/conf/project_template/project_name/settings.py-tpl b/django/conf/project_template/project_name/settings.py-tpl
+index 64d32d7059..444c899b2b 100644
+--- a/django/conf/project_template/project_name/settings.py-tpl
++++ b/django/conf/project_template/project_name/settings.py-tpl
+@@ -13,7 +13,7 @@ https://docs.djangoproject.com/en/{{ docs_version }}/ref/settings/
+ from pathlib import Path
+ 
+ # Build paths inside the project like this: BASE_DIR / 'subdir'.
+-BASE_DIR = Path(__file__).resolve(strict=True).parent.parent
++BASE_DIR = Path(__file__).resolve().parent.parent
+ 
+ 
+ # Quick-start development settings - unsuitable for production
+diff --git a/django/contrib/auth/password_validation.py b/django/contrib/auth/password_validation.py
+index 61a482fdad..845f4d86d5 100644
+--- a/django/contrib/auth/password_validation.py
++++ b/django/contrib/auth/password_validation.py
+@@ -167,7 +167,7 @@ class CommonPasswordValidator:
+     https://gist.github.com/roycewilliams/281ce539915a947a23db17137d91aeb7
+     The password list must be lowercased to match the comparison in validate().
+     """
+-    DEFAULT_PASSWORD_LIST_PATH = Path(__file__).resolve(strict=True).parent / 'common-passwords.txt.gz'
++    DEFAULT_PASSWORD_LIST_PATH = Path(__file__).resolve().parent / 'common-passwords.txt.gz'
+ 
+     def __init__(self, password_list_path=DEFAULT_PASSWORD_LIST_PATH):
+         try:
+diff --git a/docs/howto/overriding-templates.txt b/docs/howto/overriding-templates.txt
+index 71eb14b0c4..0f88069069 100644
+--- a/docs/howto/overriding-templates.txt
++++ b/docs/howto/overriding-templates.txt
+@@ -29,7 +29,7 @@ called ``blog``, which provides the templates ``blog/post.html`` and
+ 
+     from pathlib import Path
+ 
+-    BASE_DIR = Path(__file__).resolve(strict=True).parent.parent
++    BASE_DIR = Path(__file__).resolve().parent.parent
+ 
+     INSTALLED_APPS = [
+         ...,
+diff --git a/docs/releases/3.1.1.txt b/docs/releases/3.1.1.txt
+index 83ff2b07d2..84f9020c53 100644
+--- a/docs/releases/3.1.1.txt
++++ b/docs/releases/3.1.1.txt
+@@ -43,3 +43,8 @@ Bugfixes
+ * Fixed ``__in`` lookup on key transforms for
+   :class:`~django.db.models.JSONField` with MariaDB, MySQL, Oracle, and SQLite
+   (:ticket:`31936`).
++
++* Fixed a regression in Django 3.1 that caused permission errors in
++  ``CommonPasswordValidator`` and ``settings.py`` generated by the
++  :djadmin:`startproject` command, when user didn't have permissions to all
++  intermediate directories in a Django installation path (:ticket:`31912`).
++ git diff e39e727ded673e74016b5d3658d23cbe20234d11
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: asgiref>=3.2.10 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (3.4.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (0.4.4)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref>=3.2.10->Django==3.2) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.2
+    Uninstalling Django-3.2:
+      Successfully uninstalled Django-3.2
+  Running setup.py develop for Django
+Successfully installed Django-3.2
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout e39e727ded673e74016b5d3658d23cbe20234d11 tests/cache/tests.py tests/deprecation/test_middleware_mixin.py tests/runtests.py
+Updated 0 paths from a9eae34a54
++ git apply -v -
+Checking patch tests/cache/tests.py...
+Checking patch tests/deprecation/test_middleware_mixin.py...
+Checking patch tests/runtests.py...
+Applied patch tests/cache/tests.py cleanly.
+Applied patch tests/deprecation/test_middleware_mixin.py cleanly.
+Applied patch tests/runtests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 cache.tests deprecation.test_middleware_mixin runtests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Creating test database for alias 'other' ('file:memorydb_other?mode=memory&cache=shared')...
+test_createcachetable_observes_database_router (cache.tests.CreateCacheTableForDBCacheTests) ... ok
+test_add (cache.tests.FileBasedCachePathLibTests) ... ok
+test_add_fail_on_pickleerror (cache.tests.FileBasedCachePathLibTests) ... ok
+test_binary_string (cache.tests.FileBasedCachePathLibTests) ... ok
+test_cache_read_for_model_instance (cache.tests.FileBasedCachePathLibTests) ... ok
+test_cache_read_for_model_instance_with_deferred (cache.tests.FileBasedCachePathLibTests) ... ok
+test_cache_versioning_add (cache.tests.FileBasedCachePathLibTests) ... ok
+test_cache_versioning_delete (cache.tests.FileBasedCachePathLibTests) ... ok
+test_cache_versioning_get_set (cache.tests.FileBasedCachePathLibTests) ... ok
+test_cache_versioning_get_set_many (cache.tests.FileBasedCachePathLibTests) ... ok
+test_cache_versioning_has_key (cache.tests.FileBasedCachePathLibTests) ... ok
+test_cache_versioning_incr_decr (cache.tests.FileBasedCachePathLibTests) ... ok
+test_cache_write_for_model_instance_with_deferred (cache.tests.FileBasedCachePathLibTests) ... ok
+test_cache_write_unpicklable_object (cache.tests.FileBasedCachePathLibTests) ... ok
+test_clear (cache.tests.FileBasedCachePathLibTests) ... ok
+test_clear_does_not_remove_cache_dir (cache.tests.FileBasedCachePathLibTests) ... ok
+test_close (cache.tests.FileBasedCachePathLibTests) ... ok
+test_creates_cache_dir_if_nonexistent (cache.tests.FileBasedCachePathLibTests) ... ok
+test_cull (cache.tests.FileBasedCachePathLibTests) ... ok
+test_cull_delete_when_store_empty (cache.tests.FileBasedCachePathLibTests) ... ok
+test_custom_key_func (cache.tests.FileBasedCachePathLibTests) ... ok
+test_data_types (cache.tests.FileBasedCachePathLibTests) ... ok
+test_decr (cache.tests.FileBasedCachePathLibTests) ... ok
+test_decr_version (cache.tests.FileBasedCachePathLibTests) ... ok
+test_default_used_when_none_is_set (cache.tests.FileBasedCachePathLibTests)
+If None is cached, get() returns it instead of the default. ... ok
+test_delete (cache.tests.FileBasedCachePathLibTests) ... ok
+test_delete_many (cache.tests.FileBasedCachePathLibTests) ... ok
+test_delete_nonexistent (cache.tests.FileBasedCachePathLibTests) ... ok
+test_empty_cache_file_considered_expired (cache.tests.FileBasedCachePathLibTests) ... ok
+test_expiration (cache.tests.FileBasedCachePathLibTests) ... ok
+test_float_timeout (cache.tests.FileBasedCachePathLibTests) ... ok
+test_forever_timeout (cache.tests.FileBasedCachePathLibTests) ... ok
+test_get_does_not_ignore_non_filenotfound_exceptions (cache.tests.FileBasedCachePathLibTests) ... ok
+test_get_ignores_enoent (cache.tests.FileBasedCachePathLibTests) ... ok
+test_get_many (cache.tests.FileBasedCachePathLibTests) ... ok
+test_get_or_set (cache.tests.FileBasedCachePathLibTests) ... ok
+test_get_or_set_callable (cache.tests.FileBasedCachePathLibTests) ... ok
+test_get_or_set_callable_returning_none (cache.tests.FileBasedCachePathLibTests) ... ok
+test_get_or_set_racing (cache.tests.FileBasedCachePathLibTests) ... ok
+test_get_or_set_version (cache.tests.FileBasedCachePathLibTests) ... ok
+test_has_key (cache.tests.FileBasedCachePathLibTests) ... ok
+test_ignores_non_cache_files (cache.tests.FileBasedCachePathLibTests) ... ok
+test_in (cache.tests.FileBasedCachePathLibTests) ... ok
+test_incr (cache.tests.FileBasedCachePathLibTests) ... ok
+test_incr_version (cache.tests.FileBasedCachePathLibTests) ... ok
+test_invalid_key_characters (cache.tests.FileBasedCachePathLibTests) ... ok
+test_invalid_key_length (cache.tests.FileBasedCachePathLibTests) ... ok
+test_long_timeout (cache.tests.FileBasedCachePathLibTests) ... ok
+test_non_existent (cache.tests.FileBasedCachePathLibTests)
+Nonexistent cache keys return as None/default. ... ok
+test_prefix (cache.tests.FileBasedCachePathLibTests) ... ok
+test_set_fail_on_pickleerror (cache.tests.FileBasedCachePathLibTests) ... ok
+test_set_many (cache.tests.FileBasedCachePathLibTests) ... ok
+test_set_many_expiration (cache.tests.FileBasedCachePathLibTests) ... ok
+test_set_many_returns_empty_list_on_success (cache.tests.FileBasedCachePathLibTests)
+set_many() returns an empty list when all keys are inserted. ... ok
+test_simple (cache.tests.FileBasedCachePathLibTests) ... ok
+test_touch (cache.tests.FileBasedCachePathLibTests) ... ok
+test_unicode (cache.tests.FileBasedCachePathLibTests) ... ok
+test_zero_cull (cache.tests.FileBasedCachePathLibTests) ... ok
+test_zero_timeout (cache.tests.FileBasedCachePathLibTests) ... ok
+test_add (cache.tests.FileBasedCacheTests) ... ok
+test_add_fail_on_pickleerror (cache.tests.FileBasedCacheTests) ... ok
+test_binary_string (cache.tests.FileBasedCacheTests) ... ok
+test_cache_read_for_model_instance (cache.tests.FileBasedCacheTests) ... ok
+test_cache_read_for_model_instance_with_deferred (cache.tests.FileBasedCacheTests) ... ok
+test_cache_versioning_add (cache.tests.FileBasedCacheTests) ... ok
+test_cache_versioning_delete (cache.tests.FileBasedCacheTests) ... ok
+test_cache_versioning_get_set (cache.tests.FileBasedCacheTests) ... ok
+test_cache_versioning_get_set_many (cache.tests.FileBasedCacheTests) ... ok
+test_cache_versioning_has_key (cache.tests.FileBasedCacheTests) ... ok
+test_cache_versioning_incr_decr (cache.tests.FileBasedCacheTests) ... ok
+test_cache_write_for_model_instance_with_deferred (cache.tests.FileBasedCacheTests) ... ok
+test_cache_write_unpicklable_object (cache.tests.FileBasedCacheTests) ... ok
+test_clear (cache.tests.FileBasedCacheTests) ... ok
+test_clear_does_not_remove_cache_dir (cache.tests.FileBasedCacheTests) ... ok
+test_close (cache.tests.FileBasedCacheTests) ... ok
+test_creates_cache_dir_if_nonexistent (cache.tests.FileBasedCacheTests) ... ok
+test_cull (cache.tests.FileBasedCacheTests) ... ok
+test_cull_delete_when_store_empty (cache.tests.FileBasedCacheTests) ... ok
+test_custom_key_func (cache.tests.FileBasedCacheTests) ... ok
+test_data_types (cache.tests.FileBasedCacheTests) ... ok
+test_decr (cache.tests.FileBasedCacheTests) ... ok
+test_decr_version (cache.tests.FileBasedCacheTests) ... ok
+test_default_used_when_none_is_set (cache.tests.FileBasedCacheTests)
+If None is cached, get() returns it instead of the default. ... ok
+test_delete (cache.tests.FileBasedCacheTests) ... ok
+test_delete_many (cache.tests.FileBasedCacheTests) ... ok
+test_delete_nonexistent (cache.tests.FileBasedCacheTests) ... ok
+test_empty_cache_file_considered_expired (cache.tests.FileBasedCacheTests) ... ok
+test_expiration (cache.tests.FileBasedCacheTests) ... ok
+test_float_timeout (cache.tests.FileBasedCacheTests) ... ok
+test_forever_timeout (cache.tests.FileBasedCacheTests) ... ok
+test_get_does_not_ignore_non_filenotfound_exceptions (cache.tests.FileBasedCacheTests) ... ok
+test_get_ignores_enoent (cache.tests.FileBasedCacheTests) ... ok
+test_get_many (cache.tests.FileBasedCacheTests) ... ok
+test_get_or_set (cache.tests.FileBasedCacheTests) ... ok
+test_get_or_set_callable (cache.tests.FileBasedCacheTests) ... ok
+test_get_or_set_callable_returning_none (cache.tests.FileBasedCacheTests) ... ok
+test_get_or_set_racing (cache.tests.FileBasedCacheTests) ... ok
+test_get_or_set_version (cache.tests.FileBasedCacheTests) ... ok
+test_has_key (cache.tests.FileBasedCacheTests) ... ok
+test_ignores_non_cache_files (cache.tests.FileBasedCacheTests) ... ok
+test_in (cache.tests.FileBasedCacheTests) ... ok
+test_incr (cache.tests.FileBasedCacheTests) ... ok
+test_incr_version (cache.tests.FileBasedCacheTests) ... ok
+test_invalid_key_characters (cache.tests.FileBasedCacheTests) ... ok
+test_invalid_key_length (cache.tests.FileBasedCacheTests) ... ok
+test_long_timeout (cache.tests.FileBasedCacheTests) ... ok
+test_non_existent (cache.tests.FileBasedCacheTests)
+Nonexistent cache keys return as None/default. ... ok
+test_prefix (cache.tests.FileBasedCacheTests) ... ok
+test_set_fail_on_pickleerror (cache.tests.FileBasedCacheTests) ... ok
+test_set_many (cache.tests.FileBasedCacheTests) ... ok
+test_set_many_expiration (cache.tests.FileBasedCacheTests) ... ok
+test_set_many_returns_empty_list_on_success (cache.tests.FileBasedCacheTests)
+set_many() returns an empty list when all keys are inserted. ... ok
+test_simple (cache.tests.FileBasedCacheTests) ... ok
+test_touch (cache.tests.FileBasedCacheTests) ... ok
+test_unicode (cache.tests.FileBasedCacheTests) ... ok
+test_zero_cull (cache.tests.FileBasedCacheTests) ... ok
+test_zero_timeout (cache.tests.FileBasedCacheTests) ... ok
+test_add (cache.tests.LocMemCacheTests) ... ok
+test_add_fail_on_pickleerror (cache.tests.LocMemCacheTests) ... ok
+test_binary_string (cache.tests.LocMemCacheTests) ... ok
+test_cache_read_for_model_instance (cache.tests.LocMemCacheTests) ... ok
+test_cache_read_for_model_instance_with_deferred (cache.tests.LocMemCacheTests) ... ok
+test_cache_versioning_add (cache.tests.LocMemCacheTests) ... ok
+test_cache_versioning_delete (cache.tests.LocMemCacheTests) ... ok
+test_cache_versioning_get_set (cache.tests.LocMemCacheTests) ... ok
+test_cache_versioning_get_set_many (cache.tests.LocMemCacheTests) ... ok
+test_cache_versioning_has_key (cache.tests.LocMemCacheTests) ... ok
+test_cache_versioning_incr_decr (cache.tests.LocMemCacheTests) ... ok
+test_cache_write_for_model_instance_with_deferred (cache.tests.LocMemCacheTests) ... ok
+test_cache_write_unpicklable_object (cache.tests.LocMemCacheTests) ... ok
+test_clear (cache.tests.LocMemCacheTests) ... ok
+test_close (cache.tests.LocMemCacheTests) ... ok
+test_cull (cache.tests.LocMemCacheTests) ... ok
+test_cull_delete_when_store_empty (cache.tests.LocMemCacheTests) ... ok
+test_custom_key_func (cache.tests.LocMemCacheTests) ... ok
+test_data_types (cache.tests.LocMemCacheTests) ... ok
+test_decr (cache.tests.LocMemCacheTests) ... ok
+test_decr_version (cache.tests.LocMemCacheTests) ... ok
+test_default_used_when_none_is_set (cache.tests.LocMemCacheTests)
+If None is cached, get() returns it instead of the default. ... ok
+test_delete (cache.tests.LocMemCacheTests) ... ok
+test_delete_many (cache.tests.LocMemCacheTests) ... ok
+test_delete_nonexistent (cache.tests.LocMemCacheTests) ... ok
+test_expiration (cache.tests.LocMemCacheTests) ... ok
+test_float_timeout (cache.tests.LocMemCacheTests) ... ok
+test_forever_timeout (cache.tests.LocMemCacheTests) ... ok
+test_get_many (cache.tests.LocMemCacheTests) ... ok
+test_get_or_set (cache.tests.LocMemCacheTests) ... ok
+test_get_or_set_callable (cache.tests.LocMemCacheTests) ... ok
+test_get_or_set_callable_returning_none (cache.tests.LocMemCacheTests) ... ok
+test_get_or_set_racing (cache.tests.LocMemCacheTests) ... ok
+test_get_or_set_version (cache.tests.LocMemCacheTests) ... ok
+test_has_key (cache.tests.LocMemCacheTests) ... ok
+test_in (cache.tests.LocMemCacheTests) ... ok
+test_incr (cache.tests.LocMemCacheTests) ... ok
+test_incr_decr_timeout (cache.tests.LocMemCacheTests)
+incr/decr does not modify expiry time (matches memcached behavior) ... ok
+test_incr_version (cache.tests.LocMemCacheTests) ... ok
+test_invalid_key_characters (cache.tests.LocMemCacheTests) ... ok
+test_invalid_key_length (cache.tests.LocMemCacheTests) ... ok
+test_locking_on_pickle (cache.tests.LocMemCacheTests)
+#20613/#18541 -- Ensures pickling is done outside of the lock. ... ok
+test_long_timeout (cache.tests.LocMemCacheTests) ... ok
+test_lru_get (cache.tests.LocMemCacheTests)
+get() moves cache keys. ... ok
+test_lru_incr (cache.tests.LocMemCacheTests)
+incr() moves cache keys. ... ok
+test_lru_set (cache.tests.LocMemCacheTests)
+set() moves cache keys. ... ok
+test_multiple_caches (cache.tests.LocMemCacheTests)
+Multiple locmem caches are isolated ... ok
+test_non_existent (cache.tests.LocMemCacheTests)
+Nonexistent cache keys return as None/default. ... ok
+test_prefix (cache.tests.LocMemCacheTests) ... ok
+test_set_fail_on_pickleerror (cache.tests.LocMemCacheTests) ... ok
+test_set_many (cache.tests.LocMemCacheTests) ... ok
+test_set_many_expiration (cache.tests.LocMemCacheTests) ... ok
+test_set_many_returns_empty_list_on_success (cache.tests.LocMemCacheTests)
+set_many() returns an empty list when all keys are inserted. ... ok
+test_simple (cache.tests.LocMemCacheTests) ... ok
+test_touch (cache.tests.LocMemCacheTests) ... ok
+test_unicode (cache.tests.LocMemCacheTests) ... ok
+test_zero_cull (cache.tests.LocMemCacheTests) ... ok
+test_zero_timeout (cache.tests.LocMemCacheTests) ... ok
+test_add (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_add_fail_on_pickleerror (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_binary_string (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_cache_read_for_model_instance (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_cache_read_for_model_instance_with_deferred (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_cache_versioning_add (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_cache_versioning_delete (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_cache_versioning_get_set (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_cache_versioning_get_set_many (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_cache_versioning_has_key (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_cache_versioning_incr_decr (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_cache_write_for_model_instance_with_deferred (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_cache_write_unpicklable_object (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_clear (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_close (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_cull (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_cull_delete_when_store_empty (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_custom_key_func (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_data_types (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_decr (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_decr_version (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_default_far_future_timeout (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_default_never_expiring_timeout (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_default_used_when_none_is_set (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_delete (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_delete_many (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_delete_nonexistent (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_expiration (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_float_timeout (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_forever_timeout (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_get_many (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_get_or_set (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_get_or_set_callable (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_get_or_set_callable_returning_none (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_get_or_set_racing (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_get_or_set_version (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_has_key (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_in (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_incr (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_incr_version (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_invalid_key_characters (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_invalid_key_length (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_location_multiple_servers (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_long_timeout (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_memcached_deletes_key_on_failed_set (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_memcached_options (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_memcached_uses_highest_pickle_version (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_non_existent (cache.tests.MemcachedCacheTests)
+Nonexistent cache keys return as None/default. ... skipped 'MemcachedCache backend not configured'
+test_prefix (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_set_fail_on_pickleerror (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_set_many (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_set_many_expiration (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_set_many_returns_empty_list_on_success (cache.tests.MemcachedCacheTests)
+set_many() returns an empty list when all keys are inserted. ... skipped 'MemcachedCache backend not configured'
+test_set_many_returns_failing_keys (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_simple (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_touch (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_unicode (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_zero_cull (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_zero_timeout (cache.tests.MemcachedCacheTests) ... skipped 'MemcachedCache backend not configured'
+test_add (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_add_fail_on_pickleerror (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_binary_string (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_cache_read_for_model_instance (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_cache_read_for_model_instance_with_deferred (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_cache_versioning_add (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_cache_versioning_delete (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_cache_versioning_get_set (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_cache_versioning_get_set_many (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_cache_versioning_has_key (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_cache_versioning_incr_decr (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_cache_write_for_model_instance_with_deferred (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_cache_write_unpicklable_object (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_clear (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_close (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_cull (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_cull_delete_when_store_empty (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_custom_key_func (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_data_types (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_decr (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_decr_version (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_default_far_future_timeout (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_default_never_expiring_timeout (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_default_used_when_none_is_set (cache.tests.PyLibMCCacheTests)
+If None is cached, get() returns it instead of the default. ... skipped 'PyLibMCCache backend not configured'
+test_delete (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_delete_many (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_delete_nonexistent (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_expiration (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_float_timeout (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_forever_timeout (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_get_many (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_get_or_set (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_get_or_set_callable (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_get_or_set_callable_returning_none (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_get_or_set_racing (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_get_or_set_version (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_has_key (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_in (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_incr (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_incr_version (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_invalid_key_characters (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_invalid_key_length (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_location_multiple_servers (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_long_timeout (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_memcached_deletes_key_on_failed_set (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_non_existent (cache.tests.PyLibMCCacheTests)
+Nonexistent cache keys return as None/default. ... skipped 'PyLibMCCache backend not configured'
+test_prefix (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_pylibmc_options (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_set_fail_on_pickleerror (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_set_many (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_set_many_expiration (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_set_many_returns_empty_list_on_success (cache.tests.PyLibMCCacheTests)
+set_many() returns an empty list when all keys are inserted. ... skipped 'PyLibMCCache backend not configured'
+test_set_many_returns_failing_keys (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_simple (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_touch (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_unicode (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_zero_cull (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_zero_timeout (cache.tests.PyLibMCCacheTests) ... skipped 'PyLibMCCache backend not configured'
+test_close (cache.tests.CacheClosingTests) ... ok
+test_head_caches_correctly (cache.tests.CacheHEADTest) ... ok
+test_head_with_cached_get (cache.tests.CacheHEADTest) ... ok
+test_per_thread (cache.tests.CacheHandlerTest) ... ok
+test_same_instance (cache.tests.CacheHandlerTest) ... ok
+test_cache_key_i18n_timezone (cache.tests.CacheI18nTest) ... ok
+test_cache_key_i18n_translation (cache.tests.CacheI18nTest) ... ok
+test_cache_key_i18n_translation_accept_language (cache.tests.CacheI18nTest) ... ok
+test_cache_key_no_i18n (cache.tests.CacheI18nTest) ... ok
+test_middleware (cache.tests.CacheI18nTest) ... ok
+test_middleware_doesnt_cache_streaming_response (cache.tests.CacheI18nTest) ... ok
+test_304_response_has_http_caching_headers_but_not_cached (cache.tests.CacheMiddlewareTest) ... ok
+test_cache_page_timeout (cache.tests.CacheMiddlewareTest) ... ok
+test_cached_control_private_not_cached (cache.tests.CacheMiddlewareTest)
+Responses with 'Cache-Control: private' are not cached. ... ok
+test_constructor (cache.tests.CacheMiddlewareTest) ... ok
+test_fetch_cache_middleware_constructor (cache.tests.CacheMiddlewareTest) ... ok
+test_middleware (cache.tests.CacheMiddlewareTest) ... ok
+test_sensitive_cookie_not_cached (cache.tests.CacheMiddlewareTest) ... ok
+test_update_cache_middleware_constructor (cache.tests.CacheMiddlewareTest) ... ok
+test_view_decorator (cache.tests.CacheMiddlewareTest) ... ok
+test_cache_key_varies_by_url (cache.tests.CacheUtils) ... ok
+test_get_cache_key (cache.tests.CacheUtils) ... ok
+test_get_cache_key_with_query (cache.tests.CacheUtils) ... ok
+test_learn_cache_key (cache.tests.CacheUtils) ... ok
+test_patch_cache_control (cache.tests.CacheUtils) ... ok
+test_patch_vary_headers (cache.tests.CacheUtils) ... ok
+test_custom_key_validation (cache.tests.CustomCacheKeyValidationTests) ... ok
+test_add (cache.tests.DBCacheTests) ... ok
+test_add_fail_on_pickleerror (cache.tests.DBCacheTests) ... ok
+test_binary_string (cache.tests.DBCacheTests) ... ok
+test_cache_read_for_model_instance (cache.tests.DBCacheTests) ... ok
+test_cache_read_for_model_instance_with_deferred (cache.tests.DBCacheTests) ... ok
+test_cache_versioning_add (cache.tests.DBCacheTests) ... ok
+test_cache_versioning_delete (cache.tests.DBCacheTests) ... ok
+test_cache_versioning_get_set (cache.tests.DBCacheTests) ... ok
+test_cache_versioning_get_set_many (cache.tests.DBCacheTests) ... ok
+test_cache_versioning_has_key (cache.tests.DBCacheTests) ... ok
+test_cache_versioning_incr_decr (cache.tests.DBCacheTests) ... ok
+test_cache_write_for_model_instance_with_deferred (cache.tests.DBCacheTests) ... ok
+test_cache_write_unpicklable_object (cache.tests.DBCacheTests) ... ok
+test_clear (cache.tests.DBCacheTests) ... ok
+test_close (cache.tests.DBCacheTests) ... ok
+test_createcachetable_dry_run_mode (cache.tests.DBCacheTests) ... ok
+test_createcachetable_with_table_argument (cache.tests.DBCacheTests) ... ok
+test_cull (cache.tests.DBCacheTests) ... ok
+test_cull_delete_when_store_empty (cache.tests.DBCacheTests) ... ok
+test_custom_key_func (cache.tests.DBCacheTests) ... ok
+test_data_types (cache.tests.DBCacheTests) ... ok
+test_decr (cache.tests.DBCacheTests) ... ok
+test_decr_version (cache.tests.DBCacheTests) ... ok
+test_default_used_when_none_is_set (cache.tests.DBCacheTests)
+If None is cached, get() returns it instead of the default. ... ok
+test_delete (cache.tests.DBCacheTests) ... ok
+test_delete_many (cache.tests.DBCacheTests) ... ok
+test_delete_many_num_queries (cache.tests.DBCacheTests) ... ok
+test_delete_nonexistent (cache.tests.DBCacheTests) ... ok
+test_expiration (cache.tests.DBCacheTests) ... ok
+test_float_timeout (cache.tests.DBCacheTests) ... ok
+test_forever_timeout (cache.tests.DBCacheTests) ... ok
+test_get_many (cache.tests.DBCacheTests) ... ok
+test_get_many_num_queries (cache.tests.DBCacheTests) ... ok
+test_get_or_set (cache.tests.DBCacheTests) ... ok
+test_get_or_set_callable (cache.tests.DBCacheTests) ... ok
+test_get_or_set_callable_returning_none (cache.tests.DBCacheTests) ... ok
+test_get_or_set_racing (cache.tests.DBCacheTests) ... ok
+test_get_or_set_version (cache.tests.DBCacheTests) ... ok
+test_has_key (cache.tests.DBCacheTests) ... ok
+test_in (cache.tests.DBCacheTests) ... ok
+test_incr (cache.tests.DBCacheTests) ... ok
+test_incr_version (cache.tests.DBCacheTests) ... ok
+test_invalid_key_characters (cache.tests.DBCacheTests) ... ok
+test_invalid_key_length (cache.tests.DBCacheTests) ... ok
+test_long_timeout (cache.tests.DBCacheTests) ... ok
+test_non_existent (cache.tests.DBCacheTests)
+Nonexistent cache keys return as None/default. ... ok
+test_prefix (cache.tests.DBCacheTests) ... ok
+test_second_call_doesnt_crash (cache.tests.DBCacheTests) ... ok
+test_set_fail_on_pickleerror (cache.tests.DBCacheTests) ... ok
+test_set_many (cache.tests.DBCacheTests) ... ok
+test_set_many_expiration (cache.tests.DBCacheTests) ... ok
+test_set_many_returns_empty_list_on_success (cache.tests.DBCacheTests)
+set_many() returns an empty list when all keys are inserted. ... ok
+test_simple (cache.tests.DBCacheTests) ... ok
+test_touch (cache.tests.DBCacheTests) ... ok
+test_unicode (cache.tests.DBCacheTests) ... ok
+test_zero_cull (cache.tests.DBCacheTests) ... ok
+test_zero_timeout (cache.tests.DBCacheTests) ... ok
+test_add (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_add_fail_on_pickleerror (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_binary_string (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_cache_read_for_model_instance (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_cache_read_for_model_instance_with_deferred (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_cache_versioning_add (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_cache_versioning_delete (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_cache_versioning_get_set (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_cache_versioning_get_set_many (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_cache_versioning_has_key (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_cache_versioning_incr_decr (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_cache_write_for_model_instance_with_deferred (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_cache_write_unpicklable_object (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_clear (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_close (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_createcachetable_dry_run_mode (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_createcachetable_with_table_argument (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_cull (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_cull_delete_when_store_empty (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_custom_key_func (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_data_types (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_decr (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_decr_version (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_default_used_when_none_is_set (cache.tests.DBCacheWithTimeZoneTests)
+If None is cached, get() returns it instead of the default. ... ok
+test_delete (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_delete_many (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_delete_many_num_queries (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_delete_nonexistent (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_expiration (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_float_timeout (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_forever_timeout (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_get_many (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_get_many_num_queries (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_get_or_set (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_get_or_set_callable (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_get_or_set_callable_returning_none (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_get_or_set_racing (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_get_or_set_version (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_has_key (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_in (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_incr (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_incr_version (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_invalid_key_characters (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_invalid_key_length (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_long_timeout (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_non_existent (cache.tests.DBCacheWithTimeZoneTests)
+Nonexistent cache keys return as None/default. ... ok
+test_prefix (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_second_call_doesnt_crash (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_set_fail_on_pickleerror (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_set_many (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_set_many_expiration (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_set_many_returns_empty_list_on_success (cache.tests.DBCacheWithTimeZoneTests)
+set_many() returns an empty list when all keys are inserted. ... ok
+test_simple (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_touch (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_unicode (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_zero_cull (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_zero_timeout (cache.tests.DBCacheWithTimeZoneTests) ... ok
+test_caches_set_with_timeout_as_none_has_correct_default_timeout (cache.tests.DefaultNonExpiringCacheKeyTests)
+Memory caches that have the TIMEOUT parameter set to `None` in the ... ok
+test_caches_set_with_timeout_as_none_set_non_expiring_key (cache.tests.DefaultNonExpiringCacheKeyTests)
+Memory caches that have the TIMEOUT parameter set to `None` will set ... ok
+test_caches_with_unset_timeout_has_correct_default_timeout (cache.tests.DefaultNonExpiringCacheKeyTests)
+Caches that have the TIMEOUT parameter undefined in the default ... ok
+test_caches_with_unset_timeout_set_expiring_key (cache.tests.DefaultNonExpiringCacheKeyTests)
+Memory caches that have the TIMEOUT parameter unset will set cache ... ok
+test_default_expiration_time_for_keys_is_5_minutes (cache.tests.DefaultNonExpiringCacheKeyTests)
+The default expiration time of a cache key is 5 minutes. ... ok
+test_add (cache.tests.DummyCacheTests)
+Add doesn't do anything in dummy cache backend ... ok
+test_clear (cache.tests.DummyCacheTests)
+clear does nothing for the dummy cache backend ... ok
+test_data_types (cache.tests.DummyCacheTests)
+All data types are ignored equally by the dummy cache ... ok
+test_decr (cache.tests.DummyCacheTests)
+Dummy cache values can't be decremented ... ok
+test_decr_version (cache.tests.DummyCacheTests)
+Dummy cache versions can't be decremented ... ok
+test_delete (cache.tests.DummyCacheTests)
+Cache deletion is transparently ignored on the dummy cache backend ... ok
+test_delete_many (cache.tests.DummyCacheTests)
+delete_many does nothing for the dummy cache backend ... ok
+test_delete_many_invalid_key (cache.tests.DummyCacheTests) ... ok
+test_expiration (cache.tests.DummyCacheTests)
+Expiration has no effect on the dummy cache ... ok
+test_get_many (cache.tests.DummyCacheTests)
+get_many returns nothing for the dummy cache backend ... ok
+test_get_many_invalid_key (cache.tests.DummyCacheTests) ... ok
+test_get_or_set (cache.tests.DummyCacheTests) ... ok
+test_get_or_set_callable (cache.tests.DummyCacheTests) ... ok
+test_has_key (cache.tests.DummyCacheTests)
+The has_key method doesn't ever return True for the dummy cache backend ... ok
+test_in (cache.tests.DummyCacheTests)
+The in operator doesn't ever return True for the dummy cache backend ... ok
+test_incr (cache.tests.DummyCacheTests)
+Dummy cache values can't be incremented ... ok
+test_incr_version (cache.tests.DummyCacheTests)
+Dummy cache versions can't be incremented ... ok
+test_non_existent (cache.tests.DummyCacheTests)
+Nonexistent keys aren't found in the dummy cache backend ... ok
+test_set_many (cache.tests.DummyCacheTests)
+set_many does nothing for the dummy cache backend ... ok
+test_set_many_invalid_key (cache.tests.DummyCacheTests) ... ok
+test_simple (cache.tests.DummyCacheTests)
+Dummy cache backend ignores cache set calls ... ok
+test_touch (cache.tests.DummyCacheTests)
+Dummy cache can't do touch(). ... ok
+test_unicode (cache.tests.DummyCacheTests)
+Unicode values are ignored by the dummy cache ... ok
+test_cache_key_i18n_timezone (cache.tests.PrefixedCacheI18nTest) ... ok
+test_cache_key_i18n_translation (cache.tests.PrefixedCacheI18nTest) ... ok
+test_cache_key_i18n_translation_accept_language (cache.tests.PrefixedCacheI18nTest) ... ok
+test_cache_key_no_i18n (cache.tests.PrefixedCacheI18nTest) ... ok
+test_middleware (cache.tests.PrefixedCacheI18nTest) ... ok
+test_middleware_doesnt_cache_streaming_response (cache.tests.PrefixedCacheI18nTest) ... ok
+test_cache_key_varies_by_url (cache.tests.PrefixedCacheUtils) ... ok
+test_get_cache_key (cache.tests.PrefixedCacheUtils) ... ok
+test_get_cache_key_with_query (cache.tests.PrefixedCacheUtils) ... ok
+test_learn_cache_key (cache.tests.PrefixedCacheUtils) ... ok
+test_patch_cache_control (cache.tests.PrefixedCacheUtils) ... ok
+test_patch_vary_headers (cache.tests.PrefixedCacheUtils) ... ok
+test_long_vary_on (cache.tests.TestMakeTemplateFragmentKey) ... ok
+test_proper_escaping (cache.tests.TestMakeTemplateFragmentKey) ... ok
+test_with_ints_vary_on (cache.tests.TestMakeTemplateFragmentKey) ... ok
+test_with_many_vary_on (cache.tests.TestMakeTemplateFragmentKey) ... ok
+test_with_one_vary_on (cache.tests.TestMakeTemplateFragmentKey) ... ok
+test_with_unicode_vary_on (cache.tests.TestMakeTemplateFragmentKey) ... ok
+test_without_vary_on (cache.tests.TestMakeTemplateFragmentKey) ... ok
+test_get_cache_key (cache.tests.TestWithTemplateResponse) ... ok
+test_get_cache_key_with_query (cache.tests.TestWithTemplateResponse) ... ok
+test_patch_vary_headers (cache.tests.TestWithTemplateResponse) ... ok
+test_coroutine (deprecation.test_middleware_mixin.MiddlewareMixinTests) ... test_deprecation (deprecation.test_middleware_mixin.MiddlewareMixinTests) ... ok
+test_passing_explicit_none (deprecation.test_middleware_mixin.MiddlewareMixinTests) ... ok
+test_sync_to_async_uses_base_thread_and_connection (deprecation.test_middleware_mixin.MiddlewareMixinTests) ... ok
+
+======================================================================
+FAIL: test_coroutine (deprecation.test_middleware_mixin.MiddlewareMixinTests) (middleware='CacheMiddleware')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/deprecation/test_middleware_mixin.py", line 85, in test_coroutine
+    self.assertIs(asyncio.iscoroutinefunction(middleware_instance), True)
+AssertionError: False is not True
+
+======================================================================
+FAIL: test_coroutine (deprecation.test_middleware_mixin.MiddlewareMixinTests) (middleware='FetchFromCacheMiddleware')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/deprecation/test_middleware_mixin.py", line 85, in test_coroutine
+    self.assertIs(asyncio.iscoroutinefunction(middleware_instance), True)
+AssertionError: False is not True
+
+======================================================================
+FAIL: test_coroutine (deprecation.test_middleware_mixin.MiddlewareMixinTests) (middleware='SecurityMiddleware')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/deprecation/test_middleware_mixin.py", line 85, in test_coroutine
+    self.assertIs(asyncio.iscoroutinefunction(middleware_instance), True)
+AssertionError: False is not True
+
+======================================================================
+FAIL: test_coroutine (deprecation.test_middleware_mixin.MiddlewareMixinTests) (middleware='UpdateCacheMiddleware')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/deprecation/test_middleware_mixin.py", line 85, in test_coroutine
+    self.assertIs(asyncio.iscoroutinefunction(middleware_instance), True)
+AssertionError: False is not True
+
+----------------------------------------------------------------------
+Ran 487 tests in 73.760s
+
+FAILED (failures=4, skipped=117)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Destroying test database for alias 'other' ('file:memorydb_other?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application cache
+Importing application deprecation
+Operations to perform:
+  Synchronize unmigrated apps: auth, cache, contenttypes, deprecation, messages, sessions, staticfiles
+  Apply all migrations: admin, flatpages, redirects, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table cache_poll
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying flatpages.0001_initial... OK
+  Applying redirects.0001_initial... OK
+  Applying redirects.0002_alter_redirect_new_path_help_text... OK
+  Applying sites.0002_alter_domain_unique... OK
+Operations to perform:
+  Synchronize unmigrated apps: auth, cache, contenttypes, deprecation, messages, sessions, staticfiles
+  Apply all migrations: admin, flatpages, redirects, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table cache_poll
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying flatpages.0001_initial... OK
+  Applying redirects.0001_initial... OK
+  Applying redirects.0002_alter_redirect_new_path_help_text... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
++ git checkout e39e727ded673e74016b5d3658d23cbe20234d11 tests/cache/tests.py tests/deprecation/test_middleware_mixin.py tests/runtests.py
+Updated 3 paths from a9eae34a54

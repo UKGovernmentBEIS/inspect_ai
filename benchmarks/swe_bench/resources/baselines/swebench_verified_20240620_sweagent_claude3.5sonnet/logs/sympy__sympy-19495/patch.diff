@@ -1,0 +1,92 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..c5a1ee919d
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,35 @@
++from sympy import symbols, Abs, pi, asin, S, Rational, Lambda, ConditionSet, Contains, Interval, imageset
++from sympy.solvers.solveset import solveset_real
++
++x, y, z, n = symbols('x y z n')
++
++# Example 1
++result1 = solveset_real(Abs(x) - y, x)
++print("Example 1:")
++print(result1)
++print(result1.subs(y, Rational(1,3)))
++print()
++
++# Example 2
++result2 = imageset(Lambda(n, 2*n*pi + asin(y)), S.Integers)
++print("Example 2:")
++print(result2)
++print()
++
++# Example 3
++result3 = ConditionSet(x, Contains(y, Interval(-1,1)), result2)
++print("Example 3:")
++print(result3)
++print(result3.subs(y, Rational(1,3)))
++print(result3.xreplace({y: Rational(1,3)}))
++print(result3.subs({y: Rational(1,3)}, simultaneous=True))
++print()
++
++# Example 4
++result4 = imageset(Lambda(n, 2*n*pi + asin(y)), S.Integers)
++print("Example 4:")
++print(result4)
++print(result4.subs(y, Rational(1,3)))
++print(result4.subs(y, z))
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sympy/sets/conditionset.py b/sympy/sets/conditionset.py
+index 118eda6f77..b3bff66d5c 100644
+--- a/sympy/sets/conditionset.py
++++ b/sympy/sets/conditionset.py
+@@ -212,21 +212,13 @@ def _eval_subs(self, old, new):
+             return self
+         sym, cond, base = self.args
+         if old == sym:
+-            # we try to be as lenient as possible to allow
+-            # the dummy symbol to be changed
++            # Existing code for symbol substitution
+             base = base.subs(old, new)
+             if isinstance(new, Symbol):
+-                # if the assumptions don't match, the cond
+-                # might evaluate or change
+                 if (new.assumptions0 == old.assumptions0 or
+                         len(new.assumptions0) == 1 and
+                         old.is_commutative == new.is_commutative):
+                     if base != self.base_set:
+-                        # it will be aggravating to have the dummy
+-                        # symbol change if you are trying to target
+-                        # the base set so if the base set is changed
+-                        # leave the dummy symbol alone -- a second
+-                        # subs will be needed to change the dummy
+                         return self.func(sym, cond, base)
+                     else:
+                         return self.func(new, cond.subs(old, new), base)
+@@ -236,15 +228,14 @@ def _eval_subs(self, old, new):
+                     assumptions or one having a single assumption
+                     having the same commutativity.
+                 '''))
+-            # don't target cond: it is there to tell how
+-            # the base set should be filtered and if new is not in
+-            # the base set then this substitution is ignored
+             return self.func(sym, cond, base)
+-        cond = self.condition.subs(old, new)
+-        base = self.base_set.subs(old, new)
+-        if cond is S.true:
+-            return ConditionSet(new, Contains(new, base), base)
+-        return self.func(self.sym, cond, base)
++        else:
++            # Handle substitutions within condition and base set
++            new_cond = cond.subs(old, new)
++            new_base = base.subs(old, new)
++            if new_cond != cond or new_base != base:
++                return self.func(sym, new_cond, new_base)
++        return self
+ 
+     def dummy_eq(self, other, symbol=None):
+         if not isinstance(other, self.func):

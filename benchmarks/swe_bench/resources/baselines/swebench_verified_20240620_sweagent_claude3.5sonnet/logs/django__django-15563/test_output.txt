@@ -1,0 +1,898 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/models/query.py
+	modified:   django/db/models/sql/subqueries.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_bug.py
+	test_app/
+	test_settings.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 9ffd4eae2ce7a7100c98f681e2b6ab818df384a4
+Author: Carlton Gibson <carlton.gibson@noumenal.es>
+Date:   Thu Apr 7 07:05:59 2022 +0200
+
+    Fixed #33611 -- Allowed View subclasses to define async method handlers.
+
+diff --git a/django/views/generic/base.py b/django/views/generic/base.py
+index d45b1762e6..db1842e3e5 100644
+--- a/django/views/generic/base.py
++++ b/django/views/generic/base.py
+@@ -1,3 +1,4 @@
++import asyncio
+ import logging
+ 
+ from django.core.exceptions import ImproperlyConfigured
+@@ -11,6 +12,7 @@ from django.http import (
+ from django.template.response import TemplateResponse
+ from django.urls import reverse
+ from django.utils.decorators import classonlymethod
++from django.utils.functional import classproperty
+ 
+ logger = logging.getLogger("django.request")
+ 
+@@ -57,6 +59,23 @@ class View:
+         for key, value in kwargs.items():
+             setattr(self, key, value)
+ 
++    @classproperty
++    def view_is_async(cls):
++        handlers = [
++            getattr(cls, method)
++            for method in cls.http_method_names
++            if (method != "options" and hasattr(cls, method))
++        ]
++        if not handlers:
++            return False
++        is_async = asyncio.iscoroutinefunction(handlers[0])
++        if not all(asyncio.iscoroutinefunction(h) == is_async for h in handlers[1:]):
++            raise ImproperlyConfigured(
++                f"{cls.__qualname__} HTTP handlers must either be all sync or all "
++                "async."
++            )
++        return is_async
++
+     @classonlymethod
+     def as_view(cls, **initkwargs):
+         """Main entry point for a request-response process."""
+@@ -96,6 +115,10 @@ class View:
+         # the dispatch method.
+         view.__dict__.update(cls.dispatch.__dict__)
+ 
++        # Mark the callback if the view class is async.
++        if cls.view_is_async:
++            view._is_coroutine = asyncio.coroutines._is_coroutine
++
+         return view
+ 
+     def setup(self, request, *args, **kwargs):
+@@ -132,7 +155,15 @@ class View:
+         response = HttpResponse()
+         response.headers["Allow"] = ", ".join(self._allowed_methods())
+         response.headers["Content-Length"] = "0"
+-        return response
++
++        if self.view_is_async:
++
++            async def func():
++                return response
++
++            return func()
++        else:
++            return response
+ 
+     def _allowed_methods(self):
+         return [m.upper() for m in self.http_method_names if hasattr(self, m)]
+diff --git a/docs/ref/class-based-views/base.txt b/docs/ref/class-based-views/base.txt
+index 5c2eb712c1..f60950d1fa 100644
+--- a/docs/ref/class-based-views/base.txt
++++ b/docs/ref/class-based-views/base.txt
+@@ -77,6 +77,17 @@ MRO is an acronym for Method Resolution Order.
+         <how-django-processes-a-request>` to the ``args`` and ``kwargs``
+         attributes, respectively. Then :meth:`dispatch` is called.
+ 
++        If a ``View`` subclass defines asynchronous (``async def``) method
++        handlers, ``as_view()`` will mark the returned callable as a coroutine
++        function. An ``ImproperlyConfigured`` exception will be raised if both
++        asynchronous (``async def``) and synchronous (``def``) handlers are
++        defined on a single view-class.
++
++        .. versionchanged:: 4.1
++
++            Compatibility with asynchronous (``async def``) method handlers was
++            added.
++
+     .. method:: setup(request, *args, **kwargs)
+ 
+         Performs key view initialization prior to :meth:`dispatch`.
+@@ -111,6 +122,14 @@ MRO is an acronym for Method Resolution Order.
+         response with the ``Allow`` header containing a list of the view's
+         allowed HTTP method names.
+ 
++        If the other HTTP methods handlers on the class are asynchronous
++        (``async def``) then the response will be wrapped in a coroutine
++        function for use with ``await``.
++
++        .. versionchanged:: 4.1
++
++            Compatibility with classes defining asynchronous (``async def``)
++            method handlers was added.
+ 
+ ``TemplateView``
+ ================
+diff --git a/docs/releases/4.1.txt b/docs/releases/4.1.txt
+index d83da638fc..2ec0d42cdd 100644
+--- a/docs/releases/4.1.txt
++++ b/docs/releases/4.1.txt
+@@ -26,6 +26,23 @@ officially support the latest release of each series.
+ What's new in Django 4.1
+ ========================
+ 
++Asynchronous handlers for class-based views
++-------------------------------------------
++
++View subclasses may now define async HTTP method handlers::
++
++    import asyncio
++    from django.http import HttpResponse
++    from django.views import View
++
++    class AsyncView(View):
++        async def get(self, request, *args, **kwargs):
++            # Perform view logic using await.
++            await asyncio.sleep(1)
++            return HttpResponse("Hello async world!")
++
++See :ref:`async-class-based-views` for more details.
++
+ .. _csrf-cookie-masked-usage:
+ 
+ ``CSRF_COOKIE_MASKED`` setting
+diff --git a/docs/topics/async.txt b/docs/topics/async.txt
+index 90a31b994b..ab2ccd3c98 100644
+--- a/docs/topics/async.txt
++++ b/docs/topics/async.txt
+@@ -22,8 +22,9 @@ Async views
+ Any view can be declared async by making the callable part of it return a
+ coroutine - commonly, this is done using ``async def``. For a function-based
+ view, this means declaring the whole view using ``async def``. For a
+-class-based view, this means making its ``__call__()`` method an ``async def``
+-(not its ``__init__()`` or ``as_view()``).
++class-based view, this means declaring the HTTP method handlers, such as
++``get()`` and ``post()`` as ``async def`` (not its ``__init__()``, or
++``as_view()``).
+ 
+ .. note::
+ 
+diff --git a/docs/topics/class-based-views/index.txt b/docs/topics/class-based-views/index.txt
+index 01f9c35460..1a6368cc08 100644
+--- a/docs/topics/class-based-views/index.txt
++++ b/docs/topics/class-based-views/index.txt
+@@ -128,3 +128,33 @@ the response (using the ``book_list.html`` template). But if the client issues
+ a ``HEAD`` request, the response has an empty body and the ``Last-Modified``
+ header indicates when the most recent book was published.  Based on this
+ information, the client may or may not download the full object list.
++
++.. _async-class-based-views:
++
++Asynchronous class-based views
++==============================
++
++.. versionadded:: 4.1
++
++As well as the synchronous (``def``) method handlers already shown, ``View``
++subclasses may define asynchronous (``async def``) method handlers to leverage
++asynchronous code using ``await``::
++
++    import asyncio
++    from django.http import HttpResponse
++    from django.views import View
++
++    class AsyncView(View):
++        async def get(self, request, *args, **kwargs):
++            # Perform io-blocking view logic using await, sleep for example.
++            await asyncio.sleep(1)
++            return HttpResponse("Hello async world!")
++
++Within a single view-class, all user-defined method handlers must be either
++synchronous, using ``def``, or all asynchronous, using ``async def``. An
++``ImproperlyConfigured`` exception will be raised in ``as_view()`` if ``def``
++and ``async def`` declarations are mixed.
++
++Django will automatically detect asynchronous views and run them in an
++asynchronous context. You can read more about Django's asynchronous support,
++and how to best use async views, in :doc:`/topics/async`.
+diff --git a/tests/async/tests.py b/tests/async/tests.py
+index be3e4e2576..1a0627a064 100644
+--- a/tests/async/tests.py
++++ b/tests/async/tests.py
+@@ -1,3 +1,4 @@
++import asyncio
+ import os
+ import sys
+ from unittest import mock, skipIf
+@@ -5,9 +6,11 @@ from unittest import mock, skipIf
+ from asgiref.sync import async_to_sync
+ 
+ from django.core.cache import DEFAULT_CACHE_ALIAS, caches
+-from django.core.exceptions import SynchronousOnlyOperation
++from django.core.exceptions import ImproperlyConfigured, SynchronousOnlyOperation
++from django.http import HttpResponse
+ from django.test import SimpleTestCase
+ from django.utils.asyncio import async_unsafe
++from django.views.generic.base import View
+ 
+ from .models import SimpleModel
+ 
+@@ -72,3 +75,66 @@ class AsyncUnsafeTest(SimpleTestCase):
+             self.dangerous_method()
+         except SynchronousOnlyOperation:
+             self.fail("SynchronousOnlyOperation should not be raised.")
++
++
++class SyncView(View):
++    def get(self, request, *args, **kwargs):
++        return HttpResponse("Hello (sync) world!")
++
++
++class AsyncView(View):
++    async def get(self, request, *args, **kwargs):
++        return HttpResponse("Hello (async) world!")
++
++
++class ViewTests(SimpleTestCase):
++    def test_views_are_correctly_marked(self):
++        tests = [
++            (SyncView, False),
++            (AsyncView, True),
++        ]
++        for view_cls, is_async in tests:
++            with self.subTest(view_cls=view_cls, is_async=is_async):
++                self.assertIs(view_cls.view_is_async, is_async)
++                callback = view_cls.as_view()
++                self.assertIs(asyncio.iscoroutinefunction(callback), is_async)
++
++    def test_mixed_views_raise_error(self):
++        class MixedView(View):
++            def get(self, request, *args, **kwargs):
++                return HttpResponse("Hello (mixed) world!")
++
++            async def post(self, request, *args, **kwargs):
++                return HttpResponse("Hello (mixed) world!")
++
++        msg = (
++            f"{MixedView.__qualname__} HTTP handlers must either be all sync or all "
++            "async."
++        )
++        with self.assertRaisesMessage(ImproperlyConfigured, msg):
++            MixedView.as_view()
++
++    def test_options_handler_responds_correctly(self):
++        tests = [
++            (SyncView, False),
++            (AsyncView, True),
++        ]
++        for view_cls, is_coroutine in tests:
++            with self.subTest(view_cls=view_cls, is_coroutine=is_coroutine):
++                instance = view_cls()
++                response = instance.options(None)
++                self.assertIs(
++                    asyncio.iscoroutine(response),
++                    is_coroutine,
++                )
++                if is_coroutine:
++                    response = asyncio.run(response)
++
++                self.assertIsInstance(response, HttpResponse)
++
++    def test_base_view_class_is_sync(self):
++        """
++        View and by extension any subclasses that don't define handlers are
++        sync.
++        """
++        self.assertIs(View.view_is_async, False)
++ git diff 9ffd4eae2ce7a7100c98f681e2b6ab818df384a4
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 5c78c6e315..a23049e926 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -981,7 +981,8 @@ class QuerySet:
+     def update(self, **kwargs):
+         """
+         Update all elements in the current QuerySet, setting all the given
+-        fields to the appropriate values.
++        fields to the appropriate values. This method will update all
++        parent tables for multi-table inheritance.
+         """
+         self._not_support_combined_queries("update")
+         if self.query.is_sliced:
+@@ -991,11 +992,19 @@ class QuerySet:
+         query.add_update_values(kwargs)
+         # Clear any annotations so that they won't be present in subqueries.
+         query.annotations = {}
+-        with transaction.mark_for_rollback_on_error(using=self.db):
++        with transaction.atomic(using=self.db):
+             rows = query.get_compiler(self.db).execute_sql(CURSOR)
++            if self.model._meta.parents:
++                for parent_model in self.model._meta.get_parent_list():
++                    parent_query = parent_model._base_manager.filter(
++                        pk__in=self.values('pk')
++                    ).query
++                    parent_query = parent_query.chain(sql.UpdateQuery)
++                    parent_query.add_update_values(kwargs)
++                    parent_query.get_compiler(self.db).execute_sql(CURSOR)
+         self._result_cache = None
+         return rows
+-
++    update.alters_data = True
+     update.alters_data = True
+ 
+     def _update(self, values):
+diff --git a/django/db/models/sql/subqueries.py b/django/db/models/sql/subqueries.py
+index 04063f73bc..0d58d902e1 100644
+--- a/django/db/models/sql/subqueries.py
++++ b/django/db/models/sql/subqueries.py
+@@ -83,22 +83,29 @@ class UpdateQuery(Query):
+         query. This is the entry point for the public update() method on
+         querysets.
+         """
++        print("Debug: Entering add_update_values")
++        print(f"Debug: Values to update: {values}")
+         values_seq = []
+         for name, val in values.items():
++            print(f"Debug: Processing field: {name}")
+             field = self.get_meta().get_field(name)
+             direct = (
+                 not (field.auto_created and not field.concrete) or not field.concrete
+             )
+             model = field.model._meta.concrete_model
++            print(f"Debug: Field model: {model}")
++            print(f"Debug: Query model: {self.get_meta().concrete_model}")
+             if not direct or (field.is_relation and field.many_to_many):
+                 raise FieldError(
+                     "Cannot update model field %r (only non-relations and "
+                     "foreign keys permitted)." % field
+                 )
+             if model is not self.get_meta().concrete_model:
++                print(f"Debug: Adding related update for {model}")
+                 self.add_related_update(model, field, val)
+-                continue
+-            values_seq.append((field, model, val))
++            else:
++                print(f"Debug: Adding direct update for field: {field}")
++                values_seq.append((field, model, val))
+         return self.add_update_fields(values_seq)
+ 
+     def add_update_fields(self, values_seq):
+@@ -117,10 +124,17 @@ class UpdateQuery(Query):
+         """
+         Add (name, value) to an update query for an ancestor model.
+ 
+-        Update are coalesced so that only one update query per ancestor is run.
++        Updates are coalesced so that only one update query per ancestor is run.
++        For multi-table inheritance, ensure updates are applied to all parent models.
+         """
+-        self.related_updates.setdefault(model, []).append((field, None, value))
+-
++        print(f"Debug: add_related_update called for model: {model}, field: {field}")
++        concrete_model = self.get_meta().concrete_model
++        for parent_model in concrete_model._meta.get_parent_list():
++            if issubclass(parent_model, model):
++                print(f"Debug: Adding update for parent model: {parent_model}")
++                self.related_updates.setdefault(parent_model, []).append((field, None, value))
++        for parent_model in model._meta.parents:
++            self.related_updates.setdefault(parent_model, []).append((field, None, value))
+     def get_related_updates(self):
+         """
+         Return a list of query objects: one for each update required to an
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.4.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20220407050559) (3.8.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20220407050559) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from asgiref>=3.4.1->Django==4.1.dev20220407050559) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.1.dev20220407050559-0.editable-py3-none-any.whl size=26973 sha256=03d56bbab3b7f22a1f68e3c8a6838b378e7b764fd4f9edeb68a5eab7e0445805
+  Stored in directory: /tmp/pip-ephem-wheel-cache-r9p8t7hk/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.1.dev20220407050559
+    Uninstalling Django-4.1.dev20220407050559:
+      Successfully uninstalled Django-4.1.dev20220407050559
+Successfully installed Django-4.1.dev20220407050559
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 9ffd4eae2ce7a7100c98f681e2b6ab818df384a4 tests/model_inheritance_regress/tests.py
+Updated 0 paths from 2cc678b6fe
++ git apply -v -
+Checking patch tests/model_inheritance_regress/tests.py...
+Applied patch tests/model_inheritance_regress/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 model_inheritance_regress.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application model_inheritance_regress
+Found 32 test(s).
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, model_inheritance_regress, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table model_inheritance_regress_place
+    Creating table model_inheritance_regress_restaurant
+    Creating table model_inheritance_regress_italianrestaurant
+    Creating table model_inheritance_regress_parkinglot
+    Creating table model_inheritance_regress_parkinglot3
+    Creating table model_inheritance_regress_parkinglot4a
+    Creating table model_inheritance_regress_parkinglot4b
+    Creating table model_inheritance_regress_supplier
+    Creating table model_inheritance_regress_wholesaler
+    Creating table model_inheritance_regress_parent
+    Creating table model_inheritance_regress_child
+    Creating table model_inheritance_regress_selfrefparent
+    Creating table model_inheritance_regress_selfrefchild
+    Creating table model_inheritance_regress_article
+    Creating table model_inheritance_regress_articlewithauthor
+    Creating table model_inheritance_regress_m2mbase
+    Creating table model_inheritance_regress_m2mchild
+    Creating table model_inheritance_regress_qualitycontrol
+    Creating table model_inheritance_regress_basem
+    Creating table model_inheritance_regress_derivedm
+    Creating table model_inheritance_regress_internalcertificationaudit
+    Creating table model_inheritance_regress_person
+    Creating table model_inheritance_regress_birthdayparty
+    Creating table model_inheritance_regress_bachelorparty
+    Creating table model_inheritance_regress_messybachelorparty
+    Creating table model_inheritance_regress_searchablelocation
+    Creating table model_inheritance_regress_busstation
+    Creating table model_inheritance_regress_trainstation
+    Creating table model_inheritance_regress_user
+    Creating table model_inheritance_regress_profile
+    Creating table model_inheritance_regress_politician
+    Creating table model_inheritance_regress_congressman
+    Creating table model_inheritance_regress_senator
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+test_abstract_base_class_m2m_relation_inheritance (model_inheritance_regress.tests.ModelInheritanceTest) ... ok
+test_abstract_base_class_m2m_relation_inheritance_manager_reused (model_inheritance_regress.tests.ModelInheritanceTest) ... ok
+test_abstract_verbose_name_plural_inheritance (model_inheritance_regress.tests.ModelInheritanceTest)
+verbose_name_plural correctly inherited from ABC if inheritance chain ... ok
+test_all_fields_from_abstract_base_class (model_inheritance_regress.tests.ModelInheritanceTest)
+Regression tests for #7588 ... ok
+test_concrete_abstract_concrete_pk (model_inheritance_regress.tests.ModelInheritanceTest)
+Primary key set correctly with concrete->abstract->concrete inheritance. ... ok
+test_create_new_instance_with_pk_equals_none (model_inheritance_regress.tests.ModelInheritanceTest) ... ok
+test_create_new_instance_with_pk_equals_none_multi_inheritance (model_inheritance_regress.tests.ModelInheritanceTest) ... ok
+test_filter_with_parent_fk (model_inheritance_regress.tests.ModelInheritanceTest) ... ok
+test_get_next_previous_by_date (model_inheritance_regress.tests.ModelInheritanceTest)
+Regression tests for #8076 ... ok
+test_id_field_update_on_ancestor_change (model_inheritance_regress.tests.ModelInheritanceTest) ... ok
+test_inheritance_joins (model_inheritance_regress.tests.ModelInheritanceTest) ... ok
+test_inheritance_resolve_columns (model_inheritance_regress.tests.ModelInheritanceTest) ... ok
+test_inheritance_select_related (model_inheritance_regress.tests.ModelInheritanceTest) ... ok
+test_inheritance_values_joins (model_inheritance_regress.tests.ModelInheritanceTest) ... expected failure
+test_inherited_fields (model_inheritance_regress.tests.ModelInheritanceTest)
+Regression test for #8825 and #9390 ... ok
+test_inherited_nullable_exclude (model_inheritance_regress.tests.ModelInheritanceTest) ... ok
+test_inherited_unique_field_with_form (model_inheritance_regress.tests.ModelInheritanceTest)
+A model which has different primary key for the parent model passes ... ok
+test_issue_11764 (model_inheritance_regress.tests.ModelInheritanceTest)
+Regression test for #11764 ... ok
+test_issue_21554 (model_inheritance_regress.tests.ModelInheritanceTest) ... ok
+test_issue_6755 (model_inheritance_regress.tests.ModelInheritanceTest)
+Regression test for #6755 ... ok
+test_issue_7105 (model_inheritance_regress.tests.ModelInheritanceTest) ... ok
+test_issue_7276 (model_inheritance_regress.tests.ModelInheritanceTest) ... ok
+test_issue_7853 (model_inheritance_regress.tests.ModelInheritanceTest)
+Regression test for #7853 ... ok
+test_model_inheritance (model_inheritance_regress.tests.ModelInheritanceTest) ... ok
+test_mti_update_grand_parent_through_child (model_inheritance_regress.tests.ModelInheritanceTest) ... ERROR
+test_mti_update_parent_through_child (model_inheritance_regress.tests.ModelInheritanceTest) ... ERROR
+test_ptr_accessor_assigns_state (model_inheritance_regress.tests.ModelInheritanceTest) ... ok
+test_queries_on_parent_access (model_inheritance_regress.tests.ModelInheritanceTest) ... ok
+test_queryset_update_on_parent_model (model_inheritance_regress.tests.ModelInheritanceTest)
+Regression test for #10362 ... ok
+test_related_filtering_query_efficiency_ticket_15844 (model_inheritance_regress.tests.ModelInheritanceTest) ... ok
+test_use_explicit_o2o_to_parent_as_pk (model_inheritance_regress.tests.ModelInheritanceTest)
+The connector from child to parent need not be the pk on the child. ... ok
+test_use_explicit_o2o_to_parent_from_abstract_model (model_inheritance_regress.tests.ModelInheritanceTest) ... ok
+
+======================================================================
+ERROR: test_mti_update_grand_parent_through_child (model_inheritance_regress.tests.ModelInheritanceTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/backends/sqlite3/base.py", line 357, in execute
+    return Database.Cursor.execute(self, query, params)
+sqlite3.OperationalError: no such column: title
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/testbed/tests/model_inheritance_regress/tests.py", line 680, in test_mti_update_grand_parent_through_child
+    Senator.objects.update(title="senator 1")
+  File "/testbed/django/db/models/manager.py", line 85, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 996, in update
+    rows = query.get_compiler(self.db).execute_sql(CURSOR)
+  File "/testbed/django/db/models/sql/compiler.py", line 1813, in execute_sql
+    aux_rows = query.get_compiler(self.using).execute_sql(result_type)
+  File "/testbed/django/db/models/sql/compiler.py", line 1805, in execute_sql
+    cursor = super().execute_sql(result_type)
+  File "/testbed/django/db/models/sql/compiler.py", line 1380, in execute_sql
+    cursor.execute(sql, params)
+  File "/testbed/django/db/backends/utils.py", line 67, in execute
+    return self._execute_with_wrappers(
+  File "/testbed/django/db/backends/utils.py", line 80, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "/testbed/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/testbed/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/backends/sqlite3/base.py", line 357, in execute
+    return Database.Cursor.execute(self, query, params)
+django.db.utils.OperationalError: no such column: title
+
+======================================================================
+ERROR: test_mti_update_parent_through_child (model_inheritance_regress.tests.ModelInheritanceTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/db/models/options.py", line 668, in get_field
+    return self.fields_map[field_name]
+KeyError: 'title'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/testbed/tests/model_inheritance_regress/tests.py", line 674, in test_mti_update_parent_through_child
+    Congressman.objects.update(title="senator 1")
+  File "/testbed/django/db/models/manager.py", line 85, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1003, in update
+    parent_query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 91, in add_update_values
+    field = self.get_meta().get_field(name)
+  File "/testbed/django/db/models/options.py", line 670, in get_field
+    raise FieldDoesNotExist(
+django.core.exceptions.FieldDoesNotExist: Person has no field named 'title'
+
+----------------------------------------------------------------------
+Ran 32 tests in 0.164s
+
+FAILED (errors=2, expected failures=1)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Debug: Entering add_update_values
+Debug: Values to update: {'title': 'senator 1'}
+Debug: Processing field: title
+Debug: Field model: <class 'model_inheritance_regress.models.Politician'>
+Debug: Query model: <class 'model_inheritance_regress.models.Senator'>
+Debug: Adding related update for <class 'model_inheritance_regress.models.Politician'>
+Debug: add_related_update called for model: <class 'model_inheritance_regress.models.Politician'>, field: model_inheritance_regress.Politician.title
+Debug: Adding update for parent model: <class 'model_inheritance_regress.models.Congressman'>
+Debug: Adding update for parent model: <class 'model_inheritance_regress.models.Politician'>
+Debug: Entering add_update_values
+Debug: Values to update: {'title': 'senator 1'}
+Debug: Processing field: title
+Debug: Field model: <class 'model_inheritance_regress.models.Politician'>
+Debug: Query model: <class 'model_inheritance_regress.models.Congressman'>
+Debug: Adding related update for <class 'model_inheritance_regress.models.Politician'>
+Debug: add_related_update called for model: <class 'model_inheritance_regress.models.Politician'>, field: model_inheritance_regress.Politician.title
+Debug: Adding update for parent model: <class 'model_inheritance_regress.models.Politician'>
+Debug: Entering add_update_values
+Debug: Values to update: {'title': 'senator 1'}
+Debug: Processing field: title
+Debug: Entering add_update_values
+Debug: Values to update: {'headline': 'Oh, no!'}
+Debug: Processing field: headline
+Debug: Field model: <class 'model_inheritance_regress.models.Article'>
+Debug: Query model: <class 'model_inheritance_regress.models.ArticleWithAuthor'>
+Debug: Adding related update for <class 'model_inheritance_regress.models.Article'>
+Debug: add_related_update called for model: <class 'model_inheritance_regress.models.Article'>, field: model_inheritance_regress.Article.headline
+Debug: Adding update for parent model: <class 'model_inheritance_regress.models.Article'>
+Debug: Entering add_update_values
+Debug: Values to update: {'headline': 'Oh, no!'}
+Debug: Processing field: headline
+Debug: Field model: <class 'model_inheritance_regress.models.Article'>
+Debug: Query model: <class 'model_inheritance_regress.models.Article'>
+Debug: Adding direct update for field: model_inheritance_regress.Article.headline
+Debug: Entering add_update_values
+Debug: Values to update: {'headline': 'Oh, no!'}
+Debug: Processing field: headline
+Debug: Field model: <class 'model_inheritance_regress.models.Article'>
+Debug: Query model: <class 'model_inheritance_regress.models.ArticleWithAuthor'>
+Debug: Adding related update for <class 'model_inheritance_regress.models.Article'>
+Debug: add_related_update called for model: <class 'model_inheritance_regress.models.Article'>, field: model_inheritance_regress.Article.headline
+Debug: Adding update for parent model: <class 'model_inheritance_regress.models.Article'>
+Debug: Entering add_update_values
+Debug: Values to update: {'headline': 'Oh, no!'}
+Debug: Processing field: headline
+Debug: Field model: <class 'model_inheritance_regress.models.Article'>
+Debug: Query model: <class 'model_inheritance_regress.models.Article'>
+Debug: Adding direct update for field: model_inheritance_regress.Article.headline
++ git checkout 9ffd4eae2ce7a7100c98f681e2b6ab818df384a4 tests/model_inheritance_regress/tests.py
+Updated 1 path from 2cc678b6fe

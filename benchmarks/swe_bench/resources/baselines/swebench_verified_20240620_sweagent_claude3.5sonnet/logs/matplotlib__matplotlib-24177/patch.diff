@@ -1,0 +1,51 @@
+
+diff --git a/histogram_test.png b/histogram_test.png
+new file mode 100644
+index 0000000000..4f35af6e48
+Binary files /dev/null and b/histogram_test.png differ
+diff --git a/histogram_test_fixed.png b/histogram_test_fixed.png
+new file mode 100644
+index 0000000000..4fa9f5d502
+Binary files /dev/null and b/histogram_test_fixed.png differ
+diff --git a/lib/matplotlib/axes/_axes.py b/lib/matplotlib/axes/_axes.py
+index 2412f815cd..b8c4ebc999 100644
+--- a/lib/matplotlib/axes/_axes.py
++++ b/lib/matplotlib/axes/_axes.py
+@@ -6829,6 +6829,12 @@ such objects
+             x[2*len(bins)-1:] = x[1:2*len(bins)-1][::-1]
+ 
+             if bottom is None:
++                bottom = np.zeros(len(bins) - 1)
++
++            # Apply density scaling for 'step' histtype
++            if density:
++                scale = 1 / np.sum(np.diff(bins) * tops)
++                tops *= scale
+                 bottom = 0
+ 
+             y[1:2*len(bins)-1:2] = y[2:2*len(bins):2] = bottom
+diff --git a/reproduce_hist_bug.py b/reproduce_hist_bug.py
+new file mode 100644
+index 0000000000..ec87d76fac
+--- /dev/null
++++ b/reproduce_hist_bug.py
+@@ -0,0 +1,19 @@
++import numpy as np
++import matplotlib.pyplot as plt
++
++scale = 1.2
++test_random = np.random.randn(100000) * scale
++
++fig, ax = plt.subplots(1, 2, figsize=(20, 10))
++hist_bar = ax[0].hist(test_random, bins=100, density=True, histtype="bar", label='bar')
++hist_step = ax[1].hist(test_random, bins=100, density=True, histtype="step", label='step')
++
++ax[0].set_title('Bar Histogram')
++ax[1].set_title('Step Histogram')
++ax[0].legend()
++ax[1].legend()
++
++plt.savefig('histogram_test_fixed.png')
++plt.close(fig)
++
++print("Script completed successfully, no errors.")

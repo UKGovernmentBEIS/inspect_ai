@@ -1,0 +1,56 @@
+
+diff --git a/reproduce_symbol_dict.py b/reproduce_symbol_dict.py
+new file mode 100644
+index 0000000000..32d312f8e4
+--- /dev/null
++++ b/reproduce_symbol_dict.py
+@@ -0,0 +1,20 @@
++import sympy
++import inspect
++
++def print_class_info(cls):
++    print(f"Class: {cls.__name__}")
++    print(f"  __slots__: {getattr(cls, '__slots__', None)}")
++    print(f"  has __dict__: {'__dict__' in dir(cls)}")
++
++s = sympy.Symbol('s')
++
++print("Symbol instance:")
++print(f"  has __dict__: {'__dict__' in dir(s)}")
++if '__dict__' in dir(s):
++    print(f"  __dict__ content: {s.__dict__}")
++
++print("\nClass hierarchy:")
++for cls in inspect.getmro(type(s)):
++    print_class_info(cls)
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sympy/core/_print_helpers.py b/sympy/core/_print_helpers.py
+index 96d7e72676..4614c20a4e 100644
+--- a/sympy/core/_print_helpers.py
++++ b/sympy/core/_print_helpers.py
+@@ -17,6 +17,7 @@ class Printable:
+     This also adds support for LaTeX printing in jupyter notebooks.
+     """
+ 
++    __slots__ = ()
+     # Note, we always use the default ordering (lex) in __str__ and __repr__,
+     # regardless of the global setting. See issue 5487.
+     def __str__(self):
+diff --git a/sympy/core/core.py b/sympy/core/core.py
+index 336022c412..bbdf618cbf 100644
+--- a/sympy/core/core.py
++++ b/sympy/core/core.py
+@@ -65,11 +65,11 @@ def __delattr__(self, name):
+ 
+ 
+ class BasicMeta(type):
++    __slots__ = ()
+ 
+     def __init__(cls, *args, **kws):
+         all_classes.add(cls)
+         cls.__sympy__ = property(lambda self: True)
+-
+     def __cmp__(cls, other):
+         # If the other object is not a Basic subclass, then we are not equal to
+         # it.

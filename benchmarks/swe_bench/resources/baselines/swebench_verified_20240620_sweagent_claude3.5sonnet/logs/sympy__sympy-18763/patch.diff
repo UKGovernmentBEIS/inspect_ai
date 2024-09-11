@@ -1,0 +1,35 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..4f81bb04eb
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,15 @@
++from sympy import Subs, latex
++from sympy.abc import x, y
++
++expr = 3*Subs(-x+y, (x,), (1,))
++
++print("Expression:")
++print(expr)
++
++print("\nLaTeX representation:")
++print(latex(expr))
++
++print("\nLaTeX representation (second time):")
++print(latex(expr))
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sympy/printing/latex.py b/sympy/printing/latex.py
+index 8743723ea0..59851f539e 100644
+--- a/sympy/printing/latex.py
++++ b/sympy/printing/latex.py
+@@ -698,7 +698,7 @@ def _print_Derivative(self, expr):
+ 
+     def _print_Subs(self, subs):
+         expr, old, new = subs.args
+-        latex_expr = self._print(expr)
++        latex_expr = self.parenthesize(expr, PRECEDENCE["Atom"])
+         latex_old = (self._print(e) for e in old)
+         latex_new = (self._print(e) for e in new)
+         latex_subs = r'\\ '.join(

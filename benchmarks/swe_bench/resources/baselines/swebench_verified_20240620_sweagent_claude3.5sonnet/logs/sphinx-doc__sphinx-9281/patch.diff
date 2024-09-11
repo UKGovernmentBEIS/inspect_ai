@@ -1,0 +1,646 @@
+
+diff --git a/setup.py b/setup.py
+index 2538952e3..94e1d8b32 100644
+--- a/setup.py
++++ b/setup.py
+@@ -15,22 +15,22 @@ if sys.version_info < (3, 6):
+     sys.exit(1)
+ 
+ install_requires = [
+-    'sphinxcontrib-applehelp',
+-    'sphinxcontrib-devhelp',
++    'sphinxcontrib-applehelp<=1.0.7',
++    'sphinxcontrib-devhelp<=1.0.5',
+     'sphinxcontrib-jsmath',
+-    'sphinxcontrib-htmlhelp',
+-    'sphinxcontrib-serializinghtml',
+-    'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'sphinxcontrib-htmlhelp<=2.0.4',
++    'sphinxcontrib-serializinghtml<=1.1.9',
++    'sphinxcontrib-qthelp<=1.0.6',
++    'Jinja2<3.0',
+     'Pygments>=2.0',
+     'docutils>=0.14,<0.18',
+     'snowballstemmer>=1.1',
+     'babel>=1.3',
+-    'alabaster>=0.7,<0.8',
++    'alabaster>=0.7,<0.7.12',
+     'imagesize',
+     'requests>=2.5.0',
+     'setuptools',
+-    'packaging',
++    'packaging', 'markupsafe<=2.0.1',
+ ]
+ 
+ extras_require = {
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index ec1472e20..85a8a8472 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -1,3 +1,4 @@
++import sphinx
+ """
+     sphinx.ext.autodoc
+     ~~~~~~~~~~~~~~~~~~
+@@ -104,6 +105,7 @@ def members_set_option(arg: Any) -> Union[object, Set[str]]:
+                   RemovedInSphinx50Warning, stacklevel=2)
+     if arg is None:
+         return ALL
++    app.add_autodocumenter(EnumFunctionDocumenter)
+     return {x.strip() for x in arg.split(',') if x.strip()}
+ 
+ 
+@@ -111,6 +113,7 @@ def exclude_members_option(arg: Any) -> Union[object, Set[str]]:
+     """Used to convert the :exclude-members: option."""
+     if arg in (None, True):
+         return EMPTY
++    app.add_autodocumenter(EnumFunctionDocumenter)
+     return {x.strip() for x in arg.split(',') if x.strip()}
+ 
+ 
+@@ -2750,4 +2753,45 @@ def setup(app: Sphinx) -> Dict[str, Any]:
+     app.setup_extension('sphinx.ext.autodoc.type_comment')
+     app.setup_extension('sphinx.ext.autodoc.typehints')
+ 
++    app.add_autodocumenter(EnumFunctionDocumenter)
+     return {'version': sphinx.__display_version__, 'parallel_read_safe': True}
++
++
++
++def setup(app):
++    app.add_autodocumenter(EnumFunctionDocumenter)
++
++from enum import Enum
++
++class EnumFunctionDocumenter(FunctionDocumenter):
++    objtype = 'function'
++    priority = FunctionDocumenter.priority + 1
++
++    @classmethod
++    def can_document_member(cls, member, membername, isattr, parent):
++        can_document = super().can_document_member(member, membername, isattr, parent)
++        if can_document:
++            # Check if any of the parameters are Enum types
++            import inspect
++            sig = inspect.signature(member)
++            return any(isinstance(param.annotation, type) and issubclass(param.annotation, Enum)
++                       for param in sig.parameters.values())
++        return False
++
++    def format_args(self, **kwargs):
++        args = super().format_args(**kwargs)
++        if args:
++            import inspect
++            sig = inspect.signature(self.object)
++            formatted_args = []
++            for param_name, param in sig.parameters.items():
++                if isinstance(param.annotation, type) and issubclass(param.annotation, Enum):
++                    enum_values = ', '.join(f"'{e.name}'" for e in param.annotation)
++                    formatted_args.append(f"{param_name}: {param.annotation.__name__}({enum_values})")
++                else:
++                    formatted_args.append(f"{param_name}: {param.annotation.__name__}" if param.annotation != inspect.Parameter.empty else param_name)
++            return f"({', '.join(formatted_args)})"
++        return args
++
++def setup(app):
++    app.add_autodocumenter(EnumFunctionDocumenter)
+diff --git a/tests/Makefile b/tests/Makefile
+new file mode 100644
+index 000000000..08835bdab
+--- /dev/null
++++ b/tests/Makefile
+@@ -0,0 +1,19 @@
++# Minimal makefile for Sphinx documentation
++
++# You can set these variables from the command line, and also
++# from the environment for the first two.
++SPHINXOPTS    ?=
++SPHINXBUILD   ?= sphinx-build
++SOURCEDIR     = .
++BUILDDIR      = _build
++
++# Put it first so that "make" without argument is like "make help".
++help:
++	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
++
++.PHONY: help Makefile
++
++# Catch-all target: route all unknown targets to Sphinx using the new
++# "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).
++%: Makefile
++	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+diff --git a/tests/_build/doctrees/roots/test-add_enumerable_node/index.doctree b/tests/_build/doctrees/roots/test-add_enumerable_node/index.doctree
+new file mode 100644
+index 000000000..e09a6f54e
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-add_enumerable_node/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-api-set-translator/index.doctree b/tests/_build/doctrees/roots/test-api-set-translator/index.doctree
+new file mode 100644
+index 000000000..a48898270
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-api-set-translator/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-autosummary/index.doctree b/tests/_build/doctrees/roots/test-autosummary/index.doctree
+new file mode 100644
+index 000000000..d275a0dae
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-autosummary/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-autosummary/sphinx.doctree b/tests/_build/doctrees/roots/test-autosummary/sphinx.doctree
+new file mode 100644
+index 000000000..0d85bd213
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-autosummary/sphinx.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-basic/index.doctree b/tests/_build/doctrees/roots/test-basic/index.doctree
+new file mode 100644
+index 000000000..c89b18876
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-basic/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-build-html-translator/index.doctree b/tests/_build/doctrees/roots/test-build-html-translator/index.doctree
+new file mode 100644
+index 000000000..e07b2a22f
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-build-html-translator/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-builder-dirhtml/bar.doctree b/tests/_build/doctrees/roots/test-builder-dirhtml/bar.doctree
+new file mode 100644
+index 000000000..505da113a
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-builder-dirhtml/bar.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-builder-dirhtml/foo/foo_1.doctree b/tests/_build/doctrees/roots/test-builder-dirhtml/foo/foo_1.doctree
+new file mode 100644
+index 000000000..1acf90a2c
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-builder-dirhtml/foo/foo_1.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-builder-dirhtml/foo/foo_2.doctree b/tests/_build/doctrees/roots/test-builder-dirhtml/foo/foo_2.doctree
+new file mode 100644
+index 000000000..e6cdebd43
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-builder-dirhtml/foo/foo_2.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-builder-dirhtml/foo/index.doctree b/tests/_build/doctrees/roots/test-builder-dirhtml/foo/index.doctree
+new file mode 100644
+index 000000000..14fdc257b
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-builder-dirhtml/foo/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-builder-dirhtml/index.doctree b/tests/_build/doctrees/roots/test-builder-dirhtml/index.doctree
+new file mode 100644
+index 000000000..3769a3981
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-builder-dirhtml/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-builder-gettext-dont-rebuild-mo/bom.doctree b/tests/_build/doctrees/roots/test-builder-gettext-dont-rebuild-mo/bom.doctree
+new file mode 100644
+index 000000000..fc02bd327
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-builder-gettext-dont-rebuild-mo/bom.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-builder-gettext-dont-rebuild-mo/index.doctree b/tests/_build/doctrees/roots/test-builder-gettext-dont-rebuild-mo/index.doctree
+new file mode 100644
+index 000000000..9b24095e4
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-builder-gettext-dont-rebuild-mo/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-changes/base.doctree b/tests/_build/doctrees/roots/test-changes/base.doctree
+new file mode 100644
+index 000000000..364d40dc3
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-changes/base.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-changes/c-api.doctree b/tests/_build/doctrees/roots/test-changes/c-api.doctree
+new file mode 100644
+index 000000000..c10fbf532
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-changes/c-api.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-changes/contents.doctree b/tests/_build/doctrees/roots/test-changes/contents.doctree
+new file mode 100644
+index 000000000..076b42e82
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-changes/contents.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-changes/library/utils.doctree b/tests/_build/doctrees/roots/test-changes/library/utils.doctree
+new file mode 100644
+index 000000000..5b6d08a17
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-changes/library/utils.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-circular/index.doctree b/tests/_build/doctrees/roots/test-circular/index.doctree
+new file mode 100644
+index 000000000..711a5f137
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-circular/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-circular/sub.doctree b/tests/_build/doctrees/roots/test-circular/sub.doctree
+new file mode 100644
+index 000000000..e5b14df36
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-circular/sub.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-correct-year/index.doctree b/tests/_build/doctrees/roots/test-correct-year/index.doctree
+new file mode 100644
+index 000000000..0158940b5
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-correct-year/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-default_role/foo.doctree b/tests/_build/doctrees/roots/test-default_role/foo.doctree
+new file mode 100644
+index 000000000..31a0d4250
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-default_role/foo.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-default_role/index.doctree b/tests/_build/doctrees/roots/test-default_role/index.doctree
+new file mode 100644
+index 000000000..2173a9c4e
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-default_role/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-directive-code/caption.doctree b/tests/_build/doctrees/roots/test-directive-code/caption.doctree
+new file mode 100644
+index 000000000..599e75d40
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-directive-code/caption.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-directive-code/classes.doctree b/tests/_build/doctrees/roots/test-directive-code/classes.doctree
+new file mode 100644
+index 000000000..9d19f53c8
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-directive-code/classes.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-directive-code/emphasize.doctree b/tests/_build/doctrees/roots/test-directive-code/emphasize.doctree
+new file mode 100644
+index 000000000..1c0c99eb8
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-directive-code/emphasize.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-directive-code/force.doctree b/tests/_build/doctrees/roots/test-directive-code/force.doctree
+new file mode 100644
+index 000000000..ad11e0ce3
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-directive-code/force.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-directive-code/highlight.doctree b/tests/_build/doctrees/roots/test-directive-code/highlight.doctree
+new file mode 100644
+index 000000000..52f857300
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-directive-code/highlight.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-directive-code/index.doctree b/tests/_build/doctrees/roots/test-directive-code/index.doctree
+new file mode 100644
+index 000000000..7894d0812
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-directive-code/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-directive-code/linenos.doctree b/tests/_build/doctrees/roots/test-directive-code/linenos.doctree
+new file mode 100644
+index 000000000..2afcc699d
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-directive-code/linenos.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-directive-code/linenothreshold.doctree b/tests/_build/doctrees/roots/test-directive-code/linenothreshold.doctree
+new file mode 100644
+index 000000000..a7ed94ffd
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-directive-code/linenothreshold.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-directive-code/namedblocks.doctree b/tests/_build/doctrees/roots/test-directive-code/namedblocks.doctree
+new file mode 100644
+index 000000000..6a63ab4c2
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-directive-code/namedblocks.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-directive-code/py-decorators.doctree b/tests/_build/doctrees/roots/test-directive-code/py-decorators.doctree
+new file mode 100644
+index 000000000..ac123e9ba
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-directive-code/py-decorators.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-directive-code/python.doctree b/tests/_build/doctrees/roots/test-directive-code/python.doctree
+new file mode 100644
+index 000000000..15141fa4e
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-directive-code/python.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-directive-only/index.doctree b/tests/_build/doctrees/roots/test-directive-only/index.doctree
+new file mode 100644
+index 000000000..52d77f442
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-directive-only/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-directive-only/only.doctree b/tests/_build/doctrees/roots/test-directive-only/only.doctree
+new file mode 100644
+index 000000000..2a16417b5
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-directive-only/only.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-directives-raw/index.doctree b/tests/_build/doctrees/roots/test-directives-raw/index.doctree
+new file mode 100644
+index 000000000..563754829
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-directives-raw/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-docutilsconf/index.doctree b/tests/_build/doctrees/roots/test-docutilsconf/index.doctree
+new file mode 100644
+index 000000000..c6ae14e4c
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-docutilsconf/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-c-intersphinx/index.doctree b/tests/_build/doctrees/roots/test-domain-c-intersphinx/index.doctree
+new file mode 100644
+index 000000000..c2c7f4920
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-c-intersphinx/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-c/anon-dup-decl.doctree b/tests/_build/doctrees/roots/test-domain-c/anon-dup-decl.doctree
+new file mode 100644
+index 000000000..a48afae52
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-c/anon-dup-decl.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-c/function_param_target.doctree b/tests/_build/doctrees/roots/test-domain-c/function_param_target.doctree
+new file mode 100644
+index 000000000..be93d645f
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-c/function_param_target.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-c/index.doctree b/tests/_build/doctrees/roots/test-domain-c/index.doctree
+new file mode 100644
+index 000000000..12a97829f
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-c/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-c/namespace.doctree b/tests/_build/doctrees/roots/test-domain-c/namespace.doctree
+new file mode 100644
+index 000000000..e30ee2557
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-c/namespace.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-c/ns_lookup.doctree b/tests/_build/doctrees/roots/test-domain-c/ns_lookup.doctree
+new file mode 100644
+index 000000000..2cdd4254a
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-c/ns_lookup.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-cpp-intersphinx/index.doctree b/tests/_build/doctrees/roots/test-domain-cpp-intersphinx/index.doctree
+new file mode 100644
+index 000000000..4d0659fc1
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-cpp-intersphinx/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-cpp/anon-dup-decl.doctree b/tests/_build/doctrees/roots/test-domain-cpp/anon-dup-decl.doctree
+new file mode 100644
+index 000000000..aa5b03b83
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-cpp/anon-dup-decl.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-cpp/any-role.doctree b/tests/_build/doctrees/roots/test-domain-cpp/any-role.doctree
+new file mode 100644
+index 000000000..10c29334e
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-cpp/any-role.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-cpp/backslash.doctree b/tests/_build/doctrees/roots/test-domain-cpp/backslash.doctree
+new file mode 100644
+index 000000000..f3ffb1ae1
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-cpp/backslash.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-cpp/index.doctree b/tests/_build/doctrees/roots/test-domain-cpp/index.doctree
+new file mode 100644
+index 000000000..daaf60ce5
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-cpp/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-cpp/lookup-key-overload.doctree b/tests/_build/doctrees/roots/test-domain-cpp/lookup-key-overload.doctree
+new file mode 100644
+index 000000000..ed865bbf3
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-cpp/lookup-key-overload.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-cpp/multi-decl-lookup.doctree b/tests/_build/doctrees/roots/test-domain-cpp/multi-decl-lookup.doctree
+new file mode 100644
+index 000000000..620964ef6
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-cpp/multi-decl-lookup.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-cpp/roles-targets-ok.doctree b/tests/_build/doctrees/roots/test-domain-cpp/roles-targets-ok.doctree
+new file mode 100644
+index 000000000..eff229a16
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-cpp/roles-targets-ok.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-cpp/roles-targets-warn.doctree b/tests/_build/doctrees/roots/test-domain-cpp/roles-targets-warn.doctree
+new file mode 100644
+index 000000000..2439505ef
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-cpp/roles-targets-warn.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-cpp/roles.doctree b/tests/_build/doctrees/roots/test-domain-cpp/roles.doctree
+new file mode 100644
+index 000000000..cceff6a90
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-cpp/roles.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-cpp/roles2.doctree b/tests/_build/doctrees/roots/test-domain-cpp/roles2.doctree
+new file mode 100644
+index 000000000..fec4ec68a
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-cpp/roles2.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-cpp/semicolon.doctree b/tests/_build/doctrees/roots/test-domain-cpp/semicolon.doctree
+new file mode 100644
+index 000000000..7fbeab898
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-cpp/semicolon.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-cpp/warn-template-param-qualified-name.doctree b/tests/_build/doctrees/roots/test-domain-cpp/warn-template-param-qualified-name.doctree
+new file mode 100644
+index 000000000..54da4c234
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-cpp/warn-template-param-qualified-name.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-cpp/xref_consistency.doctree b/tests/_build/doctrees/roots/test-domain-cpp/xref_consistency.doctree
+new file mode 100644
+index 000000000..eccbb08cd
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-cpp/xref_consistency.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-js/index.doctree b/tests/_build/doctrees/roots/test-domain-js/index.doctree
+new file mode 100644
+index 000000000..f6455f9e4
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-js/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-js/module.doctree b/tests/_build/doctrees/roots/test-domain-js/module.doctree
+new file mode 100644
+index 000000000..b0a1298cb
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-js/module.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-js/roles.doctree b/tests/_build/doctrees/roots/test-domain-js/roles.doctree
+new file mode 100644
+index 000000000..563fb86fb
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-js/roles.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-py-python_use_unqualified_type_names/index.doctree b/tests/_build/doctrees/roots/test-domain-py-python_use_unqualified_type_names/index.doctree
+new file mode 100644
+index 000000000..5a87150cf
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-py-python_use_unqualified_type_names/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-py-xref-warning/index.doctree b/tests/_build/doctrees/roots/test-domain-py-xref-warning/index.doctree
+new file mode 100644
+index 000000000..5151ee0f8
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-py-xref-warning/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-py/abbr.doctree b/tests/_build/doctrees/roots/test-domain-py/abbr.doctree
+new file mode 100644
+index 000000000..b92d36539
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-py/abbr.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-py/canonical.doctree b/tests/_build/doctrees/roots/test-domain-py/canonical.doctree
+new file mode 100644
+index 000000000..77c154269
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-py/canonical.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-py/index.doctree b/tests/_build/doctrees/roots/test-domain-py/index.doctree
+new file mode 100644
+index 000000000..23c1fdcf2
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-py/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-py/module.doctree b/tests/_build/doctrees/roots/test-domain-py/module.doctree
+new file mode 100644
+index 000000000..871d44c26
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-py/module.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-py/module_option.doctree b/tests/_build/doctrees/roots/test-domain-py/module_option.doctree
+new file mode 100644
+index 000000000..aae1e7e8c
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-py/module_option.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-domain-py/roles.doctree b/tests/_build/doctrees/roots/test-domain-py/roles.doctree
+new file mode 100644
+index 000000000..abba0ab9f
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-domain-py/roles.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-double-inheriting-theme/index.doctree b/tests/_build/doctrees/roots/test-double-inheriting-theme/index.doctree
+new file mode 100644
+index 000000000..46be60645
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-double-inheriting-theme/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-epub-anchor-id/index.doctree b/tests/_build/doctrees/roots/test-epub-anchor-id/index.doctree
+new file mode 100644
+index 000000000..6d1e1e097
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-epub-anchor-id/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-autodoc/index.doctree b/tests/_build/doctrees/roots/test-ext-autodoc/index.doctree
+new file mode 100644
+index 000000000..47c6001f3
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-autodoc/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-autosectionlabel-prefix-document/index.doctree b/tests/_build/doctrees/roots/test-ext-autosectionlabel-prefix-document/index.doctree
+new file mode 100644
+index 000000000..a1933afae
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-autosectionlabel-prefix-document/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-autosectionlabel/index.doctree b/tests/_build/doctrees/roots/test-ext-autosectionlabel/index.doctree
+new file mode 100644
+index 000000000..4b7be8d35
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-autosectionlabel/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-autosummary-filename-map/index.doctree b/tests/_build/doctrees/roots/test-ext-autosummary-filename-map/index.doctree
+new file mode 100644
+index 000000000..cdc1862a7
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-autosummary-filename-map/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-autosummary-imported_members/index.doctree b/tests/_build/doctrees/roots/test-ext-autosummary-imported_members/index.doctree
+new file mode 100644
+index 000000000..910f122a9
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-autosummary-imported_members/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-autosummary-mock_imports/index.doctree b/tests/_build/doctrees/roots/test-ext-autosummary-mock_imports/index.doctree
+new file mode 100644
+index 000000000..53215ce7c
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-autosummary-mock_imports/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-autosummary-recursive/index.doctree b/tests/_build/doctrees/roots/test-ext-autosummary-recursive/index.doctree
+new file mode 100644
+index 000000000..b547ed519
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-autosummary-recursive/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-autosummary-skip-member/index.doctree b/tests/_build/doctrees/roots/test-ext-autosummary-skip-member/index.doctree
+new file mode 100644
+index 000000000..d1f15d438
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-autosummary-skip-member/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-autosummary-template/_templates/empty.doctree b/tests/_build/doctrees/roots/test-ext-autosummary-template/_templates/empty.doctree
+new file mode 100644
+index 000000000..54670ef53
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-autosummary-template/_templates/empty.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-autosummary-template/index.doctree b/tests/_build/doctrees/roots/test-ext-autosummary-template/index.doctree
+new file mode 100644
+index 000000000..148e5af1f
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-autosummary-template/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-autosummary/index.doctree b/tests/_build/doctrees/roots/test-ext-autosummary/index.doctree
+new file mode 100644
+index 000000000..4d2245422
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-autosummary/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-coverage/index.doctree b/tests/_build/doctrees/roots/test-ext-coverage/index.doctree
+new file mode 100644
+index 000000000..d84adf2eb
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-coverage/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-doctest-with-autodoc/dir/inner.doctree b/tests/_build/doctrees/roots/test-ext-doctest-with-autodoc/dir/inner.doctree
+new file mode 100644
+index 000000000..e3989426a
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-doctest-with-autodoc/dir/inner.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-doctest-with-autodoc/index.doctree b/tests/_build/doctrees/roots/test-ext-doctest-with-autodoc/index.doctree
+new file mode 100644
+index 000000000..be0307c9f
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-doctest-with-autodoc/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-githubpages/index.doctree b/tests/_build/doctrees/roots/test-ext-githubpages/index.doctree
+new file mode 100644
+index 000000000..a31d443b8
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-githubpages/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-graphviz/index.doctree b/tests/_build/doctrees/roots/test-ext-graphviz/index.doctree
+new file mode 100644
+index 000000000..5691977b9
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-graphviz/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-ifconfig/index.doctree b/tests/_build/doctrees/roots/test-ext-ifconfig/index.doctree
+new file mode 100644
+index 000000000..1f49372bf
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-ifconfig/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-imgconverter/index.doctree b/tests/_build/doctrees/roots/test-ext-imgconverter/index.doctree
+new file mode 100644
+index 000000000..f7fecd0e7
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-imgconverter/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-inheritance_diagram/index.doctree b/tests/_build/doctrees/roots/test-ext-inheritance_diagram/index.doctree
+new file mode 100644
+index 000000000..ad7f156fe
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-inheritance_diagram/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-intersphinx-cppdomain/index.doctree b/tests/_build/doctrees/roots/test-ext-intersphinx-cppdomain/index.doctree
+new file mode 100644
+index 000000000..50052ad4c
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-intersphinx-cppdomain/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-math-compat/index.doctree b/tests/_build/doctrees/roots/test-ext-math-compat/index.doctree
+new file mode 100644
+index 000000000..317a9416c
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-math-compat/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-math-simple/index.doctree b/tests/_build/doctrees/roots/test-ext-math-simple/index.doctree
+new file mode 100644
+index 000000000..89b9712bb
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-math-simple/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-math/index.doctree b/tests/_build/doctrees/roots/test-ext-math/index.doctree
+new file mode 100644
+index 000000000..ecd62e861
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-math/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-math/math.doctree b/tests/_build/doctrees/roots/test-ext-math/math.doctree
+new file mode 100644
+index 000000000..4dcfe5606
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-math/math.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-math/nomath.doctree b/tests/_build/doctrees/roots/test-ext-math/nomath.doctree
+new file mode 100644
+index 000000000..df4314565
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-math/nomath.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-math/page.doctree b/tests/_build/doctrees/roots/test-ext-math/page.doctree
+new file mode 100644
+index 000000000..8d996293a
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-math/page.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-todo/bar.doctree b/tests/_build/doctrees/roots/test-ext-todo/bar.doctree
+new file mode 100644
+index 000000000..cdfdcc456
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-todo/bar.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-todo/foo.doctree b/tests/_build/doctrees/roots/test-ext-todo/foo.doctree
+new file mode 100644
+index 000000000..f706fc326
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-todo/foo.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-todo/index.doctree b/tests/_build/doctrees/roots/test-ext-todo/index.doctree
+new file mode 100644
+index 000000000..38fba4924
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-todo/index.doctree differ
+diff --git a/tests/_build/doctrees/roots/test-ext-viewcode-find/index.doctree b/tests/_build/doctrees/roots/test-ext-viewcode-find/index.doctree
+new file mode 100644
+index 000000000..035a4f143
+Binary files /dev/null and b/tests/_build/doctrees/roots/test-ext-viewcode-find/index.doctree differ
+diff --git a/tests/conf.py b/tests/conf.py
+new file mode 100644
+index 000000000..f9a0202f7
+--- /dev/null
++++ b/tests/conf.py
+@@ -0,0 +1,14 @@
++# Configuration file for the Sphinx documentation builder.
++
++# -- Project information -----------------------------------------------------
++project = 'Enum Signature Test'
++copyright = '2023, Test'
++author = 'Test'
++
++# -- General configuration ---------------------------------------------------
++extensions = ['sphinx.ext.autodoc']
++
++# -- Options for HTML output -------------------------------------------------
++html_theme = 'alabaster'
++
++autodoc_mock_imports = ['autodoc_dummy_module', 'bug2437', 'autodoc_dummy_bar']
+diff --git a/tests/roots/test-ext-autodoc/conf.py b/tests/roots/test-ext-autodoc/conf.py
+index 979a70983..6302e707c 100644
+--- a/tests/roots/test-ext-autodoc/conf.py
++++ b/tests/roots/test-ext-autodoc/conf.py
+@@ -1,15 +1,15 @@
+-import os
+-import sys
++# Configuration file for the Sphinx documentation builder.
+ 
+-sys.path.insert(0, os.path.abspath('.'))
++# -- Project information -----------------------------------------------------
++project = 'Enum Signature Test'
++copyright = '2023, Test'
++author = 'Test'
+ 
++# -- General configuration ---------------------------------------------------
+ extensions = ['sphinx.ext.autodoc']
+ 
+-# The suffix of source filenames.
+-source_suffix = '.rst'
++# -- Options for autodoc extension -------------------------------------------
++autodoc_mock_imports = ['autodoc_dummy_module', 'bug2437', 'autodoc_dummy_bar']
+ 
+-autodoc_mock_imports = [
+-    'dummy'
+-]
+-
+-nitpicky = True
++# -- Options for HTML output -------------------------------------------------
++html_theme = 'alabaster'
+diff --git a/tests/roots/test-ext-autodoc/index.rst b/tests/roots/test-ext-autodoc/index.rst
+index eb10829dc..510ed3d72 100644
+--- a/tests/roots/test-ext-autodoc/index.rst
++++ b/tests/roots/test-ext-autodoc/index.rst
+@@ -1,4 +1,3 @@
+-
+ .. automodule:: autodoc_dummy_module
+    :members:
+ 
+@@ -7,9 +6,3 @@
+ 
+ .. automodule:: autodoc_dummy_bar
+    :members:
+-
+-.. autofunction:: target.typehints.incr
+-
+-.. autofunction:: target.overload.sum
+-
+-.. autofunction:: target.typehints.tuple_args
+diff --git a/tests/test_enum_doc.rst b/tests/test_enum_doc.rst
+new file mode 100644
+index 000000000..7f58694cd
+--- /dev/null
++++ b/tests/test_enum_doc.rst
+@@ -0,0 +1,5 @@
++Test Enum Signature
++===================
++
++.. autofunction:: test_enum_signature.ugly_enum_func
++
+diff --git a/tests/test_enum_signature.py b/tests/test_enum_signature.py
+new file mode 100644
+index 000000000..b2aff1102
+--- /dev/null
++++ b/tests/test_enum_signature.py
+@@ -0,0 +1,15 @@
++from enum import Enum
++
++class MyEnum(Enum):
++    ValueA = 10
++    ValueB = 20
++
++def ugly_enum_func(e: MyEnum = MyEnum.ValueA) -> None:
++    """
++    A function with an Enum parameter.
++
++    :param e: An enum parameter
++    :return: None
++    """
++    pass
++
+diff --git a/tox.ini b/tox.ini
+index a363e187f..3b8bc12d0 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,7 +27,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

@@ -1,0 +1,618 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/forms/models.py
+	modified:   docs/topics/forms/modelforms.txt
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	tests/forms_tests/tests/test_model_formsets.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 0af9a5fc7d765aa05ea784e2c3237675f3bb4b49
+Author: Jörg Breitbart <jerch@rockborn.de>
+Date:   Thu Jan 27 14:42:59 2022 +0100
+
+    Fixed #33463 -- Fixed QuerySet.bulk_update() with F() expressions.
+
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index f8d848e926..e20c46075e 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -17,7 +17,7 @@ from django.db import (
+ from django.db.models import AutoField, DateField, DateTimeField, sql
+ from django.db.models.constants import LOOKUP_SEP, OnConflict
+ from django.db.models.deletion import Collector
+-from django.db.models.expressions import Case, Expression, F, Ref, Value, When
++from django.db.models.expressions import Case, F, Ref, Value, When
+ from django.db.models.functions import Cast, Trunc
+ from django.db.models.query_utils import FilteredRelation, Q
+ from django.db.models.sql.constants import CURSOR, GET_ITERATOR_CHUNK_SIZE
+@@ -670,7 +670,7 @@ class QuerySet:
+                 when_statements = []
+                 for obj in batch_objs:
+                     attr = getattr(obj, field.attname)
+-                    if not isinstance(attr, Expression):
++                    if not hasattr(attr, 'resolve_expression'):
+                         attr = Value(attr, output_field=field)
+                     when_statements.append(When(pk=obj.pk, then=attr))
+                 case_statement = Case(*when_statements, output_field=field)
+diff --git a/tests/queries/test_bulk_update.py b/tests/queries/test_bulk_update.py
+index 1d669e0bbd..b63046f9d2 100644
+--- a/tests/queries/test_bulk_update.py
++++ b/tests/queries/test_bulk_update.py
+@@ -211,6 +211,16 @@ class BulkUpdateTests(TestCase):
+         Number.objects.bulk_update(numbers, ['num'])
+         self.assertCountEqual(Number.objects.filter(num=1), numbers)
+ 
++    def test_f_expression(self):
++        notes = [
++            Note.objects.create(note='test_note', misc='test_misc')
++            for _ in range(10)
++        ]
++        for note in notes:
++            note.misc = F('note')
++        Note.objects.bulk_update(notes, ['misc'])
++        self.assertCountEqual(Note.objects.filter(misc='test_note'), notes)
++
+     def test_booleanfield(self):
+         individuals = [Individual.objects.create(alive=False) for _ in range(10)]
+         for individual in individuals:
++ git diff 0af9a5fc7d765aa05ea784e2c3237675f3bb4b49
+diff --git a/django/forms/models.py b/django/forms/models.py
+index 7effb202e3..28fd53441b 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -573,9 +573,10 @@ class BaseModelFormSet(BaseFormSet):
+     unique_fields = set()
+ 
+     def __init__(self, data=None, files=None, auto_id='id_%s', prefix=None,
+-                 queryset=None, *, initial=None, **kwargs):
++                 queryset=None, *, initial=None, can_create=True, **kwargs):
+         self.queryset = queryset
+         self.initial_extra = initial
++        self.can_create = can_create
+         super().__init__(**{'data': data, 'files': files, 'auto_id': auto_id, 'prefix': prefix, **kwargs})
+ 
+     def initial_form_count(self):
+@@ -653,6 +654,8 @@ class BaseModelFormSet(BaseFormSet):
+ 
+     def save_new(self, form, commit=True):
+         """Save and return a new model instance for the given form."""
++        if not getattr(self, 'can_create', True):
++            raise ValueError("This formset does not allow creating new instances.")
+         return form.save(commit=commit)
+ 
+     def save_existing(self, form, instance, commit=True):
+@@ -676,7 +679,11 @@ class BaseModelFormSet(BaseFormSet):
+                 for form in self.saved_forms:
+                     form.save_m2m()
+             self.save_m2m = save_m2m
+-        return self.save_existing_objects(commit) + self.save_new_objects(commit)
++
++        saved_instances = self.save_existing_objects(commit)
++        if getattr(self, 'can_create', True):
++            saved_instances += self.save_new_objects(commit)
++        return saved_instances
+ 
+     save.alters_data = True
+ 
+@@ -812,6 +819,8 @@ class BaseModelFormSet(BaseFormSet):
+         return saved_instances
+ 
+     def save_new_objects(self, commit=True):
++        if not getattr(self, 'can_create', True):
++            return []
+         self.new_objects = []
+         for form in self.extra_forms:
+             if not form.has_changed():
+@@ -875,8 +884,13 @@ def modelformset_factory(model, form=ModelForm, formfield_callback=None,
+                          widgets=None, validate_max=False, localized_fields=None,
+                          labels=None, help_texts=None, error_messages=None,
+                          min_num=None, validate_min=False, field_classes=None,
+-                         absolute_max=None, can_delete_extra=True, renderer=None):
+-    """Return a FormSet class for the given Django model class."""
++                         absolute_max=None, can_delete_extra=True, renderer=None,
++                         can_create=True):
++    """
++    Return a FormSet class for the given Django model class.
++
++    :param can_create: If set to False, the formset will not allow adding new objects.
++    """
+     meta = getattr(form, 'Meta', None)
+     if (getattr(meta, 'fields', fields) is None and
+             getattr(meta, 'exclude', exclude) is None):
+@@ -890,12 +904,13 @@ def modelformset_factory(model, form=ModelForm, formfield_callback=None,
+                              widgets=widgets, localized_fields=localized_fields,
+                              labels=labels, help_texts=help_texts,
+                              error_messages=error_messages, field_classes=field_classes)
+-    FormSet = formset_factory(form, formset, extra=extra, min_num=min_num, max_num=max_num,
++    FormSet = formset_factory(form, formset, extra=extra if can_create else 0, min_num=min_num, max_num=max_num,
+                               can_order=can_order, can_delete=can_delete,
+                               validate_min=validate_min, validate_max=validate_max,
+                               absolute_max=absolute_max, can_delete_extra=can_delete_extra,
+                               renderer=renderer)
+     FormSet.model = model
++    FormSet.can_create = can_create
+     return FormSet
+ 
+ 
+diff --git a/docs/topics/forms/modelforms.txt b/docs/topics/forms/modelforms.txt
+index cf79fc69c4..40f2b55468 100644
+--- a/docs/topics/forms/modelforms.txt
++++ b/docs/topics/forms/modelforms.txt
+@@ -825,6 +825,19 @@ instances of the model, you can specify an empty QuerySet::
+ 
+    >>> AuthorFormSet(queryset=Author.objects.none())
+ 
++Preventing the creation of new objects
++--------------------------------------
++
++By default, model formsets allow the creation of new objects. You can use the
++``can_create`` parameter to prevent this:
++
++   >>> AuthorFormSet = modelformset_factory(Author, fields=('name', 'title'), can_create=False)
++   >>> formset = AuthorFormSet(queryset=Author.objects.all())
++
++When ``can_create`` is set to ``False``, the formset will not allow new objects
++to be created, even if the data for a new object is submitted. This can be
++useful when you want to provide an "edit only" view of existing objects.
++
+ Changing the form
+ -----------------
+ 
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.4.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20220127180326) (3.8.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20220127180326) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from asgiref>=3.4.1->Django==4.1.dev20220127180326) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.1.dev20220127180326-0.editable-py3-none-any.whl size=26915 sha256=9a7f35979c7eef2e5311db5e95f0745860839254264bc7fa91b6b0b942461311
+  Stored in directory: /tmp/pip-ephem-wheel-cache-r7tmrola/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.1.dev20220127180326
+    Uninstalling Django-4.1.dev20220127180326:
+      Successfully uninstalled Django-4.1.dev20220127180326
+Successfully installed Django-4.1.dev20220127180326
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 0af9a5fc7d765aa05ea784e2c3237675f3bb4b49 tests/model_formsets/tests.py
+Updated 0 paths from c4c9cffec5
++ git apply -v -
+Checking patch tests/model_formsets/tests.py...
+Applied patch tests/model_formsets/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 model_formsets.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application model_formsets
+Found 67 test(s).
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, model_formsets, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table model_formsets_author
+    Creating table model_formsets_betterauthor
+    Creating table model_formsets_book
+    Creating table model_formsets_bookwithcustompk
+    Creating table model_formsets_editor
+    Creating table model_formsets_bookwithoptionalalteditor
+    Creating table model_formsets_alternatebook
+    Creating table model_formsets_authormeeting
+    Creating table model_formsets_customprimarykey
+    Creating table model_formsets_place
+    Creating table model_formsets_owner
+    Creating table model_formsets_location
+    Creating table model_formsets_ownerprofile
+    Creating table model_formsets_restaurant
+    Creating table model_formsets_product
+    Creating table model_formsets_price
+    Creating table model_formsets_mexicanrestaurant
+    Creating table model_formsets_classymexicanrestaurant
+    Creating table model_formsets_repository
+    Creating table model_formsets_revision
+    Creating table model_formsets_person
+    Creating table model_formsets_membership
+    Creating table model_formsets_team
+    Creating table model_formsets_player
+    Creating table model_formsets_poet
+    Creating table model_formsets_poem
+    Creating table model_formsets_post
+    Creating table model_formsets_uuidpkparent
+    Creating table model_formsets_uuidpkchild
+    Creating table model_formsets_childwitheditablepk
+    Creating table model_formsets_autopkchildofuuidpkparent
+    Creating table model_formsets_autopkparent
+    Creating table model_formsets_uuidpkchildofautopkparent
+    Creating table model_formsets_parentwithuuidalternatekey
+    Creating table model_formsets_childrelatedviaak
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (1 silenced).
+test_add_form_deletion_when_invalid (model_formsets.tests.DeletionTests)
+Make sure that an add form that is filled out, but marked for deletion ... ok
+test_change_form_deletion_when_invalid (model_formsets.tests.DeletionTests)
+Make sure that a change form that is filled out, but marked for deletion ... ok
+test_deletion (model_formsets.tests.DeletionTests) ... ok
+test_outdated_deletion (model_formsets.tests.DeletionTests) ... ok
+test_callable_defaults (model_formsets.tests.ModelFormsetTest) ... ok
+test_commit_false (model_formsets.tests.ModelFormsetTest) ... ok
+test_custom_form (model_formsets.tests.ModelFormsetTest)
+model_formset_factory() respects fields and exclude parameters of a ... ok
+test_custom_pk (model_formsets.tests.ModelFormsetTest) ... ok
+test_custom_queryset_init (model_formsets.tests.ModelFormsetTest)
+A queryset can be overridden in the formset's __init__() method. ... ok
+test_custom_save_method (model_formsets.tests.ModelFormsetTest) ... ok
+test_edit_only (model_formsets.tests.ModelFormsetTest) ... ERROR
+test_edit_only_inlineformset_factory (model_formsets.tests.ModelFormsetTest) ... ERROR
+test_edit_only_object_outside_of_queryset (model_formsets.tests.ModelFormsetTest) ... ERROR
+test_foreign_keys_in_parents (model_formsets.tests.ModelFormsetTest) ... ok
+test_initial_form_count_empty_data (model_formsets.tests.ModelFormsetTest) ... ok
+test_inline_formsets (model_formsets.tests.ModelFormsetTest) ... ok
+test_inline_formsets_save_as_new (model_formsets.tests.ModelFormsetTest) ... ok
+test_inline_formsets_with_custom_pk (model_formsets.tests.ModelFormsetTest) ... ok
+test_inline_formsets_with_custom_save_method (model_formsets.tests.ModelFormsetTest) ... ok
+test_inline_formsets_with_custom_save_method_related_instance (model_formsets.tests.ModelFormsetTest)
+The ModelForm.save() method should be able to access the related object ... ok
+test_inline_formsets_with_multi_table_inheritance (model_formsets.tests.ModelFormsetTest) ... ok
+test_inline_formsets_with_nullable_unique_together (model_formsets.tests.ModelFormsetTest) ... ok
+test_inline_formsets_with_wrong_fk_name (model_formsets.tests.ModelFormsetTest)
+Regression for #23451 ... ok
+test_inlineformset_factory_with_null_fk (model_formsets.tests.ModelFormsetTest) ... ok
+test_inlineformset_with_arrayfield (model_formsets.tests.ModelFormsetTest) ... ok
+test_max_num (model_formsets.tests.ModelFormsetTest) ... ok
+test_min_num (model_formsets.tests.ModelFormsetTest) ... ok
+test_min_num_with_existing (model_formsets.tests.ModelFormsetTest) ... ok
+test_model_formset_with_custom_pk (model_formsets.tests.ModelFormsetTest) ... ok
+test_model_formset_with_initial_model_instance (model_formsets.tests.ModelFormsetTest) ... ok
+test_model_formset_with_initial_queryset (model_formsets.tests.ModelFormsetTest) ... ok
+test_model_inheritance (model_formsets.tests.ModelFormsetTest) ... ok
+test_modelformset_factory_without_fields (model_formsets.tests.ModelFormsetTest)
+Regression for #19733 ... ok
+test_modelformset_min_num_equals_max_num_less_than (model_formsets.tests.ModelFormsetTest) ... ok
+test_modelformset_min_num_equals_max_num_more_than (model_formsets.tests.ModelFormsetTest) ... ok
+test_modelformset_validate_max_flag (model_formsets.tests.ModelFormsetTest) ... ok
+test_prevent_change_outer_model_and_create_invalid_data (model_formsets.tests.ModelFormsetTest) ... ok
+test_prevent_duplicates_from_with_the_same_formset (model_formsets.tests.ModelFormsetTest) ... ok
+test_simple_save (model_formsets.tests.ModelFormsetTest) ... ok
+test_unique_together_validation (model_formsets.tests.ModelFormsetTest) ... ok
+test_unique_together_with_inlineformset_factory (model_formsets.tests.ModelFormsetTest) ... ok
+test_unique_true_enforces_max_num_one (model_formsets.tests.ModelFormsetTest) ... ok
+test_unique_validation (model_formsets.tests.ModelFormsetTest) ... ok
+test_validation_with_child_model_without_id (model_formsets.tests.ModelFormsetTest) ... ok
+test_validation_with_invalid_id (model_formsets.tests.ModelFormsetTest) ... ok
+test_validation_with_nonexistent_id (model_formsets.tests.ModelFormsetTest) ... ok
+test_validation_without_id (model_formsets.tests.ModelFormsetTest) ... ok
+test_inlineformset_factory_absolute_max (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_inlineformset_factory_absolute_max_with_max_num (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_inlineformset_factory_can_delete_extra (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_inlineformset_factory_can_not_delete_extra (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_inlineformset_factory_error_messages_overrides (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_inlineformset_factory_field_class_overrides (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_inlineformset_factory_help_text_overrides (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_inlineformset_factory_labels_overrides (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_inlineformset_factory_passes_renderer (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_inlineformset_factory_widgets (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_modelformset_factory_absolute_max (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_modelformset_factory_absolute_max_with_max_num (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_modelformset_factory_can_delete_extra (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_modelformset_factory_disable_delete_extra (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_modelformset_factory_error_messages_overrides (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_modelformset_factory_field_class_overrides (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_modelformset_factory_help_text_overrides (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_modelformset_factory_labels_overrides (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_modelformset_factory_passes_renderer (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+test_modelformset_factory_widgets (model_formsets.tests.TestModelFormsetOverridesTroughFormMeta) ... ok
+
+======================================================================
+ERROR: test_edit_only (model_formsets.tests.ModelFormsetTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/model_formsets/tests.py", line 1776, in test_edit_only
+    AuthorFormSet = modelformset_factory(Author, fields='__all__', edit_only=True)
+TypeError: modelformset_factory() got an unexpected keyword argument 'edit_only'
+
+======================================================================
+ERROR: test_edit_only_inlineformset_factory (model_formsets.tests.ModelFormsetTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/model_formsets/tests.py", line 1806, in test_edit_only_inlineformset_factory
+    AuthorFormSet = inlineformset_factory(
+TypeError: inlineformset_factory() got an unexpected keyword argument 'edit_only'
+
+======================================================================
+ERROR: test_edit_only_object_outside_of_queryset (model_formsets.tests.ModelFormsetTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/model_formsets/tests.py", line 1835, in test_edit_only_object_outside_of_queryset
+    AuthorFormSet = modelformset_factory(Author, fields='__all__', edit_only=True)
+TypeError: modelformset_factory() got an unexpected keyword argument 'edit_only'
+
+----------------------------------------------------------------------
+Ran 67 tests in 1.549s
+
+FAILED (errors=3)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout 0af9a5fc7d765aa05ea784e2c3237675f3bb4b49 tests/model_formsets/tests.py
+Updated 1 path from c4c9cffec5

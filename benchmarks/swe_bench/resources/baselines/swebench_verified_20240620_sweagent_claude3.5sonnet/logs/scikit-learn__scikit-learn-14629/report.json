@@ -1,0 +1,55 @@
+{
+    "scikit-learn__scikit-learn-14629": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "sklearn/tests/test_multioutput.py::test_multi_output_classes_[estimator1]"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "sklearn/tests/test_multioutput.py::test_multi_target_regression",
+                    "sklearn/tests/test_multioutput.py::test_multi_target_regression_partial_fit",
+                    "sklearn/tests/test_multioutput.py::test_multi_target_regression_one_target",
+                    "sklearn/tests/test_multioutput.py::test_multi_target_sparse_regression",
+                    "sklearn/tests/test_multioutput.py::test_multi_target_sample_weights_api",
+                    "sklearn/tests/test_multioutput.py::test_multi_target_sample_weight_partial_fit",
+                    "sklearn/tests/test_multioutput.py::test_multi_target_sample_weights",
+                    "sklearn/tests/test_multioutput.py::test_multi_output_classification_partial_fit_parallelism",
+                    "sklearn/tests/test_multioutput.py::test_multi_output_predict_proba",
+                    "sklearn/tests/test_multioutput.py::test_multi_output_classification_partial_fit",
+                    "sklearn/tests/test_multioutput.py::test_multi_output_classification_partial_fit_no_first_classes_exception",
+                    "sklearn/tests/test_multioutput.py::test_multi_output_classification",
+                    "sklearn/tests/test_multioutput.py::test_multiclass_multioutput_estimator",
+                    "sklearn/tests/test_multioutput.py::test_multiclass_multioutput_estimator_predict_proba",
+                    "sklearn/tests/test_multioutput.py::test_multi_output_classification_sample_weights",
+                    "sklearn/tests/test_multioutput.py::test_multi_output_classification_partial_fit_sample_weights",
+                    "sklearn/tests/test_multioutput.py::test_multi_output_exceptions",
+                    "sklearn/tests/test_multioutput.py::test_classifier_chain_fit_and_predict_with_linear_svc",
+                    "sklearn/tests/test_multioutput.py::test_classifier_chain_fit_and_predict_with_sparse_data",
+                    "sklearn/tests/test_multioutput.py::test_classifier_chain_vs_independent_models",
+                    "sklearn/tests/test_multioutput.py::test_base_chain_fit_and_predict",
+                    "sklearn/tests/test_multioutput.py::test_base_chain_fit_and_predict_with_sparse_data_and_cv",
+                    "sklearn/tests/test_multioutput.py::test_base_chain_random_order",
+                    "sklearn/tests/test_multioutput.py::test_base_chain_crossval_fit_and_predict",
+                    "sklearn/tests/test_multioutput.py::test_multi_output_classes_[estimator0]",
+                    "sklearn/tests/test_multioutput.py::test_multi_output_classes_[estimator2]"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

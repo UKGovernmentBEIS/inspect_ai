@@ -1,0 +1,58 @@
+
+diff --git a/lib/matplotlib/scale.py b/lib/matplotlib/scale.py
+index b482a664b7..d7e3d428c1 100644
+--- a/lib/matplotlib/scale.py
++++ b/lib/matplotlib/scale.py
+@@ -422,11 +422,15 @@ class LogScale(ScaleBase):
+         Limit the domain to positive values.
+         """
+         if not np.isfinite(minpos):
+-            minpos = 1e-300  # This value should rarely if ever
+-                             # end up with a visible effect.
+-
+-        return (minpos if vmin <= 0 else vmin,
+-                minpos if vmax <= 0 else vmax)
++            minpos = 1e-300  # This is the minimum value supported by power(float64)
++        
++        if vmax < vmin:
++            vmin, vmax = vmax, vmin
++        
++        return (
++            max(vmin, minpos) if vmin > 0 else minpos,
++            max(vmax, minpos) if vmax > 0 else minpos
++        )
+ 
+ 
+ class FuncScaleLog(LogScale):
+diff --git a/linear_scale.png b/linear_scale.png
+new file mode 100644
+index 0000000000..48c2de9731
+Binary files /dev/null and b/linear_scale.png differ
+diff --git a/log_scale.png b/log_scale.png
+new file mode 100644
+index 0000000000..1db6f09f1b
+Binary files /dev/null and b/log_scale.png differ
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..6d2662906a
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,18 @@
++import numpy as np
++import matplotlib.pyplot as plt
++
++y = np.linspace(1000e2, 1, 100)
++x = np.exp(-np.linspace(0, 1, y.size))
++
++for i, yscale in enumerate(('linear', 'log')):
++    fig, ax = plt.subplots()
++    ax.plot(x, y)
++    ax.set_yscale(yscale)
++    ax.set_ylim(y.max(), y.min())
++    plt.savefig(f'{yscale}_scale.png')
++    ylim = ax.get_ylim()
++    print(f"{yscale.capitalize()} scale y-axis limits: {ylim}")
++    print(f"{yscale.capitalize()} scale y-axis inverted: {ylim[0] > ylim[1]}")
++    plt.close(fig)
++
++print("Script completed successfully, no errors.")

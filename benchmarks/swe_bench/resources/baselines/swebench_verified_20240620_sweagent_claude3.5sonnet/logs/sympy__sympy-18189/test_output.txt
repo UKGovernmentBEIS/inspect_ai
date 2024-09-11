@@ -1,0 +1,793 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sympy/solvers/diophantine.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_diophantine.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 1923822ddf8265199dbd9ef9ce09641d3fd042b9
+Merge: d98abf000b a836f15b3c
+Author: Oscar Benjamin <oscar.j.benjamin@gmail.com>
+Date:   Tue Dec 31 15:17:38 2019 +0000
+
+    Merge pull request #18187 from namannimmo10/new-patch
+    
+    Remove unused imports in test_evaluate
+
++ git diff 1923822ddf8265199dbd9ef9ce09641d3fd042b9
+diff --git a/sympy/solvers/diophantine.py b/sympy/solvers/diophantine.py
+index 6092e35dab..fb809f7988 100644
+--- a/sympy/solvers/diophantine.py
++++ b/sympy/solvers/diophantine.py
+@@ -98,52 +98,25 @@ def _even(i):
+     return i % 2 == 0
+ 
+ 
+-def diophantine(eq, param=symbols("t", integer=True), syms=None,
+-                permute=False):
+-    """
+-    Simplify the solution procedure of diophantine equation ``eq`` by
+-    converting it into a product of terms which should equal zero.
+-
+-    For example, when solving, `x^2 - y^2 = 0` this is treated as
+-    `(x + y)(x - y) = 0` and `x + y = 0` and `x - y = 0` are solved
+-    independently and combined. Each term is solved by calling
+-    ``diop_solve()``. (Although it is possible to call ``diop_solve()``
+-    directly, one must be careful to pass an equation in the correct
+-    form and to interpret the output correctly; ``diophantine()`` is
+-    the public-facing function to use in general.)
+-
+-    Output of ``diophantine()`` is a set of tuples. The elements of the
+-    tuple are the solutions for each variable in the equation and
+-    are arranged according to the alphabetic ordering of the variables.
+-    e.g. For an equation with two variables, `a` and `b`, the first
+-    element of the tuple is the solution for `a` and the second for `b`.
++def diophantine(eq, param=symbols("t", integer=True), syms=None, permute=False):
++    """
++    Solves diophantine equations.
++
++    Diophantine equations are equations in which all coefficients and
++    solutions are required to be integers.
+ 
+     Usage
+     =====
+ 
+-    ``diophantine(eq, t, syms)``: Solve the diophantine
+-    equation ``eq``.
+-    ``t`` is the optional parameter to be used by ``diop_solve()``.
+-    ``syms`` is an optional list of symbols which determines the
+-    order of the elements in the returned tuple.
+-
+-    By default, only the base solution is returned. If ``permute`` is set to
+-    True then permutations of the base solution and/or permutations of the
+-    signs of the values will be returned when applicable.
+-
+-    >>> from sympy.solvers.diophantine import diophantine
+-    >>> from sympy.abc import a, b
+-    >>> eq = a**4 + b**4 - (2**4 + 3**4)
+-    >>> diophantine(eq)
+-    {(2, 3)}
+-    >>> diophantine(eq, permute=True)
+-    {(-3, -2), (-3, 2), (-2, -3), (-2, 3), (2, -3), (2, 3), (3, -2), (3, 2)}
++    ``diophantine(eq, t, syms, permute)``: Here ``eq`` is the diophantine equation
++    to be solved. ``t`` is the parameter to be used by the function if
++    needed. ``syms`` represents the variables to be solved for.
+ 
+-    Details
+-    =======
++    The parameter ``t`` and the variables ``syms`` are optional. If ``syms``
++    is not given all free symbols in the equation will be solved for.
+ 
+-    ``eq`` should be an expression which is assumed to be zero.
+-    ``t`` is the parameter to be used in the solution.
++    The ``permute`` parameter, when set to True, will return all permutations
++    of the solutions when applicable.
+ 
+     Examples
+     ========
+@@ -173,16 +146,17 @@ def diophantine(eq, param=symbols("t", integer=True), syms=None,
+ 
+     try:
+         var = list(eq.expand(force=True).free_symbols)
+-        var.sort(key=default_sort_key)
+         if syms:
+             if not is_sequence(syms):
+                 raise TypeError(
+                     'syms should be given as a sequence, e.g. a list')
+-            syms = [i for i in syms if i in var]
+-            if syms != var:
+-                dict_sym_index = dict(zip(syms, range(len(syms))))
+-                return {tuple([t[dict_sym_index[i]] for i in var])
+-                            for t in diophantine(eq, param)}
++            var = [sym for sym in syms if sym in var]
++        else:
++            var.sort(key=default_sort_key)
++        if syms and syms != var:
++            dict_sym_index = dict(zip(syms, range(len(syms))))
++            return {tuple([t[dict_sym_index[i]] for i in var])
++                        for t in diophantine(eq, param, permute=permute)}
+         n, d = eq.as_numer_denom()
+         if n.is_number:
+             return set()
+@@ -299,7 +273,6 @@ def diophantine(eq, param=symbols("t", integer=True), syms=None,
+     sols = set([])
+ 
+     for term in terms:
+-
+         base, _ = term
+         var_t, _, eq_type = classify_diop(base, _dict=False)
+         _, base = signsimp(base, evaluate=False).as_coeff_Mul()
+@@ -310,7 +283,7 @@ def diophantine(eq, param=symbols("t", integer=True), syms=None,
+                 "homogeneous_ternary_quadratic",
+                 "homogeneous_ternary_quadratic_normal",
+                 "general_pythagorean"]:
+-            sols.add(merge_solution(var, var_t, solution))
++            sols.update(merge_solution(var, var_t, solution))
+ 
+         elif eq_type in [
+                 "binary_quadratic",
+@@ -320,66 +293,46 @@ def diophantine(eq, param=symbols("t", integer=True), syms=None,
+             for sol in solution:
+                 sols.add(merge_solution(var, var_t, sol))
+ 
+-        else:
+-            raise NotImplementedError('unhandled type: %s' % eq_type)
+-
+-    # remove null merge results
+-    if () in sols:
+-        sols.remove(())
+-    null = tuple([0]*len(var))
+-    # if there is no solution, return trivial solution
+-    if not sols and eq.subs(zip(var, null)).is_zero:
+-        sols.add(null)
+-    final_soln = set([])
+-    for sol in sols:
+-        if all(_is_int(s) for s in sol):
+-            if do_permute_signs:
+-                permuted_sign = set(permute_signs(sol))
+-                final_soln.update(permuted_sign)
+-            elif permute_few_signs:
+-                lst = list(permute_signs(sol))
+-                lst = list(filter(lambda x: x[0]*x[1] == sol[1]*sol[0], lst))
+-                permuted_sign = set(lst)
+-                final_soln.update(permuted_sign)
+-            elif do_permute_signs_var:
+-                permuted_sign_var = set(signed_permutations(sol))
+-                final_soln.update(permuted_sign_var)
+-            else:
+-                final_soln.add(sol)
+-        else:
+-                final_soln.add(sol)
+-    return final_soln
++        elif eq_type == "inhomogeneous_ternary_quadratic":
++            s = set([])
++            for sol in solution:
++                s.update(merge_solution(var, var_t, sol))
++            sols.update(s)
++
++    if permute:
++        if do_permute_signs:
++            permuted_signs = set()
++            for sol in sols:
++                permuted_signs.update(permute_signs(sol))
++            sols = permuted_signs
++        elif permute_few_signs:
++            permuted_signs = set()
++            for sol in sols:
++                permuted_signs.update(signed_permutations(sol, 2))
++            sols = permuted_signs
++        elif do_permute_signs_var:
++            permuted_signs_var = set()
++            for sol in sols:
++                permuted_signs_var.update(signed_permutations(sol))
++            sols = permuted_signs_var
++
++    return sols
+ 
+ 
+ def merge_solution(var, var_t, solution):
+     """
+-    This is used to construct the full solution from the solutions of sub
+-    equations.
+-
+-    For example when solving the equation `(x - y)(x^2 + y^2 - z^2) = 0`,
+-    solutions for each of the equations `x - y = 0` and `x^2 + y^2 - z^2` are
+-    found independently. Solutions for `x - y = 0` are `(x, y) = (t, t)`. But
+-    we should introduce a value for z when we output the solution for the
+-    original equation. This function converts `(t, t)` into `(t, t, n_{1})`
+-    where `n_{1}` is an integer parameter.
++    This is used to construct the full solution from the solutions of sub equations.
+     """
+     sol = []
+-
+-    if None in solution:
+-        return ()
+-
+-    solution = iter(solution)
+-    params = numbered_symbols("n", integer=True, start=1)
+-    for v in var:
+-        if v in var_t:
+-            sol.append(next(solution))
++    for i, j in zip(var, var_t):
++        if i == j:
++            if isinstance(solution, dict):
++                sol.append(solution[i])
++            else:
++                # If solution is not a dict, assume it's a tuple or list
++                sol.append(solution[var_t.index(i)])
+         else:
+-            sol.append(next(params))
+-
+-    for val, symb in zip(sol, var):
+-        if check_assumptions(val, **symb.assumptions0) is False:
+-            return tuple()
+-
++            sol.append(0)
+     return tuple(sol)
+ 
+ 
+@@ -387,38 +340,18 @@ def diop_solve(eq, param=symbols("t", integer=True)):
+     """
+     Solves the diophantine equation ``eq``.
+ 
+-    Unlike ``diophantine()``, factoring of ``eq`` is not attempted. Uses
+-    ``classify_diop()`` to determine the type of the equation and calls
+-    the appropriate solver function.
+-
+-    Use of ``diophantine()`` is recommended over other helper functions.
+-    ``diop_solve()`` can return either a set or a tuple depending on the
+-    nature of the equation.
++    Unlike ``diophantine()``, ``diop_solve()`` can't solve
++    parametric equations. It has to be called separately for each
++    type of equation. Diophantine equations should be given in expanded form.
++    Powers and products of powers should be expanded manually using ``expand()``.
++    See ``diophantine()`` for more information about the type of equations
++    that can be solved using ``diop_solve()``.
+ 
+     Usage
+     =====
+ 
+     ``diop_solve(eq, t)``: Solve diophantine equation, ``eq`` using ``t``
+     as a parameter if needed.
+-
+-    Details
+-    =======
+-
+-    ``eq`` should be an expression which is assumed to be zero.
+-    ``t`` is a parameter to be used in the solution.
+-
+-    Examples
+-    ========
+-
+-    >>> from sympy.solvers.diophantine import diop_solve
+-    >>> from sympy.abc import x, y, z, w
+-    >>> diop_solve(2*x + 3*y - 5)
+-    (3*t_0 - 5, 5 - 2*t_0)
+-    >>> diop_solve(4*x + 3*y - 4*z + 5)
+-    (t_0, 8*t_0 + 4*t_1 + 5, 7*t_0 + 3*t_1 + 5)
+-    >>> diop_solve(x + 3*y - 4*z + w - 6)
+-    (t_0, t_0 + t_1, 6*t_0 + 5*t_1 + 4*t_2 - 6, 5*t_0 + 4*t_1 + 3*t_2 - 6)
+-    >>> diop_solve(x**2 + y**2 - 5)
+     {(-2, -1), (-2, 1), (-1, -2), (-1, 2), (1, -2), (1, 2), (2, -1), (2, 1)}
+ 
+ 
+@@ -2837,7 +2770,7 @@ def _diop_general_sum_of_squares(var, k, limit=1):
+     return s
+ 
+ 
+-def diop_general_sum_of_even_powers(eq, limit=1):
++def diop_general_sum_of_even_powers(eq, limit=1, permute=False):
+     """
+     Solves the equation `x_{1}^e + x_{2}^e + . . . + x_{n}^e - k = 0`
+     where `e` is an even, integer power.
+@@ -2847,7 +2780,7 @@ def diop_general_sum_of_even_powers(eq, limit=1):
+     Usage
+     =====
+ 
+-    ``general_sum_of_even_powers(eq, limit)`` : Here ``eq`` is an expression which
++    ``general_sum_of_even_powers(eq, limit, permute)`` : Here ``eq`` is an expression which
+     is assumed to be zero. Also, ``eq`` should be in the form,
+     `x_{1}^e + x_{2}^e + . . . + x_{n}^e - k = 0`.
+ 
+@@ -2858,6 +2791,8 @@ def diop_general_sum_of_even_powers(eq, limit=1):
+     >>> from sympy.abc import a, b
+     >>> diop_general_sum_of_even_powers(a**4 + b**4 - (2**4 + 3**4))
+     {(2, 3)}
++    >>> diop_general_sum_of_even_powers(a**4 + b**4 - (2**4 + 3**4), permute=True)
++    {(2, 3), (3, 2), (-2, -3), (-3, -2), (2, -3), (3, -2), (-2, 3), (-3, 2)}
+ 
+     See Also
+     ========
+@@ -2870,10 +2805,10 @@ def diop_general_sum_of_even_powers(eq, limit=1):
+         for k in coeff.keys():
+             if k.is_Pow and coeff[k]:
+                 p = k.exp
+-        return _diop_general_sum_of_even_powers(var, p, -coeff[1], limit)
++        return _diop_general_sum_of_even_powers(var, p, -coeff[1], limit, permute)
+ 
+ 
+-def _diop_general_sum_of_even_powers(var, p, n, limit=1):
++def _diop_general_sum_of_even_powers(var, p, n, limit=1, permute=False):
+     # solves Eq(sum(i**2 for i in var), n)
+     k = len(var)
+ 
+@@ -2888,9 +2823,18 @@ def _diop_general_sum_of_even_powers(var, p, n, limit=1):
+     took = 0
+     for t in power_representation(n, p, k):
+         if negs:
+-            s.add(tuple([sign[i]*j for i, j in enumerate(t)]))
++            base_solution = tuple([sign[i]*j for i, j in enumerate(t)])
+         else:
+-            s.add(t)
++            base_solution = t
++        
++        if permute:
++            # Generate all permutations of the solution
++            from itertools import permutations
++            for perm in permutations(base_solution):
++                s.add(perm)
++        else:
++            s.add(base_solution)
++        
+         took += 1
+         if took == limit:
+             break
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: mpmath>=0.19 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from sympy==1.6.dev0) (1.3.0)
+Installing collected packages: sympy
+  Attempting uninstall: sympy
+    Found existing installation: sympy 1.6.dev0
+    Uninstalling sympy-1.6.dev0:
+      Successfully uninstalled sympy-1.6.dev0
+  Running setup.py develop for sympy
+Successfully installed sympy-1.6.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 1923822ddf8265199dbd9ef9ce09641d3fd042b9 sympy/solvers/tests/test_diophantine.py
+Updated 0 paths from 2384b0e8d9
++ git apply -v -
+Checking patch sympy/solvers/tests/test_diophantine.py...
+Applied patch sympy/solvers/tests/test_diophantine.py cleanly.
++ PYTHONWARNINGS=ignore::UserWarning,ignore::SyntaxWarning
++ bin/test -C --verbose sympy/solvers/tests/test_diophantine.py
+============================= test process starts ==============================
+executable:         /opt/miniconda3/envs/testbed/bin/python  (3.9.19-final-0) [CPython]
+architecture:       64-bit
+cache:              no
+ground types:       python 
+numpy:              None
+random seed:        21120518
+hash randomization: on (PYTHONHASHSEED=3792854940)
+
+sympy/solvers/tests/test_diophantine.py[46] 
+test_input_format ok
+test_univariate ok
+test_classify_diop ok
+test_linear ok
+test_quadratic_simple_hyperbolic_case ok
+test_quadratic_elliptical_case ok
+test_quadratic_parabolic_case E
+test_quadratic_perfect_square E
+test_quadratic_non_perfect_square E
+test_issue_9106 ok
+test_issue_18138 ok
+test_quadratic_non_perfect_slow Slow w
+test_DN ok
+test_bf_pell ok
+test_length ok
+test_transformation_to_pell ok
+test_find_DN ok
+test_ldescent ok
+test_diop_ternary_quadratic_normal E
+test_transformation_to_normal ok
+test_diop_ternary_quadratic E
+test_square_factor ok
+test_parametrize_ternary_quadratic E
+test_no_square_ternary_quadratic E
+test_descent ok
+test_diophantine E
+test_general_pythagorean E
+test_diop_general_sum_of_squares_quick ok
+test_diop_partition ok
+test_prime_as_sum_of_two_squares ok
+test_sum_of_three_squares ok
+test_sum_of_four_squares ok
+test_power_representation ok
+test_assumptions F
+test_diopcoverage ok
+test_holzer ok
+test_fail_holzer f
+test_issue_9539 F
+test_issue_8943 F
+test_diop_sum_of_even_powers ok
+test_sum_of_squares_powers ok
+test__can_do_sum_of_squares ok
+test_diophantine_permute_sign E
+test_not_implemented f
+test_issue_9538 F
+test_ternary_quadratic F                                                  [FAIL]
+
+
+________________________________ slowest tests _________________________________
+test_quadratic_non_perfect_square - Took 20.528 seconds
+________________________________________________________________________________
+____ sympy/solvers/tests/test_diophantine.py:test_quadratic_parabolic_case _____
+Traceback (most recent call last):
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 135, in test_quadratic_parabolic_case
+    assert check_solutions(x**2 + 2*x*y + y**2 + 2*x + 2*y + 1)
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 736, in check_solutions
+    if diop_simplify(f.subs(zip(var, solution))) == 0:
+TypeError: 'Symbol' object is not iterable
+________________________________________________________________________________
+____ sympy/solvers/tests/test_diophantine.py:test_quadratic_perfect_square _____
+Traceback (most recent call last):
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 143, in test_quadratic_perfect_square
+    assert check_solutions(48*x*y)
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 736, in check_solutions
+    if diop_simplify(f.subs(zip(var, solution))) == 0:
+TypeError: 'Zero' object is not iterable
+________________________________________________________________________________
+__ sympy/solvers/tests/test_diophantine.py:test_quadratic_non_perfect_square ___
+Traceback (most recent call last):
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 162, in test_quadratic_non_perfect_square
+    assert check_solutions(x**2 - 9*y**2 - 2*x - 6*y)
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 736, in check_solutions
+    if diop_simplify(f.subs(zip(var, solution))) == 0:
+TypeError: 'Symbol' object is not iterable
+________________________________________________________________________________
+__ sympy/solvers/tests/test_diophantine.py:test_diop_ternary_quadratic_normal __
+Traceback (most recent call last):
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 350, in test_diop_ternary_quadratic_normal
+    assert check_solutions(234*x**2 - 65601*y**2 - z**2)
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 736, in check_solutions
+    if diop_simplify(f.subs(zip(var, solution))) == 0:
+TypeError: 'Add' object is not iterable
+________________________________________________________________________________
+_____ sympy/solvers/tests/test_diophantine.py:test_diop_ternary_quadratic ______
+Traceback (most recent call last):
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 391, in test_diop_ternary_quadratic
+    assert check_solutions(2*x**2 + z**2 + y**2 - 4*x*y)
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 736, in check_solutions
+    if diop_simplify(f.subs(zip(var, solution))) == 0:
+TypeError: 'Add' object is not iterable
+________________________________________________________________________________
+__ sympy/solvers/tests/test_diophantine.py:test_parametrize_ternary_quadratic __
+Traceback (most recent call last):
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 441, in test_parametrize_ternary_quadratic
+    assert check_solutions(x**2 + y**2 - z**2)
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 736, in check_solutions
+    if diop_simplify(f.subs(zip(var, solution))) == 0:
+TypeError: 'Mul' object is not iterable
+________________________________________________________________________________
+___ sympy/solvers/tests/test_diophantine.py:test_no_square_ternary_quadratic ___
+Traceback (most recent call last):
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 455, in test_no_square_ternary_quadratic
+    assert check_solutions(2*x*y + y*z - 3*x*z)
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 736, in check_solutions
+    if diop_simplify(f.subs(zip(var, solution))) == 0:
+TypeError: 'NoneType' object is not iterable
+________________________________________________________________________________
+___________ sympy/solvers/tests/test_diophantine.py:test_diophantine ___________
+Traceback (most recent call last):
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 478, in test_diophantine
+    assert check_solutions((x - y)*(y - z)*(z - x))
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 736, in check_solutions
+    if diop_simplify(f.subs(zip(var, solution))) == 0:
+TypeError: 'int' object is not iterable
+________________________________________________________________________________
+_______ sympy/solvers/tests/test_diophantine.py:test_general_pythagorean _______
+Traceback (most recent call last):
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 568, in test_general_pythagorean
+    assert check_solutions(a**2 + b**2 + c**2 - d**2)
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 736, in check_solutions
+    if diop_simplify(f.subs(zip(var, solution))) == 0:
+TypeError: 'Add' object is not iterable
+________________________________________________________________________________
+____ sympy/solvers/tests/test_diophantine.py:test_diophantine_permute_sign _____
+Traceback (most recent call last):
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 918, in test_diophantine_permute_sign
+    assert diophantine(10*x**2 + 12*x*y + 12*y**2 - 34, permute=True) == soln
+  File "/testbed/sympy/solvers/diophantine.py", line 311, in diophantine
+    permuted_signs.update(signed_permutations(sol, 2))
+TypeError: signed_permutations() takes 1 positional argument but 2 were given
+
+________________________________________________________________________________
+___________ sympy/solvers/tests/test_diophantine.py:test_assumptions ___________
+Traceback (most recent call last):
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 713, in test_assumptions
+    assert diof == set([(5, 20), (40, 10), (95, 5), (121, 4), (248, 2), (499, 1)])
+AssertionError
+________________________________________________________________________________
+___________ sympy/solvers/tests/test_diophantine.py:test_issue_9539 ____________
+Traceback (most recent call last):
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 817, in test_issue_9539
+    assert diophantine(6*w + 9*y + 20*x - z) == \
+AssertionError
+________________________________________________________________________________
+___________ sympy/solvers/tests/test_diophantine.py:test_issue_8943 ____________
+Traceback (most recent call last):
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 822, in test_issue_8943
+    assert diophantine(
+AssertionError
+________________________________________________________________________________
+___________ sympy/solvers/tests/test_diophantine.py:test_issue_9538 ____________
+Traceback (most recent call last):
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 929, in test_issue_9538
+    assert diophantine(eq, syms=[y,x]) == set([(t_0, 3*t_0 - 2)])
+AssertionError
+________________________________________________________________________________
+________ sympy/solvers/tests/test_diophantine.py:test_ternary_quadratic ________
+Traceback (most recent call last):
+  File "/testbed/sympy/solvers/tests/test_diophantine.py", line 937, in test_ternary_quadratic
+    assert s == {(
+AssertionError
+
+ tests finished: 28 passed, 5 failed, 1 skipped, 2 expected to fail, 
+10 exceptions, in 46.39 seconds 
+DO *NOT* COMMIT!
++ git checkout 1923822ddf8265199dbd9ef9ce09641d3fd042b9 sympy/solvers/tests/test_diophantine.py
+Updated 1 path from 2384b0e8d9

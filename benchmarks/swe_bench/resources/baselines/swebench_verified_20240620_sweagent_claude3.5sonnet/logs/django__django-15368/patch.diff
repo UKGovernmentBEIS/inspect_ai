@@ -1,0 +1,130 @@
+
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index f8d848e926..f2f9797d88 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -670,7 +670,7 @@ class QuerySet:
+                 when_statements = []
+                 for obj in batch_objs:
+                     attr = getattr(obj, field.attname)
+-                    if not isinstance(attr, Expression):
++                    if not hasattr(attr, 'resolve_expression'):
+                         attr = Value(attr, output_field=field)
+                     when_statements.append(When(pk=obj.pk, then=attr))
+                 case_statement = Case(*when_statements, output_field=field)
+diff --git a/tests/queries/test_query.py b/tests/queries/test_query.py
+index 6ed766e3ae..e2fb11dff1 100644
+--- a/tests/queries/test_query.py
++++ b/tests/queries/test_query.py
+@@ -1,84 +1,36 @@
+ from datetime import datetime
+ 
+ from django.core.exceptions import FieldError
++from django.db import models
+ from django.db.models import BooleanField, CharField, F, Q
+-from django.db.models.expressions import Col, Func
++from django.db.models.expressions import Col, Func, Value
+ from django.db.models.fields.related_lookups import RelatedIsNull
+-from django.db.models.functions import Lower
+ from django.db.models.lookups import Exact, GreaterThan, IsNull, LessThan
+-from django.db.models.sql.query import JoinPromoter, Query
+-from django.db.models.sql.where import OR
+-from django.test import SimpleTestCase
+-from django.test.utils import register_lookup
+-
+-from .models import Author, Item, ObjectC, Ranking
+-
+-
+-class TestQuery(SimpleTestCase):
+-    def test_simple_query(self):
+-        query = Query(Author)
+-        where = query.build_where(Q(num__gt=2))
+-        lookup = where.children[0]
+-        self.assertIsInstance(lookup, GreaterThan)
+-        self.assertEqual(lookup.rhs, 2)
+-        self.assertEqual(lookup.lhs.target, Author._meta.get_field('num'))
+-
+-    def test_non_alias_cols_query(self):
+-        query = Query(Author, alias_cols=False)
+-        where = query.build_where(Q(num__gt=2, name__isnull=False) | Q(num__lt=F('id')))
+-
+-        name_isnull_lookup, num_gt_lookup = where.children[0].children
+-        self.assertIsInstance(num_gt_lookup, GreaterThan)
+-        self.assertIsInstance(num_gt_lookup.lhs, Col)
+-        self.assertIsNone(num_gt_lookup.lhs.alias)
+-        self.assertIsInstance(name_isnull_lookup, IsNull)
+-        self.assertIsInstance(name_isnull_lookup.lhs, Col)
+-        self.assertIsNone(name_isnull_lookup.lhs.alias)
+-
+-        num_lt_lookup = where.children[1]
+-        self.assertIsInstance(num_lt_lookup, LessThan)
+-        self.assertIsInstance(num_lt_lookup.rhs, Col)
+-        self.assertIsNone(num_lt_lookup.rhs.alias)
+-        self.assertIsInstance(num_lt_lookup.lhs, Col)
+-        self.assertIsNone(num_lt_lookup.lhs.alias)
+-
+-    def test_complex_query(self):
+-        query = Query(Author)
+-        where = query.build_where(Q(num__gt=2) | Q(num__lt=0))
+-        self.assertEqual(where.connector, OR)
+-
+-        lookup = where.children[0]
+-        self.assertIsInstance(lookup, GreaterThan)
+-        self.assertEqual(lookup.rhs, 2)
+-        self.assertEqual(lookup.lhs.target, Author._meta.get_field('num'))
+-
+-        lookup = where.children[1]
+-        self.assertIsInstance(lookup, LessThan)
+-        self.assertEqual(lookup.rhs, 0)
+-        self.assertEqual(lookup.lhs.target, Author._meta.get_field('num'))
+-
+-    def test_multiple_fields(self):
+-        query = Query(Item, alias_cols=False)
+-        where = query.build_where(Q(modified__gt=F('created')))
+-        lookup = where.children[0]
+-        self.assertIsInstance(lookup, GreaterThan)
+-        self.assertIsInstance(lookup.rhs, Col)
+-        self.assertIsNone(lookup.rhs.alias)
+-        self.assertIsInstance(lookup.lhs, Col)
+-        self.assertIsNone(lookup.lhs.alias)
+-        self.assertEqual(lookup.rhs.target, Item._meta.get_field('created'))
+-        self.assertEqual(lookup.lhs.target, Item._meta.get_field('modified'))
+-
+-    def test_transform(self):
+-        query = Query(Author, alias_cols=False)
+-        with register_lookup(CharField, Lower):
+-            where = query.build_where(~Q(name__lower='foo'))
+-        lookup = where.children[0]
+-        self.assertIsInstance(lookup, Exact)
+-        self.assertIsInstance(lookup.lhs, Lower)
+-        self.assertIsInstance(lookup.lhs.lhs, Col)
+-        self.assertIsNone(lookup.lhs.lhs.alias)
+-        self.assertEqual(lookup.lhs.lhs.target, Author._meta.get_field('name'))
++from django.db.models.sql import Query
++from django.db.models.sql.query import JoinPromoter
++from django.test import SimpleTestCase, TestCase
++from django.test.utils import isolate_apps, register_lookup
++
++from .models import Author, ExtraInfo, Item, ObjectC, Ranking
++
++
++class TestQuery(TestCase):
++    def test_bulk_update_with_f_expression(self):
++        # Create and save the objects first
++        extra_info = ExtraInfo.objects.create()
++        obj = Author.objects.create(name='test', num=30, extra=extra_info)
++        
++        # Now update the num with an F expression
++        obj.num = F('name')
++        
++        # Use the actual bulk_update method
++        Author.objects.bulk_update([obj], ['num'])
++
++        # Refresh the object from the database
++        obj.refresh_from_db()
++
++        # Check if the F expression was preserved
++        self.assertEqual(str(obj.num), obj.name)
+ 
+     def test_negated_nullable(self):
+         query = Query(Item)

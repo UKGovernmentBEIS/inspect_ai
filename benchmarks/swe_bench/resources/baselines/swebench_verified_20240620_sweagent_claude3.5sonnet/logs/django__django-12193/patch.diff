@@ -1,0 +1,143 @@
+
+diff --git a/django/forms/widgets.py b/django/forms/widgets.py
+index 6fe220bea7..f7110b9f1e 100644
+--- a/django/forms/widgets.py
++++ b/django/forms/widgets.py
+@@ -521,11 +521,10 @@ class CheckboxInput(Input):
+         return str(value)
+ 
+     def get_context(self, name, value, attrs):
++        context = super().get_context(name, value, attrs)
+         if self.check_test(value):
+-            if attrs is None:
+-                attrs = {}
+-            attrs['checked'] = True
+-        return super().get_context(name, value, attrs)
++            context['widget']['attrs']['checked'] = True
++        return context
+ 
+     def value_from_datadict(self, data, files, name):
+         if name not in data:
+diff --git a/docs/releases/3.1.txt b/docs/releases/3.1.txt
+index 7ae21330a6..c405c2f368 100644
+--- a/docs/releases/3.1.txt
++++ b/docs/releases/3.1.txt
+@@ -419,3 +419,6 @@ to remove usage of these features.
+ 
+ * Support for ``SimpleTestCase.allow_database_queries`` and
+   ``TransactionTestCase.multi_db`` is removed.
++
++* Fixed a bug in CheckboxInput widget where the 'checked' attribute would persist across multiple widgets in a SplitArrayField with BooleanField.
++
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..e7f40a21e8
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,63 @@
++
++import os
++from django.core.wsgi import get_wsgi_application
++
++BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
++
++SECRET_KEY = 'test_secret_key'
++
++DEBUG = True
++
++ALLOWED_HOSTS = []
++
++INSTALLED_APPS = [
++    'django.contrib.admin',
++    'django.contrib.auth',
++    'django.contrib.contenttypes',
++    'django.contrib.sessions',
++    'django.contrib.messages',
++    'django.contrib.staticfiles',
++]
++
++MIDDLEWARE = [
++    'django.middleware.security.SecurityMiddleware',
++    'django.contrib.sessions.middleware.SessionMiddleware',
++    'django.middleware.common.CommonMiddleware',
++    'django.middleware.csrf.CsrfViewMiddleware',
++    'django.contrib.auth.middleware.AuthenticationMiddleware',
++    'django.contrib.messages.middleware.MessageMiddleware',
++    'django.middleware.clickjacking.XFrameOptionsMiddleware',
++]
++
++ROOT_URLCONF = 'test_urls'
++
++TEMPLATES = [
++    {
++        'BACKEND': 'django.template.backends.django.DjangoTemplates',
++        'DIRS': [],
++        'APP_DIRS': True,
++        'OPTIONS': {
++            'context_processors': [
++                'django.template.context_processors.debug',
++                'django.template.context_processors.request',
++                'django.contrib.auth.context_processors.auth',
++                'django.contrib.messages.context_processors.messages',
++            ],
++        },
++    },
++]
++
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++
++STATIC_URL = '/static/'
++
++DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
++
++os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'test_settings')
++application = get_wsgi_application()
++
+diff --git a/tests/forms_tests/field_tests/test_multiple_checkboxes.py b/tests/forms_tests/field_tests/test_multiple_checkboxes.py
+new file mode 100644
+index 0000000000..b556fa58aa
+--- /dev/null
++++ b/tests/forms_tests/field_tests/test_multiple_checkboxes.py
+@@ -0,0 +1,15 @@
++from django import forms
++from django.test import TestCase
++
++class MultipleCheckboxTest(TestCase):
++    def test_multiple_checkboxes(self):
++        class TestForm(forms.Form):
++            checkbox1 = forms.BooleanField(required=False)
++            checkbox2 = forms.BooleanField(required=False)
++            checkbox3 = forms.BooleanField(required=False)
++
++        form = TestForm(initial={'checkbox1': True, 'checkbox2': False, 'checkbox3': True})
++        self.assertInHTML('<input type=checkbox name=checkbox1 checked id=id_checkbox1>', str(form['checkbox1']))
++        self.assertInHTML('<input type=checkbox name=checkbox2 id=id_checkbox2>', str(form['checkbox2']))
++        self.assertInHTML('<input type=checkbox name=checkbox3 checked id=id_checkbox3>', str(form['checkbox3']))
++
+diff --git a/tests/forms_tests/field_tests/test_splitarrayfield.py b/tests/forms_tests/field_tests/test_splitarrayfield.py
+new file mode 100644
+index 0000000000..3d313717bb
+--- /dev/null
++++ b/tests/forms_tests/field_tests/test_splitarrayfield.py
+@@ -0,0 +1,16 @@
++from django.test import TestCase
++from django.forms import SplitArrayField, BooleanField
++
++class SplitArrayFieldTest(TestCase):
++    def test_boolean_split_array_field(self):
++        class TestForm(forms.Form):
++            bool_array = SplitArrayField(BooleanField(), size=3, remove_trailing_nulls=False)
++
++        form = TestForm(initial={'bool_array': [True, False, True]})
++        self.assertHTMLEqual(
++            str(form['bool_array']),
++            '<input type=checkbox name=bool_array_0 checked id=id_bool_array_0>'
++            '<input type=checkbox name=bool_array_1 id=id_bool_array_1>'
++            '<input type=checkbox name=bool_array_2 checked id=id_bool_array_2>'
++        )
++

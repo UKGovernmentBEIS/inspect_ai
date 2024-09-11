@@ -1,0 +1,80 @@
+
+diff --git a/django/utils/dateparse.py b/django/utils/dateparse.py
+index 8d08b7d1d3..0bc3633624 100644
+--- a/django/utils/dateparse.py
++++ b/django/utils/dateparse.py
+@@ -29,7 +29,7 @@ datetime_re = re.compile(
+ standard_duration_re = re.compile(
+     r'^'
+     r'(?:(?P<days>-?\d+) (days?, )?)?'
+-    r'((?:(?P<hours>-?\d+):)(?=\d+:\d+))?'
++    r'((?:(?P<hours>-?\d+):)(?=-?\d+:-?\d+))?'
+     r'(?:(?P<minutes>-?\d+):)?'
+     r'(?P<seconds>-?\d+)'
+     r'(?:\.(?P<microseconds>\d{1,6})\d{0,6})?'
+@@ -136,11 +136,32 @@ def parse_duration(value):
+     )
+     if match:
+         kw = match.groupdict()
+-        days = datetime.timedelta(float(kw.pop('days', 0) or 0))
+         sign = -1 if kw.pop('sign', '+') == '-' else 1
++        days = float(kw.pop('days', 0) or 0)
++        
+         if kw.get('microseconds'):
+             kw['microseconds'] = kw['microseconds'].ljust(6, '0')
+-        if kw.get('seconds') and kw.get('microseconds') and kw['seconds'].startswith('-'):
+-            kw['microseconds'] = '-' + kw['microseconds']
+-        kw = {k: float(v) for k, v in kw.items() if v is not None}
+-        return days + sign * datetime.timedelta(**kw)
++        
++        time_parts = ['hours', 'minutes', 'seconds', 'microseconds']
++        time_parts = {k: float(kw.get(k) or 0) for k in time_parts}
++        
++        # Convert all parts to seconds
++        time_seconds = (
++            time_parts['hours'] * 3600 +
++            time_parts['minutes'] * 60 +
++            time_parts['seconds'] +
++            time_parts['microseconds'] / 1e6
++        )
++        
++        # Handle negative time components
++        if days == 0:
++            total_seconds = time_seconds * sign
++        elif days > 0 and time_seconds < 0:
++            total_seconds = days * 86400 + time_seconds
++        elif days < 0 and time_seconds > 0:
++            total_seconds = days * 86400 - time_seconds
++        else:
++            total_seconds = (days * 86400 + time_seconds) * sign
++        
++        # Create timedelta from total_seconds
++        return datetime.timedelta(seconds=total_seconds)
+diff --git a/test_duration_parse.py b/test_duration_parse.py
+new file mode 100644
+index 0000000000..45858cb7b4
+--- /dev/null
++++ b/test_duration_parse.py
+@@ -0,0 +1,22 @@
++from django.utils.dateparse import parse_duration
++
++def test_parse_duration():
++    test_cases = [
++        ("-1:00:00", "-1:00:00"),
++        ("-1 day, 0:00:00", "-1 day, 0:00:00"),
++        ("-1:00:00.000001", "-1:00:00.000001"),
++        ("1 day, -1:00:00", "1 day, -1:00:00"),
++    ]
++
++    for input_str, expected_output in test_cases:
++        result = parse_duration(input_str)
++        print(f"Input: {input_str}")
++        print(f"Result: {result}")
++        print(f"Expected: {expected_output}")
++        print(f"Pass: {str(result) == expected_output}")
++        print()
++
++    print("All tests completed.")
++
++if __name__ == "__main__":
++    test_parse_duration()

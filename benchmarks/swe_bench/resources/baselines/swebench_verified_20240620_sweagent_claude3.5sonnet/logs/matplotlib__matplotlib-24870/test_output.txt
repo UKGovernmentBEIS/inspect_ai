@@ -1,0 +1,2894 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   lib/matplotlib/contour.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	lib/matplotlib/tests/output/
+	lib/matplotlib/tests/test_contour_boolean.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 6091437be9776139d3672cde28a19cbe6c09dcd5
+Merge: 4278c8a5a3 4858b654e9
+Author: Elliott Sales de Andrade <quantum.analyst@gmail.com>
+Date:   Wed Jan 4 04:35:16 2023 -0500
+
+    Merge pull request #24880 from anntzer/nc
+    
+    Minor cleanups to named colors example.
+
++ git diff 6091437be9776139d3672cde28a19cbe6c09dcd5
+diff --git a/lib/matplotlib/contour.py b/lib/matplotlib/contour.py
+index 144eadeae2..1782515421 100644
+--- a/lib/matplotlib/contour.py
++++ b/lib/matplotlib/contour.py
+@@ -1392,7 +1392,7 @@ class QuadContourSet(ContourSet):
+             self.zmin = args[0].zmin
+             self.zmax = args[0].zmax
+             self._corner_mask = args[0]._corner_mask
+-            contour_generator = args[0]._contour_generator
++            self._contour_generator = args[0]._contour_generator
+             self._mins = args[0]._mins
+             self._maxs = args[0]._maxs
+             self._algorithm = args[0]._algorithm
+@@ -1415,7 +1415,22 @@ class QuadContourSet(ContourSet):
+ 
+             x, y, z = self._contour_args(args, kwargs)
+ 
+-            contour_generator = contourpy.contour_generator(
++            # Debug print statements
++            print(f"Input z dtype: {z.dtype}")
++            print(f"Is bool input: {self._is_bool_input}")
++            print(f"Initial self.levels: {self.levels}")
++
++            # Check if input was originally a boolean array
++            if self._is_bool_input:
++                if self.levels is None or len(self.levels) != 1:
++                    self.levels = [0.5]
++                print("Boolean array detected, levels set to:", self.levels)
++            else:
++                print("Non-boolean array detected")
++
++            print(f"Final self.levels: {self.levels}")
++
++            self._contour_generator = contourpy.contour_generator(
+                 x, y, z, name=self._algorithm, corner_mask=self._corner_mask,
+                 line_type=contourpy.LineType.SeparateCode,
+                 fill_type=contourpy.FillType.OuterCode,
+@@ -1436,10 +1451,7 @@ class QuadContourSet(ContourSet):
+             self._mins = [ma.min(x), ma.min(y)]
+             self._maxs = [ma.max(x), ma.max(y)]
+ 
+-        self._contour_generator = contour_generator
+-
+         return kwargs
+-
+     def _contour_args(self, args, kwargs):
+         if self.filled:
+             fn = 'contourf'
+@@ -1447,11 +1459,17 @@ class QuadContourSet(ContourSet):
+             fn = 'contour'
+         nargs = len(args)
+         if nargs <= 2:
+-            z = ma.asarray(args[0], dtype=np.float64)
++            z = ma.asarray(args[0])
++            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
++            if self._is_bool_input:
++                z = z.astype(np.float64)
+             x, y = self._initialize_x_y(z)
+             args = args[1:]
+         elif nargs <= 4:
+             x, y, z = self._check_xyz(args[:3], kwargs)
++            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
++            if self._is_bool_input:
++                z = z.astype(np.float64)
+             args = args[3:]
+         else:
+             raise _api.nargs_error(fn, takes="from 1 to 4", given=nargs)
+@@ -1464,8 +1482,6 @@ class QuadContourSet(ContourSet):
+             self.zmin = float(z.min())
+         self._process_contour_level_args(args)
+         return (x, y, z)
+-
+-    def _check_xyz(self, args, kwargs):
+         """
+         Check that the shapes of the input arrays match; if x and y are 1D,
+         convert them to 2D using meshgrid.
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval '. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh
+++++ test -n ''
+++++ unset XML_CATALOG_FILES
+++++ unset xml_catalog_files_libxml2
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh
+++++ export GSETTINGS_SCHEMA_DIR=
+++++ GSETTINGS_SCHEMA_DIR=
+++++ unset GSETTINGS_SCHEMA_DIR_CONDA_BACKUP
+++++ '[' -z ']'
+++++ unset GSETTINGS_SCHEMA_DIR
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: contourpy>=1.0.1 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.7.0.dev1221+g6091437be9.d20240725) (1.1.0)
+Requirement already satisfied: cycler>=0.10 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.7.0.dev1221+g6091437be9.d20240725) (0.11.0)
+Requirement already satisfied: fonttools>=4.22.0 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.7.0.dev1221+g6091437be9.d20240725) (4.42.1)
+Requirement already satisfied: kiwisolver>=1.0.1 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.7.0.dev1221+g6091437be9.d20240725) (1.4.5)
+Requirement already satisfied: numpy>=1.19 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.7.0.dev1221+g6091437be9.d20240725) (1.25.2)
+Requirement already satisfied: packaging>=20.0 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.7.0.dev1221+g6091437be9.d20240725) (23.1)
+Requirement already satisfied: pillow>=6.2.0 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.7.0.dev1221+g6091437be9.d20240725) (10.0.0)
+Requirement already satisfied: pyparsing>=2.3.1 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.7.0.dev1221+g6091437be9.d20240725) (3.0.9)
+Requirement already satisfied: python-dateutil>=2.7 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.7.0.dev1221+g6091437be9.d20240725) (2.8.2)
+Requirement already satisfied: setuptools-scm>=7 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.7.0.dev1221+g6091437be9.d20240725) (7.1.0)
+Requirement already satisfied: six>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from python-dateutil>=2.7->matplotlib==3.7.0.dev1221+g6091437be9.d20240725) (1.16.0)
+Requirement already satisfied: setuptools in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from setuptools-scm>=7->matplotlib==3.7.0.dev1221+g6091437be9.d20240725) (68.1.2)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from setuptools-scm>=7->matplotlib==3.7.0.dev1221+g6091437be9.d20240725) (4.7.1)
+Building wheels for collected packages: matplotlib
+  Building editable for matplotlib (pyproject.toml): started
+  Building editable for matplotlib (pyproject.toml): still running...
+  Building editable for matplotlib (pyproject.toml): finished with status 'done'
+  Created wheel for matplotlib: filename=matplotlib-3.7.0.dev1221+g6091437be9.d20240725-0.editable-cp311-cp311-linux_x86_64.whl size=23329 sha256=1c13c46aa684c28fe0d5eae9f443aa44b91056671f74be902f454e21585401fd
+  Stored in directory: /tmp/pip-ephem-wheel-cache-s03y47vl/wheels/49/5f/4f/01b7d31ea6ddac9643da788242d33e5fd3467d95d17b032c6b
+Successfully built matplotlib
+Installing collected packages: matplotlib
+  Attempting uninstall: matplotlib
+    Found existing installation: matplotlib 3.7.0.dev1221+g6091437be9
+    Uninstalling matplotlib-3.7.0.dev1221+g6091437be9:
+      Successfully uninstalled matplotlib-3.7.0.dev1221+g6091437be9
+Successfully installed matplotlib-3.7.0.dev1221+g6091437be9.d20240725
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 6091437be9776139d3672cde28a19cbe6c09dcd5 lib/matplotlib/tests/test_contour.py
+Updated 0 paths from 929483e4d4
++ git apply -v -
+Checking patch lib/matplotlib/tests/test_contour.py...
+Applied patch lib/matplotlib/tests/test_contour.py cleanly.
++ pytest -rA lib/matplotlib/tests/test_contour.py
+============================= test session starts ==============================
+platform linux -- Python 3.11.9, pytest-8.3.1, pluggy-1.5.0
+rootdir: /testbed
+configfile: pytest.ini
+plugins: cov-5.0.0, rerunfailures-14.0, timeout-2.3.1, xdist-3.6.1
+collected 67 items
+
+lib/matplotlib/tests/test_contour.py FFFFFFFFFF.FF.FFFFs.FF...FFFFF..... [ 52%]
+...F.F..............FFFFFFFFFF.F                                         [100%]
+
+=================================== FAILURES ===================================
+_________________________ test_contour_shape_1d_valid __________________________
+
+    def test_contour_shape_1d_valid():
+    
+        x = np.arange(10)
+        y = np.arange(9)
+        z = np.random.random((9, 10))
+    
+        fig, ax = plt.subplots()
+>       ax.contour(x, y, z)
+
+lib/matplotlib/tests/test_contour.py:23: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcff2c150>
+args = (array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), array([0, 1, 2, 3, 4, 5, 6, 7, 8]), array([[0.11369302, 0.40185971, 0.12719455... 0.10056956, 0.98697638, 0.43757701, 0.1302975 ,
+        0.59363953, 0.94265427, 0.24818145, 0.08160173, 0.42029972]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+_________________________ test_contour_shape_2d_valid __________________________
+
+    def test_contour_shape_2d_valid():
+    
+        x = np.arange(10)
+        y = np.arange(9)
+        xg, yg = np.meshgrid(x, y)
+        z = np.random.random((9, 10))
+    
+        fig, ax = plt.subplots()
+>       ax.contour(xg, yg, z)
+
+lib/matplotlib/tests/test_contour.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefd58ebd90>
+args = (array([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+...-01,
+        6.20516984e-01, 2.00067293e-01, 5.49899155e-01, 9.20256204e-01,
+        8.56184130e-01, 5.60398936e-01]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+_ test_contour_shape_error[args0-Length of x (9) must match number of columns in z (10)] _
+
+args = (array([0, 1, 2, 3, 4, 5, 6, 7, 8]), array([0, 1, 2, 3, 4, 5, 6, 7, 8]), array([[4.65944151e-310, 0.00000000e+000, 1.3....42941804e-100, 1.27569719e-308,
+        7.82069079e-148, 6.52638075e-172, 2.77986470e-162,
+        3.58194568e-306]]))
+message = 'Length of x (9) must match number of columns in z (10)'
+
+    @pytest.mark.parametrize("args, message", [
+        ((np.arange(9), np.arange(9), np.empty((9, 10))),
+         'Length of x (9) must match number of columns in z (10)'),
+        ((np.arange(10), np.arange(10), np.empty((9, 10))),
+         'Length of y (10) must match number of rows in z (9)'),
+        ((np.empty((10, 10)), np.arange(10), np.empty((9, 10))),
+         'Number of dimensions of x (2) and y (1) do not match'),
+        ((np.arange(10), np.empty((10, 10)), np.empty((9, 10))),
+         'Number of dimensions of x (1) and y (2) do not match'),
+        ((np.empty((9, 9)), np.empty((9, 10)), np.empty((9, 10))),
+         'Shapes of x (9, 9) and z (9, 10) do not match'),
+        ((np.empty((9, 10)), np.empty((9, 9)), np.empty((9, 10))),
+         'Shapes of y (9, 9) and z (9, 10) do not match'),
+        ((np.empty((3, 3, 3)), np.empty((3, 3, 3)), np.empty((9, 10))),
+         'Inputs x and y must be 1D or 2D, not 3D'),
+        ((np.empty((3, 3, 3)), np.empty((3, 3, 3)), np.empty((3, 3, 3))),
+         'Input z must be 2D, not 3D'),
+        (([[0]],),  # github issue 8197
+         'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'),
+        (([0], [0], [[0]]),
+         'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'),
+    ])
+    def test_contour_shape_error(args, message):
+        fig, ax = plt.subplots()
+        with pytest.raises(TypeError, match=re.escape(message)):
+>           ax.contour(*args)
+
+lib/matplotlib/tests/test_contour.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf7660d0>
+args = (array([0, 1, 2, 3, 4, 5, 6, 7, 8]), array([0, 1, 2, 3, 4, 5, 6, 7, 8]), array([[4.65944151e-310, 0.00000000e+000, 1.3....42941804e-100, 1.27569719e-308,
+        7.82069079e-148, 6.52638075e-172, 2.77986470e-162,
+        3.58194568e-306]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+_ test_contour_shape_error[args1-Length of y (10) must match number of rows in z (9)] _
+
+args = (array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), array([[4.65944144e-310, 0.00000000e+00....45880088e-291, 3.04039619e-316,
+        3.52251301e-312, 8.44852254e-322, 3.57777388e-306,
+        1.76153764e-312]]))
+message = 'Length of y (10) must match number of rows in z (9)'
+
+    @pytest.mark.parametrize("args, message", [
+        ((np.arange(9), np.arange(9), np.empty((9, 10))),
+         'Length of x (9) must match number of columns in z (10)'),
+        ((np.arange(10), np.arange(10), np.empty((9, 10))),
+         'Length of y (10) must match number of rows in z (9)'),
+        ((np.empty((10, 10)), np.arange(10), np.empty((9, 10))),
+         'Number of dimensions of x (2) and y (1) do not match'),
+        ((np.arange(10), np.empty((10, 10)), np.empty((9, 10))),
+         'Number of dimensions of x (1) and y (2) do not match'),
+        ((np.empty((9, 9)), np.empty((9, 10)), np.empty((9, 10))),
+         'Shapes of x (9, 9) and z (9, 10) do not match'),
+        ((np.empty((9, 10)), np.empty((9, 9)), np.empty((9, 10))),
+         'Shapes of y (9, 9) and z (9, 10) do not match'),
+        ((np.empty((3, 3, 3)), np.empty((3, 3, 3)), np.empty((9, 10))),
+         'Inputs x and y must be 1D or 2D, not 3D'),
+        ((np.empty((3, 3, 3)), np.empty((3, 3, 3)), np.empty((3, 3, 3))),
+         'Input z must be 2D, not 3D'),
+        (([[0]],),  # github issue 8197
+         'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'),
+        (([0], [0], [[0]]),
+         'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'),
+    ])
+    def test_contour_shape_error(args, message):
+        fig, ax = plt.subplots()
+        with pytest.raises(TypeError, match=re.escape(message)):
+>           ax.contour(*args)
+
+lib/matplotlib/tests/test_contour.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf784f90>
+args = (array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), array([[4.65944144e-310, 0.00000000e+00....45880088e-291, 3.04039619e-316,
+        3.52251301e-312, 8.44852254e-322, 3.57777388e-306,
+        1.76153764e-312]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+_ test_contour_shape_error[args2-Number of dimensions of x (2) and y (1) do not match] _
+
+args = (array([[4.65944156e-310, 0.00000000e+000, 4.65832244e-310,
+        4.65832244e-310, 4.65832244e-310, 6.94992487e-310,....94992076e-310, 6.94992481e-310,
+        6.94992080e-310, 6.94992544e-310, 6.94992482e-310,
+        6.94992423e-310]]))
+message = 'Number of dimensions of x (2) and y (1) do not match'
+
+    @pytest.mark.parametrize("args, message", [
+        ((np.arange(9), np.arange(9), np.empty((9, 10))),
+         'Length of x (9) must match number of columns in z (10)'),
+        ((np.arange(10), np.arange(10), np.empty((9, 10))),
+         'Length of y (10) must match number of rows in z (9)'),
+        ((np.empty((10, 10)), np.arange(10), np.empty((9, 10))),
+         'Number of dimensions of x (2) and y (1) do not match'),
+        ((np.arange(10), np.empty((10, 10)), np.empty((9, 10))),
+         'Number of dimensions of x (1) and y (2) do not match'),
+        ((np.empty((9, 9)), np.empty((9, 10)), np.empty((9, 10))),
+         'Shapes of x (9, 9) and z (9, 10) do not match'),
+        ((np.empty((9, 10)), np.empty((9, 9)), np.empty((9, 10))),
+         'Shapes of y (9, 9) and z (9, 10) do not match'),
+        ((np.empty((3, 3, 3)), np.empty((3, 3, 3)), np.empty((9, 10))),
+         'Inputs x and y must be 1D or 2D, not 3D'),
+        ((np.empty((3, 3, 3)), np.empty((3, 3, 3)), np.empty((3, 3, 3))),
+         'Input z must be 2D, not 3D'),
+        (([[0]],),  # github issue 8197
+         'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'),
+        (([0], [0], [[0]]),
+         'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'),
+    ])
+    def test_contour_shape_error(args, message):
+        fig, ax = plt.subplots()
+        with pytest.raises(TypeError, match=re.escape(message)):
+>           ax.contour(*args)
+
+lib/matplotlib/tests/test_contour.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf7fc310>
+args = (array([[4.65944156e-310, 0.00000000e+000, 4.65832244e-310,
+        4.65832244e-310, 4.65832244e-310, 6.94992487e-310,....94992076e-310, 6.94992481e-310,
+        6.94992080e-310, 6.94992544e-310, 6.94992482e-310,
+        6.94992423e-310]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+_ test_contour_shape_error[args3-Number of dimensions of x (1) and y (2) do not match] _
+
+args = (array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), array([[4.65944129e-310, 0.00000000e+000, 3.74995825e-321,
+                   ...0000e+000,  1.23516411e-322,
+         5.65733597e-311,  8.52478942e-254,  1.23516411e-322,
+         6.94975711e-310]]))
+message = 'Number of dimensions of x (1) and y (2) do not match'
+
+    @pytest.mark.parametrize("args, message", [
+        ((np.arange(9), np.arange(9), np.empty((9, 10))),
+         'Length of x (9) must match number of columns in z (10)'),
+        ((np.arange(10), np.arange(10), np.empty((9, 10))),
+         'Length of y (10) must match number of rows in z (9)'),
+        ((np.empty((10, 10)), np.arange(10), np.empty((9, 10))),
+         'Number of dimensions of x (2) and y (1) do not match'),
+        ((np.arange(10), np.empty((10, 10)), np.empty((9, 10))),
+         'Number of dimensions of x (1) and y (2) do not match'),
+        ((np.empty((9, 9)), np.empty((9, 10)), np.empty((9, 10))),
+         'Shapes of x (9, 9) and z (9, 10) do not match'),
+        ((np.empty((9, 10)), np.empty((9, 9)), np.empty((9, 10))),
+         'Shapes of y (9, 9) and z (9, 10) do not match'),
+        ((np.empty((3, 3, 3)), np.empty((3, 3, 3)), np.empty((9, 10))),
+         'Inputs x and y must be 1D or 2D, not 3D'),
+        ((np.empty((3, 3, 3)), np.empty((3, 3, 3)), np.empty((3, 3, 3))),
+         'Input z must be 2D, not 3D'),
+        (([[0]],),  # github issue 8197
+         'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'),
+        (([0], [0], [[0]]),
+         'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'),
+    ])
+    def test_contour_shape_error(args, message):
+        fig, ax = plt.subplots()
+        with pytest.raises(TypeError, match=re.escape(message)):
+>           ax.contour(*args)
+
+lib/matplotlib/tests/test_contour.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf07d350>
+args = (array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), array([[4.65944129e-310, 0.00000000e+000, 3.74995825e-321,
+                   ...0000e+000,  1.23516411e-322,
+         5.65733597e-311,  8.52478942e-254,  1.23516411e-322,
+         6.94975711e-310]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+_ test_contour_shape_error[args4-Shapes of x (9, 9) and z (9, 10) do not match] _
+
+args = (array([[4.65944139e-310, 0.00000000e+000, 6.94992066e-310,
+        4.65832246e-310, 6.94992062e-310, 6.94992066e-310,....94992068e-310, 6.94994487e-310,
+        6.94992068e-310, 6.94994487e-310, 6.94992068e-310,
+        6.94994433e-310]]))
+message = 'Shapes of x (9, 9) and z (9, 10) do not match'
+
+    @pytest.mark.parametrize("args, message", [
+        ((np.arange(9), np.arange(9), np.empty((9, 10))),
+         'Length of x (9) must match number of columns in z (10)'),
+        ((np.arange(10), np.arange(10), np.empty((9, 10))),
+         'Length of y (10) must match number of rows in z (9)'),
+        ((np.empty((10, 10)), np.arange(10), np.empty((9, 10))),
+         'Number of dimensions of x (2) and y (1) do not match'),
+        ((np.arange(10), np.empty((10, 10)), np.empty((9, 10))),
+         'Number of dimensions of x (1) and y (2) do not match'),
+        ((np.empty((9, 9)), np.empty((9, 10)), np.empty((9, 10))),
+         'Shapes of x (9, 9) and z (9, 10) do not match'),
+        ((np.empty((9, 10)), np.empty((9, 9)), np.empty((9, 10))),
+         'Shapes of y (9, 9) and z (9, 10) do not match'),
+        ((np.empty((3, 3, 3)), np.empty((3, 3, 3)), np.empty((9, 10))),
+         'Inputs x and y must be 1D or 2D, not 3D'),
+        ((np.empty((3, 3, 3)), np.empty((3, 3, 3)), np.empty((3, 3, 3))),
+         'Input z must be 2D, not 3D'),
+        (([[0]],),  # github issue 8197
+         'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'),
+        (([0], [0], [[0]]),
+         'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'),
+    ])
+    def test_contour_shape_error(args, message):
+        fig, ax = plt.subplots()
+        with pytest.raises(TypeError, match=re.escape(message)):
+>           ax.contour(*args)
+
+lib/matplotlib/tests/test_contour.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefd5b38e10>
+args = (array([[4.65944139e-310, 0.00000000e+000, 6.94992066e-310,
+        4.65832246e-310, 6.94992062e-310, 6.94992066e-310,....94992068e-310, 6.94994487e-310,
+        6.94992068e-310, 6.94994487e-310, 6.94992068e-310,
+        6.94994433e-310]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+_ test_contour_shape_error[args5-Shapes of y (9, 9) and z (9, 10) do not match] _
+
+args = (array([[6.94994571e-310, 4.65832394e-310, 0.00000000e+000,
+        1.02916796e-311, 3.81959242e-313, 4.10074486e-322,....00000000e+000, 0.00000000e+000,
+        0.00000000e+000, 0.00000000e+000, 0.00000000e+000,
+        0.00000000e+000]]))
+message = 'Shapes of y (9, 9) and z (9, 10) do not match'
+
+    @pytest.mark.parametrize("args, message", [
+        ((np.arange(9), np.arange(9), np.empty((9, 10))),
+         'Length of x (9) must match number of columns in z (10)'),
+        ((np.arange(10), np.arange(10), np.empty((9, 10))),
+         'Length of y (10) must match number of rows in z (9)'),
+        ((np.empty((10, 10)), np.arange(10), np.empty((9, 10))),
+         'Number of dimensions of x (2) and y (1) do not match'),
+        ((np.arange(10), np.empty((10, 10)), np.empty((9, 10))),
+         'Number of dimensions of x (1) and y (2) do not match'),
+        ((np.empty((9, 9)), np.empty((9, 10)), np.empty((9, 10))),
+         'Shapes of x (9, 9) and z (9, 10) do not match'),
+        ((np.empty((9, 10)), np.empty((9, 9)), np.empty((9, 10))),
+         'Shapes of y (9, 9) and z (9, 10) do not match'),
+        ((np.empty((3, 3, 3)), np.empty((3, 3, 3)), np.empty((9, 10))),
+         'Inputs x and y must be 1D or 2D, not 3D'),
+        ((np.empty((3, 3, 3)), np.empty((3, 3, 3)), np.empty((3, 3, 3))),
+         'Input z must be 2D, not 3D'),
+        (([[0]],),  # github issue 8197
+         'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'),
+        (([0], [0], [[0]]),
+         'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'),
+    ])
+    def test_contour_shape_error(args, message):
+        fig, ax = plt.subplots()
+        with pytest.raises(TypeError, match=re.escape(message)):
+>           ax.contour(*args)
+
+lib/matplotlib/tests/test_contour.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf698ed0>
+args = (array([[6.94994571e-310, 4.65832394e-310, 0.00000000e+000,
+        1.02916796e-311, 3.81959242e-313, 4.10074486e-322,....00000000e+000, 0.00000000e+000,
+        0.00000000e+000, 0.00000000e+000, 0.00000000e+000,
+        0.00000000e+000]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+___ test_contour_shape_error[args6-Inputs x and y must be 1D or 2D, not 3D] ____
+
+args = (array([[[4.6594416e-310, 0.0000000e+000, 0.0000000e+000],
+        [0.0000000e+000, 0.0000000e+000, 0.0000000e+000],
+ ....00000000e+000, 0.00000000e+000,
+        0.00000000e+000, 0.00000000e+000, 0.00000000e+000,
+        0.00000000e+000]]))
+message = 'Inputs x and y must be 1D or 2D, not 3D'
+
+    @pytest.mark.parametrize("args, message", [
+        ((np.arange(9), np.arange(9), np.empty((9, 10))),
+         'Length of x (9) must match number of columns in z (10)'),
+        ((np.arange(10), np.arange(10), np.empty((9, 10))),
+         'Length of y (10) must match number of rows in z (9)'),
+        ((np.empty((10, 10)), np.arange(10), np.empty((9, 10))),
+         'Number of dimensions of x (2) and y (1) do not match'),
+        ((np.arange(10), np.empty((10, 10)), np.empty((9, 10))),
+         'Number of dimensions of x (1) and y (2) do not match'),
+        ((np.empty((9, 9)), np.empty((9, 10)), np.empty((9, 10))),
+         'Shapes of x (9, 9) and z (9, 10) do not match'),
+        ((np.empty((9, 10)), np.empty((9, 9)), np.empty((9, 10))),
+         'Shapes of y (9, 9) and z (9, 10) do not match'),
+        ((np.empty((3, 3, 3)), np.empty((3, 3, 3)), np.empty((9, 10))),
+         'Inputs x and y must be 1D or 2D, not 3D'),
+        ((np.empty((3, 3, 3)), np.empty((3, 3, 3)), np.empty((3, 3, 3))),
+         'Input z must be 2D, not 3D'),
+        (([[0]],),  # github issue 8197
+         'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'),
+        (([0], [0], [[0]]),
+         'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'),
+    ])
+    def test_contour_shape_error(args, message):
+        fig, ax = plt.subplots()
+        with pytest.raises(TypeError, match=re.escape(message)):
+>           ax.contour(*args)
+
+lib/matplotlib/tests/test_contour.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf55e7d0>
+args = (array([[[4.6594416e-310, 0.0000000e+000, 0.0000000e+000],
+        [0.0000000e+000, 0.0000000e+000, 0.0000000e+000],
+ ....00000000e+000, 0.00000000e+000,
+        0.00000000e+000, 0.00000000e+000, 0.00000000e+000,
+        0.00000000e+000]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+__________ test_contour_shape_error[args7-Input z must be 2D, not 3D] __________
+
+args = (array([[[4.65944124e-310, 0.00000000e+000, 8.78298405e-268],
+        [4.73953933e+170, 5.34163112e+246, 9.07652307e+2...   [4.86622995e+025, 1.82033254e+044, 5.98163389e-154],
+        [1.35167265e+074, 1.23048820e-259, 6.01347002e-154]]]))
+message = 'Input z must be 2D, not 3D'
+
+    @pytest.mark.parametrize("args, message", [
+        ((np.arange(9), np.arange(9), np.empty((9, 10))),
+         'Length of x (9) must match number of columns in z (10)'),
+        ((np.arange(10), np.arange(10), np.empty((9, 10))),
+         'Length of y (10) must match number of rows in z (9)'),
+        ((np.empty((10, 10)), np.arange(10), np.empty((9, 10))),
+         'Number of dimensions of x (2) and y (1) do not match'),
+        ((np.arange(10), np.empty((10, 10)), np.empty((9, 10))),
+         'Number of dimensions of x (1) and y (2) do not match'),
+        ((np.empty((9, 9)), np.empty((9, 10)), np.empty((9, 10))),
+         'Shapes of x (9, 9) and z (9, 10) do not match'),
+        ((np.empty((9, 10)), np.empty((9, 9)), np.empty((9, 10))),
+         'Shapes of y (9, 9) and z (9, 10) do not match'),
+        ((np.empty((3, 3, 3)), np.empty((3, 3, 3)), np.empty((9, 10))),
+         'Inputs x and y must be 1D or 2D, not 3D'),
+        ((np.empty((3, 3, 3)), np.empty((3, 3, 3)), np.empty((3, 3, 3))),
+         'Input z must be 2D, not 3D'),
+        (([[0]],),  # github issue 8197
+         'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'),
+        (([0], [0], [[0]]),
+         'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'),
+    ])
+    def test_contour_shape_error(args, message):
+        fig, ax = plt.subplots()
+        with pytest.raises(TypeError, match=re.escape(message)):
+>           ax.contour(*args)
+
+lib/matplotlib/tests/test_contour.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf865250>
+args = (array([[[4.65944124e-310, 0.00000000e+000, 8.78298405e-268],
+        [4.73953933e+170, 5.34163112e+246, 9.07652307e+2...   [4.86622995e+025, 1.82033254e+044, 5.98163389e-154],
+        [1.35167265e+074, 1.23048820e-259, 6.01347002e-154]]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+_ test_contour_shape_error[args9-Input z must be at least a (2, 2) shaped array, but has shape (1, 1)] _
+
+args = ([0], [0], [[0]])
+message = 'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'
+
+    @pytest.mark.parametrize("args, message", [
+        ((np.arange(9), np.arange(9), np.empty((9, 10))),
+         'Length of x (9) must match number of columns in z (10)'),
+        ((np.arange(10), np.arange(10), np.empty((9, 10))),
+         'Length of y (10) must match number of rows in z (9)'),
+        ((np.empty((10, 10)), np.arange(10), np.empty((9, 10))),
+         'Number of dimensions of x (2) and y (1) do not match'),
+        ((np.arange(10), np.empty((10, 10)), np.empty((9, 10))),
+         'Number of dimensions of x (1) and y (2) do not match'),
+        ((np.empty((9, 9)), np.empty((9, 10)), np.empty((9, 10))),
+         'Shapes of x (9, 9) and z (9, 10) do not match'),
+        ((np.empty((9, 10)), np.empty((9, 9)), np.empty((9, 10))),
+         'Shapes of y (9, 9) and z (9, 10) do not match'),
+        ((np.empty((3, 3, 3)), np.empty((3, 3, 3)), np.empty((9, 10))),
+         'Inputs x and y must be 1D or 2D, not 3D'),
+        ((np.empty((3, 3, 3)), np.empty((3, 3, 3)), np.empty((3, 3, 3))),
+         'Input z must be 2D, not 3D'),
+        (([[0]],),  # github issue 8197
+         'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'),
+        (([0], [0], [[0]]),
+         'Input z must be at least a (2, 2) shaped array, but has shape (1, 1)'),
+    ])
+    def test_contour_shape_error(args, message):
+        fig, ax = plt.subplots()
+        with pytest.raises(TypeError, match=re.escape(message)):
+>           ax.contour(*args)
+
+lib/matplotlib/tests/test_contour.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefd416b550>
+args = ([0], [0], [[0]]), kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+__________________________ test_contour_empty_levels ___________________________
+
+    def test_contour_empty_levels():
+    
+        x = np.arange(9)
+        z = np.random.random((9, 9))
+    
+        fig, ax = plt.subplots()
+        with pytest.warns(UserWarning) as record:
+>           ax.contour(x, x, z, levels=[])
+
+lib/matplotlib/tests/test_contour.py:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf70b5d0>
+args = (array([0, 1, 2, 3, 4, 5, 6, 7, 8]), array([0, 1, 2, 3, 4, 5, 6, 7, 8]), array([[0.80271607, 0.48364331, 0.69208864, 0...[0.25968529, 0.76803765, 0.17749917, 0.63564163, 0.23256178,
+        0.32621929, 0.16399903, 0.40603875, 0.9527095 ]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+
+During handling of the above exception, another exception occurred:
+
+    def test_contour_empty_levels():
+    
+        x = np.arange(9)
+        z = np.random.random((9, 9))
+    
+        fig, ax = plt.subplots()
+>       with pytest.warns(UserWarning) as record:
+E       Failed: DID NOT WARN. No warnings of type (<class 'UserWarning'>,) were emitted.
+E        Emitted warnings: [].
+
+lib/matplotlib/tests/test_contour.py:71: Failed
+__________________________ test_contour_badlevel_fmt ___________________________
+
+    def test_contour_badlevel_fmt():
+        # Test edge case from https://github.com/matplotlib/matplotlib/issues/9742
+        # User supplied fmt for each level as a dictionary, but Matplotlib changed
+        # the level to the minimum data value because no contours possible.
+        # This was fixed in https://github.com/matplotlib/matplotlib/pull/9743
+        x = np.arange(9)
+        z = np.zeros((9, 9))
+    
+        fig, ax = plt.subplots()
+        fmt = {1.: '%1.2f'}
+        with pytest.warns(UserWarning) as record:
+>           cs = ax.contour(x, x, z, levels=[1.])
+
+lib/matplotlib/tests/test_contour.py:98: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf7fc450>
+args = (array([0, 1, 2, 3, 4, 5, 6, 7, 8]), array([0, 1, 2, 3, 4, 5, 6, 7, 8]), array([[0., 0., 0., 0., 0., 0., 0., 0., 0.],
+...., 0., 0., 0., 0., 0., 0.],
+       [0., 0., 0., 0., 0., 0., 0., 0., 0.],
+       [0., 0., 0., 0., 0., 0., 0., 0., 0.]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+
+During handling of the above exception, another exception occurred:
+
+    def test_contour_badlevel_fmt():
+        # Test edge case from https://github.com/matplotlib/matplotlib/issues/9742
+        # User supplied fmt for each level as a dictionary, but Matplotlib changed
+        # the level to the minimum data value because no contours possible.
+        # This was fixed in https://github.com/matplotlib/matplotlib/pull/9743
+        x = np.arange(9)
+        z = np.zeros((9, 9))
+    
+        fig, ax = plt.subplots()
+        fmt = {1.: '%1.2f'}
+>       with pytest.warns(UserWarning) as record:
+E       Failed: DID NOT WARN. No warnings of type (<class 'UserWarning'>,) were emitted.
+E        Emitted warnings: [].
+
+lib/matplotlib/tests/test_contour.py:97: Failed
+____________________________ test_contour_uniform_z ____________________________
+
+    def test_contour_uniform_z():
+    
+        x = np.arange(9)
+        z = np.ones((9, 9))
+    
+        fig, ax = plt.subplots()
+        with pytest.warns(UserWarning) as record:
+>           ax.contour(x, x, z)
+
+lib/matplotlib/tests/test_contour.py:110: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefd413edd0>
+args = (array([0, 1, 2, 3, 4, 5, 6, 7, 8]), array([0, 1, 2, 3, 4, 5, 6, 7, 8]), array([[1., 1., 1., 1., 1., 1., 1., 1., 1.],
+...., 1., 1., 1., 1., 1., 1.],
+       [1., 1., 1., 1., 1., 1., 1., 1., 1.],
+       [1., 1., 1., 1., 1., 1., 1., 1., 1.]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+
+During handling of the above exception, another exception occurred:
+
+    def test_contour_uniform_z():
+    
+        x = np.arange(9)
+        z = np.ones((9, 9))
+    
+        fig, ax = plt.subplots()
+>       with pytest.warns(UserWarning) as record:
+E       Failed: DID NOT WARN. No warnings of type (<class 'UserWarning'>,) were emitted.
+E        Emitted warnings: [].
+
+lib/matplotlib/tests/test_contour.py:109: Failed
+_______________________ test_contour_manual_labels[png] ________________________
+
+    @image_comparison(['contour_manual_labels'], remove_text=True, style='mpl20')
+    def test_contour_manual_labels():
+        x, y = np.meshgrid(np.arange(0, 10), np.arange(0, 10))
+        z = np.max(np.dstack([abs(x), abs(y)]), 2)
+    
+        plt.figure(figsize=(6, 2), dpi=200)
+>       cs = plt.contour(x, y, z)
+
+lib/matplotlib/tests/test_contour.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/pyplot.py:2516: in contour
+    __ret = gca().contour(
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf764a50>
+args = (array([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+...
+       [7, 7, 7, 7, 7, 7, 7, 7, 8, 9],
+       [8, 8, 8, 8, 8, 8, 8, 8, 8, 9],
+       [9, 9, 9, 9, 9, 9, 9, 9, 9, 9]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+_______________________ test_contour_manual_labels[pdf] ________________________
+
+    @image_comparison(['contour_manual_labels'], remove_text=True, style='mpl20')
+    def test_contour_manual_labels():
+        x, y = np.meshgrid(np.arange(0, 10), np.arange(0, 10))
+        z = np.max(np.dstack([abs(x), abs(y)]), 2)
+    
+        plt.figure(figsize=(6, 2), dpi=200)
+>       cs = plt.contour(x, y, z)
+
+lib/matplotlib/tests/test_contour.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/pyplot.py:2516: in contour
+    __ret = gca().contour(
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf8056d0>
+args = (array([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+...
+       [7, 7, 7, 7, 7, 7, 7, 7, 8, 9],
+       [8, 8, 8, 8, 8, 8, 8, 8, 8, 9],
+       [9, 9, 9, 9, 9, 9, 9, 9, 9, 9]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+_______________________ test_contour_datetime_axis[png] ________________________
+
+    @image_comparison(['contour_datetime_axis.png'], style='mpl20')
+    def test_contour_datetime_axis():
+        fig = plt.figure()
+        fig.subplots_adjust(hspace=0.4, top=0.98, bottom=.15)
+        base = datetime.datetime(2013, 1, 1)
+        x = np.array([base + datetime.timedelta(days=d) for d in range(20)])
+        y = np.arange(20)
+        z1, z2 = np.meshgrid(np.arange(20), np.arange(20))
+        z = z1 * z2
+        plt.subplot(221)
+>       plt.contour(x, y, z)
+
+lib/matplotlib/tests/test_contour.py:168: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/pyplot.py:2516: in contour
+    __ret = gca().contour(
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf48c390>
+args = (array([datetime.datetime(2013, 1, 1, 0, 0),
+       datetime.datetime(2013, 1, 2, 0, 0),
+       datetime.datetime(2013...
+       [  0,  19,  38,  57,  76,  95, 114, 133, 152, 171, 190, 209, 228,
+        247, 266, 285, 304, 323, 342, 361]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+_______________________________ test_labels[png] _______________________________
+
+    @image_comparison(['contour_test_label_transforms.png'],
+                      remove_text=True, style='mpl20',
+                      tol=0 if platform.machine() == 'x86_64' else 0.08)
+    def test_labels():
+        # Adapted from pylab_examples example code: contour_demo.py
+        # see issues #2475, #2843, and #2818 for explanation
+        delta = 0.025
+        x = np.arange(-3.0, 3.0, delta)
+        y = np.arange(-2.0, 2.0, delta)
+        X, Y = np.meshgrid(x, y)
+        Z1 = np.exp(-(X**2 + Y**2) / 2) / (2 * np.pi)
+        Z2 = (np.exp(-(((X - 1) / 1.5)**2 + ((Y - 1) / 0.5)**2) / 2) /
+              (2 * np.pi * 0.5 * 1.5))
+    
+        # difference of Gaussians
+        Z = 10.0 * (Z2 - Z1)
+    
+        fig, ax = plt.subplots(1, 1)
+>       CS = ax.contour(X, Y, Z)
+
+lib/matplotlib/tests/test_contour.py:201: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcfb1e850>
+args = (array([[-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2.975],
+       [-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2...79,  0.14384672],
+       [ 0.00654051,  0.00675572,  0.00697347, ...,  0.13599164,
+         0.1332508 ,  0.13052201]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+________________________ test_circular_contour_warning _________________________
+
+    def test_circular_contour_warning():
+        # Check that almost circular contours don't throw a warning
+        x, y = np.meshgrid(np.linspace(-2, 2, 4), np.linspace(-2, 2, 4))
+        r = np.hypot(x, y)
+        plt.figure()
+>       cs = plt.contour(x, y, r)
+
+lib/matplotlib/tests/test_contour.py:253: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/pyplot.py:2516: in contour
+    __ret = gca().contour(
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf82a390>
+args = (array([[-2.        , -0.66666667,  0.66666667,  2.        ],
+       [-2.        , -0.66666667,  0.66666667,  2.      ...1],
+       [2.10818511, 0.94280904, 0.94280904, 2.10818511],
+       [2.82842712, 2.10818511, 2.10818511, 2.82842712]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+______________________ test_clabel_zorder[True-123-1234] _______________________
+
+use_clabeltext = True, contour_zorder = 123, clabel_zorder = 1234
+
+    @pytest.mark.parametrize("use_clabeltext, contour_zorder, clabel_zorder",
+                             [(True, 123, 1234), (False, 123, 1234),
+                              (True, 123, None), (False, 123, None)])
+    def test_clabel_zorder(use_clabeltext, contour_zorder, clabel_zorder):
+        x, y = np.meshgrid(np.arange(0, 10), np.arange(0, 10))
+        z = np.max(np.dstack([abs(x), abs(y)]), 2)
+    
+        fig, (ax1, ax2) = plt.subplots(ncols=2)
+>       cs = ax1.contour(x, y, z, zorder=contour_zorder)
+
+lib/matplotlib/tests/test_contour.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf52c350>
+args = (array([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+...
+       [7, 7, 7, 7, 7, 7, 7, 7, 8, 9],
+       [8, 8, 8, 8, 8, 8, 8, 8, 8, 9],
+       [9, 9, 9, 9, 9, 9, 9, 9, 9, 9]]))
+kwargs = {'zorder': 123}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+______________________ test_clabel_zorder[False-123-1234] ______________________
+
+use_clabeltext = False, contour_zorder = 123, clabel_zorder = 1234
+
+    @pytest.mark.parametrize("use_clabeltext, contour_zorder, clabel_zorder",
+                             [(True, 123, 1234), (False, 123, 1234),
+                              (True, 123, None), (False, 123, None)])
+    def test_clabel_zorder(use_clabeltext, contour_zorder, clabel_zorder):
+        x, y = np.meshgrid(np.arange(0, 10), np.arange(0, 10))
+        z = np.max(np.dstack([abs(x), abs(y)]), 2)
+    
+        fig, (ax1, ax2) = plt.subplots(ncols=2)
+>       cs = ax1.contour(x, y, z, zorder=contour_zorder)
+
+lib/matplotlib/tests/test_contour.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefced2ad90>
+args = (array([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+...
+       [7, 7, 7, 7, 7, 7, 7, 7, 8, 9],
+       [8, 8, 8, 8, 8, 8, 8, 8, 8, 9],
+       [9, 9, 9, 9, 9, 9, 9, 9, 9, 9]]))
+kwargs = {'zorder': 123}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+______________________ test_clabel_zorder[True-123-None] _______________________
+
+use_clabeltext = True, contour_zorder = 123, clabel_zorder = None
+
+    @pytest.mark.parametrize("use_clabeltext, contour_zorder, clabel_zorder",
+                             [(True, 123, 1234), (False, 123, 1234),
+                              (True, 123, None), (False, 123, None)])
+    def test_clabel_zorder(use_clabeltext, contour_zorder, clabel_zorder):
+        x, y = np.meshgrid(np.arange(0, 10), np.arange(0, 10))
+        z = np.max(np.dstack([abs(x), abs(y)]), 2)
+    
+        fig, (ax1, ax2) = plt.subplots(ncols=2)
+>       cs = ax1.contour(x, y, z, zorder=contour_zorder)
+
+lib/matplotlib/tests/test_contour.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf4d3950>
+args = (array([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+...
+       [7, 7, 7, 7, 7, 7, 7, 7, 8, 9],
+       [8, 8, 8, 8, 8, 8, 8, 8, 8, 9],
+       [9, 9, 9, 9, 9, 9, 9, 9, 9, 9]]))
+kwargs = {'zorder': 123}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+______________________ test_clabel_zorder[False-123-None] ______________________
+
+use_clabeltext = False, contour_zorder = 123, clabel_zorder = None
+
+    @pytest.mark.parametrize("use_clabeltext, contour_zorder, clabel_zorder",
+                             [(True, 123, 1234), (False, 123, 1234),
+                              (True, 123, None), (False, 123, None)])
+    def test_clabel_zorder(use_clabeltext, contour_zorder, clabel_zorder):
+        x, y = np.meshgrid(np.arange(0, 10), np.arange(0, 10))
+        z = np.max(np.dstack([abs(x), abs(y)]), 2)
+    
+        fig, (ax1, ax2) = plt.subplots(ncols=2)
+>       cs = ax1.contour(x, y, z, zorder=contour_zorder)
+
+lib/matplotlib/tests/test_contour.py:265: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf3e7390>
+args = (array([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+...
+       [7, 7, 7, 7, 7, 7, 7, 7, 8, 9],
+       [8, 8, 8, 8, 8, 8, 8, 8, 8, 9],
+       [9, 9, 9, 9, 9, 9, 9, 9, 9, 9]]))
+kwargs = {'zorder': 123}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+__________________________ test_quadcontourset_reuse ___________________________
+
+    def test_quadcontourset_reuse():
+        # If QuadContourSet returned from one contour(f) call is passed as first
+        # argument to another the underlying C++ contour generator will be reused.
+        x, y = np.meshgrid([0.0, 1.0], [0.0, 1.0])
+        z = x + y
+        fig, ax = plt.subplots()
+>       qcs1 = ax.contourf(x, y, z)
+
+lib/matplotlib/tests/test_contour.py:397: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6475: in contourf
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcee19d50>
+args = (array([[0., 1.],
+       [0., 1.]]), array([[0., 0.],
+       [1., 1.]]), array([[0., 1.],
+       [1., 2.]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+_________________ test_contour_line_start_on_corner_edge[png] __________________
+
+    @image_comparison(baseline_images=['contour_line_start_on_corner_edge'],
+                      extensions=['png'], remove_text=True)
+    def test_contour_line_start_on_corner_edge():
+        fig, ax = plt.subplots(figsize=(6, 5))
+    
+        x, y = np.meshgrid([0, 1, 2, 3, 4], [0, 1, 2])
+        z = 1.2 - (x - 2)**2 + (y - 1)**2
+        mask = np.zeros_like(z, dtype=bool)
+        mask[1, 1] = mask[1, 3] = True
+        z = np.ma.array(z, mask=mask)
+    
+>       filled = ax.contourf(x, y, z, corner_mask=True)
+
+lib/matplotlib/tests/test_contour.py:441: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6475: in contourf
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf39d0d0>
+args = (array([[0, 1, 2, 3, 4],
+       [0, 1, 2, 3, 4],
+       [0, 1, 2, 3, 4]]), array([[0, 0, 0, 0, 0],
+       [1, 1, 1, 1,...False],
+        [False,  True, False,  True, False],
+        [False, False, False, False, False]],
+  fill_value=1e+20))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+___________________________ test_all_algorithms[png] ___________________________
+
+    @image_comparison(baseline_images=['contour_all_algorithms'],
+                      extensions=['png'], remove_text=True)
+    def test_all_algorithms():
+        algorithms = ['mpl2005', 'mpl2014', 'serial', 'threaded']
+    
+        rng = np.random.default_rng(2981)
+        x, y = np.meshgrid(np.linspace(0.0, 1.0, 10), np.linspace(0.0, 1.0, 6))
+        z = np.sin(15*x)*np.cos(10*y) + rng.normal(scale=0.5, size=(6, 10))
+        mask = np.zeros_like(z, dtype=bool)
+        mask[3, 7] = True
+        z = np.ma.array(z, mask=mask)
+    
+        _, axs = plt.subplots(2, 2)
+        for ax, algorithm in zip(axs.ravel(), algorithms):
+>           ax.contourf(x, y, z, algorithm=algorithm)
+
+lib/matplotlib/tests/test_contour.py:586: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6475: in contourf
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf3c3690>
+args = (array([[0.        , 0.11111111, 0.22222222, 0.33333333, 0.44444444,
+        0.55555556, 0.66666667, 0.77777778, 0.888... False],
+        [False, False, False, False, False, False, False, False, False,
+         False]],
+  fill_value=1e+20))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+____________________________ test_subfigure_clabel _____________________________
+
+    def test_subfigure_clabel():
+        # Smoke test for gh#23173
+        delta = 0.025
+        x = np.arange(-3.0, 3.0, delta)
+        y = np.arange(-2.0, 2.0, delta)
+        X, Y = np.meshgrid(x, y)
+        Z1 = np.exp(-(X**2) - Y**2)
+        Z2 = np.exp(-((X - 1) ** 2) - (Y - 1) ** 2)
+        Z = (Z1 - Z2) * 2
+    
+        fig = plt.figure()
+        figs = fig.subfigures(nrows=1, ncols=2)
+    
+        for f in figs:
+            ax = f.subplots()
+>           CS = ax.contour(X, Y, Z)
+
+lib/matplotlib/tests/test_contour.py:606: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcedb92d0>
+args = (array([[-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2.975],
+       [-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2... [ 4.90598951e-06,  5.69120666e-06,  6.59353913e-06, ...,
+        -1.89962699e-02, -1.72426787e-02, -1.56313990e-02]]))
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+____________________________ test_linestyles[solid] ____________________________
+
+style = 'solid'
+
+    @pytest.mark.parametrize(
+        "style", ['solid', 'dashed', 'dashdot', 'dotted'])
+    def test_linestyles(style):
+        delta = 0.025
+        x = np.arange(-3.0, 3.0, delta)
+        y = np.arange(-2.0, 2.0, delta)
+        X, Y = np.meshgrid(x, y)
+        Z1 = np.exp(-X**2 - Y**2)
+        Z2 = np.exp(-(X - 1)**2 - (Y - 1)**2)
+        Z = (Z1 - Z2) * 2
+    
+        # Positive contour defaults to solid
+        fig1, ax1 = plt.subplots()
+>       CS1 = ax1.contour(X, Y, Z, 6, colors='k')
+
+lib/matplotlib/tests/test_contour.py:624: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf7e28d0>
+args = (array([[-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2.975],
+       [-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2...4.90598951e-06,  5.69120666e-06,  6.59353913e-06, ...,
+        -1.89962699e-02, -1.72426787e-02, -1.56313990e-02]]), 6)
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+___________________________ test_linestyles[dashed] ____________________________
+
+style = 'dashed'
+
+    @pytest.mark.parametrize(
+        "style", ['solid', 'dashed', 'dashdot', 'dotted'])
+    def test_linestyles(style):
+        delta = 0.025
+        x = np.arange(-3.0, 3.0, delta)
+        y = np.arange(-2.0, 2.0, delta)
+        X, Y = np.meshgrid(x, y)
+        Z1 = np.exp(-X**2 - Y**2)
+        Z2 = np.exp(-(X - 1)**2 - (Y - 1)**2)
+        Z = (Z1 - Z2) * 2
+    
+        # Positive contour defaults to solid
+        fig1, ax1 = plt.subplots()
+>       CS1 = ax1.contour(X, Y, Z, 6, colors='k')
+
+lib/matplotlib/tests/test_contour.py:624: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf6a0890>
+args = (array([[-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2.975],
+       [-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2...4.90598951e-06,  5.69120666e-06,  6.59353913e-06, ...,
+        -1.89962699e-02, -1.72426787e-02, -1.56313990e-02]]), 6)
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+___________________________ test_linestyles[dashdot] ___________________________
+
+style = 'dashdot'
+
+    @pytest.mark.parametrize(
+        "style", ['solid', 'dashed', 'dashdot', 'dotted'])
+    def test_linestyles(style):
+        delta = 0.025
+        x = np.arange(-3.0, 3.0, delta)
+        y = np.arange(-2.0, 2.0, delta)
+        X, Y = np.meshgrid(x, y)
+        Z1 = np.exp(-X**2 - Y**2)
+        Z2 = np.exp(-(X - 1)**2 - (Y - 1)**2)
+        Z = (Z1 - Z2) * 2
+    
+        # Positive contour defaults to solid
+        fig1, ax1 = plt.subplots()
+>       CS1 = ax1.contour(X, Y, Z, 6, colors='k')
+
+lib/matplotlib/tests/test_contour.py:624: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcfbe1190>
+args = (array([[-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2.975],
+       [-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2...4.90598951e-06,  5.69120666e-06,  6.59353913e-06, ...,
+        -1.89962699e-02, -1.72426787e-02, -1.56313990e-02]]), 6)
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+___________________________ test_linestyles[dotted] ____________________________
+
+style = 'dotted'
+
+    @pytest.mark.parametrize(
+        "style", ['solid', 'dashed', 'dashdot', 'dotted'])
+    def test_linestyles(style):
+        delta = 0.025
+        x = np.arange(-3.0, 3.0, delta)
+        y = np.arange(-2.0, 2.0, delta)
+        X, Y = np.meshgrid(x, y)
+        Z1 = np.exp(-X**2 - Y**2)
+        Z2 = np.exp(-(X - 1)**2 - (Y - 1)**2)
+        Z = (Z1 - Z2) * 2
+    
+        # Positive contour defaults to solid
+        fig1, ax1 = plt.subplots()
+>       CS1 = ax1.contour(X, Y, Z, 6, colors='k')
+
+lib/matplotlib/tests/test_contour.py:624: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcec96950>
+args = (array([[-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2.975],
+       [-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2...4.90598951e-06,  5.69120666e-06,  6.59353913e-06, ...,
+        -1.89962699e-02, -1.72426787e-02, -1.56313990e-02]]), 6)
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+_______________________ test_negative_linestyles[solid] ________________________
+
+style = 'solid'
+
+    @pytest.mark.parametrize(
+        "style", ['solid', 'dashed', 'dashdot', 'dotted'])
+    def test_negative_linestyles(style):
+        delta = 0.025
+        x = np.arange(-3.0, 3.0, delta)
+        y = np.arange(-2.0, 2.0, delta)
+        X, Y = np.meshgrid(x, y)
+        Z1 = np.exp(-X**2 - Y**2)
+        Z2 = np.exp(-(X - 1)**2 - (Y - 1)**2)
+        Z = (Z1 - Z2) * 2
+    
+        # Negative contour defaults to dashed
+        fig1, ax1 = plt.subplots()
+>       CS1 = ax1.contour(X, Y, Z, 6, colors='k')
+
+lib/matplotlib/tests/test_contour.py:658: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefd411fc50>
+args = (array([[-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2.975],
+       [-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2...4.90598951e-06,  5.69120666e-06,  6.59353913e-06, ...,
+        -1.89962699e-02, -1.72426787e-02, -1.56313990e-02]]), 6)
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+_______________________ test_negative_linestyles[dashed] _______________________
+
+style = 'dashed'
+
+    @pytest.mark.parametrize(
+        "style", ['solid', 'dashed', 'dashdot', 'dotted'])
+    def test_negative_linestyles(style):
+        delta = 0.025
+        x = np.arange(-3.0, 3.0, delta)
+        y = np.arange(-2.0, 2.0, delta)
+        X, Y = np.meshgrid(x, y)
+        Z1 = np.exp(-X**2 - Y**2)
+        Z2 = np.exp(-(X - 1)**2 - (Y - 1)**2)
+        Z = (Z1 - Z2) * 2
+    
+        # Negative contour defaults to dashed
+        fig1, ax1 = plt.subplots()
+>       CS1 = ax1.contour(X, Y, Z, 6, colors='k')
+
+lib/matplotlib/tests/test_contour.py:658: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf768350>
+args = (array([[-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2.975],
+       [-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2...4.90598951e-06,  5.69120666e-06,  6.59353913e-06, ...,
+        -1.89962699e-02, -1.72426787e-02, -1.56313990e-02]]), 6)
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+______________________ test_negative_linestyles[dashdot] _______________________
+
+style = 'dashdot'
+
+    @pytest.mark.parametrize(
+        "style", ['solid', 'dashed', 'dashdot', 'dotted'])
+    def test_negative_linestyles(style):
+        delta = 0.025
+        x = np.arange(-3.0, 3.0, delta)
+        y = np.arange(-2.0, 2.0, delta)
+        X, Y = np.meshgrid(x, y)
+        Z1 = np.exp(-X**2 - Y**2)
+        Z2 = np.exp(-(X - 1)**2 - (Y - 1)**2)
+        Z = (Z1 - Z2) * 2
+    
+        # Negative contour defaults to dashed
+        fig1, ax1 = plt.subplots()
+>       CS1 = ax1.contour(X, Y, Z, 6, colors='k')
+
+lib/matplotlib/tests/test_contour.py:658: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf467d50>
+args = (array([[-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2.975],
+       [-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2...4.90598951e-06,  5.69120666e-06,  6.59353913e-06, ...,
+        -1.89962699e-02, -1.72426787e-02, -1.56313990e-02]]), 6)
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+_______________________ test_negative_linestyles[dotted] _______________________
+
+style = 'dotted'
+
+    @pytest.mark.parametrize(
+        "style", ['solid', 'dashed', 'dashdot', 'dotted'])
+    def test_negative_linestyles(style):
+        delta = 0.025
+        x = np.arange(-3.0, 3.0, delta)
+        y = np.arange(-2.0, 2.0, delta)
+        X, Y = np.meshgrid(x, y)
+        Z1 = np.exp(-X**2 - Y**2)
+        Z2 = np.exp(-(X - 1)**2 - (Y - 1)**2)
+        Z = (Z1 - Z2) * 2
+    
+        # Negative contour defaults to dashed
+        fig1, ax1 = plt.subplots()
+>       CS1 = ax1.contour(X, Y, Z, 6, colors='k')
+
+lib/matplotlib/tests/test_contour.py:658: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/__init__.py:1489: in inner
+    return func(ax, *map(sanitize_sequence, args), **kwargs)
+lib/matplotlib/axes/_axes.py:6459: in contour
+    contours = mcontour.QuadContourSet(self, *args, **kwargs)
+lib/matplotlib/contour.py:769: in __init__
+    kwargs = self._process_args(*args, **kwargs)
+lib/matplotlib/contour.py:1416: in _process_args
+    x, y, z = self._contour_args(args, kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7fefcf3b60d0>
+args = (array([[-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2.975],
+       [-3.   , -2.975, -2.95 , ...,  2.925,  2.95 ,  2...4.90598951e-06,  5.69120666e-06,  6.59353913e-06, ...,
+        -1.89962699e-02, -1.72426787e-02, -1.56313990e-02]]), 6)
+kwargs = {}
+
+    def _contour_args(self, args, kwargs):
+        if self.filled:
+            fn = 'contourf'
+        else:
+            fn = 'contour'
+        nargs = len(args)
+        if nargs <= 2:
+            z = ma.asarray(args[0])
+            self._is_bool_input = np.issubdtype(z.dtype, np.bool_)
+            if self._is_bool_input:
+                z = z.astype(np.float64)
+            x, y = self._initialize_x_y(z)
+            args = args[1:]
+        elif nargs <= 4:
+>           x, y, z = self._check_xyz(args[:3], kwargs)
+E           AttributeError: 'QuadContourSet' object has no attribute '_check_xyz'
+
+lib/matplotlib/contour.py:1469: AttributeError
+_____________________________ test_bool_autolevel ______________________________
+
+    def test_bool_autolevel():
+        x, y = np.random.rand(2, 9)
+        z = (np.arange(9) % 2).reshape((3, 3)).astype(bool)
+        m = [[False, False, False], [False, True, False], [False, False, False]]
+>       assert plt.contour(z.tolist()).levels.tolist() == [.5]
+E       AttributeError: 'list' object has no attribute 'tolist'
+
+lib/matplotlib/tests/test_contour.py:702: AttributeError
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: float64
+Is bool input: True
+Initial self.levels: [0.   0.15 0.3  0.45 0.6  0.75 0.9  1.05]
+Boolean array detected, levels set to: [0.5]
+Final self.levels: [0.5]
+==================================== PASSES ====================================
+_____________________________ test_contour_Nlevels _____________________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [ 0.  2.  4.  6.  8. 10. 12.]
+Non-boolean array detected
+Final self.levels: [ 0.  2.  4.  6.  8. 10. 12.]
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [ 0.  2.  4.  6.  8. 10. 12.]
+Non-boolean array detected
+Final self.levels: [ 0.  2.  4.  6.  8. 10. 12.]
+__________________ test_given_colors_levels_and_extends[png] ___________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [ 2.  4.  8. 10.]
+Non-boolean array detected
+Final self.levels: [ 2.  4.  8. 10.]
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [ 2.  4.  8. 10.]
+Non-boolean array detected
+Final self.levels: [ 2.  4.  8. 10.]
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [ 2.  4.  8. 10.]
+Non-boolean array detected
+Final self.levels: [ 2.  4.  8. 10.]
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [ 2.  4.  8. 10.]
+Non-boolean array detected
+Final self.levels: [ 2.  4.  8. 10.]
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [ 2.  4.  8. 10.]
+Non-boolean array detected
+Final self.levels: [ 2.  4.  8. 10.]
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [ 2.  4.  8. 10.]
+Non-boolean array detected
+Final self.levels: [ 2.  4.  8. 10.]
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [ 2.  4.  8. 10.]
+Non-boolean array detected
+Final self.levels: [ 2.  4.  8. 10.]
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [ 2.  4.  8. 10.]
+Non-boolean array detected
+Final self.levels: [ 2.  4.  8. 10.]
+____________________________ test_corner_mask[png] _____________________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [-1.2 -0.8 -0.4  0.   0.4  0.8  1.2  1.6  2. ]
+Non-boolean array detected
+Final self.levels: [-1.2 -0.8 -0.4  0.   0.4  0.8  1.2  1.6  2. ]
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [-1.2 -0.8 -0.4  0.   0.4  0.8  1.2  1.6  2. ]
+Non-boolean array detected
+Final self.levels: [-1.2 -0.8 -0.4  0.   0.4  0.8  1.2  1.6  2. ]
+_______________________ test_contourf_symmetric_locator ________________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [-12.  -6.   0.   6.  12.]
+Non-boolean array detected
+Final self.levels: [-12.  -6.   0.   6.  12.]
+_______________________ test_contourf_log_extension[png] _______________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [1.e-08 1.e-06 1.e-04 1.e-02 1.e+00 1.e+02 1.e+04 1.e+06 1.e+08 1.e+10]
+Non-boolean array detected
+Final self.levels: [1.e-08 1.e-06 1.e-04 1.e-02 1.e+00 1.e+02 1.e+04 1.e+06 1.e+08 1.e+10]
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [1.e-04 1.e-03 1.e-02 1.e-01 1.e+00 1.e+01 1.e+02 1.e+03 1.e+04 1.e+05
+ 1.e+06]
+Non-boolean array detected
+Final self.levels: [1.e-04 1.e-03 1.e-02 1.e-01 1.e+00 1.e+01 1.e+02 1.e+03 1.e+04 1.e+05
+ 1.e+06]
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [1.e-04 1.e-03 1.e-02 1.e-01 1.e+00 1.e+01 1.e+02 1.e+03 1.e+04 1.e+05
+ 1.e+06]
+Non-boolean array detected
+Final self.levels: [1.e-04 1.e-03 1.e-02 1.e-01 1.e+00 1.e+01 1.e+02 1.e+03 1.e+04 1.e+05
+ 1.e+06]
+__________________________ test_contour_addlines[png] __________________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [    0.  1500.  3000.  4500.  6000.  7500.  9000. 10500. 12000.]
+Non-boolean array detected
+Final self.levels: [    0.  1500.  3000.  4500.  6000.  7500.  9000. 10500. 12000.]
+___________________________ test_contour_uneven[png] ___________________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [ 2.  4.  6. 10. 20.]
+Non-boolean array detected
+Final self.levels: [ 2.  4.  6. 10. 20.]
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [ 2.  4.  6. 10. 20.]
+Non-boolean array detected
+Final self.levels: [ 2.  4.  6. 10. 20.]
+_________________ test_contour_linewidth[1.23-None-None-1.23] __________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [ 0.   1.5  3.   4.5  6.   7.5  9.  10.5 12. ]
+Non-boolean array detected
+Final self.levels: [ 0.   1.5  3.   4.5  6.   7.5  9.  10.5 12. ]
+_________________ test_contour_linewidth[1.23-4.24-None-4.24] __________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [ 0.   1.5  3.   4.5  6.   7.5  9.  10.5 12. ]
+Non-boolean array detected
+Final self.levels: [ 0.   1.5  3.   4.5  6.   7.5  9.  10.5 12. ]
+_________________ test_contour_linewidth[1.23-4.24-5.02-5.02] __________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [ 0.   1.5  3.   4.5  6.   7.5  9.  10.5 12. ]
+Non-boolean array detected
+Final self.levels: [ 0.   1.5  3.   4.5  6.   7.5  9.  10.5 12. ]
+______________________________ test_label_nonagg _______________________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+Non-boolean array detected
+Final self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+______________________ test_contour_closed_line_loop[png] ______________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [0.5]
+Non-boolean array detected
+Final self.levels: [0.5]
+__________________________ test_find_nearest_contour ___________________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]
+Non-boolean array detected
+Final self.levels: [0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]
+_____________________ test_find_nearest_contour_no_filled ______________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]
+Non-boolean array detected
+Final self.levels: [0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]
+__________________ test_contour_autolabel_beyond_powerlimits ___________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [2.5e-06 1.0e-05 4.0e-05]
+Non-boolean array detected
+Final self.levels: [2.5e-06 1.0e-05 4.0e-05]
+________________________ test_contourf_legend_elements _________________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [10. 30. 50.]
+Non-boolean array detected
+Final self.levels: [10. 30. 50.]
+_________________________ test_contour_legend_elements _________________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [10. 30. 50.]
+Non-boolean array detected
+Final self.levels: [10. 30. 50.]
+_____________ test_algorithm_name[mpl2005-Mpl2005ContourGenerator] _____________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+Non-boolean array detected
+Final self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+_____________ test_algorithm_name[mpl2014-Mpl2014ContourGenerator] _____________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+Non-boolean array detected
+Final self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+______________ test_algorithm_name[serial-SerialContourGenerator] ______________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+Non-boolean array detected
+Final self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+____________ test_algorithm_name[threaded-ThreadedContourGenerator] ____________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+Non-boolean array detected
+Final self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+_________________ test_algorithm_supports_corner_mask[mpl2005] _________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+Non-boolean array detected
+Final self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+Non-boolean array detected
+Final self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+_________________ test_algorithm_supports_corner_mask[mpl2014] _________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+Non-boolean array detected
+Final self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+Non-boolean array detected
+Final self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+_________________ test_algorithm_supports_corner_mask[serial] __________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+Non-boolean array detected
+Final self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+Non-boolean array detected
+Final self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+________________ test_algorithm_supports_corner_mask[threaded] _________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+Non-boolean array detected
+Final self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+Input z dtype: float64
+Is bool input: False
+Initial self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+Non-boolean array detected
+Final self.levels: [0.8 1.2 1.6 2.  2.4 2.8 3.2 3.6 4. ]
+_____________________________ test_contour_remove ______________________________
+----------------------------- Captured stdout call -----------------------------
+Input z dtype: int64
+Is bool input: False
+Initial self.levels: [ 0.  2.  4.  6.  8. 10. 12. 14. 16.]
+Non-boolean array detected
+Final self.levels: [ 0.  2.  4.  6.  8. 10. 12. 14. 16.]
+=========================== short test summary info ============================
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args8-Input z must be at least a (2, 2) shaped array, but has shape (1, 1)]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_Nlevels
+PASSED lib/matplotlib/tests/test_contour.py::test_given_colors_levels_and_extends[png]
+PASSED lib/matplotlib/tests/test_contour.py::test_corner_mask[png]
+PASSED lib/matplotlib/tests/test_contour.py::test_contourf_decreasing_levels
+PASSED lib/matplotlib/tests/test_contour.py::test_contourf_symmetric_locator
+PASSED lib/matplotlib/tests/test_contour.py::test_contourf_log_extension[png]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_addlines[png]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_uneven[png]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_linewidth[1.23-None-None-1.23]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_linewidth[1.23-4.24-None-4.24]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_linewidth[1.23-4.24-5.02-5.02]
+PASSED lib/matplotlib/tests/test_contour.py::test_label_nonagg
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_closed_line_loop[png]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_manual[png]
+PASSED lib/matplotlib/tests/test_contour.py::test_find_nearest_contour
+PASSED lib/matplotlib/tests/test_contour.py::test_find_nearest_contour_no_filled
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_autolabel_beyond_powerlimits
+PASSED lib/matplotlib/tests/test_contour.py::test_contourf_legend_elements
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_legend_elements
+PASSED lib/matplotlib/tests/test_contour.py::test_algorithm_name[mpl2005-Mpl2005ContourGenerator]
+PASSED lib/matplotlib/tests/test_contour.py::test_algorithm_name[mpl2014-Mpl2014ContourGenerator]
+PASSED lib/matplotlib/tests/test_contour.py::test_algorithm_name[serial-SerialContourGenerator]
+PASSED lib/matplotlib/tests/test_contour.py::test_algorithm_name[threaded-ThreadedContourGenerator]
+PASSED lib/matplotlib/tests/test_contour.py::test_algorithm_name[invalid-None]
+PASSED lib/matplotlib/tests/test_contour.py::test_algorithm_supports_corner_mask[mpl2005]
+PASSED lib/matplotlib/tests/test_contour.py::test_algorithm_supports_corner_mask[mpl2014]
+PASSED lib/matplotlib/tests/test_contour.py::test_algorithm_supports_corner_mask[serial]
+PASSED lib/matplotlib/tests/test_contour.py::test_algorithm_supports_corner_mask[threaded]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_remove
+SKIPPED [1] ../opt/miniconda3/envs/testbed/lib/python3.11/contextlib.py:81: Cannot compare svg files because Inkscape is not installed
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_shape_1d_valid - At...
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_shape_2d_valid - At...
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args0-Length of x (9) must match number of columns in z (10)]
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args1-Length of y (10) must match number of rows in z (9)]
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args2-Number of dimensions of x (2) and y (1) do not match]
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args3-Number of dimensions of x (1) and y (2) do not match]
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args4-Shapes of x (9, 9) and z (9, 10) do not match]
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args5-Shapes of y (9, 9) and z (9, 10) do not match]
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args6-Inputs x and y must be 1D or 2D, not 3D]
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args7-Input z must be 2D, not 3D]
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args9-Input z must be at least a (2, 2) shaped array, but has shape (1, 1)]
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_empty_levels - Fail...
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_badlevel_fmt - Fail...
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_uniform_z - Failed:...
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_manual_labels[png]
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_manual_labels[pdf]
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_datetime_axis[png]
+FAILED lib/matplotlib/tests/test_contour.py::test_labels[png] - AttributeErro...
+FAILED lib/matplotlib/tests/test_contour.py::test_circular_contour_warning - ...
+FAILED lib/matplotlib/tests/test_contour.py::test_clabel_zorder[True-123-1234]
+FAILED lib/matplotlib/tests/test_contour.py::test_clabel_zorder[False-123-1234]
+FAILED lib/matplotlib/tests/test_contour.py::test_clabel_zorder[True-123-None]
+FAILED lib/matplotlib/tests/test_contour.py::test_clabel_zorder[False-123-None]
+FAILED lib/matplotlib/tests/test_contour.py::test_quadcontourset_reuse - Attr...
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_line_start_on_corner_edge[png]
+FAILED lib/matplotlib/tests/test_contour.py::test_all_algorithms[png] - Attri...
+FAILED lib/matplotlib/tests/test_contour.py::test_subfigure_clabel - Attribut...
+FAILED lib/matplotlib/tests/test_contour.py::test_linestyles[solid] - Attribu...
+FAILED lib/matplotlib/tests/test_contour.py::test_linestyles[dashed] - Attrib...
+FAILED lib/matplotlib/tests/test_contour.py::test_linestyles[dashdot] - Attri...
+FAILED lib/matplotlib/tests/test_contour.py::test_linestyles[dotted] - Attrib...
+FAILED lib/matplotlib/tests/test_contour.py::test_negative_linestyles[solid]
+FAILED lib/matplotlib/tests/test_contour.py::test_negative_linestyles[dashed]
+FAILED lib/matplotlib/tests/test_contour.py::test_negative_linestyles[dashdot]
+FAILED lib/matplotlib/tests/test_contour.py::test_negative_linestyles[dotted]
+FAILED lib/matplotlib/tests/test_contour.py::test_bool_autolevel - AttributeE...
+================== 36 failed, 30 passed, 1 skipped in 21.72s ===================
++ git checkout 6091437be9776139d3672cde28a19cbe6c09dcd5 lib/matplotlib/tests/test_contour.py
+Updated 1 path from 929483e4d4

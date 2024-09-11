@@ -1,0 +1,35 @@
+{
+    "django__django-16527": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "test_submit_row_save_as_new_add_permission_required (admin_views.test_templatetags.AdminTemplateTagsTest.test_submit_row_save_as_new_add_permission_required)"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_choice_links (admin_views.test_templatetags.DateHierarchyTests.test_choice_links)",
+                    "test_choice_links_datetime (admin_views.test_templatetags.DateHierarchyTests.test_choice_links_datetime)",
+                    "admin_modify template tags follow the standard search pattern",
+                    "admin_list template tags follow the standard search pattern",
+                    "test_override_show_save_and_add_another (admin_views.test_templatetags.AdminTemplateTagsTest.test_override_show_save_and_add_another)",
+                    "submit_row template tag should pass whole context."
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

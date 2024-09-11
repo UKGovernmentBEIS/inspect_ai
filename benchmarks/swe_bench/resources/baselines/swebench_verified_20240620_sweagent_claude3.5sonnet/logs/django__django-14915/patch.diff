@@ -1,0 +1,38 @@
+
+diff --git a/django/forms/models.py b/django/forms/models.py
+index 5dcf923c12..bc7e6959e7 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -1171,6 +1171,9 @@ class ModelChoiceIteratorValue:
+             other = other.value
+         return self.value == other
+ 
++    def __hash__(self):
++        return hash(self.value)
++
+ 
+ class ModelChoiceIterator:
+     def __init__(self, field):
+diff --git a/tests/test_model_choice_iterator_value.py b/tests/test_model_choice_iterator_value.py
+new file mode 100644
+index 0000000000..a3a200f55e
+--- /dev/null
++++ b/tests/test_model_choice_iterator_value.py
+@@ -0,0 +1,17 @@
++import unittest
++from django.forms.models import ModelChoiceIteratorValue
++
++class TestModelChoiceIteratorValue(unittest.TestCase):
++    def test_hashable(self):
++        value = ModelChoiceIteratorValue(1, "test_instance")
++        try:
++            hash(value)
++            # If we can hash it, we can add it to a set
++            test_set = {value}
++            self.assertEqual(len(test_set), 1)
++            print("ModelChoiceIteratorValue is hashable")
++        except TypeError:
++            self.fail("ModelChoiceIteratorValue is not hashable")
++
++if __name__ == '__main__':
++    unittest.main()

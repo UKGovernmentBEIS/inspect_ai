@@ -1,0 +1,57 @@
+
+diff --git a/src/_pytest/runner.py b/src/_pytest/runner.py
+index e7211369c..301b7b482 100644
+--- a/src/_pytest/runner.py
++++ b/src/_pytest/runner.py
+@@ -101,8 +101,16 @@ def runtestprotocol(item, log=True, nextitem=None):
+         if item.config.getoption("setupshow", False):
+             show_test_item(item)
+         if not item.config.getoption("setuponly", False):
+-            reports.append(call_and_report(item, "call", log))
+-    reports.append(call_and_report(item, "teardown", log, nextitem=nextitem))
++            call_rep = call_and_report(item, "call", log)
++            reports.append(call_rep)
++            if call_rep.skipped:
++                item._skipped = True
++            if not call_rep.skipped:
++                reports.append(call_and_report(item, "teardown", log, nextitem=nextitem))
++    elif rep.skipped:
++        item._skipped = True
++    else:
++        reports.append(call_and_report(item, "teardown", log, nextitem=nextitem))
+     # after all teardown hooks have been called
+     # want funcargs and request info to go away
+     if hasrequest:
+@@ -358,9 +366,12 @@ class SetupState:
+ 
+     def teardown_all(self):
+         while self.stack:
+-            self._pop_and_teardown()
++            colitem = self.stack.pop()
++            if not hasattr(colitem, '_skipped') or not colitem._skipped:
++                self._teardown_with_finalization(colitem)
+         for key in list(self._finalizers):
+-            self._teardown_with_finalization(key)
++            if not hasattr(key, '_skipped') or not key._skipped:
++                self._teardown_with_finalization(key)
+         assert not self._finalizers
+ 
+     def teardown_exact(self, item, nextitem):
+diff --git a/test_repro.py b/test_repro.py
+new file mode 100644
+index 000000000..ac46789c5
+--- /dev/null
++++ b/test_repro.py
+@@ -0,0 +1,12 @@
++import unittest
++
++class MyTestCase(unittest.TestCase):
++    def setUp(self):
++        # Intentional error to demonstrate the issue
++        raise NameError("xxx")
++    @unittest.skip("hello")
++    def test_one(self):
++        pass
++    def tearDown(self):
++        # Intentional error to demonstrate the issue
++        raise NameError("xxx")

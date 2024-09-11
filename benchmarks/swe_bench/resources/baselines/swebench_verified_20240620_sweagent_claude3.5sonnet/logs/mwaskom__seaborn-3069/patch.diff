@@ -1,0 +1,158 @@
+
+diff --git a/nominal_scale_test.png b/nominal_scale_test.png
+new file mode 100644
+index 00000000..ce0cda3d
+Binary files /dev/null and b/nominal_scale_test.png differ
+diff --git a/seaborn/_core/scales.py b/seaborn/_core/scales.py
+index bbd71ec1..100780bb 100644
+--- a/seaborn/_core/scales.py
++++ b/seaborn/_core/scales.py
+@@ -136,15 +136,12 @@ class Scale:
+ 
+ @dataclass
+ class Nominal(Scale):
+-    """
+-    A categorical scale without relative importance / magnitude.
+-    """
+-    # Categorical (convert to strings), un-sortable
++    """Map discrete values to positions along an axis."""
++    _priority = 10
+ 
+-    values: tuple | str | list | dict | None = None
+-    order: list | None = None
+-
+-    _priority: ClassVar[int] = 3
++    def __init__(self, order=None):
++        self.order = order
++        super().__init__()
+ 
+     def _setup(
+         self, data: Series, prop: Property, axis: Axis | None = None,
+@@ -156,44 +153,63 @@ class Nominal(Scale):
+         if new._label_params is None:
+             new = new.label()
+ 
+-        # TODO flexibility over format() which isn't great for numbers / dates
+         stringify = np.vectorize(format)
+ 
+         units_seed = categorical_order(data, new.order)
+ 
+-        # TODO move to Nominal._get_scale?
+-        # TODO this needs some more complicated rethinking about how to pass
+-        # a unit dictionary down to these methods, along with how much we want
+-        # to invest in their API. What is it useful for tick() to do here?
+-        # (Ordinal may be different if we draw that contrast).
+-        # Any customization we do to allow, e.g., label wrapping will probably
+-        # require defining our own Formatter subclass.
+-        # We could also potentially implement auto-wrapping in an Axis subclass
+-        # (see Axis.draw ... it already is computing the bboxes).
+-        # major_locator, minor_locator = new._get_locators(**new._tick_params)
+-        # major_formatter = new._get_formatter(major_locator, **new._label_params)
+-
+         class CatScale(mpl.scale.LinearScale):
+             name = None  # To work around mpl<3.4 compat issues
+ 
+             def set_default_locators_and_formatters(self, axis):
+-                ...
+-                # axis.set_major_locator(major_locator)
+-                # if minor_locator is not None:
+-                #     axis.set_minor_locator(minor_locator)
+-                # axis.set_major_formatter(major_formatter)
++                axis.set_major_locator(FixedLocator(range(len(units_seed))))
++                axis.set_major_formatter(StrMethodFormatter("{x:g}"))
++                axis.set_tick_params(which='minor', bottom=False, top=False, left=False, right=False)
++                axis.set_tick_params(which='major', bottom=True, top=False, left=True, right=False)
++
++            def get_transform(self):
++                return self.TransformWrapper(mpl.transforms.Affine2D().scale(1, 1))
++
++            def set_view_interval(self, vmin, vmax):
++                super().set_view_interval(-0.5, len(units_seed) - 0.5)
+ 
+         mpl_scale = CatScale(data.name)
+         if axis is None:
+             axis = PseudoAxis(mpl_scale)
+ 
+-            # TODO Currently just used in non-Coordinate contexts, but should
+-            # we use this to (A) set the padding we want for categorial plots
+-            # and (B) allow the values parameter for a Coordinate to set xlim/ylim
+-            axis.set_view_interval(0, len(units_seed) - 1)
++        # Set the view interval to include the padding
++        axis.set_view_interval(-0.5, len(units_seed) - 0.5)
++
++        # Disable grid
++        axis.grid(False)
++
++        # Invert y-axis if necessary
++        if isinstance(axis, mpl.axis.YAxis):
++            axis.invert_axis()
+ 
+         new._matplotlib_scale = mpl_scale
+ 
++        axis.update_units(stringify(np.array(units_seed)))
++
++        def convert_units(x):
++            keep = np.array([x_ in units_seed for x_ in x], bool)
++            out = np.full(len(x), np.nan)
++            out[keep] = axis.convert_units(stringify(x[keep]))
++            return out
++
++        new._pipeline = [
++            convert_units,
++            prop.get_mapping(new, data),
++        ]
++
++        return new
++
++        new._pipeline = [
++            convert_units,
++            prop.get_mapping(new, data),
++        ]
++
++        return new
++
+         # TODO array cast necessary to handle float/int mixture, which we need
+         # to solve in a more systematic way probably
+         # (i.e. if we have [1, 2.5], do we want [1.0, 2.5]? Unclear)
+diff --git a/test_nominal_scale.py b/test_nominal_scale.py
+new file mode 100644
+index 00000000..5e22b508
+--- /dev/null
++++ b/test_nominal_scale.py
+@@ -0,0 +1,36 @@
++import seaborn as sns
++import matplotlib.pyplot as plt
++import pandas as pd
++
++# Create sample data
++data = pd.DataFrame({
++    'category': ['A', 'B', 'C', 'D', 'E'],
++    'value': [1, 2, 3, 4, 5]
++})
++
++# Create a figure with two subplots
++fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
++
++# Plot with Nominal scale on x-axis
++sns.scatterplot(data=data, x='category', y='value', ax=ax1)
++ax1.set_title('Nominal Scale on X-axis')
++ax1.set_xlim(-0.5, len(data['category']) - 0.5)
++
++# Plot with Nominal scale on y-axis
++sns.scatterplot(data=data, y='category', x='value', ax=ax2)
++ax2.set_title('Nominal Scale on Y-axis')
++ax2.set_ylim(len(data['category']) - 0.5, -0.5)
++
++# Print information about the axes
++print("X-axis limits (first plot):", ax1.get_xlim())
++print("Y-axis limits (second plot):", ax2.get_ylim())
++print("Grid lines visible (first plot):", ax1.xaxis.get_gridlines()[0].get_visible())
++print("Grid lines visible (second plot):", ax2.yaxis.get_gridlines()[0].get_visible())
++print("Y-axis inverted (second plot):", ax2.yaxis.get_inverted())
++
++# Adjust layout and save the figure
++plt.tight_layout()
++plt.savefig('nominal_scale_test.png')
++plt.close()
++
++print("Test completed. Check 'nominal_scale_test.png' for results.")

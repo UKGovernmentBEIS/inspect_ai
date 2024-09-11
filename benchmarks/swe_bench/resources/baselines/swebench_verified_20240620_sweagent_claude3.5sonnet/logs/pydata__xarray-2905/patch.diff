@@ -1,0 +1,56 @@
+
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 00000000..2f3b313c
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,15 @@
++import xarray as xr
++
++good_indexed, bad_indexed = xr.DataArray([None]), xr.DataArray([None])
++
++class HasValues(object):
++    values = 5
++    
++good_indexed.loc[{'dim_0': 0}] = set()
++bad_indexed.loc[{'dim_0': 0}] = HasValues()
++
++print("good_indexed.values:", good_indexed.values)
++print("bad_indexed.values:", bad_indexed.values)
++print("Type of bad_indexed.values[0]:", type(bad_indexed.values[0]))
++
++print("Script completed successfully, no errors.")
+diff --git a/xarray/core/variable.py b/xarray/core/variable.py
+index 45553eb9..49f28f0f 100644
+--- a/xarray/core/variable.py
++++ b/xarray/core/variable.py
+@@ -218,8 +218,10 @@ def as_compatible_data(data, fastpath=False):
+         data = np.timedelta64(getattr(data, "value", data), "ns")
+ 
+     # we don't want nested self-described arrays
+-    data = getattr(data, "values", data)
+-
++    # Only extract 'values' from pandas and xarray objects to avoid
++    # unintended data loss from other objects with a 'values' attribute
++    if isinstance(data, (pd.Series, pd.DataFrame, xr.DataArray, xr.Dataset)):
++        data = getattr(data, "values", data)
+     if isinstance(data, np.ma.MaskedArray):
+         mask = np.ma.getmaskarray(data)
+         if mask.any():
+diff --git a/xarray/tests/test_variable.py b/xarray/tests/test_variable.py
+index e1ae3e1f..3de669a9 100644
+--- a/xarray/tests/test_variable.py
++++ b/xarray/tests/test_variable.py
+@@ -2310,9 +2310,10 @@ class TestAsCompatibleData:
+ 
+ 
+ def test_raise_no_warning_for_nan_in_binary_ops():
+-    with pytest.warns(None) as record:
++    import warnings
++    with warnings.catch_warnings():
++        warnings.simplefilter("error")
+         Variable("x", [1, 2, np.NaN]) > 0
+-    assert len(record) == 0
+ 
+ 
+ class TestBackendIndexing:

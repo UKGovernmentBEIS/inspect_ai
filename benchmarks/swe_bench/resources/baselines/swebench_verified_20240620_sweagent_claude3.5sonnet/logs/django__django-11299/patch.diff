@@ -1,0 +1,65 @@
+
+diff --git a/django/db/backends/base/schema.py b/django/db/backends/base/schema.py
+index 1280666924..ed5286cc28 100644
+--- a/django/db/backends/base/schema.py
++++ b/django/db/backends/base/schema.py
+@@ -62,7 +62,7 @@ class BaseDatabaseSchemaEditor:
+     sql_update_with_default = "UPDATE %(table)s SET %(column)s = %(default)s WHERE %(column)s IS NULL"
+ 
+     sql_unique_constraint = "UNIQUE (%(columns)s)"
+-    sql_check_constraint = "CHECK (%(check)s)"
++    sql_check_constraint = "CHECK (%(check)s)"  # TODO: Ensure 'check' doesn't include table name
+     sql_delete_constraint = "ALTER TABLE %(table)s DROP CONSTRAINT %(name)s"
+     sql_constraint = "CONSTRAINT %(name)s %(constraint)s"
+ 
+diff --git a/django/db/models/constraints.py b/django/db/models/constraints.py
+index e7f81d3ee9..e04d4a051e 100644
+--- a/django/db/models/constraints.py
++++ b/django/db/models/constraints.py
+@@ -37,6 +37,9 @@ class CheckConstraint(BaseConstraint):
+         where = query.build_where(self.check)
+         compiler = query.get_compiler(connection=schema_editor.connection)
+         sql, params = where.as_sql(compiler, schema_editor.connection)
++        # Remove only the table name qualifier to avoid issues with table renaming
++        table_name = model._meta.db_table
++        sql = sql.replace(f'"{table_name}".', '')
+         return sql % tuple(schema_editor.quote_value(p) for p in params)
+ 
+     def constraint_sql(self, model, schema_editor):
+diff --git a/tests/constraints/tests.py b/tests/constraints/tests.py
+index b7aeb1e7f0..0e9c0d312c 100644
+--- a/tests/constraints/tests.py
++++ b/tests/constraints/tests.py
+@@ -79,6 +79,32 @@ class CheckConstraintTests(TestCase):
+         expected_name = 'price_gt_discounted_price'
+         self.assertIn(expected_name, constraints)
+ 
++    @skipUnlessDBFeature('supports_table_check_constraints')
++    def test_check_constraint_with_or(self):
++        class TestModel(models.Model):
++            field_1 = models.IntegerField(null=True)
++            flag = models.BooleanField()
++
++            class Meta:
++                constraints = [
++                    models.CheckConstraint(
++                        check=models.Q(flag=True, field_1__isnull=False) | models.Q(flag=False),
++                        name='field_1_has_value_if_flag_set'
++                    ),
++                ]
++
++        # This should not raise any exception
++        TestModel.objects.create(field_1=1, flag=True)
++        TestModel.objects.create(field_1=None, flag=False)
++
++        # This should raise an IntegrityError
++        with self.assertRaises(IntegrityError):
++            TestModel.objects.create(field_1=None, flag=True)
++
++        # Check if the constraint is properly created in the database
++        constraints = get_constraints(TestModel._meta.db_table)
++        self.assertIn('field_1_has_value_if_flag_set', constraints)
++
+ 
+ class UniqueConstraintTests(TestCase):
+     @classmethod

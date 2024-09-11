@@ -1,0 +1,43 @@
+{
+    "sympy__sympy-15017": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "test_ndim_array_initiation"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_reshape",
+                    "test_iterator",
+                    "test_sparse",
+                    "test_calculation",
+                    "test_ndim_array_converting",
+                    "test_converting_functions",
+                    "test_equality",
+                    "test_arithmetic",
+                    "test_higher_dimenions",
+                    "test_rebuild_immutable_arrays",
+                    "test_slices",
+                    "test_diff_and_applyfunc",
+                    "test_op_priority",
+                    "test_symbolic_indexing"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

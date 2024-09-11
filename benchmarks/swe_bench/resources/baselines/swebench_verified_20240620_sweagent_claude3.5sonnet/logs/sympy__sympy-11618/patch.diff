@@ -1,0 +1,34 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..660ef90227
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,9 @@
++from sympy.geometry import Point
++
++p1 = Point(2, 0)
++p2 = Point(1, 0, 2)
++
++distance = p1.distance(p2)
++print(f"Calculated distance: {distance}")
++print(f"Expected distance: {(5**0.5)}")
++print(f"Are they equal? {abs(distance - (5**0.5)) < 1e-10}")
+diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
+index 593048464b..ac07ae6265 100644
+--- a/sympy/geometry/point.py
++++ b/sympy/geometry/point.py
+@@ -266,8 +266,11 @@ def distance(self, p):
+         sqrt(x**2 + y**2)
+ 
+         """
+-        return sqrt(sum([(a - b)**2 for a, b in zip(
+-            self.args, p.args if isinstance(p, Point) else p)]))
++        max_dim = max(len(self.args), len(p.args) if isinstance(p, Point) else len(p))
++        p_coords = p.args if isinstance(p, Point) else p
++        self_coords = list(self.args) + [0] * (max_dim - len(self.args))
++        p_coords = list(p_coords) + [0] * (max_dim - len(p_coords))
++        return sqrt(sum((a - b)**2 for a, b in zip(self_coords, p_coords)))
+ 
+     def taxicab_distance(self, p):
+         """The Taxicab Distance from self to point p.

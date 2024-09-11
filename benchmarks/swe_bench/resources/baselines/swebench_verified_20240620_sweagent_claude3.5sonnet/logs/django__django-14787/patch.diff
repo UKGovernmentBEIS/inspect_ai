@@ -1,0 +1,45 @@
+
+diff --git a/django/utils/decorators.py b/django/utils/decorators.py
+index 5c9a5d01c7..7cfca05604 100644
+--- a/django/utils/decorators.py
++++ b/django/utils/decorators.py
+@@ -38,6 +38,7 @@ def _multi_decorate(decorators, method):
+         # 'func'. Also, wrap method.__get__() in a function because new
+         # attributes can't be set on bound method objects, only on functions.
+         bound_method = partial(method.__get__(self, type(self)))
++        bound_method.__name__ = method.__name__  # Preserve the original method name
+         for dec in decorators:
+             bound_method = dec(bound_method)
+         return bound_method(*args, **kwargs)
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..db824b6c1d
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,26 @@
++from django.utils.decorators import method_decorator
++from functools import wraps
++import logging
++
++logging.basicConfig(level=logging.DEBUG)
++logger = logging.getLogger(__name__)
++
++def logger_decorator(func):
++    @wraps(func)
++    def inner(*args, **kwargs):
++        try:
++            result = func(*args, **kwargs)
++        except Exception as e:
++            result = str(e)
++        finally:
++            logger.debug(f"{func.__name__} called with args: {args} and kwargs: {kwargs} resulting: {result}")
++        return result
++    return inner
++
++class Test:
++    @method_decorator(logger_decorator)
++    def hello_world(self):
++        return "hello"
++
++Test().hello_world()
++print("Script completed successfully, no errors.")

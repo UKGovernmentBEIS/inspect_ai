@@ -1,0 +1,3108 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh
++++ '[' -n '' ']'
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh
++++ '[' -n /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh
++++ '[' -n '' ']'
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/gdal ']'
++++ export GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ export GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ '[' '!' -d /opt/miniconda3/envs/testbed/lib/gdalplugins ']'
++++ export CPL_ZIP_ENCODING=UTF-8
++++ CPL_ZIP_ENCODING=UTF-8
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/epsg_csv ']'
++++ '[' -d /opt/miniconda3/envs/testbed/Library/share/epsg_csv ']'
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/proj ']'
++++ export PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ '[' -f /opt/miniconda3/envs/testbed/share/proj/copyright_and_licenses.csv ']'
++++ export PROJ_NETWORK=ON
++++ PROJ_NETWORK=ON
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/udunits ']'
++++ export UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++++ UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   xarray/core/computation.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_polyval_issue.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 6bb2b855498b5c68d7cca8cceb710365d58e6048
+Author: Brewster Malevich <bmalevich@rhg.com>
+Date:   Wed May 11 15:06:06 2022 -0700
+
+    Minor Dataset.map docstr clarification (#6595)
+    
+    The summary line in the docstr for `Dataset.map()` says that it operates on variables in the dataset. This is a very minor update clarifying that it operates on *data* variables, as opposed to all variables (data + coord) in the Dataset.
+
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index d255cfac..b73cd797 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -5308,7 +5308,7 @@ class Dataset(DataWithCoords, DatasetReductions, DatasetArithmetic, Mapping):
+         args: Iterable[Any] = (),
+         **kwargs: Any,
+     ) -> Dataset:
+-        """Apply a function to each variable in this dataset
++        """Apply a function to each data variable in this dataset
+ 
+         Parameters
+         ----------
++ git diff 6bb2b855498b5c68d7cca8cceb710365d58e6048
+diff --git a/xarray/core/computation.py b/xarray/core/computation.py
+index 823cbe02..48253037 100644
+--- a/xarray/core/computation.py
++++ b/xarray/core/computation.py
+@@ -1893,6 +1893,10 @@ def polyval(
+     numpy.polynomial.polynomial.polyval
+     """
+ 
++    if degree_dim not in coeffs._indexes:
++        raise ValueError(
++            f"Dimension `{degree_dim}` should be a coordinate variable with labels."
++        )
+     if degree_dim not in coeffs._indexes:
+         raise ValueError(
+             f"Dimension `{degree_dim}` should be a coordinate variable with labels."
+@@ -1907,12 +1911,17 @@ def polyval(
+     )
+     coord = _ensure_numeric(coord)  # type: ignore # https://github.com/python/mypy/issues/1533 ?
+ 
++    print(f"Debug: coord dtype: {coord.dtype}")
++    print(f"Debug: coeffs dtype: {coeffs.dtype}")
++    print(f"Debug: max_deg: {max_deg}")
++
+     # using Horner's method
+     # https://en.wikipedia.org/wiki/Horner%27s_method
+     res = coeffs.isel({degree_dim: max_deg}, drop=True) + zeros_like(coord)
+     for deg in range(max_deg - 1, -1, -1):
+         res *= coord
+         res += coeffs.isel({degree_dim: deg}, drop=True)
++        print(f"Debug: deg: {deg}, res: {res}")
+ 
+     return res
+ 
+@@ -1933,12 +1942,16 @@ def _ensure_numeric(data: T_Xarray) -> T_Xarray:
+     from .dataset import Dataset
+ 
+     def to_floatable(x: DataArray) -> DataArray:
+-        if x.dtype.kind in "mM":
++        if x.dtype.kind == 'm':  # timedelta
++            return x.copy(
++                data=(x.data.astype('timedelta64[s]').astype('float64'))
++            )
++        elif x.dtype.kind == 'M':  # datetime
+             return x.copy(
+                 data=datetime_to_numeric(
+                     x.data,
+                     offset=np.datetime64("1970-01-01"),
+-                    datetime_unit="ns",
++                    datetime_unit="s",
+                 ),
+             )
+         return x
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/udunits2-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/proj4-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/geotiff-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/gdal-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmpy-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmf-deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval '. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/udunits2-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/proj4-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/geotiff-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/gdal-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmpy-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmf-deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/udunits2-deactivate.sh
+++++ unset UDUNITS2_XML_PATH
+++++ '[' -n '' ']'
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/proj4-deactivate.sh
+++++ unset PROJ_DATA
+++++ unset PROJ_NETWORK
+++++ '[' -n '' ']'
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh
+++++ test -n ''
+++++ unset XML_CATALOG_FILES
+++++ unset xml_catalog_files_libxml2
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh
+++++ export GSETTINGS_SCHEMA_DIR=
+++++ GSETTINGS_SCHEMA_DIR=
+++++ unset GSETTINGS_SCHEMA_DIR_CONDA_BACKUP
+++++ '[' -z ']'
+++++ unset GSETTINGS_SCHEMA_DIR
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/geotiff-deactivate.sh
+++++ unset GEOTIFF_CSV
+++++ '[' -n '' ']'
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/gdal-deactivate.sh
+++++ unset GDAL_DATA
+++++ '[' -n '' ']'
+++++ unset GDAL_DRIVER_PATH
+++++ '[' -n '' ']'
+++++ unset CPL_ZIP_ENCODING
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmpy-deactivate.sh
+++++ unset ESMFMKFILE
+++++ '[' -n /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
+++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++++ unset _CONDA_SET_ESMFMKFILE
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmf-deactivate.sh
+++++ unset ESMFMKFILE
+++++ '[' -n '' ']'
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh
++++ '[' -n '' ']'
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh
++++ '[' -n /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh
++++ '[' -n '' ']'
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/gdal ']'
++++ export GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ export GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ '[' '!' -d /opt/miniconda3/envs/testbed/lib/gdalplugins ']'
++++ export CPL_ZIP_ENCODING=UTF-8
++++ CPL_ZIP_ENCODING=UTF-8
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/epsg_csv ']'
++++ '[' -d /opt/miniconda3/envs/testbed/Library/share/epsg_csv ']'
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/proj ']'
++++ export PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ '[' -f /opt/miniconda3/envs/testbed/share/proj/copyright_and_licenses.csv ']'
++++ export PROJ_NETWORK=ON
++++ PROJ_NETWORK=ON
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/udunits ']'
++++ export UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++++ UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: numpy>=1.19 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from xarray==2022.3.1.dev102+g6bb2b855.d20240725) (1.23.0)
+Requirement already satisfied: pandas>=1.2 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from xarray==2022.3.1.dev102+g6bb2b855.d20240725) (1.5.3)
+Requirement already satisfied: packaging>=20.0 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from xarray==2022.3.1.dev102+g6bb2b855.d20240725) (23.1)
+Requirement already satisfied: python-dateutil>=2.8.1 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from pandas>=1.2->xarray==2022.3.1.dev102+g6bb2b855.d20240725) (2.8.2)
+Requirement already satisfied: pytz>=2020.1 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from pandas>=1.2->xarray==2022.3.1.dev102+g6bb2b855.d20240725) (2023.3)
+Requirement already satisfied: six>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from python-dateutil>=2.8.1->pandas>=1.2->xarray==2022.3.1.dev102+g6bb2b855.d20240725) (1.16.0)
+Building wheels for collected packages: xarray
+  Building editable for xarray (pyproject.toml): started
+  Building editable for xarray (pyproject.toml): finished with status 'done'
+  Created wheel for xarray: filename=xarray-2022.3.1.dev102+g6bb2b855.d20240725-0.editable-py3-none-any.whl size=9131 sha256=93e48f8299e60c4ada5cbabfe96139922ffce32742b7fe8992f8bf8072895132
+  Stored in directory: /tmp/pip-ephem-wheel-cache-r6lmzboo/wheels/0d/a6/cb/465a7b303d624cc531250fa27c75d038ddc29430bdb6ba7c9f
+Successfully built xarray
+Installing collected packages: xarray
+  Attempting uninstall: xarray
+    Found existing installation: xarray 2022.3.1.dev102+g6bb2b855
+    Uninstalling xarray-2022.3.1.dev102+g6bb2b855:
+      Successfully uninstalled xarray-2022.3.1.dev102+g6bb2b855
+Successfully installed xarray-2022.3.1.dev102+g6bb2b855.d20240725
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 6bb2b855498b5c68d7cca8cceb710365d58e6048 xarray/tests/test_computation.py
+Updated 0 paths from 95cfcf19
++ git apply -v -
+Checking patch xarray/tests/test_computation.py...
+Applied patch xarray/tests/test_computation.py cleanly.
++ pytest -rA xarray/tests/test_computation.py
+============================= test session starts ==============================
+platform linux -- Python 3.10.14, pytest-7.4.0, pluggy-1.5.0
+rootdir: /testbed
+configfile: setup.cfg
+plugins: hypothesis-6.108.4, cov-5.0.0, env-1.1.3, xdist-3.6.1
+collected 266 items
+
+xarray/tests/test_computation.py ....................................... [ 14%]
+.................................................s...................... [ 41%]
+........................................................................ [ 68%]
+.................................................F.F.F.F.FFFFFFFFFFF.... [ 95%]
+...........                                                              [100%]
+
+=================================== FAILURES ===================================
+__________________________ test_polyval[simple-True] ___________________________
+
+use_dask = True
+x = <xarray.DataArray (x: 3)>
+dask.array<xarray-<this-array>, shape=(3,), dtype=int64, chunksize=(2,), chunktype=numpy.ndarray>
+Dimensions without coordinates: x
+coeffs = <xarray.DataArray (degree: 3)>
+dask.array<xarray-<this-array>, shape=(3,), dtype=int64, chunksize=(2,), chunktype=numpy.ndarray>
+Coordinates:
+  * degree   (degree) int64 0 1 2
+expected = <xarray.DataArray (x: 3)>
+array([ 9, 24, 47])
+Dimensions without coordinates: x
+
+    @pytest.mark.parametrize("use_dask", [False, True])
+    @pytest.mark.parametrize(
+        ["x", "coeffs", "expected"],
+        [
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([2, 3, 4], dims="degree", coords={"degree": [0, 1, 2]}),
+                xr.DataArray([9, 2 + 6 + 16, 2 + 9 + 36], dims="x"),
+                id="simple",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [0, 1]], dims=("y", "degree"), coords={"degree": [0, 1]}
+                ),
+                xr.DataArray([[1, 2, 3], [1, 2, 3]], dims=("y", "x")),
+                id="broadcast-x",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [1, 0], [1, 1]],
+                    dims=("x", "degree"),
+                    coords={"degree": [0, 1]},
+                ),
+                xr.DataArray([1, 1, 1 + 3], dims="x"),
+                id="shared-dim",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([1, 0, 0], dims="degree", coords={"degree": [2, 1, 0]}),
+                xr.DataArray([1, 2**2, 3**2], dims="x"),
+                id="reordered-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([5], dims="degree", coords={"degree": [3]}),
+                xr.DataArray([5, 5 * 2**3, 5 * 3**3], dims="x"),
+                id="sparse-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 0])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [1, 1, 1])}),
+                id="array-dataset",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [2, 3, 4])}),
+                xr.DataArray([1, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.Dataset({"a": ("x", [2, 3, 4]), "b": ("x", [3, 4, 5])}),
+                id="dataset-array",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [2, 3, 4])}),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 1])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [3, 4, 5])}),
+                id="dataset-dataset",
+            ),
+            pytest.param(
+                xr.DataArray(pd.date_range("1970-01-01", freq="s", periods=3), dims="x"),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray(
+                    [0, 1e9, 2e9],
+                    dims="x",
+                    coords={"x": pd.date_range("1970-01-01", freq="s", periods=3)},
+                ),
+                id="datetime",
+            ),
+            pytest.param(
+                xr.DataArray(
+                    np.array([1000, 2000, 3000], dtype="timedelta64[ns]"), dims="x"
+                ),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray([1000.0, 2000.0, 3000.0], dims="x"),
+                id="timedelta",
+            ),
+        ],
+    )
+    def test_polyval(
+        use_dask: bool,
+        x: xr.DataArray | xr.Dataset,
+        coeffs: xr.DataArray | xr.Dataset,
+        expected: xr.DataArray | xr.Dataset,
+    ) -> None:
+        if use_dask:
+            if not has_dask:
+                pytest.skip("requires dask")
+            coeffs = coeffs.chunk({"degree": 2})
+            x = x.chunk({"x": 2})
+        with raise_if_dask_computes():
+>           actual = xr.polyval(coord=x, coeffs=coeffs)  # type: ignore
+
+/testbed/xarray/tests/test_computation.py:2035: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/testbed/xarray/core/computation.py:1924: in polyval
+    print(f"Debug: deg: {deg}, res: {res}")
+/testbed/xarray/core/common.py:163: in __format__
+    return self.values.__format__(format_spec)
+/testbed/xarray/core/dataarray.py:673: in values
+    return self.variable.values
+/testbed/xarray/core/variable.py:510: in values
+    return _as_array_or_item(self._data)
+/testbed/xarray/core/variable.py:250: in _as_array_or_item
+    data = np.asarray(data)
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/array/core.py:1694: in __array__
+    x = self.compute()
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/base.py:315: in compute
+    (result,) = compute(self, traverse=False, **kwargs)
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/base.py:600: in compute
+    results = schedule(dsk, keys, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <xarray.tests.CountingScheduler object at 0x7f0dd9c45ab0>
+dsk = {('add-aeaac20770a3e17e9f706ac3b8bbdbb2', 0): (subgraph_callable-3d748938-706d-475a-be75-addc38b8bae0, ('getitem-24c38...): (<function getitem at 0x7f0e08112cb0>, ('xarray-<this-array>-2492db6966388f8681642fccacae430a', 1), (0, None)), ...}
+keys = [[('add-aeaac20770a3e17e9f706ac3b8bbdbb2', 0), ('add-aeaac20770a3e17e9f706ac3b8bbdbb2', 1)]]
+kwargs = {}
+
+    def __call__(self, dsk, keys, **kwargs):
+        self.total_computes += 1
+        if self.total_computes > self.max_computes:
+>           raise RuntimeError(
+                "Too many computes. Total: %d > max: %d."
+                % (self.total_computes, self.max_computes)
+            )
+E           RuntimeError: Too many computes. Total: 1 > max: 0.
+
+/testbed/xarray/tests/__init__.py:109: RuntimeError
+----------------------------- Captured stdout call -----------------------------
+Debug: coord dtype: int64
+Debug: coeffs dtype: int64
+Debug: max_deg: 2
+________________________ test_polyval[broadcast-x-True] ________________________
+
+use_dask = True
+x = <xarray.DataArray (x: 3)>
+dask.array<xarray-<this-array>, shape=(3,), dtype=int64, chunksize=(2,), chunktype=numpy.ndarray>
+Dimensions without coordinates: x
+coeffs = <xarray.DataArray (y: 2, degree: 2)>
+dask.array<xarray-<this-array>, shape=(2, 2), dtype=int64, chunksize=(2, 2), chunktype=numpy.ndarray>
+Coordinates:
+  * degree   (degree) int64 0 1
+Dimensions without coordinates: y
+expected = <xarray.DataArray (y: 2, x: 3)>
+array([[1, 2, 3],
+       [1, 2, 3]])
+Dimensions without coordinates: y, x
+
+    @pytest.mark.parametrize("use_dask", [False, True])
+    @pytest.mark.parametrize(
+        ["x", "coeffs", "expected"],
+        [
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([2, 3, 4], dims="degree", coords={"degree": [0, 1, 2]}),
+                xr.DataArray([9, 2 + 6 + 16, 2 + 9 + 36], dims="x"),
+                id="simple",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [0, 1]], dims=("y", "degree"), coords={"degree": [0, 1]}
+                ),
+                xr.DataArray([[1, 2, 3], [1, 2, 3]], dims=("y", "x")),
+                id="broadcast-x",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [1, 0], [1, 1]],
+                    dims=("x", "degree"),
+                    coords={"degree": [0, 1]},
+                ),
+                xr.DataArray([1, 1, 1 + 3], dims="x"),
+                id="shared-dim",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([1, 0, 0], dims="degree", coords={"degree": [2, 1, 0]}),
+                xr.DataArray([1, 2**2, 3**2], dims="x"),
+                id="reordered-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([5], dims="degree", coords={"degree": [3]}),
+                xr.DataArray([5, 5 * 2**3, 5 * 3**3], dims="x"),
+                id="sparse-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 0])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [1, 1, 1])}),
+                id="array-dataset",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [2, 3, 4])}),
+                xr.DataArray([1, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.Dataset({"a": ("x", [2, 3, 4]), "b": ("x", [3, 4, 5])}),
+                id="dataset-array",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [2, 3, 4])}),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 1])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [3, 4, 5])}),
+                id="dataset-dataset",
+            ),
+            pytest.param(
+                xr.DataArray(pd.date_range("1970-01-01", freq="s", periods=3), dims="x"),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray(
+                    [0, 1e9, 2e9],
+                    dims="x",
+                    coords={"x": pd.date_range("1970-01-01", freq="s", periods=3)},
+                ),
+                id="datetime",
+            ),
+            pytest.param(
+                xr.DataArray(
+                    np.array([1000, 2000, 3000], dtype="timedelta64[ns]"), dims="x"
+                ),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray([1000.0, 2000.0, 3000.0], dims="x"),
+                id="timedelta",
+            ),
+        ],
+    )
+    def test_polyval(
+        use_dask: bool,
+        x: xr.DataArray | xr.Dataset,
+        coeffs: xr.DataArray | xr.Dataset,
+        expected: xr.DataArray | xr.Dataset,
+    ) -> None:
+        if use_dask:
+            if not has_dask:
+                pytest.skip("requires dask")
+            coeffs = coeffs.chunk({"degree": 2})
+            x = x.chunk({"x": 2})
+        with raise_if_dask_computes():
+>           actual = xr.polyval(coord=x, coeffs=coeffs)  # type: ignore
+
+/testbed/xarray/tests/test_computation.py:2035: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/testbed/xarray/core/computation.py:1924: in polyval
+    print(f"Debug: deg: {deg}, res: {res}")
+/testbed/xarray/core/common.py:163: in __format__
+    return self.values.__format__(format_spec)
+/testbed/xarray/core/dataarray.py:673: in values
+    return self.variable.values
+/testbed/xarray/core/variable.py:510: in values
+    return _as_array_or_item(self._data)
+/testbed/xarray/core/variable.py:250: in _as_array_or_item
+    data = np.asarray(data)
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/array/core.py:1694: in __array__
+    x = self.compute()
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/base.py:315: in compute
+    (result,) = compute(self, traverse=False, **kwargs)
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/base.py:600: in compute
+    results = schedule(dsk, keys, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <xarray.tests.CountingScheduler object at 0x7f0dd76e65c0>
+dsk = {('add-b1fdcf8a6e2a5050350f92e4610fe836', 0, 0): (subgraph_callable-8ebc3bd7-8516-4f91-b8dd-9783bb29e2e6, ('getitem-d3...0x7f0e08112cb0>, (subgraph_callable-d7f0c1b1-6628-46a4-815f-b2d82ca9078a, (1,)), (None, slice(None, None, None))), ...}
+keys = [[[('add-b1fdcf8a6e2a5050350f92e4610fe836', 0, 0), ('add-b1fdcf8a6e2a5050350f92e4610fe836', 0, 1)]]]
+kwargs = {}
+
+    def __call__(self, dsk, keys, **kwargs):
+        self.total_computes += 1
+        if self.total_computes > self.max_computes:
+>           raise RuntimeError(
+                "Too many computes. Total: %d > max: %d."
+                % (self.total_computes, self.max_computes)
+            )
+E           RuntimeError: Too many computes. Total: 1 > max: 0.
+
+/testbed/xarray/tests/__init__.py:109: RuntimeError
+----------------------------- Captured stdout call -----------------------------
+Debug: coord dtype: int64
+Debug: coeffs dtype: int64
+Debug: max_deg: 1
+________________________ test_polyval[shared-dim-True] _________________________
+
+use_dask = True
+x = <xarray.DataArray (x: 3)>
+dask.array<xarray-<this-array>, shape=(3,), dtype=int64, chunksize=(2,), chunktype=numpy.ndarray>
+Dimensions without coordinates: x
+coeffs = <xarray.DataArray (x: 3, degree: 2)>
+dask.array<xarray-<this-array>, shape=(3, 2), dtype=int64, chunksize=(3, 2), chunktype=numpy.ndarray>
+Coordinates:
+  * degree   (degree) int64 0 1
+Dimensions without coordinates: x
+expected = <xarray.DataArray (x: 3)>
+array([1, 1, 4])
+Dimensions without coordinates: x
+
+    @pytest.mark.parametrize("use_dask", [False, True])
+    @pytest.mark.parametrize(
+        ["x", "coeffs", "expected"],
+        [
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([2, 3, 4], dims="degree", coords={"degree": [0, 1, 2]}),
+                xr.DataArray([9, 2 + 6 + 16, 2 + 9 + 36], dims="x"),
+                id="simple",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [0, 1]], dims=("y", "degree"), coords={"degree": [0, 1]}
+                ),
+                xr.DataArray([[1, 2, 3], [1, 2, 3]], dims=("y", "x")),
+                id="broadcast-x",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [1, 0], [1, 1]],
+                    dims=("x", "degree"),
+                    coords={"degree": [0, 1]},
+                ),
+                xr.DataArray([1, 1, 1 + 3], dims="x"),
+                id="shared-dim",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([1, 0, 0], dims="degree", coords={"degree": [2, 1, 0]}),
+                xr.DataArray([1, 2**2, 3**2], dims="x"),
+                id="reordered-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([5], dims="degree", coords={"degree": [3]}),
+                xr.DataArray([5, 5 * 2**3, 5 * 3**3], dims="x"),
+                id="sparse-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 0])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [1, 1, 1])}),
+                id="array-dataset",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [2, 3, 4])}),
+                xr.DataArray([1, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.Dataset({"a": ("x", [2, 3, 4]), "b": ("x", [3, 4, 5])}),
+                id="dataset-array",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [2, 3, 4])}),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 1])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [3, 4, 5])}),
+                id="dataset-dataset",
+            ),
+            pytest.param(
+                xr.DataArray(pd.date_range("1970-01-01", freq="s", periods=3), dims="x"),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray(
+                    [0, 1e9, 2e9],
+                    dims="x",
+                    coords={"x": pd.date_range("1970-01-01", freq="s", periods=3)},
+                ),
+                id="datetime",
+            ),
+            pytest.param(
+                xr.DataArray(
+                    np.array([1000, 2000, 3000], dtype="timedelta64[ns]"), dims="x"
+                ),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray([1000.0, 2000.0, 3000.0], dims="x"),
+                id="timedelta",
+            ),
+        ],
+    )
+    def test_polyval(
+        use_dask: bool,
+        x: xr.DataArray | xr.Dataset,
+        coeffs: xr.DataArray | xr.Dataset,
+        expected: xr.DataArray | xr.Dataset,
+    ) -> None:
+        if use_dask:
+            if not has_dask:
+                pytest.skip("requires dask")
+            coeffs = coeffs.chunk({"degree": 2})
+            x = x.chunk({"x": 2})
+        with raise_if_dask_computes():
+>           actual = xr.polyval(coord=x, coeffs=coeffs)  # type: ignore
+
+/testbed/xarray/tests/test_computation.py:2035: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/testbed/xarray/core/computation.py:1924: in polyval
+    print(f"Debug: deg: {deg}, res: {res}")
+/testbed/xarray/core/common.py:163: in __format__
+    return self.values.__format__(format_spec)
+/testbed/xarray/core/dataarray.py:673: in values
+    return self.variable.values
+/testbed/xarray/core/variable.py:510: in values
+    return _as_array_or_item(self._data)
+/testbed/xarray/core/variable.py:250: in _as_array_or_item
+    data = np.asarray(data)
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/array/core.py:1694: in __array__
+    x = self.compute()
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/base.py:315: in compute
+    (result,) = compute(self, traverse=False, **kwargs)
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/base.py:600: in compute
+    results = schedule(dsk, keys, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <xarray.tests.CountingScheduler object at 0x7f0dd74e6200>
+dsk = {('add-d0289e44a1ab42f9796d7056bce5526c', 0): (subgraph_callable-78dcaee7-59ff-4487-85ce-4969e527017a, ('rechunk-merge...at 0x7f0e08112cb0>, ('xarray-<this-array>-c1c6d481596dcc522ca65649ecd2ca63', 0, 0), (slice(None, None, None), 0)), ...}
+keys = [[('add-d0289e44a1ab42f9796d7056bce5526c', 0), ('add-d0289e44a1ab42f9796d7056bce5526c', 1)]]
+kwargs = {}
+
+    def __call__(self, dsk, keys, **kwargs):
+        self.total_computes += 1
+        if self.total_computes > self.max_computes:
+>           raise RuntimeError(
+                "Too many computes. Total: %d > max: %d."
+                % (self.total_computes, self.max_computes)
+            )
+E           RuntimeError: Too many computes. Total: 1 > max: 0.
+
+/testbed/xarray/tests/__init__.py:109: RuntimeError
+----------------------------- Captured stdout call -----------------------------
+Debug: coord dtype: int64
+Debug: coeffs dtype: int64
+Debug: max_deg: 1
+______________________ test_polyval[reordered-index-True] ______________________
+
+use_dask = True
+x = <xarray.DataArray (x: 3)>
+dask.array<xarray-<this-array>, shape=(3,), dtype=int64, chunksize=(2,), chunktype=numpy.ndarray>
+Dimensions without coordinates: x
+coeffs = <xarray.DataArray (degree: 3)>
+dask.array<xarray-<this-array>, shape=(3,), dtype=int64, chunksize=(2,), chunktype=numpy.ndarray>
+Coordinates:
+  * degree   (degree) int64 2 1 0
+expected = <xarray.DataArray (x: 3)>
+array([1, 4, 9])
+Dimensions without coordinates: x
+
+    @pytest.mark.parametrize("use_dask", [False, True])
+    @pytest.mark.parametrize(
+        ["x", "coeffs", "expected"],
+        [
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([2, 3, 4], dims="degree", coords={"degree": [0, 1, 2]}),
+                xr.DataArray([9, 2 + 6 + 16, 2 + 9 + 36], dims="x"),
+                id="simple",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [0, 1]], dims=("y", "degree"), coords={"degree": [0, 1]}
+                ),
+                xr.DataArray([[1, 2, 3], [1, 2, 3]], dims=("y", "x")),
+                id="broadcast-x",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [1, 0], [1, 1]],
+                    dims=("x", "degree"),
+                    coords={"degree": [0, 1]},
+                ),
+                xr.DataArray([1, 1, 1 + 3], dims="x"),
+                id="shared-dim",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([1, 0, 0], dims="degree", coords={"degree": [2, 1, 0]}),
+                xr.DataArray([1, 2**2, 3**2], dims="x"),
+                id="reordered-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([5], dims="degree", coords={"degree": [3]}),
+                xr.DataArray([5, 5 * 2**3, 5 * 3**3], dims="x"),
+                id="sparse-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 0])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [1, 1, 1])}),
+                id="array-dataset",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [2, 3, 4])}),
+                xr.DataArray([1, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.Dataset({"a": ("x", [2, 3, 4]), "b": ("x", [3, 4, 5])}),
+                id="dataset-array",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [2, 3, 4])}),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 1])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [3, 4, 5])}),
+                id="dataset-dataset",
+            ),
+            pytest.param(
+                xr.DataArray(pd.date_range("1970-01-01", freq="s", periods=3), dims="x"),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray(
+                    [0, 1e9, 2e9],
+                    dims="x",
+                    coords={"x": pd.date_range("1970-01-01", freq="s", periods=3)},
+                ),
+                id="datetime",
+            ),
+            pytest.param(
+                xr.DataArray(
+                    np.array([1000, 2000, 3000], dtype="timedelta64[ns]"), dims="x"
+                ),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray([1000.0, 2000.0, 3000.0], dims="x"),
+                id="timedelta",
+            ),
+        ],
+    )
+    def test_polyval(
+        use_dask: bool,
+        x: xr.DataArray | xr.Dataset,
+        coeffs: xr.DataArray | xr.Dataset,
+        expected: xr.DataArray | xr.Dataset,
+    ) -> None:
+        if use_dask:
+            if not has_dask:
+                pytest.skip("requires dask")
+            coeffs = coeffs.chunk({"degree": 2})
+            x = x.chunk({"x": 2})
+        with raise_if_dask_computes():
+>           actual = xr.polyval(coord=x, coeffs=coeffs)  # type: ignore
+
+/testbed/xarray/tests/test_computation.py:2035: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/testbed/xarray/core/computation.py:1924: in polyval
+    print(f"Debug: deg: {deg}, res: {res}")
+/testbed/xarray/core/common.py:163: in __format__
+    return self.values.__format__(format_spec)
+/testbed/xarray/core/dataarray.py:673: in values
+    return self.variable.values
+/testbed/xarray/core/variable.py:510: in values
+    return _as_array_or_item(self._data)
+/testbed/xarray/core/variable.py:250: in _as_array_or_item
+    data = np.asarray(data)
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/array/core.py:1694: in __array__
+    x = self.compute()
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/base.py:315: in compute
+    (result,) = compute(self, traverse=False, **kwargs)
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/base.py:600: in compute
+    results = schedule(dsk, keys, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <xarray.tests.CountingScheduler object at 0x7f0dd74e4190>
+dsk = {('add-fb9b351b6649c37bd33a31ce80116f2a', 0): (subgraph_callable-6d66ab13-b3ca-4ab0-856a-2dc679992843, ('getitem-228cc...eee9bbe0', 0): (<function getitem at 0x7f0e08112cb0>, ('getitem-89cc9f0ffd85ffc144b2ed1c58da0b03', 1), (1, None)), ...}
+keys = [[('add-fb9b351b6649c37bd33a31ce80116f2a', 0), ('add-fb9b351b6649c37bd33a31ce80116f2a', 1)]]
+kwargs = {}
+
+    def __call__(self, dsk, keys, **kwargs):
+        self.total_computes += 1
+        if self.total_computes > self.max_computes:
+>           raise RuntimeError(
+                "Too many computes. Total: %d > max: %d."
+                % (self.total_computes, self.max_computes)
+            )
+E           RuntimeError: Too many computes. Total: 1 > max: 0.
+
+/testbed/xarray/tests/__init__.py:109: RuntimeError
+----------------------------- Captured stdout call -----------------------------
+Debug: coord dtype: int64
+Debug: coeffs dtype: int64
+Debug: max_deg: 2
+_______________________ test_polyval[sparse-index-True] ________________________
+
+use_dask = True
+x = <xarray.DataArray (x: 3)>
+dask.array<xarray-<this-array>, shape=(3,), dtype=int64, chunksize=(2,), chunktype=numpy.ndarray>
+Dimensions without coordinates: x
+coeffs = <xarray.DataArray (degree: 1)>
+dask.array<xarray-<this-array>, shape=(1,), dtype=int64, chunksize=(1,), chunktype=numpy.ndarray>
+Coordinates:
+  * degree   (degree) int64 3
+expected = <xarray.DataArray (x: 3)>
+array([  5,  40, 135])
+Dimensions without coordinates: x
+
+    @pytest.mark.parametrize("use_dask", [False, True])
+    @pytest.mark.parametrize(
+        ["x", "coeffs", "expected"],
+        [
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([2, 3, 4], dims="degree", coords={"degree": [0, 1, 2]}),
+                xr.DataArray([9, 2 + 6 + 16, 2 + 9 + 36], dims="x"),
+                id="simple",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [0, 1]], dims=("y", "degree"), coords={"degree": [0, 1]}
+                ),
+                xr.DataArray([[1, 2, 3], [1, 2, 3]], dims=("y", "x")),
+                id="broadcast-x",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [1, 0], [1, 1]],
+                    dims=("x", "degree"),
+                    coords={"degree": [0, 1]},
+                ),
+                xr.DataArray([1, 1, 1 + 3], dims="x"),
+                id="shared-dim",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([1, 0, 0], dims="degree", coords={"degree": [2, 1, 0]}),
+                xr.DataArray([1, 2**2, 3**2], dims="x"),
+                id="reordered-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([5], dims="degree", coords={"degree": [3]}),
+                xr.DataArray([5, 5 * 2**3, 5 * 3**3], dims="x"),
+                id="sparse-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 0])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [1, 1, 1])}),
+                id="array-dataset",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [2, 3, 4])}),
+                xr.DataArray([1, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.Dataset({"a": ("x", [2, 3, 4]), "b": ("x", [3, 4, 5])}),
+                id="dataset-array",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [2, 3, 4])}),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 1])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [3, 4, 5])}),
+                id="dataset-dataset",
+            ),
+            pytest.param(
+                xr.DataArray(pd.date_range("1970-01-01", freq="s", periods=3), dims="x"),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray(
+                    [0, 1e9, 2e9],
+                    dims="x",
+                    coords={"x": pd.date_range("1970-01-01", freq="s", periods=3)},
+                ),
+                id="datetime",
+            ),
+            pytest.param(
+                xr.DataArray(
+                    np.array([1000, 2000, 3000], dtype="timedelta64[ns]"), dims="x"
+                ),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray([1000.0, 2000.0, 3000.0], dims="x"),
+                id="timedelta",
+            ),
+        ],
+    )
+    def test_polyval(
+        use_dask: bool,
+        x: xr.DataArray | xr.Dataset,
+        coeffs: xr.DataArray | xr.Dataset,
+        expected: xr.DataArray | xr.Dataset,
+    ) -> None:
+        if use_dask:
+            if not has_dask:
+                pytest.skip("requires dask")
+            coeffs = coeffs.chunk({"degree": 2})
+            x = x.chunk({"x": 2})
+        with raise_if_dask_computes():
+>           actual = xr.polyval(coord=x, coeffs=coeffs)  # type: ignore
+
+/testbed/xarray/tests/test_computation.py:2035: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/testbed/xarray/core/computation.py:1924: in polyval
+    print(f"Debug: deg: {deg}, res: {res}")
+/testbed/xarray/core/common.py:163: in __format__
+    return self.values.__format__(format_spec)
+/testbed/xarray/core/dataarray.py:673: in values
+    return self.variable.values
+/testbed/xarray/core/variable.py:510: in values
+    return _as_array_or_item(self._data)
+/testbed/xarray/core/variable.py:250: in _as_array_or_item
+    data = np.asarray(data)
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/array/core.py:1694: in __array__
+    x = self.compute()
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/base.py:315: in compute
+    (result,) = compute(self, traverse=False, **kwargs)
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/base.py:600: in compute
+    results = schedule(dsk, keys, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <xarray.tests.CountingScheduler object at 0x7f0dd7526230>
+dsk = {('add-43836363597b5315cddad48d8e03ee86', 0): (subgraph_callable-ada78e10-dcf2-43a2-b8dd-2182b2f51cdc, ('getitem-b7b21... getitem at 0x7f0e08112cb0>, ('xarray-<this-array>-1614665404a35834a843a6d77cc5ca69', 0), (array([0, 0, 0, 0]),)), ...}
+keys = [[('add-43836363597b5315cddad48d8e03ee86', 0), ('add-43836363597b5315cddad48d8e03ee86', 1)]]
+kwargs = {}
+
+    def __call__(self, dsk, keys, **kwargs):
+        self.total_computes += 1
+        if self.total_computes > self.max_computes:
+>           raise RuntimeError(
+                "Too many computes. Total: %d > max: %d."
+                % (self.total_computes, self.max_computes)
+            )
+E           RuntimeError: Too many computes. Total: 1 > max: 0.
+
+/testbed/xarray/tests/__init__.py:109: RuntimeError
+----------------------------- Captured stdout call -----------------------------
+Debug: coord dtype: int64
+Debug: coeffs dtype: int64
+Debug: max_deg: 3
+______________________ test_polyval[array-dataset-False] _______________________
+
+use_dask = False
+x = <xarray.DataArray (x: 3)>
+array([1, 2, 3])
+Dimensions without coordinates: x
+coeffs = <xarray.Dataset>
+Dimensions:  (degree: 2)
+Coordinates:
+  * degree   (degree) int64 0 1
+Data variables:
+    a        (degree) int64 0 1
+    b        (degree) int64 1 0
+expected = <xarray.Dataset>
+Dimensions:  (x: 3)
+Dimensions without coordinates: x
+Data variables:
+    a        (x) int64 1 2 3
+    b        (x) int64 1 1 1
+
+    @pytest.mark.parametrize("use_dask", [False, True])
+    @pytest.mark.parametrize(
+        ["x", "coeffs", "expected"],
+        [
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([2, 3, 4], dims="degree", coords={"degree": [0, 1, 2]}),
+                xr.DataArray([9, 2 + 6 + 16, 2 + 9 + 36], dims="x"),
+                id="simple",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [0, 1]], dims=("y", "degree"), coords={"degree": [0, 1]}
+                ),
+                xr.DataArray([[1, 2, 3], [1, 2, 3]], dims=("y", "x")),
+                id="broadcast-x",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [1, 0], [1, 1]],
+                    dims=("x", "degree"),
+                    coords={"degree": [0, 1]},
+                ),
+                xr.DataArray([1, 1, 1 + 3], dims="x"),
+                id="shared-dim",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([1, 0, 0], dims="degree", coords={"degree": [2, 1, 0]}),
+                xr.DataArray([1, 2**2, 3**2], dims="x"),
+                id="reordered-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([5], dims="degree", coords={"degree": [3]}),
+                xr.DataArray([5, 5 * 2**3, 5 * 3**3], dims="x"),
+                id="sparse-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 0])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [1, 1, 1])}),
+                id="array-dataset",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [2, 3, 4])}),
+                xr.DataArray([1, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.Dataset({"a": ("x", [2, 3, 4]), "b": ("x", [3, 4, 5])}),
+                id="dataset-array",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [2, 3, 4])}),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 1])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [3, 4, 5])}),
+                id="dataset-dataset",
+            ),
+            pytest.param(
+                xr.DataArray(pd.date_range("1970-01-01", freq="s", periods=3), dims="x"),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray(
+                    [0, 1e9, 2e9],
+                    dims="x",
+                    coords={"x": pd.date_range("1970-01-01", freq="s", periods=3)},
+                ),
+                id="datetime",
+            ),
+            pytest.param(
+                xr.DataArray(
+                    np.array([1000, 2000, 3000], dtype="timedelta64[ns]"), dims="x"
+                ),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray([1000.0, 2000.0, 3000.0], dims="x"),
+                id="timedelta",
+            ),
+        ],
+    )
+    def test_polyval(
+        use_dask: bool,
+        x: xr.DataArray | xr.Dataset,
+        coeffs: xr.DataArray | xr.Dataset,
+        expected: xr.DataArray | xr.Dataset,
+    ) -> None:
+        if use_dask:
+            if not has_dask:
+                pytest.skip("requires dask")
+            coeffs = coeffs.chunk({"degree": 2})
+            x = x.chunk({"x": 2})
+        with raise_if_dask_computes():
+>           actual = xr.polyval(coord=x, coeffs=coeffs)  # type: ignore
+
+/testbed/xarray/tests/test_computation.py:2035: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/testbed/xarray/core/computation.py:1915: in polyval
+    print(f"Debug: coeffs dtype: {coeffs.dtype}")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <xarray.Dataset>
+Dimensions:  (degree: 2)
+Coordinates:
+  * degree   (degree) int64 0 1
+Data variables:
+    a        (degree) int64 0 1
+    b        (degree) int64 1 0
+name = 'dtype'
+
+    def __getattr__(self, name: str) -> Any:
+        if name not in {"__dict__", "__setstate__"}:
+            # this avoids an infinite loop when pickle looks for the
+            # __setstate__ attribute before the xarray object is initialized
+            for source in self._attr_sources:
+                with suppress(KeyError):
+                    return source[name]
+>       raise AttributeError(
+            f"{type(self).__name__!r} object has no attribute {name!r}"
+        )
+E       AttributeError: 'Dataset' object has no attribute 'dtype'. Did you mean: 'astype'?
+
+/testbed/xarray/core/common.py:251: AttributeError
+----------------------------- Captured stdout call -----------------------------
+Debug: coord dtype: int64
+_______________________ test_polyval[array-dataset-True] _______________________
+
+use_dask = True
+x = <xarray.DataArray (x: 3)>
+dask.array<xarray-<this-array>, shape=(3,), dtype=int64, chunksize=(2,), chunktype=numpy.ndarray>
+Dimensions without coordinates: x
+coeffs = <xarray.Dataset>
+Dimensions:  (degree: 2)
+Coordinates:
+  * degree   (degree) int64 0 1
+Data variables:
+    a        (d...t64 dask.array<chunksize=(2,), meta=np.ndarray>
+    b        (degree) int64 dask.array<chunksize=(2,), meta=np.ndarray>
+expected = <xarray.Dataset>
+Dimensions:  (x: 3)
+Dimensions without coordinates: x
+Data variables:
+    a        (x) int64 1 2 3
+    b        (x) int64 1 1 1
+
+    @pytest.mark.parametrize("use_dask", [False, True])
+    @pytest.mark.parametrize(
+        ["x", "coeffs", "expected"],
+        [
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([2, 3, 4], dims="degree", coords={"degree": [0, 1, 2]}),
+                xr.DataArray([9, 2 + 6 + 16, 2 + 9 + 36], dims="x"),
+                id="simple",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [0, 1]], dims=("y", "degree"), coords={"degree": [0, 1]}
+                ),
+                xr.DataArray([[1, 2, 3], [1, 2, 3]], dims=("y", "x")),
+                id="broadcast-x",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [1, 0], [1, 1]],
+                    dims=("x", "degree"),
+                    coords={"degree": [0, 1]},
+                ),
+                xr.DataArray([1, 1, 1 + 3], dims="x"),
+                id="shared-dim",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([1, 0, 0], dims="degree", coords={"degree": [2, 1, 0]}),
+                xr.DataArray([1, 2**2, 3**2], dims="x"),
+                id="reordered-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([5], dims="degree", coords={"degree": [3]}),
+                xr.DataArray([5, 5 * 2**3, 5 * 3**3], dims="x"),
+                id="sparse-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 0])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [1, 1, 1])}),
+                id="array-dataset",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [2, 3, 4])}),
+                xr.DataArray([1, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.Dataset({"a": ("x", [2, 3, 4]), "b": ("x", [3, 4, 5])}),
+                id="dataset-array",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [2, 3, 4])}),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 1])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [3, 4, 5])}),
+                id="dataset-dataset",
+            ),
+            pytest.param(
+                xr.DataArray(pd.date_range("1970-01-01", freq="s", periods=3), dims="x"),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray(
+                    [0, 1e9, 2e9],
+                    dims="x",
+                    coords={"x": pd.date_range("1970-01-01", freq="s", periods=3)},
+                ),
+                id="datetime",
+            ),
+            pytest.param(
+                xr.DataArray(
+                    np.array([1000, 2000, 3000], dtype="timedelta64[ns]"), dims="x"
+                ),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray([1000.0, 2000.0, 3000.0], dims="x"),
+                id="timedelta",
+            ),
+        ],
+    )
+    def test_polyval(
+        use_dask: bool,
+        x: xr.DataArray | xr.Dataset,
+        coeffs: xr.DataArray | xr.Dataset,
+        expected: xr.DataArray | xr.Dataset,
+    ) -> None:
+        if use_dask:
+            if not has_dask:
+                pytest.skip("requires dask")
+            coeffs = coeffs.chunk({"degree": 2})
+            x = x.chunk({"x": 2})
+        with raise_if_dask_computes():
+>           actual = xr.polyval(coord=x, coeffs=coeffs)  # type: ignore
+
+/testbed/xarray/tests/test_computation.py:2035: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/testbed/xarray/core/computation.py:1915: in polyval
+    print(f"Debug: coeffs dtype: {coeffs.dtype}")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <xarray.Dataset>
+Dimensions:  (degree: 2)
+Coordinates:
+  * degree   (degree) int64 0 1
+Data variables:
+    a        (d...t64 dask.array<chunksize=(2,), meta=np.ndarray>
+    b        (degree) int64 dask.array<chunksize=(2,), meta=np.ndarray>
+name = 'dtype'
+
+    def __getattr__(self, name: str) -> Any:
+        if name not in {"__dict__", "__setstate__"}:
+            # this avoids an infinite loop when pickle looks for the
+            # __setstate__ attribute before the xarray object is initialized
+            for source in self._attr_sources:
+                with suppress(KeyError):
+                    return source[name]
+>       raise AttributeError(
+            f"{type(self).__name__!r} object has no attribute {name!r}"
+        )
+E       AttributeError: 'Dataset' object has no attribute 'dtype'. Did you mean: 'astype'?
+
+/testbed/xarray/core/common.py:251: AttributeError
+----------------------------- Captured stdout call -----------------------------
+Debug: coord dtype: int64
+______________________ test_polyval[dataset-array-False] _______________________
+
+use_dask = False
+x = <xarray.Dataset>
+Dimensions:  (x: 3)
+Dimensions without coordinates: x
+Data variables:
+    a        (x) int64 1 2 3
+    b        (x) int64 2 3 4
+coeffs = <xarray.DataArray (degree: 2)>
+array([1, 1])
+Coordinates:
+  * degree   (degree) int64 0 1
+expected = <xarray.Dataset>
+Dimensions:  (x: 3)
+Dimensions without coordinates: x
+Data variables:
+    a        (x) int64 2 3 4
+    b        (x) int64 3 4 5
+
+    @pytest.mark.parametrize("use_dask", [False, True])
+    @pytest.mark.parametrize(
+        ["x", "coeffs", "expected"],
+        [
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([2, 3, 4], dims="degree", coords={"degree": [0, 1, 2]}),
+                xr.DataArray([9, 2 + 6 + 16, 2 + 9 + 36], dims="x"),
+                id="simple",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [0, 1]], dims=("y", "degree"), coords={"degree": [0, 1]}
+                ),
+                xr.DataArray([[1, 2, 3], [1, 2, 3]], dims=("y", "x")),
+                id="broadcast-x",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [1, 0], [1, 1]],
+                    dims=("x", "degree"),
+                    coords={"degree": [0, 1]},
+                ),
+                xr.DataArray([1, 1, 1 + 3], dims="x"),
+                id="shared-dim",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([1, 0, 0], dims="degree", coords={"degree": [2, 1, 0]}),
+                xr.DataArray([1, 2**2, 3**2], dims="x"),
+                id="reordered-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([5], dims="degree", coords={"degree": [3]}),
+                xr.DataArray([5, 5 * 2**3, 5 * 3**3], dims="x"),
+                id="sparse-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 0])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [1, 1, 1])}),
+                id="array-dataset",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [2, 3, 4])}),
+                xr.DataArray([1, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.Dataset({"a": ("x", [2, 3, 4]), "b": ("x", [3, 4, 5])}),
+                id="dataset-array",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [2, 3, 4])}),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 1])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [3, 4, 5])}),
+                id="dataset-dataset",
+            ),
+            pytest.param(
+                xr.DataArray(pd.date_range("1970-01-01", freq="s", periods=3), dims="x"),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray(
+                    [0, 1e9, 2e9],
+                    dims="x",
+                    coords={"x": pd.date_range("1970-01-01", freq="s", periods=3)},
+                ),
+                id="datetime",
+            ),
+            pytest.param(
+                xr.DataArray(
+                    np.array([1000, 2000, 3000], dtype="timedelta64[ns]"), dims="x"
+                ),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray([1000.0, 2000.0, 3000.0], dims="x"),
+                id="timedelta",
+            ),
+        ],
+    )
+    def test_polyval(
+        use_dask: bool,
+        x: xr.DataArray | xr.Dataset,
+        coeffs: xr.DataArray | xr.Dataset,
+        expected: xr.DataArray | xr.Dataset,
+    ) -> None:
+        if use_dask:
+            if not has_dask:
+                pytest.skip("requires dask")
+            coeffs = coeffs.chunk({"degree": 2})
+            x = x.chunk({"x": 2})
+        with raise_if_dask_computes():
+>           actual = xr.polyval(coord=x, coeffs=coeffs)  # type: ignore
+
+/testbed/xarray/tests/test_computation.py:2035: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/testbed/xarray/core/computation.py:1914: in polyval
+    print(f"Debug: coord dtype: {coord.dtype}")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <xarray.Dataset>
+Dimensions:  (x: 3)
+Dimensions without coordinates: x
+Data variables:
+    a        (x) int64 1 2 3
+    b        (x) int64 2 3 4
+name = 'dtype'
+
+    def __getattr__(self, name: str) -> Any:
+        if name not in {"__dict__", "__setstate__"}:
+            # this avoids an infinite loop when pickle looks for the
+            # __setstate__ attribute before the xarray object is initialized
+            for source in self._attr_sources:
+                with suppress(KeyError):
+                    return source[name]
+>       raise AttributeError(
+            f"{type(self).__name__!r} object has no attribute {name!r}"
+        )
+E       AttributeError: 'Dataset' object has no attribute 'dtype'. Did you mean: 'astype'?
+
+/testbed/xarray/core/common.py:251: AttributeError
+_______________________ test_polyval[dataset-array-True] _______________________
+
+use_dask = True
+x = <xarray.Dataset>
+Dimensions:  (x: 3)
+Dimensions without coordinates: x
+Data variables:
+    a        (x) int64 dask.array<chunksize=(2,), meta=np.ndarray>
+    b        (x) int64 dask.array<chunksize=(2,), meta=np.ndarray>
+coeffs = <xarray.DataArray (degree: 2)>
+dask.array<xarray-<this-array>, shape=(2,), dtype=int64, chunksize=(2,), chunktype=numpy.ndarray>
+Coordinates:
+  * degree   (degree) int64 0 1
+expected = <xarray.Dataset>
+Dimensions:  (x: 3)
+Dimensions without coordinates: x
+Data variables:
+    a        (x) int64 2 3 4
+    b        (x) int64 3 4 5
+
+    @pytest.mark.parametrize("use_dask", [False, True])
+    @pytest.mark.parametrize(
+        ["x", "coeffs", "expected"],
+        [
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([2, 3, 4], dims="degree", coords={"degree": [0, 1, 2]}),
+                xr.DataArray([9, 2 + 6 + 16, 2 + 9 + 36], dims="x"),
+                id="simple",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [0, 1]], dims=("y", "degree"), coords={"degree": [0, 1]}
+                ),
+                xr.DataArray([[1, 2, 3], [1, 2, 3]], dims=("y", "x")),
+                id="broadcast-x",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [1, 0], [1, 1]],
+                    dims=("x", "degree"),
+                    coords={"degree": [0, 1]},
+                ),
+                xr.DataArray([1, 1, 1 + 3], dims="x"),
+                id="shared-dim",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([1, 0, 0], dims="degree", coords={"degree": [2, 1, 0]}),
+                xr.DataArray([1, 2**2, 3**2], dims="x"),
+                id="reordered-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([5], dims="degree", coords={"degree": [3]}),
+                xr.DataArray([5, 5 * 2**3, 5 * 3**3], dims="x"),
+                id="sparse-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 0])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [1, 1, 1])}),
+                id="array-dataset",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [2, 3, 4])}),
+                xr.DataArray([1, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.Dataset({"a": ("x", [2, 3, 4]), "b": ("x", [3, 4, 5])}),
+                id="dataset-array",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [2, 3, 4])}),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 1])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [3, 4, 5])}),
+                id="dataset-dataset",
+            ),
+            pytest.param(
+                xr.DataArray(pd.date_range("1970-01-01", freq="s", periods=3), dims="x"),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray(
+                    [0, 1e9, 2e9],
+                    dims="x",
+                    coords={"x": pd.date_range("1970-01-01", freq="s", periods=3)},
+                ),
+                id="datetime",
+            ),
+            pytest.param(
+                xr.DataArray(
+                    np.array([1000, 2000, 3000], dtype="timedelta64[ns]"), dims="x"
+                ),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray([1000.0, 2000.0, 3000.0], dims="x"),
+                id="timedelta",
+            ),
+        ],
+    )
+    def test_polyval(
+        use_dask: bool,
+        x: xr.DataArray | xr.Dataset,
+        coeffs: xr.DataArray | xr.Dataset,
+        expected: xr.DataArray | xr.Dataset,
+    ) -> None:
+        if use_dask:
+            if not has_dask:
+                pytest.skip("requires dask")
+            coeffs = coeffs.chunk({"degree": 2})
+            x = x.chunk({"x": 2})
+        with raise_if_dask_computes():
+>           actual = xr.polyval(coord=x, coeffs=coeffs)  # type: ignore
+
+/testbed/xarray/tests/test_computation.py:2035: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/testbed/xarray/core/computation.py:1914: in polyval
+    print(f"Debug: coord dtype: {coord.dtype}")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <xarray.Dataset>
+Dimensions:  (x: 3)
+Dimensions without coordinates: x
+Data variables:
+    a        (x) int64 dask.array<chunksize=(2,), meta=np.ndarray>
+    b        (x) int64 dask.array<chunksize=(2,), meta=np.ndarray>
+name = 'dtype'
+
+    def __getattr__(self, name: str) -> Any:
+        if name not in {"__dict__", "__setstate__"}:
+            # this avoids an infinite loop when pickle looks for the
+            # __setstate__ attribute before the xarray object is initialized
+            for source in self._attr_sources:
+                with suppress(KeyError):
+                    return source[name]
+>       raise AttributeError(
+            f"{type(self).__name__!r} object has no attribute {name!r}"
+        )
+E       AttributeError: 'Dataset' object has no attribute 'dtype'. Did you mean: 'astype'?
+
+/testbed/xarray/core/common.py:251: AttributeError
+_____________________ test_polyval[dataset-dataset-False] ______________________
+
+use_dask = False
+x = <xarray.Dataset>
+Dimensions:  (x: 3, y: 3)
+Dimensions without coordinates: x, y
+Data variables:
+    a        (x) int64 1 2 3
+    b        (y) int64 2 3 4
+coeffs = <xarray.Dataset>
+Dimensions:  (degree: 2)
+Coordinates:
+  * degree   (degree) int64 0 1
+Data variables:
+    a        (degree) int64 0 1
+    b        (degree) int64 1 1
+expected = <xarray.Dataset>
+Dimensions:  (x: 3, y: 3)
+Dimensions without coordinates: x, y
+Data variables:
+    a        (x) int64 1 2 3
+    b        (y) int64 3 4 5
+
+    @pytest.mark.parametrize("use_dask", [False, True])
+    @pytest.mark.parametrize(
+        ["x", "coeffs", "expected"],
+        [
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([2, 3, 4], dims="degree", coords={"degree": [0, 1, 2]}),
+                xr.DataArray([9, 2 + 6 + 16, 2 + 9 + 36], dims="x"),
+                id="simple",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [0, 1]], dims=("y", "degree"), coords={"degree": [0, 1]}
+                ),
+                xr.DataArray([[1, 2, 3], [1, 2, 3]], dims=("y", "x")),
+                id="broadcast-x",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [1, 0], [1, 1]],
+                    dims=("x", "degree"),
+                    coords={"degree": [0, 1]},
+                ),
+                xr.DataArray([1, 1, 1 + 3], dims="x"),
+                id="shared-dim",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([1, 0, 0], dims="degree", coords={"degree": [2, 1, 0]}),
+                xr.DataArray([1, 2**2, 3**2], dims="x"),
+                id="reordered-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([5], dims="degree", coords={"degree": [3]}),
+                xr.DataArray([5, 5 * 2**3, 5 * 3**3], dims="x"),
+                id="sparse-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 0])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [1, 1, 1])}),
+                id="array-dataset",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [2, 3, 4])}),
+                xr.DataArray([1, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.Dataset({"a": ("x", [2, 3, 4]), "b": ("x", [3, 4, 5])}),
+                id="dataset-array",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [2, 3, 4])}),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 1])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [3, 4, 5])}),
+                id="dataset-dataset",
+            ),
+            pytest.param(
+                xr.DataArray(pd.date_range("1970-01-01", freq="s", periods=3), dims="x"),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray(
+                    [0, 1e9, 2e9],
+                    dims="x",
+                    coords={"x": pd.date_range("1970-01-01", freq="s", periods=3)},
+                ),
+                id="datetime",
+            ),
+            pytest.param(
+                xr.DataArray(
+                    np.array([1000, 2000, 3000], dtype="timedelta64[ns]"), dims="x"
+                ),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray([1000.0, 2000.0, 3000.0], dims="x"),
+                id="timedelta",
+            ),
+        ],
+    )
+    def test_polyval(
+        use_dask: bool,
+        x: xr.DataArray | xr.Dataset,
+        coeffs: xr.DataArray | xr.Dataset,
+        expected: xr.DataArray | xr.Dataset,
+    ) -> None:
+        if use_dask:
+            if not has_dask:
+                pytest.skip("requires dask")
+            coeffs = coeffs.chunk({"degree": 2})
+            x = x.chunk({"x": 2})
+        with raise_if_dask_computes():
+>           actual = xr.polyval(coord=x, coeffs=coeffs)  # type: ignore
+
+/testbed/xarray/tests/test_computation.py:2035: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/testbed/xarray/core/computation.py:1914: in polyval
+    print(f"Debug: coord dtype: {coord.dtype}")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <xarray.Dataset>
+Dimensions:  (x: 3, y: 3)
+Dimensions without coordinates: x, y
+Data variables:
+    a        (x) int64 1 2 3
+    b        (y) int64 2 3 4
+name = 'dtype'
+
+    def __getattr__(self, name: str) -> Any:
+        if name not in {"__dict__", "__setstate__"}:
+            # this avoids an infinite loop when pickle looks for the
+            # __setstate__ attribute before the xarray object is initialized
+            for source in self._attr_sources:
+                with suppress(KeyError):
+                    return source[name]
+>       raise AttributeError(
+            f"{type(self).__name__!r} object has no attribute {name!r}"
+        )
+E       AttributeError: 'Dataset' object has no attribute 'dtype'. Did you mean: 'astype'?
+
+/testbed/xarray/core/common.py:251: AttributeError
+______________________ test_polyval[dataset-dataset-True] ______________________
+
+use_dask = True
+x = <xarray.Dataset>
+Dimensions:  (x: 3, y: 3)
+Dimensions without coordinates: x, y
+Data variables:
+    a        (x) int64 dask.array<chunksize=(2,), meta=np.ndarray>
+    b        (y) int64 dask.array<chunksize=(3,), meta=np.ndarray>
+coeffs = <xarray.Dataset>
+Dimensions:  (degree: 2)
+Coordinates:
+  * degree   (degree) int64 0 1
+Data variables:
+    a        (d...t64 dask.array<chunksize=(2,), meta=np.ndarray>
+    b        (degree) int64 dask.array<chunksize=(2,), meta=np.ndarray>
+expected = <xarray.Dataset>
+Dimensions:  (x: 3, y: 3)
+Dimensions without coordinates: x, y
+Data variables:
+    a        (x) int64 1 2 3
+    b        (y) int64 3 4 5
+
+    @pytest.mark.parametrize("use_dask", [False, True])
+    @pytest.mark.parametrize(
+        ["x", "coeffs", "expected"],
+        [
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([2, 3, 4], dims="degree", coords={"degree": [0, 1, 2]}),
+                xr.DataArray([9, 2 + 6 + 16, 2 + 9 + 36], dims="x"),
+                id="simple",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [0, 1]], dims=("y", "degree"), coords={"degree": [0, 1]}
+                ),
+                xr.DataArray([[1, 2, 3], [1, 2, 3]], dims=("y", "x")),
+                id="broadcast-x",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [1, 0], [1, 1]],
+                    dims=("x", "degree"),
+                    coords={"degree": [0, 1]},
+                ),
+                xr.DataArray([1, 1, 1 + 3], dims="x"),
+                id="shared-dim",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([1, 0, 0], dims="degree", coords={"degree": [2, 1, 0]}),
+                xr.DataArray([1, 2**2, 3**2], dims="x"),
+                id="reordered-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([5], dims="degree", coords={"degree": [3]}),
+                xr.DataArray([5, 5 * 2**3, 5 * 3**3], dims="x"),
+                id="sparse-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 0])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [1, 1, 1])}),
+                id="array-dataset",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [2, 3, 4])}),
+                xr.DataArray([1, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.Dataset({"a": ("x", [2, 3, 4]), "b": ("x", [3, 4, 5])}),
+                id="dataset-array",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [2, 3, 4])}),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 1])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [3, 4, 5])}),
+                id="dataset-dataset",
+            ),
+            pytest.param(
+                xr.DataArray(pd.date_range("1970-01-01", freq="s", periods=3), dims="x"),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray(
+                    [0, 1e9, 2e9],
+                    dims="x",
+                    coords={"x": pd.date_range("1970-01-01", freq="s", periods=3)},
+                ),
+                id="datetime",
+            ),
+            pytest.param(
+                xr.DataArray(
+                    np.array([1000, 2000, 3000], dtype="timedelta64[ns]"), dims="x"
+                ),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray([1000.0, 2000.0, 3000.0], dims="x"),
+                id="timedelta",
+            ),
+        ],
+    )
+    def test_polyval(
+        use_dask: bool,
+        x: xr.DataArray | xr.Dataset,
+        coeffs: xr.DataArray | xr.Dataset,
+        expected: xr.DataArray | xr.Dataset,
+    ) -> None:
+        if use_dask:
+            if not has_dask:
+                pytest.skip("requires dask")
+            coeffs = coeffs.chunk({"degree": 2})
+            x = x.chunk({"x": 2})
+        with raise_if_dask_computes():
+>           actual = xr.polyval(coord=x, coeffs=coeffs)  # type: ignore
+
+/testbed/xarray/tests/test_computation.py:2035: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/testbed/xarray/core/computation.py:1914: in polyval
+    print(f"Debug: coord dtype: {coord.dtype}")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <xarray.Dataset>
+Dimensions:  (x: 3, y: 3)
+Dimensions without coordinates: x, y
+Data variables:
+    a        (x) int64 dask.array<chunksize=(2,), meta=np.ndarray>
+    b        (y) int64 dask.array<chunksize=(3,), meta=np.ndarray>
+name = 'dtype'
+
+    def __getattr__(self, name: str) -> Any:
+        if name not in {"__dict__", "__setstate__"}:
+            # this avoids an infinite loop when pickle looks for the
+            # __setstate__ attribute before the xarray object is initialized
+            for source in self._attr_sources:
+                with suppress(KeyError):
+                    return source[name]
+>       raise AttributeError(
+            f"{type(self).__name__!r} object has no attribute {name!r}"
+        )
+E       AttributeError: 'Dataset' object has no attribute 'dtype'. Did you mean: 'astype'?
+
+/testbed/xarray/core/common.py:251: AttributeError
+_________________________ test_polyval[datetime-False] _________________________
+
+use_dask = False
+x = <xarray.DataArray (x: 3)>
+array(['1970-01-01T00:00:00.000000000', '1970-01-01T00:00:01.000000000',
+       '1970-01-01T...02.000000000'], dtype='datetime64[ns]')
+Coordinates:
+  * x        (x) datetime64[ns] 1970-01-01 ... 1970-01-01T00:00:02
+coeffs = <xarray.DataArray (degree: 2)>
+array([0, 1])
+Coordinates:
+  * degree   (degree) int64 0 1
+expected = <xarray.DataArray (x: 3)>
+array([0.e+00, 1.e+09, 2.e+09])
+Coordinates:
+  * x        (x) datetime64[ns] 1970-01-01 ... 1970-01-01T00:00:02
+
+    @pytest.mark.parametrize("use_dask", [False, True])
+    @pytest.mark.parametrize(
+        ["x", "coeffs", "expected"],
+        [
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([2, 3, 4], dims="degree", coords={"degree": [0, 1, 2]}),
+                xr.DataArray([9, 2 + 6 + 16, 2 + 9 + 36], dims="x"),
+                id="simple",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [0, 1]], dims=("y", "degree"), coords={"degree": [0, 1]}
+                ),
+                xr.DataArray([[1, 2, 3], [1, 2, 3]], dims=("y", "x")),
+                id="broadcast-x",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [1, 0], [1, 1]],
+                    dims=("x", "degree"),
+                    coords={"degree": [0, 1]},
+                ),
+                xr.DataArray([1, 1, 1 + 3], dims="x"),
+                id="shared-dim",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([1, 0, 0], dims="degree", coords={"degree": [2, 1, 0]}),
+                xr.DataArray([1, 2**2, 3**2], dims="x"),
+                id="reordered-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([5], dims="degree", coords={"degree": [3]}),
+                xr.DataArray([5, 5 * 2**3, 5 * 3**3], dims="x"),
+                id="sparse-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 0])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [1, 1, 1])}),
+                id="array-dataset",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [2, 3, 4])}),
+                xr.DataArray([1, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.Dataset({"a": ("x", [2, 3, 4]), "b": ("x", [3, 4, 5])}),
+                id="dataset-array",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [2, 3, 4])}),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 1])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [3, 4, 5])}),
+                id="dataset-dataset",
+            ),
+            pytest.param(
+                xr.DataArray(pd.date_range("1970-01-01", freq="s", periods=3), dims="x"),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray(
+                    [0, 1e9, 2e9],
+                    dims="x",
+                    coords={"x": pd.date_range("1970-01-01", freq="s", periods=3)},
+                ),
+                id="datetime",
+            ),
+            pytest.param(
+                xr.DataArray(
+                    np.array([1000, 2000, 3000], dtype="timedelta64[ns]"), dims="x"
+                ),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray([1000.0, 2000.0, 3000.0], dims="x"),
+                id="timedelta",
+            ),
+        ],
+    )
+    def test_polyval(
+        use_dask: bool,
+        x: xr.DataArray | xr.Dataset,
+        coeffs: xr.DataArray | xr.Dataset,
+        expected: xr.DataArray | xr.Dataset,
+    ) -> None:
+        if use_dask:
+            if not has_dask:
+                pytest.skip("requires dask")
+            coeffs = coeffs.chunk({"degree": 2})
+            x = x.chunk({"x": 2})
+        with raise_if_dask_computes():
+            actual = xr.polyval(coord=x, coeffs=coeffs)  # type: ignore
+>       xr.testing.assert_allclose(actual, expected)
+E       AssertionError: Left and right DataArray objects are not close
+E       
+E       Differing values:
+E       L
+E           array([0., 1., 2.])
+E       R
+E           array([0.e+00, 1.e+09, 2.e+09])
+
+/testbed/xarray/tests/test_computation.py:2036: AssertionError
+----------------------------- Captured stdout call -----------------------------
+Debug: coord dtype: float64
+Debug: coeffs dtype: int64
+Debug: max_deg: 1
+Debug: deg: 0, res: [0. 1. 2.]
+_________________________ test_polyval[datetime-True] __________________________
+
+use_dask = True
+x = <xarray.DataArray (x: 3)>
+dask.array<xarray-<this-array>, shape=(3,), dtype=datetime64[ns], chunksize=(2,), chunktype=numpy.ndarray>
+Coordinates:
+  * x        (x) datetime64[ns] 1970-01-01 ... 1970-01-01T00:00:02
+coeffs = <xarray.DataArray (degree: 2)>
+dask.array<xarray-<this-array>, shape=(2,), dtype=int64, chunksize=(2,), chunktype=numpy.ndarray>
+Coordinates:
+  * degree   (degree) int64 0 1
+expected = <xarray.DataArray (x: 3)>
+array([0.e+00, 1.e+09, 2.e+09])
+Coordinates:
+  * x        (x) datetime64[ns] 1970-01-01 ... 1970-01-01T00:00:02
+
+    @pytest.mark.parametrize("use_dask", [False, True])
+    @pytest.mark.parametrize(
+        ["x", "coeffs", "expected"],
+        [
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([2, 3, 4], dims="degree", coords={"degree": [0, 1, 2]}),
+                xr.DataArray([9, 2 + 6 + 16, 2 + 9 + 36], dims="x"),
+                id="simple",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [0, 1]], dims=("y", "degree"), coords={"degree": [0, 1]}
+                ),
+                xr.DataArray([[1, 2, 3], [1, 2, 3]], dims=("y", "x")),
+                id="broadcast-x",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [1, 0], [1, 1]],
+                    dims=("x", "degree"),
+                    coords={"degree": [0, 1]},
+                ),
+                xr.DataArray([1, 1, 1 + 3], dims="x"),
+                id="shared-dim",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([1, 0, 0], dims="degree", coords={"degree": [2, 1, 0]}),
+                xr.DataArray([1, 2**2, 3**2], dims="x"),
+                id="reordered-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([5], dims="degree", coords={"degree": [3]}),
+                xr.DataArray([5, 5 * 2**3, 5 * 3**3], dims="x"),
+                id="sparse-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 0])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [1, 1, 1])}),
+                id="array-dataset",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [2, 3, 4])}),
+                xr.DataArray([1, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.Dataset({"a": ("x", [2, 3, 4]), "b": ("x", [3, 4, 5])}),
+                id="dataset-array",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [2, 3, 4])}),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 1])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [3, 4, 5])}),
+                id="dataset-dataset",
+            ),
+            pytest.param(
+                xr.DataArray(pd.date_range("1970-01-01", freq="s", periods=3), dims="x"),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray(
+                    [0, 1e9, 2e9],
+                    dims="x",
+                    coords={"x": pd.date_range("1970-01-01", freq="s", periods=3)},
+                ),
+                id="datetime",
+            ),
+            pytest.param(
+                xr.DataArray(
+                    np.array([1000, 2000, 3000], dtype="timedelta64[ns]"), dims="x"
+                ),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray([1000.0, 2000.0, 3000.0], dims="x"),
+                id="timedelta",
+            ),
+        ],
+    )
+    def test_polyval(
+        use_dask: bool,
+        x: xr.DataArray | xr.Dataset,
+        coeffs: xr.DataArray | xr.Dataset,
+        expected: xr.DataArray | xr.Dataset,
+    ) -> None:
+        if use_dask:
+            if not has_dask:
+                pytest.skip("requires dask")
+            coeffs = coeffs.chunk({"degree": 2})
+            x = x.chunk({"x": 2})
+        with raise_if_dask_computes():
+>           actual = xr.polyval(coord=x, coeffs=coeffs)  # type: ignore
+
+/testbed/xarray/tests/test_computation.py:2035: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/testbed/xarray/core/computation.py:1924: in polyval
+    print(f"Debug: deg: {deg}, res: {res}")
+/testbed/xarray/core/common.py:163: in __format__
+    return self.values.__format__(format_spec)
+/testbed/xarray/core/dataarray.py:673: in values
+    return self.variable.values
+/testbed/xarray/core/variable.py:510: in values
+    return _as_array_or_item(self._data)
+/testbed/xarray/core/variable.py:250: in _as_array_or_item
+    data = np.asarray(data)
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/array/core.py:1694: in __array__
+    x = self.compute()
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/base.py:315: in compute
+    (result,) = compute(self, traverse=False, **kwargs)
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/base.py:600: in compute
+    results = schedule(dsk, keys, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <xarray.tests.CountingScheduler object at 0x7f0dd9e69840>
+dsk = {('add-291bab4dd9f265666dd20c64440411c5', 0): (subgraph_callable-54d87ecc-1a0c-43d2-9b92-09c024b983f9, ('getitem-eafdc...): (<function getitem at 0x7f0e08112cb0>, ('xarray-<this-array>-1eb721e2617e36ec52750993369bb7a3', 0), (1, None)), ...}
+keys = [[('add-291bab4dd9f265666dd20c64440411c5', 0), ('add-291bab4dd9f265666dd20c64440411c5', 1)]]
+kwargs = {}
+
+    def __call__(self, dsk, keys, **kwargs):
+        self.total_computes += 1
+        if self.total_computes > self.max_computes:
+>           raise RuntimeError(
+                "Too many computes. Total: %d > max: %d."
+                % (self.total_computes, self.max_computes)
+            )
+E           RuntimeError: Too many computes. Total: 1 > max: 0.
+
+/testbed/xarray/tests/__init__.py:109: RuntimeError
+----------------------------- Captured stdout call -----------------------------
+Debug: coord dtype: float64
+Debug: coeffs dtype: int64
+Debug: max_deg: 1
+________________________ test_polyval[timedelta-False] _________________________
+
+use_dask = False
+x = <xarray.DataArray (x: 3)>
+array([1000, 2000, 3000], dtype='timedelta64[ns]')
+Dimensions without coordinates: x
+coeffs = <xarray.DataArray (degree: 2)>
+array([0, 1])
+Coordinates:
+  * degree   (degree) int64 0 1
+expected = <xarray.DataArray (x: 3)>
+array([1000., 2000., 3000.])
+Dimensions without coordinates: x
+
+    @pytest.mark.parametrize("use_dask", [False, True])
+    @pytest.mark.parametrize(
+        ["x", "coeffs", "expected"],
+        [
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([2, 3, 4], dims="degree", coords={"degree": [0, 1, 2]}),
+                xr.DataArray([9, 2 + 6 + 16, 2 + 9 + 36], dims="x"),
+                id="simple",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [0, 1]], dims=("y", "degree"), coords={"degree": [0, 1]}
+                ),
+                xr.DataArray([[1, 2, 3], [1, 2, 3]], dims=("y", "x")),
+                id="broadcast-x",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [1, 0], [1, 1]],
+                    dims=("x", "degree"),
+                    coords={"degree": [0, 1]},
+                ),
+                xr.DataArray([1, 1, 1 + 3], dims="x"),
+                id="shared-dim",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([1, 0, 0], dims="degree", coords={"degree": [2, 1, 0]}),
+                xr.DataArray([1, 2**2, 3**2], dims="x"),
+                id="reordered-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([5], dims="degree", coords={"degree": [3]}),
+                xr.DataArray([5, 5 * 2**3, 5 * 3**3], dims="x"),
+                id="sparse-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 0])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [1, 1, 1])}),
+                id="array-dataset",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [2, 3, 4])}),
+                xr.DataArray([1, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.Dataset({"a": ("x", [2, 3, 4]), "b": ("x", [3, 4, 5])}),
+                id="dataset-array",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [2, 3, 4])}),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 1])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [3, 4, 5])}),
+                id="dataset-dataset",
+            ),
+            pytest.param(
+                xr.DataArray(pd.date_range("1970-01-01", freq="s", periods=3), dims="x"),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray(
+                    [0, 1e9, 2e9],
+                    dims="x",
+                    coords={"x": pd.date_range("1970-01-01", freq="s", periods=3)},
+                ),
+                id="datetime",
+            ),
+            pytest.param(
+                xr.DataArray(
+                    np.array([1000, 2000, 3000], dtype="timedelta64[ns]"), dims="x"
+                ),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray([1000.0, 2000.0, 3000.0], dims="x"),
+                id="timedelta",
+            ),
+        ],
+    )
+    def test_polyval(
+        use_dask: bool,
+        x: xr.DataArray | xr.Dataset,
+        coeffs: xr.DataArray | xr.Dataset,
+        expected: xr.DataArray | xr.Dataset,
+    ) -> None:
+        if use_dask:
+            if not has_dask:
+                pytest.skip("requires dask")
+            coeffs = coeffs.chunk({"degree": 2})
+            x = x.chunk({"x": 2})
+        with raise_if_dask_computes():
+            actual = xr.polyval(coord=x, coeffs=coeffs)  # type: ignore
+>       xr.testing.assert_allclose(actual, expected)
+E       AssertionError: Left and right DataArray objects are not close
+E       
+E       Differing values:
+E       L
+E           array([0., 0., 0.])
+E       R
+E           array([1000., 2000., 3000.])
+
+/testbed/xarray/tests/test_computation.py:2036: AssertionError
+----------------------------- Captured stdout call -----------------------------
+Debug: coord dtype: float64
+Debug: coeffs dtype: int64
+Debug: max_deg: 1
+Debug: deg: 0, res: [0. 0. 0.]
+_________________________ test_polyval[timedelta-True] _________________________
+
+use_dask = True
+x = <xarray.DataArray (x: 3)>
+dask.array<xarray-<this-array>, shape=(3,), dtype=timedelta64[ns], chunksize=(2,), chunktype=numpy.ndarray>
+Dimensions without coordinates: x
+coeffs = <xarray.DataArray (degree: 2)>
+dask.array<xarray-<this-array>, shape=(2,), dtype=int64, chunksize=(2,), chunktype=numpy.ndarray>
+Coordinates:
+  * degree   (degree) int64 0 1
+expected = <xarray.DataArray (x: 3)>
+array([1000., 2000., 3000.])
+Dimensions without coordinates: x
+
+    @pytest.mark.parametrize("use_dask", [False, True])
+    @pytest.mark.parametrize(
+        ["x", "coeffs", "expected"],
+        [
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([2, 3, 4], dims="degree", coords={"degree": [0, 1, 2]}),
+                xr.DataArray([9, 2 + 6 + 16, 2 + 9 + 36], dims="x"),
+                id="simple",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [0, 1]], dims=("y", "degree"), coords={"degree": [0, 1]}
+                ),
+                xr.DataArray([[1, 2, 3], [1, 2, 3]], dims=("y", "x")),
+                id="broadcast-x",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray(
+                    [[0, 1], [1, 0], [1, 1]],
+                    dims=("x", "degree"),
+                    coords={"degree": [0, 1]},
+                ),
+                xr.DataArray([1, 1, 1 + 3], dims="x"),
+                id="shared-dim",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([1, 0, 0], dims="degree", coords={"degree": [2, 1, 0]}),
+                xr.DataArray([1, 2**2, 3**2], dims="x"),
+                id="reordered-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.DataArray([5], dims="degree", coords={"degree": [3]}),
+                xr.DataArray([5, 5 * 2**3, 5 * 3**3], dims="x"),
+                id="sparse-index",
+            ),
+            pytest.param(
+                xr.DataArray([1, 2, 3], dims="x"),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 0])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [1, 1, 1])}),
+                id="array-dataset",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("x", [2, 3, 4])}),
+                xr.DataArray([1, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.Dataset({"a": ("x", [2, 3, 4]), "b": ("x", [3, 4, 5])}),
+                id="dataset-array",
+            ),
+            pytest.param(
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [2, 3, 4])}),
+                xr.Dataset(
+                    {"a": ("degree", [0, 1]), "b": ("degree", [1, 1])},
+                    coords={"degree": [0, 1]},
+                ),
+                xr.Dataset({"a": ("x", [1, 2, 3]), "b": ("y", [3, 4, 5])}),
+                id="dataset-dataset",
+            ),
+            pytest.param(
+                xr.DataArray(pd.date_range("1970-01-01", freq="s", periods=3), dims="x"),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray(
+                    [0, 1e9, 2e9],
+                    dims="x",
+                    coords={"x": pd.date_range("1970-01-01", freq="s", periods=3)},
+                ),
+                id="datetime",
+            ),
+            pytest.param(
+                xr.DataArray(
+                    np.array([1000, 2000, 3000], dtype="timedelta64[ns]"), dims="x"
+                ),
+                xr.DataArray([0, 1], dims="degree", coords={"degree": [0, 1]}),
+                xr.DataArray([1000.0, 2000.0, 3000.0], dims="x"),
+                id="timedelta",
+            ),
+        ],
+    )
+    def test_polyval(
+        use_dask: bool,
+        x: xr.DataArray | xr.Dataset,
+        coeffs: xr.DataArray | xr.Dataset,
+        expected: xr.DataArray | xr.Dataset,
+    ) -> None:
+        if use_dask:
+            if not has_dask:
+                pytest.skip("requires dask")
+            coeffs = coeffs.chunk({"degree": 2})
+            x = x.chunk({"x": 2})
+        with raise_if_dask_computes():
+>           actual = xr.polyval(coord=x, coeffs=coeffs)  # type: ignore
+
+/testbed/xarray/tests/test_computation.py:2035: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/testbed/xarray/core/computation.py:1924: in polyval
+    print(f"Debug: deg: {deg}, res: {res}")
+/testbed/xarray/core/common.py:163: in __format__
+    return self.values.__format__(format_spec)
+/testbed/xarray/core/dataarray.py:673: in values
+    return self.variable.values
+/testbed/xarray/core/variable.py:510: in values
+    return _as_array_or_item(self._data)
+/testbed/xarray/core/variable.py:250: in _as_array_or_item
+    data = np.asarray(data)
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/array/core.py:1694: in __array__
+    x = self.compute()
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/base.py:315: in compute
+    (result,) = compute(self, traverse=False, **kwargs)
+/opt/miniconda3/envs/testbed/lib/python3.10/site-packages/dask/base.py:600: in compute
+    results = schedule(dsk, keys, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <xarray.tests.CountingScheduler object at 0x7f0dd730fc10>
+dsk = {('add-cbf32197ccf601e16b5b2ced79ed382b', 0): (subgraph_callable-b21175a8-85c9-4dd3-ae0f-1a2c111c9c99, ('getitem-eafdc...): (<function getitem at 0x7f0e08112cb0>, ('xarray-<this-array>-1eb721e2617e36ec52750993369bb7a3', 0), (0, None)), ...}
+keys = [[('add-cbf32197ccf601e16b5b2ced79ed382b', 0), ('add-cbf32197ccf601e16b5b2ced79ed382b', 1)]]
+kwargs = {}
+
+    def __call__(self, dsk, keys, **kwargs):
+        self.total_computes += 1
+        if self.total_computes > self.max_computes:
+>           raise RuntimeError(
+                "Too many computes. Total: %d > max: %d."
+                % (self.total_computes, self.max_computes)
+            )
+E           RuntimeError: Too many computes. Total: 1 > max: 0.
+
+/testbed/xarray/tests/__init__.py:109: RuntimeError
+----------------------------- Captured stdout call -----------------------------
+Debug: coord dtype: float64
+Debug: coeffs dtype: int64
+Debug: max_deg: 1
+==================================== PASSES ====================================
+__________________________ test_polyval[simple-False] __________________________
+----------------------------- Captured stdout call -----------------------------
+Debug: coord dtype: int64
+Debug: coeffs dtype: int64
+Debug: max_deg: 2
+Debug: deg: 1, res: [ 7 11 15]
+Debug: deg: 0, res: [ 9 24 47]
+_______________________ test_polyval[broadcast-x-False] ________________________
+----------------------------- Captured stdout call -----------------------------
+Debug: coord dtype: int64
+Debug: coeffs dtype: int64
+Debug: max_deg: 1
+Debug: deg: 0, res: [[1 2 3]
+ [1 2 3]]
+________________________ test_polyval[shared-dim-False] ________________________
+----------------------------- Captured stdout call -----------------------------
+Debug: coord dtype: int64
+Debug: coeffs dtype: int64
+Debug: max_deg: 1
+Debug: deg: 0, res: [1 1 4]
+_____________________ test_polyval[reordered-index-False] ______________________
+----------------------------- Captured stdout call -----------------------------
+Debug: coord dtype: int64
+Debug: coeffs dtype: int64
+Debug: max_deg: 2
+Debug: deg: 1, res: [1 2 3]
+Debug: deg: 0, res: [1 4 9]
+_______________________ test_polyval[sparse-index-False] _______________________
+----------------------------- Captured stdout call -----------------------------
+Debug: coord dtype: int64
+Debug: coeffs dtype: int64
+Debug: max_deg: 3
+Debug: deg: 2, res: [ 5 10 15]
+Debug: deg: 1, res: [ 5 20 45]
+Debug: deg: 0, res: [  5  40 135]
+=========================== short test summary info ============================
+PASSED xarray/tests/test_computation.py::test_signature_properties
+PASSED xarray/tests/test_computation.py::test_result_name
+PASSED xarray/tests/test_computation.py::test_ordered_set_union
+PASSED xarray/tests/test_computation.py::test_ordered_set_intersection
+PASSED xarray/tests/test_computation.py::test_join_dict_keys
+PASSED xarray/tests/test_computation.py::test_collect_dict_values
+PASSED xarray/tests/test_computation.py::test_apply_identity
+PASSED xarray/tests/test_computation.py::test_apply_two_inputs
+PASSED xarray/tests/test_computation.py::test_apply_1d_and_0d
+PASSED xarray/tests/test_computation.py::test_apply_two_outputs
+PASSED xarray/tests/test_computation.py::test_apply_dask_parallelized_two_outputs
+PASSED xarray/tests/test_computation.py::test_apply_input_core_dimension
+PASSED xarray/tests/test_computation.py::test_apply_output_core_dimension
+PASSED xarray/tests/test_computation.py::test_apply_exclude
+PASSED xarray/tests/test_computation.py::test_apply_groupby_add
+PASSED xarray/tests/test_computation.py::test_unified_dim_sizes
+PASSED xarray/tests/test_computation.py::test_broadcast_compat_data_1d
+PASSED xarray/tests/test_computation.py::test_broadcast_compat_data_2d
+PASSED xarray/tests/test_computation.py::test_keep_attrs
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_variable[default]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_variable[False]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_variable[True]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_variable[override]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_variable[drop]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_variable[drop_conflicts]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_variable[no_conflicts]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray[default]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray[False]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray[True]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray[override]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray[drop]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray[drop_conflicts]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray[no_conflicts]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[default-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[default-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[False-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[False-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[True-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[True-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[override-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[override-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[drop-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[drop-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[drop_conflicts-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[drop_conflicts-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[no_conflicts-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[no_conflicts-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset[default]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset[False]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset[True]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset[override]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset[drop]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset[drop_conflicts]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset[no_conflicts]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[default-data]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[default-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[default-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[False-data]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[False-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[False-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[True-data]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[True-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[True-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[override-data]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[override-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[override-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[drop-data]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[drop-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[drop-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[drop_conflicts-data]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[drop_conflicts-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[drop_conflicts-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[no_conflicts-data]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[no_conflicts-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[no_conflicts-coord]
+PASSED xarray/tests/test_computation.py::test_dataset_join
+PASSED xarray/tests/test_computation.py::test_apply_dask
+PASSED xarray/tests/test_computation.py::test_apply_dask_parallelized_one_arg
+PASSED xarray/tests/test_computation.py::test_apply_dask_parallelized_two_args
+PASSED xarray/tests/test_computation.py::test_apply_dask_parallelized_errors
+PASSED xarray/tests/test_computation.py::test_apply_dask_multiple_inputs
+PASSED xarray/tests/test_computation.py::test_apply_dask_new_output_dimension
+PASSED xarray/tests/test_computation.py::test_apply_dask_new_output_sizes
+PASSED xarray/tests/test_computation.py::test_vectorize
+PASSED xarray/tests/test_computation.py::test_vectorize_dask
+PASSED xarray/tests/test_computation.py::test_vectorize_dask_dtype
+PASSED xarray/tests/test_computation.py::test_vectorize_dask_dtype_without_output_dtypes[data_array0]
+PASSED xarray/tests/test_computation.py::test_vectorize_dask_dtype_without_output_dtypes[data_array1]
+PASSED xarray/tests/test_computation.py::test_vectorize_exclude_dims
+PASSED xarray/tests/test_computation.py::test_vectorize_exclude_dims_dask
+PASSED xarray/tests/test_computation.py::test_corr_only_dataarray
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a0-da_b0-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a0-da_b0-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a1-da_b1-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a1-da_b1-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a2-da_b2-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a2-da_b2-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a3-da_b3-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a3-da_b3-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a4-da_b4-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a4-da_b4-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a5-da_b5-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a5-da_b5-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a0-da_b0-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a0-da_b0-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a1-da_b1-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a1-da_b1-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a2-da_b2-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a2-da_b2-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a3-da_b3-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a3-da_b3-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a4-da_b4-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a4-da_b4-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a5-da_b5-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a5-da_b5-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a0-da_b0-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a0-da_b0-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a1-da_b1-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a1-da_b1-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a2-da_b2-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a2-da_b2-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a3-da_b3-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a3-da_b3-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a4-da_b4-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a4-da_b4-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a5-da_b5-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a5-da_b5-1]
+PASSED xarray/tests/test_computation.py::test_cov[None-da_a0-da_b0-0]
+PASSED xarray/tests/test_computation.py::test_cov[None-da_a0-da_b0-1]
+PASSED xarray/tests/test_computation.py::test_cov[None-da_a1-da_b1-0]
+PASSED xarray/tests/test_computation.py::test_cov[None-da_a1-da_b1-1]
+PASSED xarray/tests/test_computation.py::test_cov[None-da_a2-da_b2-0]
+PASSED xarray/tests/test_computation.py::test_cov[None-da_a2-da_b2-1]
+PASSED xarray/tests/test_computation.py::test_cov[time-da_a0-da_b0-0]
+PASSED xarray/tests/test_computation.py::test_cov[time-da_a0-da_b0-1]
+PASSED xarray/tests/test_computation.py::test_cov[time-da_a1-da_b1-0]
+PASSED xarray/tests/test_computation.py::test_cov[time-da_a1-da_b1-1]
+PASSED xarray/tests/test_computation.py::test_cov[time-da_a2-da_b2-0]
+PASSED xarray/tests/test_computation.py::test_cov[time-da_a2-da_b2-1]
+PASSED xarray/tests/test_computation.py::test_corr[None-da_a0-da_b0]
+PASSED xarray/tests/test_computation.py::test_corr[None-da_a1-da_b1]
+PASSED xarray/tests/test_computation.py::test_corr[None-da_a2-da_b2]
+PASSED xarray/tests/test_computation.py::test_corr[time-da_a0-da_b0]
+PASSED xarray/tests/test_computation.py::test_corr[time-da_a1-da_b1]
+PASSED xarray/tests/test_computation.py::test_corr[time-da_a2-da_b2]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[None-da_a0-da_b0]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[None-da_a1-da_b1]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[None-da_a2-da_b2]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[None-da_a3-da_b3]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[None-da_a4-da_b4]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[None-da_a5-da_b5]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[None-da_a6-da_b6]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[None-da_a7-da_b7]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[None-da_a8-da_b8]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[time-da_a0-da_b0]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[time-da_a1-da_b1]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[time-da_a2-da_b2]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[time-da_a3-da_b3]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[time-da_a4-da_b4]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[time-da_a5-da_b5]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[time-da_a6-da_b6]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[time-da_a7-da_b7]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[time-da_a8-da_b8]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[x-da_a0-da_b0]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[x-da_a1-da_b1]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[x-da_a2-da_b2]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[x-da_a3-da_b3]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[x-da_a4-da_b4]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[x-da_a5-da_b5]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[x-da_a6-da_b6]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[x-da_a7-da_b7]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[x-da_a8-da_b8]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[None-da_a0-da_b0]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[None-da_a1-da_b1]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[None-da_a2-da_b2]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[None-da_a3-da_b3]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[None-da_a4-da_b4]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[None-da_a5-da_b5]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[None-da_a6-da_b6]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[None-da_a7-da_b7]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[None-da_a8-da_b8]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[time-da_a0-da_b0]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[time-da_a1-da_b1]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[time-da_a2-da_b2]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[time-da_a3-da_b3]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[time-da_a4-da_b4]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[time-da_a5-da_b5]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[time-da_a6-da_b6]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[time-da_a7-da_b7]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[time-da_a8-da_b8]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[x-da_a0-da_b0]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[x-da_a1-da_b1]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[x-da_a2-da_b2]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[x-da_a3-da_b3]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[x-da_a4-da_b4]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[x-da_a5-da_b5]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[x-da_a6-da_b6]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[x-da_a7-da_b7]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[x-da_a8-da_b8]
+PASSED xarray/tests/test_computation.py::test_corr_dtype_error
+PASSED xarray/tests/test_computation.py::test_autocov[None-da_a0]
+PASSED xarray/tests/test_computation.py::test_autocov[None-da_a1]
+PASSED xarray/tests/test_computation.py::test_autocov[None-da_a2]
+PASSED xarray/tests/test_computation.py::test_autocov[None-da_a3]
+PASSED xarray/tests/test_computation.py::test_autocov[None-da_a4]
+PASSED xarray/tests/test_computation.py::test_autocov[time-da_a0]
+PASSED xarray/tests/test_computation.py::test_autocov[time-da_a1]
+PASSED xarray/tests/test_computation.py::test_autocov[time-da_a2]
+PASSED xarray/tests/test_computation.py::test_autocov[time-da_a3]
+PASSED xarray/tests/test_computation.py::test_autocov[time-da_a4]
+PASSED xarray/tests/test_computation.py::test_autocov[x-da_a0]
+PASSED xarray/tests/test_computation.py::test_autocov[x-da_a1]
+PASSED xarray/tests/test_computation.py::test_autocov[x-da_a2]
+PASSED xarray/tests/test_computation.py::test_autocov[x-da_a3]
+PASSED xarray/tests/test_computation.py::test_autocov[x-da_a4]
+PASSED xarray/tests/test_computation.py::test_autocov[dim3-da_a0]
+PASSED xarray/tests/test_computation.py::test_autocov[dim3-da_a1]
+PASSED xarray/tests/test_computation.py::test_autocov[dim3-da_a2]
+PASSED xarray/tests/test_computation.py::test_autocov[dim3-da_a3]
+PASSED xarray/tests/test_computation.py::test_autocov[dim3-da_a4]
+PASSED xarray/tests/test_computation.py::test_vectorize_dask_new_output_dims
+PASSED xarray/tests/test_computation.py::test_output_wrong_number
+PASSED xarray/tests/test_computation.py::test_output_wrong_dims
+PASSED xarray/tests/test_computation.py::test_output_wrong_dim_size
+PASSED xarray/tests/test_computation.py::test_dot[True]
+PASSED xarray/tests/test_computation.py::test_dot[False]
+PASSED xarray/tests/test_computation.py::test_dot_align_coords[True]
+PASSED xarray/tests/test_computation.py::test_dot_align_coords[False]
+PASSED xarray/tests/test_computation.py::test_where
+PASSED xarray/tests/test_computation.py::test_where_attrs
+PASSED xarray/tests/test_computation.py::test_polyval[simple-False]
+PASSED xarray/tests/test_computation.py::test_polyval[broadcast-x-False]
+PASSED xarray/tests/test_computation.py::test_polyval[shared-dim-False]
+PASSED xarray/tests/test_computation.py::test_polyval[reordered-index-False]
+PASSED xarray/tests/test_computation.py::test_polyval[sparse-index-False]
+PASSED xarray/tests/test_computation.py::test_polyval_degree_dim_checks
+PASSED xarray/tests/test_computation.py::test_cross[a0-b0-ae0-be0-dim_0--1-False]
+PASSED xarray/tests/test_computation.py::test_cross[a0-b0-ae0-be0-dim_0--1-True]
+PASSED xarray/tests/test_computation.py::test_cross[a1-b1-ae1-be1-dim_0--1-False]
+PASSED xarray/tests/test_computation.py::test_cross[a1-b1-ae1-be1-dim_0--1-True]
+PASSED xarray/tests/test_computation.py::test_cross[a2-b2-ae2-be2-dim_0--1-False]
+PASSED xarray/tests/test_computation.py::test_cross[a2-b2-ae2-be2-dim_0--1-True]
+PASSED xarray/tests/test_computation.py::test_cross[a3-b3-ae3-be3-dim_0--1-False]
+PASSED xarray/tests/test_computation.py::test_cross[a3-b3-ae3-be3-dim_0--1-True]
+PASSED xarray/tests/test_computation.py::test_cross[a4-b4-ae4-be4-cartesian-1-False]
+PASSED xarray/tests/test_computation.py::test_cross[a4-b4-ae4-be4-cartesian-1-True]
+PASSED xarray/tests/test_computation.py::test_cross[a5-b5-ae5-be5-cartesian--1-False]
+PASSED xarray/tests/test_computation.py::test_cross[a5-b5-ae5-be5-cartesian--1-True]
+PASSED xarray/tests/test_computation.py::test_cross[a6-b6-ae6-be6-cartesian--1-False]
+PASSED xarray/tests/test_computation.py::test_cross[a6-b6-ae6-be6-cartesian--1-True]
+SKIPPED [1] xarray/tests/test_computation.py:1308: dask/dask#7669: can no longer pass output_dtypes and meta
+FAILED xarray/tests/test_computation.py::test_polyval[simple-True] - RuntimeE...
+FAILED xarray/tests/test_computation.py::test_polyval[broadcast-x-True] - Run...
+FAILED xarray/tests/test_computation.py::test_polyval[shared-dim-True] - Runt...
+FAILED xarray/tests/test_computation.py::test_polyval[reordered-index-True]
+FAILED xarray/tests/test_computation.py::test_polyval[sparse-index-True] - Ru...
+FAILED xarray/tests/test_computation.py::test_polyval[array-dataset-False] - ...
+FAILED xarray/tests/test_computation.py::test_polyval[array-dataset-True] - A...
+FAILED xarray/tests/test_computation.py::test_polyval[dataset-array-False] - ...
+FAILED xarray/tests/test_computation.py::test_polyval[dataset-array-True] - A...
+FAILED xarray/tests/test_computation.py::test_polyval[dataset-dataset-False]
+FAILED xarray/tests/test_computation.py::test_polyval[dataset-dataset-True]
+FAILED xarray/tests/test_computation.py::test_polyval[datetime-False] - Asser...
+FAILED xarray/tests/test_computation.py::test_polyval[datetime-True] - Runtim...
+FAILED xarray/tests/test_computation.py::test_polyval[timedelta-False] - Asse...
+FAILED xarray/tests/test_computation.py::test_polyval[timedelta-True] - Runti...
+================== 15 failed, 250 passed, 1 skipped in 17.03s ==================
++ git checkout 6bb2b855498b5c68d7cca8cceb710365d58e6048 xarray/tests/test_computation.py
+Updated 1 path from 95cfcf19

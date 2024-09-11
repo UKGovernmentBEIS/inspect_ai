@@ -1,0 +1,59 @@
+
+diff --git a/sympy/printing/pretty/pretty_symbology.py b/sympy/printing/pretty/pretty_symbology.py
+index 3f7c4a2dc7..01b2fecdd0 100644
+--- a/sympy/printing/pretty/pretty_symbology.py
++++ b/sympy/printing/pretty/pretty_symbology.py
+@@ -517,14 +517,21 @@ def pretty_symbol(symb_name, bold_name=False):
+ 
+     name, sups, subs = split_super_sub(symb_name)
+ 
+-    def translate(s, bold_name) :
++    def translate(s, bold_name):
++        # Check if the symbol is a Greek letter with a subscript
++        if '_' in s:
++            base, subscript = s.split('_', 1)
++            if base in greek_unicode:
++                gG = greek_unicode[base] if not bold_name else greek_bold_unicode.get(base, greek_unicode[base])
++                return gG + ''.join([sub.get(c, c) for c in subscript])
++        
+         if bold_name:
+             gG = greek_bold_unicode.get(s)
+         else:
+             gG = greek_unicode.get(s)
+         if gG is not None:
+             return gG
+-        for key in sorted(modifier_dict.keys(), key=lambda k:len(k), reverse=True) :
++        for key in sorted(modifier_dict.keys(), key=lambda k:len(k), reverse=True):
+             if s.lower().endswith(key) and len(s)>len(key):
+                 return modifier_dict[key](translate(s[:-len(key)], bold_name))
+         if bold_name:
+diff --git a/test_pretty_print.py b/test_pretty_print.py
+new file mode 100644
+index 0000000000..1b5a1d73e2
+--- /dev/null
++++ b/test_pretty_print.py
+@@ -0,0 +1,24 @@
++from sympy import Symbol, pprint, init_printing
++from sympy.printing.pretty.pretty import pretty
++
++# Initialize pretty printing
++init_printing(use_unicode=True)
++
++# Define symbols
++t0 = Symbol('t_0')
++t1 = Symbol('t_1')
++t2 = Symbol('t_2')
++w0 = Symbol('ω_0')
++
++# Create the expression
++expr = [-t0 * w0, -t1 * w0, -t2 * w0]
++
++# Print the expression
++print("Pretty printed expression:")
++pprint(expr)
++
++# Print using the pretty function directly
++print("\nUsing pretty function:")
++print(pretty(expr))
++
++print("\nScript completed successfully, no errors.")

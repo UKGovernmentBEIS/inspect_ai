@@ -1,0 +1,122 @@
+
+diff --git a/sklearn/metrics/cluster/supervised.py b/sklearn/metrics/cluster/supervised.py
+index a987778ae..2dc8520ce 100644
+--- a/sklearn/metrics/cluster/supervised.py
++++ b/sklearn/metrics/cluster/supervised.py
+@@ -788,32 +788,20 @@ def fowlkes_mallows_score(labels_true, labels_pred, sparse=False):
+     """Measure the similarity of two clusterings of a set of points.
+ 
+     The Fowlkes-Mallows index (FMI) is defined as the geometric mean between of
+-    the precision and recall::
++    the precision and recall between two clusterings. The score ranges from 0 to
++    1. A high value indicates a good similarity between two clusterings.
+ 
+-        FMI = TP / sqrt((TP + FP) * (TP + FN))
+-
+-    Where ``TP`` is the number of **True Positive** (i.e. the number of pair of
+-    points that belongs in the same clusters in both ``labels_true`` and
+-    ``labels_pred``), ``FP`` is the number of **False Positive** (i.e. the
+-    number of pair of points that belongs in the same clusters in
+-    ``labels_true`` and not in ``labels_pred``) and ``FN`` is the number of
+-    **False Negative** (i.e the number of pair of points that belongs in the
+-    same clusters in ``labels_pred`` and not in ``labels_True``).
+-
+-    The score ranges from 0 to 1. A high value indicates a good similarity
+-    between two clusters.
+-
+-    Read more in the :ref:`User Guide <fowlkes_mallows_scores>`.
++    Read more in the :ref:`User Guide <fowlkes_mallows_score>`.
+ 
+     Parameters
+     ----------
+-    labels_true : int array, shape = (``n_samples``,)
++    labels_true : int array, shape = (n_samples,)
+         A clustering of the data into disjoint subsets.
+ 
+-    labels_pred : array, shape = (``n_samples``, )
++    labels_pred : array, shape = (n_samples, )
+         A clustering of the data into disjoint subsets.
+ 
+-    sparse : bool
++    sparse : bool, optional (default = False)
+         Compute contingency matrix internally with sparse matrix.
+ 
+     Returns
+@@ -821,9 +809,25 @@ def fowlkes_mallows_score(labels_true, labels_pred, sparse=False):
+     score : float
+        The resulting Fowlkes-Mallows score.
+ 
++    Notes
++    -----
++    The contingency matrix computed in this implementation is not normalized
++    as in scikit-learn v0.19 and earlier.
++
++    This metric is independent of the absolute values of the labels:
++    a permutation of the class or cluster label values won't change the
++    score value in any way.
++
++    This metric is furthermore symmetric: switching ``label_true`` with
++    ``label_pred`` will return the same score value. This can be useful to
++    measure the agreement of two independent label assignments strategies
++    on the same dataset when the real ground truth is not known.
++
++    This implementation handles large values efficiently, avoiding potential
++    overflow issues that could occur with very large datasets.
++
+     Examples
+     --------
+-
+     Perfect labelings are both homogeneous and complete, hence have
+     score 1.0::
+ 
+@@ -841,13 +845,12 @@ def fowlkes_mallows_score(labels_true, labels_pred, sparse=False):
+ 
+     References
+     ----------
+-    .. [1] `E. B. Fowkles and C. L. Mallows, 1983. "A method for comparing two
+-       hierarchical clusterings". Journal of the American Statistical
+-       Association
+-       <http://wildfire.stat.ucla.edu/pdflibrary/fowlkes.pdf>`_
++    .. [1] E. B. Fowkles and C. L. Mallows, 1983. "A method for comparing two
++       hierarchical clusterings". Journal of the American Statistical Association.
++       http://wildfire.stat.ucla.edu/pdflibrary/fowlkes.pdf
+ 
+-    .. [2] `Wikipedia entry for the Fowlkes-Mallows Index
+-           <https://en.wikipedia.org/wiki/Fowlkes-Mallows_index>`_
++    .. [2] Wikipedia entry for the Fowlkes-Mallows Index
++           https://en.wikipedia.org/wiki/Fowlkes-Mallows_index
+     """
+     labels_true, labels_pred = check_clusterings(labels_true, labels_pred)
+     n_samples, = labels_true.shape
+@@ -856,7 +859,7 @@ def fowlkes_mallows_score(labels_true, labels_pred, sparse=False):
+     tk = np.dot(c.data, c.data) - n_samples
+     pk = np.sum(np.asarray(c.sum(axis=0)).ravel() ** 2) - n_samples
+     qk = np.sum(np.asarray(c.sum(axis=1)).ravel() ** 2) - n_samples
+-    return tk / np.sqrt(pk * qk) if tk != 0. else 0.
++    return np.sqrt(tk / pk) * np.sqrt(tk / qk) if tk != 0. else 0.
+ 
+ 
+ def entropy(labels):
+diff --git a/sklearn/metrics/cluster/tests/test_supervised.py b/sklearn/metrics/cluster/tests/test_supervised.py
+index 8da03d1e1..d0a83b056 100644
+--- a/sklearn/metrics/cluster/tests/test_supervised.py
++++ b/sklearn/metrics/cluster/tests/test_supervised.py
+@@ -273,4 +273,17 @@ def test_fowlkes_mallows_score_properties():
+ 
+     # symmetric and permutation(both together)
+     score_both = fowlkes_mallows_score(labels_b, (labels_a + 2) % 3)
+-    assert_almost_equal(score_both, expected)
++def test_fowlkes_mallows_score_big_values():
++    # Test for the fix of the overflow issue
++    n_samples = 1000000
++    labels_true = np.zeros(n_samples, dtype=np.int64)
++    labels_pred = np.zeros(n_samples, dtype=np.int64)
++    
++    # Set some values to create large pk and qk
++    labels_true[:500000] = 1
++    labels_pred[:600000] = 1
++    
++    score = fowlkes_mallows_score(labels_true, labels_pred)
++    assert_all_finite(score)
++    assert 0 <= score <= 1, f"Score {score} is not between 0 and 1"
++

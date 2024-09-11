@@ -1,0 +1,75 @@
+
+diff --git a/django/db/backends/mysql/operations.py b/django/db/backends/mysql/operations.py
+index 50f85e0621..e1d78267cb 100644
+--- a/django/db/backends/mysql/operations.py
++++ b/django/db/backends/mysql/operations.py
+@@ -70,7 +70,8 @@ class DatabaseOperations(BaseDatabaseOperations):
+ 
+     def _convert_field_to_tz(self, field_name, tzname):
+         if settings.USE_TZ:
+-            field_name = "CONVERT_TZ(%s, 'UTC', '%s')" % (field_name, tzname)
++            from_tz = self.connection.settings_dict.get('TIME_ZONE', 'UTC')
++            field_name = "CONVERT_TZ(%s, '%s', '%s')" % (field_name, from_tz, tzname)
+         return field_name
+ 
+     def datetime_cast_date_sql(self, field_name, tzname):
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..e65dd08337
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,15 @@
++SECRET_KEY = 'test_secret_key'
++DEBUG = True
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'django.contrib.auth',
++    'django.contrib.sites',
++]
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++USE_TZ = True
++TIME_ZONE = 'UTC'
+diff --git a/tests/backends/mysql/test_operations.py b/tests/backends/mysql/test_operations.py
+new file mode 100644
+index 0000000000..45e4453ddd
+--- /dev/null
++++ b/tests/backends/mysql/test_operations.py
+@@ -0,0 +1,33 @@
++from django.db import connection
++from django.test import TestCase
++from django.conf import settings
++from django.db.backends.sqlite3.operations import DatabaseOperations
++
++class SQLiteOperationsTests(TestCase):
++    def test_datetime_cast_date_sql(self):
++        ops = DatabaseOperations(connection=connection)
++
++        # Save the original settings
++        original_use_tz = settings.USE_TZ
++        original_time_zone = connection.settings_dict.get('TIME_ZONE')
++
++        try:
++            settings.USE_TZ = True
++            connection.settings_dict['TIME_ZONE'] = 'Europe/Paris'
++
++            field_name = 'test_field'
++
++            converted = ops.datetime_cast_date_sql(field_name, 'UTC')
++            expected = "django_datetime_cast_date(test_field, 'UTC')"
++
++            self.assertEqual(converted, expected)
++
++        finally:
++            # Restore the original settings
++            settings.USE_TZ = original_use_tz
++            if original_time_zone:
++                connection.settings_dict['TIME_ZONE'] = original_time_zone
++            else:
++                connection.settings_dict.pop('TIME_ZONE', None)
++
++print("Test file updated successfully.")

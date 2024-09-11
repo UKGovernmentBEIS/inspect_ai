@@ -1,0 +1,828 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/urls/resolvers.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	tests/test_resolver_match.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 2f13c476abe4ba787b6cb71131818341911f43cc
+Author: Nick Pope <nick.pope@flightdataservices.com>
+Date:   Wed Mar 24 22:29:33 2021 +0000
+
+    Fixed #31487 -- Added precision argument to Round().
+
+diff --git a/django/db/backends/sqlite3/features.py b/django/db/backends/sqlite3/features.py
+index 3348256c74..ddae4c8efa 100644
+--- a/django/db/backends/sqlite3/features.py
++++ b/django/db/backends/sqlite3/features.py
+@@ -65,6 +65,12 @@ class DatabaseFeatures(BaseDatabaseFeatures):
+             "SQLite doesn't have a constraint.": {
+                 'model_fields.test_integerfield.PositiveIntegerFieldTests.test_negative_values',
+             },
++            "SQLite doesn't support negative precision for ROUND().": {
++                'db_functions.math.test_round.RoundTests.test_null_with_negative_precision',
++                'db_functions.math.test_round.RoundTests.test_decimal_with_negative_precision',
++                'db_functions.math.test_round.RoundTests.test_float_with_negative_precision',
++                'db_functions.math.test_round.RoundTests.test_integer_with_negative_precision',
++            },
+         }
+         if Database.sqlite_version_info < (3, 27):
+             skips.update({
+diff --git a/django/db/models/functions/math.py b/django/db/models/functions/math.py
+index 15915f4b7c..f939885263 100644
+--- a/django/db/models/functions/math.py
++++ b/django/db/models/functions/math.py
+@@ -1,6 +1,6 @@
+ import math
+ 
+-from django.db.models.expressions import Func
++from django.db.models.expressions import Func, Value
+ from django.db.models.fields import FloatField, IntegerField
+ from django.db.models.functions import Cast
+ from django.db.models.functions.mixins import (
+@@ -158,9 +158,23 @@ class Random(NumericOutputFieldMixin, Func):
+         return []
+ 
+ 
+-class Round(Transform):
++class Round(FixDecimalInputMixin, Transform):
+     function = 'ROUND'
+     lookup_name = 'round'
++    arity = None  # Override Transform's arity=1 to enable passing precision.
++
++    def __init__(self, expression, precision=0, **extra):
++        super().__init__(expression, precision, **extra)
++
++    def as_sqlite(self, compiler, connection, **extra_context):
++        precision = self.get_source_expressions()[1]
++        if isinstance(precision, Value) and precision.value < 0:
++            raise ValueError('SQLite does not support negative precision.')
++        return super().as_sqlite(compiler, connection, **extra_context)
++
++    def _resolve_output_field(self):
++        source = self.get_source_expressions()[0]
++        return source.output_field
+ 
+ 
+ class Sign(Transform):
+diff --git a/docs/ref/models/database-functions.txt b/docs/ref/models/database-functions.txt
+index b63b4cff4a..ac0c5ea4ec 100644
+--- a/docs/ref/models/database-functions.txt
++++ b/docs/ref/models/database-functions.txt
+@@ -1147,18 +1147,19 @@ Returns a random value in the range ``0.0 ≤ x < 1.0``.
+ ``Round``
+ ---------
+ 
+-.. class:: Round(expression, **extra)
++.. class:: Round(expression, precision=0, **extra)
+ 
+-Rounds a numeric field or expression to the nearest integer. Whether half
++Rounds a numeric field or expression to ``precision`` (must be an integer)
++decimal places. By default, it rounds to the nearest integer. Whether half
+ values are rounded up or down depends on the database.
+ 
+ Usage example::
+ 
+     >>> from django.db.models.functions import Round
+-    >>> Vector.objects.create(x=5.4, y=-2.3)
+-    >>> vector = Vector.objects.annotate(x_r=Round('x'), y_r=Round('y')).get()
++    >>> Vector.objects.create(x=5.4, y=-2.37)
++    >>> vector = Vector.objects.annotate(x_r=Round('x'), y_r=Round('y', precision=1)).get()
+     >>> vector.x_r, vector.y_r
+-    (5.0, -2.0)
++    (5.0, -2.4)
+ 
+ It can also be registered as a transform. For example::
+ 
+@@ -1168,6 +1169,10 @@ It can also be registered as a transform. For example::
+     >>> # Get vectors whose round() is less than 20
+     >>> vectors = Vector.objects.filter(x__round__lt=20, y__round__lt=20)
+ 
++.. versionchanged:: 4.0
++
++    The ``precision`` argument was added.
++
+ ``Sign``
+ --------
+ 
+diff --git a/docs/releases/4.0.txt b/docs/releases/4.0.txt
+index f47b2fb5a0..d84e029ccd 100644
+--- a/docs/releases/4.0.txt
++++ b/docs/releases/4.0.txt
+@@ -222,6 +222,10 @@ Models
+   whether the queryset contains the given object. This tries to perform the
+   query in the simplest and fastest way possible.
+ 
++* The new ``precision`` argument of the
++  :class:`Round() <django.db.models.functions.Round>` database function allows
++  specifying the number of decimal places after rounding.
++
+ Requests and Responses
+ ~~~~~~~~~~~~~~~~~~~~~~
+ 
+diff --git a/tests/db_functions/math/test_round.py b/tests/db_functions/math/test_round.py
+index 50345d4b5c..320d37fe4e 100644
+--- a/tests/db_functions/math/test_round.py
++++ b/tests/db_functions/math/test_round.py
+@@ -1,7 +1,9 @@
++import unittest
+ from decimal import Decimal
+ 
++from django.db import connection
+ from django.db.models import DecimalField
+-from django.db.models.functions import Round
++from django.db.models.functions import Pi, Round
+ from django.test import TestCase
+ from django.test.utils import register_lookup
+ 
+@@ -15,6 +17,16 @@ class RoundTests(TestCase):
+         obj = IntegerModel.objects.annotate(null_round=Round('normal')).first()
+         self.assertIsNone(obj.null_round)
+ 
++    def test_null_with_precision(self):
++        IntegerModel.objects.create()
++        obj = IntegerModel.objects.annotate(null_round=Round('normal', 5)).first()
++        self.assertIsNone(obj.null_round)
++
++    def test_null_with_negative_precision(self):
++        IntegerModel.objects.create()
++        obj = IntegerModel.objects.annotate(null_round=Round('normal', -1)).first()
++        self.assertIsNone(obj.null_round)
++
+     def test_decimal(self):
+         DecimalModel.objects.create(n1=Decimal('-12.9'), n2=Decimal('0.6'))
+         obj = DecimalModel.objects.annotate(n1_round=Round('n1'), n2_round=Round('n2')).first()
+@@ -23,6 +35,23 @@ class RoundTests(TestCase):
+         self.assertAlmostEqual(obj.n1_round, obj.n1, places=0)
+         self.assertAlmostEqual(obj.n2_round, obj.n2, places=0)
+ 
++    def test_decimal_with_precision(self):
++        DecimalModel.objects.create(n1=Decimal('-5.75'), n2=Pi())
++        obj = DecimalModel.objects.annotate(
++            n1_round=Round('n1', 1),
++            n2_round=Round('n2', 5),
++        ).first()
++        self.assertIsInstance(obj.n1_round, Decimal)
++        self.assertIsInstance(obj.n2_round, Decimal)
++        self.assertAlmostEqual(obj.n1_round, obj.n1, places=1)
++        self.assertAlmostEqual(obj.n2_round, obj.n2, places=5)
++
++    def test_decimal_with_negative_precision(self):
++        DecimalModel.objects.create(n1=Decimal('365.25'))
++        obj = DecimalModel.objects.annotate(n1_round=Round('n1', -1)).first()
++        self.assertIsInstance(obj.n1_round, Decimal)
++        self.assertEqual(obj.n1_round, 370)
++
+     def test_float(self):
+         FloatModel.objects.create(f1=-27.55, f2=0.55)
+         obj = FloatModel.objects.annotate(f1_round=Round('f1'), f2_round=Round('f2')).first()
+@@ -31,6 +60,23 @@ class RoundTests(TestCase):
+         self.assertAlmostEqual(obj.f1_round, obj.f1, places=0)
+         self.assertAlmostEqual(obj.f2_round, obj.f2, places=0)
+ 
++    def test_float_with_precision(self):
++        FloatModel.objects.create(f1=-5.75, f2=Pi())
++        obj = FloatModel.objects.annotate(
++            f1_round=Round('f1', 1),
++            f2_round=Round('f2', 5),
++        ).first()
++        self.assertIsInstance(obj.f1_round, float)
++        self.assertIsInstance(obj.f2_round, float)
++        self.assertAlmostEqual(obj.f1_round, obj.f1, places=1)
++        self.assertAlmostEqual(obj.f2_round, obj.f2, places=5)
++
++    def test_float_with_negative_precision(self):
++        FloatModel.objects.create(f1=365.25)
++        obj = FloatModel.objects.annotate(f1_round=Round('f1', -1)).first()
++        self.assertIsInstance(obj.f1_round, float)
++        self.assertEqual(obj.f1_round, 370)
++
+     def test_integer(self):
+         IntegerModel.objects.create(small=-20, normal=15, big=-1)
+         obj = IntegerModel.objects.annotate(
+@@ -45,9 +91,39 @@ class RoundTests(TestCase):
+         self.assertAlmostEqual(obj.normal_round, obj.normal, places=0)
+         self.assertAlmostEqual(obj.big_round, obj.big, places=0)
+ 
++    def test_integer_with_precision(self):
++        IntegerModel.objects.create(small=-5, normal=3, big=-100)
++        obj = IntegerModel.objects.annotate(
++            small_round=Round('small', 1),
++            normal_round=Round('normal', 5),
++            big_round=Round('big', 2),
++        ).first()
++        self.assertIsInstance(obj.small_round, int)
++        self.assertIsInstance(obj.normal_round, int)
++        self.assertIsInstance(obj.big_round, int)
++        self.assertAlmostEqual(obj.small_round, obj.small, places=1)
++        self.assertAlmostEqual(obj.normal_round, obj.normal, places=5)
++        self.assertAlmostEqual(obj.big_round, obj.big, places=2)
++
++    def test_integer_with_negative_precision(self):
++        IntegerModel.objects.create(normal=365)
++        obj = IntegerModel.objects.annotate(normal_round=Round('normal', -1)).first()
++        self.assertIsInstance(obj.normal_round, int)
++        self.assertEqual(obj.normal_round, 370)
++
+     def test_transform(self):
+         with register_lookup(DecimalField, Round):
+             DecimalModel.objects.create(n1=Decimal('2.0'), n2=Decimal('0'))
+             DecimalModel.objects.create(n1=Decimal('-1.0'), n2=Decimal('0'))
+             obj = DecimalModel.objects.filter(n1__round__gt=0).get()
+             self.assertEqual(obj.n1, Decimal('2.0'))
++
++    @unittest.skipUnless(
++        connection.vendor == 'sqlite',
++        "SQLite doesn't support negative precision.",
++    )
++    def test_unsupported_negative_precision(self):
++        FloatModel.objects.create(f1=123.45)
++        msg = 'SQLite does not support negative precision.'
++        with self.assertRaisesMessage(ValueError, msg):
++            FloatModel.objects.annotate(value=Round('f1', -1)).first()
+diff --git a/tests/db_functions/migrations/0002_create_test_models.py b/tests/db_functions/migrations/0002_create_test_models.py
+index aa3e247bd5..3699d67a6f 100644
+--- a/tests/db_functions/migrations/0002_create_test_models.py
++++ b/tests/db_functions/migrations/0002_create_test_models.py
+@@ -56,7 +56,7 @@ class Migration(migrations.Migration):
+             name='DecimalModel',
+             fields=[
+                 ('n1', models.DecimalField(decimal_places=2, max_digits=6)),
+-                ('n2', models.DecimalField(decimal_places=2, max_digits=6)),
++                ('n2', models.DecimalField(decimal_places=7, max_digits=9, null=True, blank=True)),
+             ],
+         ),
+         migrations.CreateModel(
+diff --git a/tests/db_functions/models.py b/tests/db_functions/models.py
+index 97584326aa..5c3379b44a 100644
+--- a/tests/db_functions/models.py
++++ b/tests/db_functions/models.py
+@@ -42,7 +42,7 @@ class DTModel(models.Model):
+ 
+ class DecimalModel(models.Model):
+     n1 = models.DecimalField(decimal_places=2, max_digits=6)
+-    n2 = models.DecimalField(decimal_places=2, max_digits=6)
++    n2 = models.DecimalField(decimal_places=7, max_digits=9, null=True, blank=True)
+ 
+ 
+ class IntegerModel(models.Model):
++ git diff 2f13c476abe4ba787b6cb71131818341911f43cc
+diff --git a/django/urls/resolvers.py b/django/urls/resolvers.py
+index 9b00e24509..7eddc171c7 100644
+--- a/django/urls/resolvers.py
++++ b/django/urls/resolvers.py
+@@ -31,9 +31,14 @@ from .utils import get_callable
+ 
+ class ResolverMatch:
+     def __init__(self, func, args, kwargs, url_name=None, app_names=None, namespaces=None, route=None, tried=None):
+-        self.func = func
+-        self.args = args
+-        self.kwargs = kwargs
++        if isinstance(func, functools.partial):
++            self.func = func.func
++            self.args = func.args + args
++            self.kwargs = {**func.keywords, **kwargs}
++        else:
++            self.func = func
++            self.args = args
++            self.kwargs = kwargs
+         self.url_name = url_name
+         self.route = route
+         self.tried = tried
+@@ -45,12 +50,12 @@ class ResolverMatch:
+         self.namespaces = [x for x in namespaces if x] if namespaces else []
+         self.namespace = ':'.join(self.namespaces)
+ 
+-        if not hasattr(func, '__name__'):
++        if not hasattr(self.func, '__name__'):
+             # A class-based view
+-            self._func_path = func.__class__.__module__ + '.' + func.__class__.__name__
++            self._func_path = self.func.__class__.__module__ + '.' + self.func.__class__.__name__
+         else:
+             # A function-based view
+-            self._func_path = func.__module__ + '.' + func.__name__
++            self._func_path = self.func.__module__ + '.' + self.func.__name__
+ 
+         view_path = url_name or self._func_path
+         self.view_name = ':'.join(self.namespaces + [view_path])
+@@ -59,10 +64,18 @@ class ResolverMatch:
+         return (self.func, self.args, self.kwargs)[index]
+ 
+     def __repr__(self):
+-        return "ResolverMatch(func=%s, args=%s, kwargs=%s, url_name=%s, app_names=%s, namespaces=%s, route=%s)" % (
+-            self._func_path, self.args, self.kwargs, self.url_name,
+-            self.app_names, self.namespaces, self.route,
+-        )
++        if isinstance(self.func, functools.partial):
++            partial_func = self.func
++            return "ResolverMatch(func=%s, args=%s, kwargs=%s, url_name=%s, app_names=%s, namespaces=%s, route=%s, partial_args=%s, partial_kwargs=%s)" % (
++                self._func_path, self.args, self.kwargs, self.url_name,
++                self.app_names, self.namespaces, self.route,
++                partial_func.args, partial_func.keywords,
++            )
++        else:
++            return "ResolverMatch(func=%s, args=%s, kwargs=%s, url_name=%s, app_names=%s, namespaces=%s, route=%s)" % (
++                self._func_path, self.args, self.kwargs, self.url_name,
++                self.app_names, self.namespaces, self.route,
++            )
+ 
+ 
+ def get_resolver(urlconf=None):
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.2.10 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0) (3.8.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from asgiref>=3.2.10->Django==4.0) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.0-0.editable-py3-none-any.whl size=25609 sha256=36d14a172912069d54f20e2291a1903ca05f67db6c28072a0b6633d3ed4a3fb3
+  Stored in directory: /tmp/pip-ephem-wheel-cache-nzqd2c14/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.0
+    Uninstalling Django-4.0:
+      Successfully uninstalled Django-4.0
+Successfully installed Django-4.0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 2f13c476abe4ba787b6cb71131818341911f43cc tests/urlpatterns_reverse/tests.py
+Updated 0 paths from 444e1f2af1
++ git apply -v -
+Checking patch tests/urlpatterns_reverse/tests.py...
+Applied patch tests/urlpatterns_reverse/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 urlpatterns_reverse.tests
+Testing against Django installed in '/testbed/django'
+Importing application urlpatterns_reverse
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, sessions, staticfiles, urlpatterns_reverse
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique...Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+ OK
+System check identified no issues (0 silenced).
+test_build_absolute_uri (urlpatterns_reverse.tests.ReverseLazyTest) ... ok
+test_inserting_reverse_lazy_into_string (urlpatterns_reverse.tests.ReverseLazyTest) ... ok
+test_redirect_with_lazy_reverse (urlpatterns_reverse.tests.ReverseLazyTest) ... ok
+test_user_permission_with_lazy_reverse (urlpatterns_reverse.tests.ReverseLazyTest) ... ok
+test_default_handler (urlpatterns_reverse.tests.DefaultErrorHandlerTests)
+If the urls.py doesn't specify handlers, the defaults are used ... ok
+test_invalid_regex (urlpatterns_reverse.tests.ErroneousViewTests) ... ok
+test_noncallable_view (urlpatterns_reverse.tests.ErroneousViewTests) ... ok
+test_callable_handlers (urlpatterns_reverse.tests.ErrorHandlerResolutionTests) ... ok
+test_named_handlers (urlpatterns_reverse.tests.ErrorHandlerResolutionTests) ... ok
+test_include_2_tuple (urlpatterns_reverse.tests.IncludeTests) ... ok
+test_include_2_tuple_namespace (urlpatterns_reverse.tests.IncludeTests) ... ok
+test_include_3_tuple (urlpatterns_reverse.tests.IncludeTests) ... ok
+test_include_3_tuple_namespace (urlpatterns_reverse.tests.IncludeTests) ... ok
+test_include_4_tuple (urlpatterns_reverse.tests.IncludeTests) ... ok
+test_include_app_name (urlpatterns_reverse.tests.IncludeTests) ... ok
+test_include_app_name_namespace (urlpatterns_reverse.tests.IncludeTests) ... ok
+test_include_namespace (urlpatterns_reverse.tests.IncludeTests) ... ok
+test_include_urls (urlpatterns_reverse.tests.IncludeTests) ... ok
+test_invalid_resolve (urlpatterns_reverse.tests.LookaheadTests) ... ok
+test_invalid_reverse (urlpatterns_reverse.tests.LookaheadTests) ... ok
+test_valid_resolve (urlpatterns_reverse.tests.LookaheadTests) ... ok
+test_valid_reverse (urlpatterns_reverse.tests.LookaheadTests) ... ok
+test_ambiguous_object (urlpatterns_reverse.tests.NamespaceTests)
+Names deployed via dynamic URL objects that require namespaces can't ... ok
+test_ambiguous_urlpattern (urlpatterns_reverse.tests.NamespaceTests)
+Names deployed via dynamic URL objects that require namespaces can't ... ok
+test_app_lookup_object (urlpatterns_reverse.tests.NamespaceTests)
+A default application namespace can be used for lookup. ... ok
+test_app_lookup_object_with_default (urlpatterns_reverse.tests.NamespaceTests)
+A default application namespace is sensitive to the current app. ... ok
+test_app_lookup_object_without_default (urlpatterns_reverse.tests.NamespaceTests)
+An application namespace without a default is sensitive to the current ... ok
+test_app_name_pattern (urlpatterns_reverse.tests.NamespaceTests)
+Namespaces can be applied to include()'d urlpatterns that set an ... ok
+test_app_object (urlpatterns_reverse.tests.NamespaceTests)
+Dynamic URL objects can return a (pattern, app_name) 2-tuple, and ... ok
+test_app_object_default_namespace (urlpatterns_reverse.tests.NamespaceTests)
+Namespace defaults to app_name when including a (pattern, app_name) ... ok
+test_current_app_no_partial_match (urlpatterns_reverse.tests.NamespaceTests)
+current_app shouldn't be used unless it matches the whole path. ... ok
+test_embedded_namespace_object (urlpatterns_reverse.tests.NamespaceTests)
+Namespaces can be installed anywhere in the URL pattern tree. ... ok
+test_multiple_namespace_pattern (urlpatterns_reverse.tests.NamespaceTests)
+Namespaces can be embedded. ... ok
+test_namespace_object (urlpatterns_reverse.tests.NamespaceTests)
+Dynamic URL objects can be found using a namespace. ... ok
+test_namespace_pattern (urlpatterns_reverse.tests.NamespaceTests)
+Namespaces can be applied to include()'d urlpatterns. ... ok
+test_namespace_pattern_with_variable_prefix (urlpatterns_reverse.tests.NamespaceTests)
+Using include() with namespaces when there is a regex variable in front ... ok
+test_namespaces_with_variables (urlpatterns_reverse.tests.NamespaceTests)
+Namespace prefixes can capture variables. ... ok
+test_nested_app_lookup (urlpatterns_reverse.tests.NamespaceTests)
+A nested current_app should be split in individual namespaces (#24904). ... ok
+test_nested_namespace_pattern (urlpatterns_reverse.tests.NamespaceTests)
+Namespaces can be nested. ... ok
+test_non_existent_namespace (urlpatterns_reverse.tests.NamespaceTests)
+Nonexistent namespaces raise errors. ... ok
+test_normal_name (urlpatterns_reverse.tests.NamespaceTests)
+Normal lookups work as expected. ... ok
+test_simple_included_name (urlpatterns_reverse.tests.NamespaceTests)
+Normal lookups work on names included from other patterns. ... ok
+test_special_chars_namespace (urlpatterns_reverse.tests.NamespaceTests) ... ok
+test_no_handler_exception (urlpatterns_reverse.tests.NoRootUrlConfTests) ... ok
+test_no_urls_exception (urlpatterns_reverse.tests.NoURLPatternsTests)
+URLResolver should raise an exception when no urlpatterns exist. ... ok
+test_reverse_inner_in_response_middleware (urlpatterns_reverse.tests.RequestURLconfTests)
+Test reversing an URL from the *overridden* URLconf from inside ... ok
+test_reverse_inner_in_streaming (urlpatterns_reverse.tests.RequestURLconfTests)
+Test reversing an URL from the *overridden* URLconf from inside ... ok
+test_reverse_outer_in_response_middleware (urlpatterns_reverse.tests.RequestURLconfTests)
+Test reversing an URL from the *default* URLconf from inside ... ok
+test_reverse_outer_in_streaming (urlpatterns_reverse.tests.RequestURLconfTests)
+Test reversing an URL from the *default* URLconf from inside ... ok
+test_urlconf (urlpatterns_reverse.tests.RequestURLconfTests) ... ok
+test_urlconf_is_reset_after_request (urlpatterns_reverse.tests.RequestURLconfTests)
+The URLconf is reset after each request. ... ok
+test_urlconf_overridden (urlpatterns_reverse.tests.RequestURLconfTests) ... ok
+test_urlconf_overridden_with_null (urlpatterns_reverse.tests.RequestURLconfTests)
+Overriding request.urlconf with None will fall back to the default ... ok
+test_repr (urlpatterns_reverse.tests.ResolverMatchTests) ... FAIL
+test_repr_functools_partial (urlpatterns_reverse.tests.ResolverMatchTests) ... test_resolver_match_on_request (urlpatterns_reverse.tests.ResolverMatchTests) ... ok
+test_resolver_match_on_request_before_resolution (urlpatterns_reverse.tests.ResolverMatchTests) ... ok
+test_urlpattern_resolve (urlpatterns_reverse.tests.ResolverMatchTests) ... ok
+test_404_tried_urls_have_names (urlpatterns_reverse.tests.ResolverTests)
+The list of URLs that come back from a Resolver404 exception contains ... ok
+test_namespaced_view_detail (urlpatterns_reverse.tests.ResolverTests) ... ok
+test_non_regex (urlpatterns_reverse.tests.ResolverTests)
+A Resolver404 is raised if resolving doesn't meet the basic ... ok
+test_populate_concurrency (urlpatterns_reverse.tests.ResolverTests)
+URLResolver._populate() can be called concurrently, but not more ... ok
+test_resolver_repr (urlpatterns_reverse.tests.ResolverTests)
+Test repr of URLResolver, especially when urlconf_name is a list ... ok
+test_resolver_reverse (urlpatterns_reverse.tests.ResolverTests) ... ok
+test_resolver_reverse_conflict (urlpatterns_reverse.tests.ResolverTests)
+URL pattern name arguments don't need to be unique. The last registered ... ok
+test_reverse_lazy_object_coercion_by_resolve (urlpatterns_reverse.tests.ResolverTests)
+Verifies lazy object returned by reverse_lazy is coerced to ... ok
+test_view_detail_as_method (urlpatterns_reverse.tests.ResolverTests) ... ok
+test_lazy_in_settings (urlpatterns_reverse.tests.ReverseLazySettingsTest) ... ok
+test_no_illegal_imports (urlpatterns_reverse.tests.ReverseShortcutTests) ... ok
+test_redirect_to_object (urlpatterns_reverse.tests.ReverseShortcutTests) ... ok
+test_redirect_to_url (urlpatterns_reverse.tests.ReverseShortcutTests) ... ok
+test_redirect_to_view_name (urlpatterns_reverse.tests.ReverseShortcutTests) ... ok
+test_redirect_view_object (urlpatterns_reverse.tests.ReverseShortcutTests) ... ok
+test_reverse_by_path_nested (urlpatterns_reverse.tests.ReverseShortcutTests) ... ok
+test_illegal_args_message (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_illegal_kwargs_message (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_mixing_args_and_kwargs (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_no_args_message (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_non_urlsafe_prefix_with_args (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_patterns_reported (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_prefix_braces (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_prefix_format_char (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_prefix_parenthesis (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_reverse_none (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_script_name_escaping (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_urlpattern_reverse (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_view_not_found_message (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_attributeerror_not_hidden (urlpatterns_reverse.tests.ViewLoadingTests) ... ok
+test_module_does_not_exist (urlpatterns_reverse.tests.ViewLoadingTests) ... ok
+test_non_string_value (urlpatterns_reverse.tests.ViewLoadingTests) ... ok
+test_not_callable (urlpatterns_reverse.tests.ViewLoadingTests) ... ok
+test_parent_module_does_not_exist (urlpatterns_reverse.tests.ViewLoadingTests) ... ok
+test_string_without_dot (urlpatterns_reverse.tests.ViewLoadingTests) ... ok
+test_view_does_not_exist (urlpatterns_reverse.tests.ViewLoadingTests) ... ok
+test_view_loading (urlpatterns_reverse.tests.ViewLoadingTests) ... ok
+
+======================================================================
+FAIL: test_repr (urlpatterns_reverse.tests.ResolverMatchTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/urlpatterns_reverse/tests.py", line 1141, in test_repr
+    self.assertEqual(
+AssertionError: "Reso[87 chars]name=no-kwargs, app_names=[], namespaces=[], r[32 chars])/$)" != "Reso[87 chars]name='no-kwargs', app_names=[], namespaces=[],[36 chars]/$')"
+- ResolverMatch(func=urlpatterns_reverse.views.empty_view, args=('42', '37'), kwargs={}, url_name=no-kwargs, app_names=[], namespaces=[], route=^no_kwargs/([0-9]+)/([0-9]+)/$)
++ ResolverMatch(func=urlpatterns_reverse.views.empty_view, args=('42', '37'), kwargs={}, url_name='no-kwargs', app_names=[], namespaces=[], route='^no_kwargs/([0-9]+)/([0-9]+)/$')
+?                                                                                                 +         +                                     +                              +
+
+
+======================================================================
+FAIL: test_repr_functools_partial (urlpatterns_reverse.tests.ResolverMatchTests) (name='partial')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/urlpatterns_reverse/tests.py", line 1161, in test_repr_functools_partial
+    self.assertEqual(
+AssertionError: "ResolverMatch(func=urlpatterns_reverse.views.empty_view, arg[107 chars]al/)" != "ResolverMatch(func=functools.partial(<function empty_view at[132 chars]l/')"
+- ResolverMatch(func=urlpatterns_reverse.views.empty_view, args=(), kwargs={'template_name': 'template.html'}, url_name=partial, app_names=[], namespaces=[], route=partial/)
++ ResolverMatch(func=functools.partial(<function empty_view at 0x7f24da2c1700>, template_name='template.html'), args=(), kwargs={}, url_name='partial', app_names=[], namespaces=[], route='partial/')
+
+
+======================================================================
+FAIL: test_repr_functools_partial (urlpatterns_reverse.tests.ResolverMatchTests) (name='partial_nested')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/urlpatterns_reverse/tests.py", line 1161, in test_repr_functools_partial
+    self.assertEqual(
+AssertionError: "ResolverMatch(func=urlpatterns_reverse.views.empty_view, arg[127 chars]ed/)" != "ResolverMatch(func=functools.partial(<function empty_view at[152 chars]d/')"
+- ResolverMatch(func=urlpatterns_reverse.views.empty_view, args=(), kwargs={'template_name': 'nested_partial.html'}, url_name=partial_nested, app_names=[], namespaces=[], route=partial_nested/)
++ ResolverMatch(func=functools.partial(<function empty_view at 0x7f24da2c1700>, template_name='nested_partial.html'), args=(), kwargs={}, url_name='partial_nested', app_names=[], namespaces=[], route='partial_nested/')
+
+
+======================================================================
+FAIL: test_repr_functools_partial (urlpatterns_reverse.tests.ResolverMatchTests) (name='partial_wrapped')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/urlpatterns_reverse/tests.py", line 1161, in test_repr_functools_partial
+    self.assertEqual(
+AssertionError: "ResolverMatch(func=urlpatterns_reverse.views.empty_view, arg[123 chars]ed/)" != "ResolverMatch(func=functools.partial(<function empty_view at[148 chars]d/')"
+- ResolverMatch(func=urlpatterns_reverse.views.empty_view, args=(), kwargs={'template_name': 'template.html'}, url_name=partial_wrapped, app_names=[], namespaces=[], route=partial_wrapped/)
++ ResolverMatch(func=functools.partial(<function empty_view at 0x7f24da2c1700>, template_name='template.html'), args=(), kwargs={}, url_name='partial_wrapped', app_names=[], namespaces=[], route='partial_wrapped/')
+
+
+----------------------------------------------------------------------
+Ran 95 tests in 1.120s
+
+FAILED (failures=4)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout 2f13c476abe4ba787b6cb71131818341911f43cc tests/urlpatterns_reverse/tests.py
+Updated 1 path from 444e1f2af1

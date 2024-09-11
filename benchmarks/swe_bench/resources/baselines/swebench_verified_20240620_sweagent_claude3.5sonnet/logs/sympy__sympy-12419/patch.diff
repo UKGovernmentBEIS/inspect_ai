@@ -1,0 +1,93 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..4eaa22627b
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,70 @@
++from sympy import *
++from sympy import Q as Query
++
++n = Symbol('n', integer=True, positive=True)
++i, j = symbols('i j', integer=True)
++M = MatrixSymbol('M', n, n)
++
++e = None
++with assuming(Query.orthogonal(M)):
++    e = refine((M.T * M).doit())
++
++# Correct: M.T * M is an identity matrix.
++print("Identity matrix check:", e, e[0, 0], e[0, 1], e[1, 0], e[1, 1])
++
++# Correct: The output is True True
++print("Diagonal and integer elements check:", ask(Query.diagonal(e)), ask(Query.integer_elements(e)))
++
++# Correct: The sum of the diagonal elements is n
++diagonal_sum = Sum(e[i, i], (i, 0, n-1))
++print("Diagonal sum before doit():", diagonal_sum)
++diagonal_sum_result = diagonal_sum.doit()
++print("Diagonal sum after doit():", diagonal_sum_result)
++print("Type of diagonal sum result:", type(diagonal_sum_result))
++
++# So far so good
++# Total sum of the elements is expected to be 'n' but the answer is 0!
++# Total sum of the elements
++total_sum = Sum(Sum(Piecewise((1, Eq(i, j)), (0, True)), (i, 0, n-1)), (j, 0, n-1))
++print("Total sum before doit():", total_sum)
++total_sum_result = total_sum.doit()
++print("Total sum after doit():", total_sum_result)
++simplified_total_sum = simplify(total_sum_result)
++print("Simplified total sum:", simplified_total_sum)
++print("Type of simplified total sum:", type(simplified_total_sum))
++
++# Manual summation using SymPy's Sum
++manual_sum = Sum(Sum(Piecewise((1, Eq(i, j)), (0, True)), (j, 0, n-1)), (i, 0, n-1))
++print("Manual sum before doit():", manual_sum)
++manual_sum_result = manual_sum.doit()
++print("Manual sum after doit():", manual_sum_result)
++simplified_manual_sum = simplify(manual_sum_result)
++print("Simplified manual sum:", simplified_manual_sum)
++
++# Element-wise summation
++element_sum = Sum(Sum(Piecewise((1, Eq(i, j)), (0, True)), (j, 0, n-1)), (i, 0, n-1))
++print("Element-wise sum before doit():", element_sum)
++element_sum_result = element_sum.doit()
++print("Element-wise sum after doit():", element_sum_result)
++simplified_element_sum = simplify(element_sum_result)
++print("Simplified element-wise sum:", simplified_element_sum)
++
++# Check specific matrix elements
++print("e[0,0]:", e[0,0])
++print("e[1,1]:", e[1,1])
++print("e[0,1]:", e[0,1])
++print("e[1,0]:", e[1,0])
++print("e[i,i]:", e[i,i])
++print("e[i,j]:", e[i,j])
++
++print("Script completed successfully, no errors.")
++
++# Check specific matrix elements
++print("e[0,0]:", e[0,0])
++print("e[1,1]:", e[1,1])
++print("e[0,1]:", e[0,1])
++print("e[1,0]:", e[1,0])
++print("e[i,i]:", e[i,i])
++print("e[i,j]:", e[i,j])
++
++print("Script completed successfully, no errors.")
+diff --git a/sympy/concrete/summations.py b/sympy/concrete/summations.py
+index 372487664c..a306df57db 100644
+--- a/sympy/concrete/summations.py
++++ b/sympy/concrete/summations.py
+@@ -175,7 +175,10 @@ def doit(self, **hints):
+             f = self.function
+ 
+         if self.function.is_Matrix:
+-            return self.expand().doit()
++            print("Before expansion:", self)
++            expanded = self.expand()
++            print("After expansion:", expanded)
++            return expanded.doit()
+ 
+         for n, limit in enumerate(self.limits):
+             i, a, b = limit

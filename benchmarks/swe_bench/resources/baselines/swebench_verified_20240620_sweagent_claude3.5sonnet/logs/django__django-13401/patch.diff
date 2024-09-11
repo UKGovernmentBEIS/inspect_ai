@@ -1,0 +1,525 @@
+
+diff --git a/custom_field_test.py b/custom_field_test.py
+new file mode 100644
+index 0000000000..7c89680b2e
+--- /dev/null
++++ b/custom_field_test.py
+@@ -0,0 +1,67 @@
++import os
++import django
++from django.conf import settings
++
++# Configure Django settings
++if not settings.configured:
++    settings.configure(
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++        ],
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        }
++    )
++    django.setup()
++
++from django.db import models
++
++class CustomField(models.Field):
++    def __init__(self, *args, **kwargs):
++        super().__init__(*args, **kwargs)
++        self.model = None
++
++    def contribute_to_class(self, cls, name, **kwargs):
++        super().contribute_to_class(cls, name, **kwargs)
++        self.model = cls
++
++    def __eq__(self, other):
++        if isinstance(other, CustomField):
++            return (
++                self.creation_counter == other.creation_counter and
++                self.model == other.model
++            )
++        return NotImplemented
++
++    def __hash__(self):
++        return hash((self.creation_counter, self.model))
++
++    def __lt__(self, other):
++        if isinstance(other, CustomField):
++            return (self.creation_counter, self.model) < (other.creation_counter, other.model)
++        return NotImplemented
++
++class A(models.Model):
++    class Meta:
++        abstract = True
++    myfield = CustomField()
++
++class B(A):
++    pass
++
++class C(A):
++    pass
++
++b_field = B._meta.get_field('myfield')
++c_field = C._meta.get_field('myfield')
++
++print(f"B.myfield == C.myfield: {b_field == c_field}")
++print(f"hash(B.myfield) == hash(C.myfield): {hash(b_field) == hash(c_field)}")
++print(f"B.myfield < C.myfield: {b_field < c_field}")
++print(f"C.myfield < B.myfield: {c_field < b_field}")
++print(f"Length of set: {len({b_field, c_field})}")
++
++print("Script completed successfully, no errors.")
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index 28374272f4..2136df574a 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -1,63 +1,71 @@
+-import collections.abc
+-import copy
+-import datetime
+-import decimal
+-import operator
+-import uuid
+-import warnings
+-from base64 import b64decode, b64encode
+-from functools import partialmethod, total_ordering
+-
+-from django import forms
+-from django.apps import apps
++import os
++import django
+ from django.conf import settings
+-from django.core import checks, exceptions, validators
+-from django.db import connection, connections, router
+-from django.db.models.constants import LOOKUP_SEP
+-from django.db.models.query_utils import DeferredAttribute, RegisterLookupMixin
+-from django.utils import timezone
+-from django.utils.datastructures import DictWrapper
+-from django.utils.dateparse import (
+-    parse_date, parse_datetime, parse_duration, parse_time,
+-)
+-from django.utils.duration import duration_microseconds, duration_string
+-from django.utils.functional import Promise, cached_property
+-from django.utils.ipv6 import clean_ipv6_address
+-from django.utils.itercompat import is_iterable
+-from django.utils.text import capfirst
+-from django.utils.translation import gettext_lazy as _
+-
+-__all__ = [
+-    'AutoField', 'BLANK_CHOICE_DASH', 'BigAutoField', 'BigIntegerField',
+-    'BinaryField', 'BooleanField', 'CharField', 'CommaSeparatedIntegerField',
+-    'DateField', 'DateTimeField', 'DecimalField', 'DurationField',
+-    'EmailField', 'Empty', 'Field', 'FilePathField', 'FloatField',
+-    'GenericIPAddressField', 'IPAddressField', 'IntegerField', 'NOT_PROVIDED',
+-    'NullBooleanField', 'PositiveBigIntegerField', 'PositiveIntegerField',
+-    'PositiveSmallIntegerField', 'SlugField', 'SmallAutoField',
+-    'SmallIntegerField', 'TextField', 'TimeField', 'URLField', 'UUIDField',
+-]
+-
+-
+-class Empty:
+-    pass
+ 
++# Configure Django settings
++if not settings.configured:
++    settings.configure(
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++        ],
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        }
++    )
++    django.setup()
+ 
+-class NOT_PROVIDED:
+-    pass
++from django.db import models
++from django.db.models.fields import Field
++
++class CustomField(Field):
++    def __init__(self, *args, **kwargs):
++        super().__init__(*args, **kwargs)
++        self.model = None
++
++    def contribute_to_class(self, cls, name, **kwargs):
++        super().contribute_to_class(cls, name, **kwargs)
++        self.model = cls
++
++    def __eq__(self, other):
++        if isinstance(other, CustomField):
++            return (
++                self.creation_counter == other.creation_counter and
++                self.model == other.model
++            )
++        return NotImplemented
+ 
++    def __hash__(self):
++        return hash((self.creation_counter, self.model))
+ 
+-# The values to use for "blank" in SelectFields. Will be appended to the start
+-# of most "choices" lists.
+-BLANK_CHOICE_DASH = [("", "---------")]
++    def __lt__(self, other):
++        if isinstance(other, CustomField):
++            return (self.creation_counter, self.model) < (other.creation_counter, other.model)
++        return NotImplemented
+ 
++class A(models.Model):
++    class Meta:
++        abstract = True
++    myfield = CustomField()
+ 
+-def _load_field(app_label, model_name, field_name):
+-    return apps.get_model(app_label, model_name)._meta.get_field(field_name)
++class B(A):
++    pass
+ 
++class C(A):
++    pass
+ 
+-# A guide to Field parameters:
+-#
++b_field = B._meta.get_field('myfield')
++c_field = C._meta.get_field('myfield')
++
++print(f"B.myfield == C.myfield: {b_field == c_field}")
++print(f"hash(B.myfield) == hash(C.myfield): {hash(b_field) == hash(c_field)}")
++print(f"B.myfield < C.myfield: {b_field < c_field}")
++print(f"C.myfield < B.myfield: {c_field < b_field}")
++print(f"Length of set: {len({b_field, c_field})}")
++
++print("Script completed successfully, no errors.")
+ #   * name:      The name of the field specified in the model.
+ #   * attname:   The attribute to use on the model object. This is the same as
+ #                "name", except in the case of ForeignKeys, where "_id" is
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..3855956197
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,39 @@
++import os
++import django
++from django.conf import settings
++
++# Configure Django settings
++if not settings.configured:
++    settings.configure(
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++        ],
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        }
++    )
++    django.setup()
++
++from django.db import models
++
++class A(models.Model):
++    class Meta:
++        abstract = True
++        app_label = 'contenttypes'
++    myfield = models.IntegerField()
++
++class B(A):
++    class Meta:
++        app_label = 'contenttypes'
++
++class C(A):
++    class Meta:
++        app_label = 'contenttypes'
++
++print(len({B._meta.get_field('myfield'), C._meta.get_field('myfield')}))
++print(B._meta.get_field('myfield') == C._meta.get_field('myfield'))
++
++print("Script completed successfully, no errors.")
+diff --git a/test_app/__init__.py b/test_app/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_app/models.py b/test_app/models.py
+new file mode 100644
+index 0000000000..0ac35ba647
+--- /dev/null
++++ b/test_app/models.py
+@@ -0,0 +1,15 @@
++from django.db import models
++
++class A(models.Model):
++    class Meta:
++        abstract = True
++    myfield = models.IntegerField()
++
++class B(A):
++    pass
++
++class C(A):
++    pass
++
++# This line is added to avoid unused model warnings
++__all__ = ['B', 'C']
+diff --git a/test_field_equality.py b/test_field_equality.py
+new file mode 100644
+index 0000000000..74ded1c22f
+--- /dev/null
++++ b/test_field_equality.py
+@@ -0,0 +1,32 @@
++import os
++import django
++from django.conf import settings
++
++# Configure Django settings
++if not settings.configured:
++    settings.configure(
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'test_app',
++        ],
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        }
++    )
++    django.setup()
++
++from test_app.models import B, C
++
++b_field = B._meta.get_field('myfield')
++c_field = C._meta.get_field('myfield')
++
++print(f"B.myfield == C.myfield: {b_field == c_field}")
++print(f"hash(B.myfield) == hash(C.myfield): {hash(b_field) == hash(c_field)}")
++print(f"B.myfield < C.myfield: {b_field < c_field}")
++print(f"C.myfield < B.myfield: {c_field < b_field}")
++print(f"Length of set: {len({b_field, c_field})}")
++
++print("Script completed successfully, no errors.")
+diff --git a/test_project/__init__.py b/test_project/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_project/settings.py b/test_project/settings.py
+new file mode 100644
+index 0000000000..9898d0782e
+--- /dev/null
++++ b/test_project/settings.py
+@@ -0,0 +1,37 @@
++from django.db import models
++
++class CustomField(models.Field):
++    def __init__(self, *args, **kwargs):
++        super().__init__(*args, **kwargs)
++        self.model = None
++
++    def contribute_to_class(self, cls, name, **kwargs):
++        super().contribute_to_class(cls, name, **kwargs)
++        self.model = cls
++
++    def __eq__(self, other):
++        if isinstance(other, CustomField):
++            return (
++                self.creation_counter == other.creation_counter and
++                self.model == other.model
++            )
++        return NotImplemented
++
++    def __hash__(self):
++        return hash((self.creation_counter, self.model))
++
++    def __lt__(self, other):
++        if isinstance(other, CustomField):
++            return (self.creation_counter, self.model) < (other.creation_counter, other.model)
++        return NotImplemented
++
++class A(models.Model):
++    class Meta:
++        abstract = True
++    myfield = CustomField()
++
++class B(A):
++    pass
++
++class C(A):
++    pass
+diff --git a/test_project/test_custom_field.py b/test_project/test_custom_field.py
+new file mode 100644
+index 0000000000..493d9300a0
+--- /dev/null
++++ b/test_project/test_custom_field.py
+@@ -0,0 +1,54 @@
++import os
++import django
++from django.conf import settings
++
++# Set up Django
++os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'settings')
++django.setup()
++
++from django.db import models
++
++class CustomField(models.Field):
++    def __init__(self, *args, **kwargs):
++        super().__init__(*args, **kwargs)
++        self.model = None
++
++    def contribute_to_class(self, cls, name, **kwargs):
++        super().contribute_to_class(cls, name, **kwargs)
++        self.model = cls
++
++    def __eq__(self, other):
++        if isinstance(other, CustomField):
++            return (
++                self.creation_counter == other.creation_counter and
++                self.model == other.model
++            )
++        return NotImplemented
++
++    def __hash__(self):
++        return hash((self.creation_counter, self.model))
++
++    def __lt__(self, other):
++        if isinstance(other, CustomField):
++            return (self.creation_counter, self.model) < (other.creation_counter, other.model)
++        return NotImplemented
++
++class A(models.Model):
++    class Meta:
++        abstract = True
++    myfield = CustomField()
++
++class B(A):
++    pass
++
++class C(A):
++    pass
++
++b_field = B._meta.get_field('myfield')
++c_field = C._meta.get_field('myfield')
++
++print(f"B.myfield == C.myfield: {b_field == c_field}")
++print(f"hash(B.myfield) == hash(C.myfield): {hash(b_field) == hash(c_field)}")
++print(f"B.myfield < C.myfield: {b_field < c_field}")
++print(f"C.myfield < B.myfield: {c_field < b_field}")
++print(f"Length of set: {len({b_field, c_field})}")
+diff --git a/test_project/testapp/__init__.py b/test_project/testapp/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_project/testapp/models.py b/test_project/testapp/models.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_project/testproject/minimal_test.py b/test_project/testproject/minimal_test.py
+new file mode 100644
+index 0000000000..12bcc7ce17
+--- /dev/null
++++ b/test_project/testproject/minimal_test.py
+@@ -0,0 +1,99 @@
++class Field:
++    creation_counter = 0
++
++    def __init__(self):
++        self.creation_counter = Field.creation_counter
++        Field.creation_counter += 1
++        self.model = None
++
++    def contribute_to_class(self, cls, name):
++        self.model = cls
++
++    def __eq__(self, other):
++        if isinstance(other, Field):
++            return self.creation_counter == other.creation_counter
++        return NotImplemented
++
++    def __hash__(self):
++        return hash(self.creation_counter)
++
++    def __lt__(self, other):
++        if isinstance(other, Field):
++            return self.creation_counter < other.creation_counter
++        return NotImplemented
++
++class Model:
++    def __init__(self):
++        self._meta = type('_meta', (), {'fields': []})()
++        for cls in reversed(self.__class__.__mro__):
++            for name, value in cls.__dict__.items():
++                if isinstance(value, Field):
++                    new_value = value.__class__()
++                    new_value.contribute_to_class(self.__class__, name)
++                    setattr(self, name, new_value)
++                    self._meta.fields.append(new_value)
++
++class A(Model):
++    myfield = Field()
++
++class B(A):
++    pass
++
++class C(A):
++    pass
++
++b_field = B().myfield
++c_field = C().myfield
++
++print(f"B.myfield == C.myfield: {b_field == c_field}")
++print(f"hash(B.myfield) == hash(C.myfield): {hash(b_field) == hash(c_field)}")
++print(f"B.myfield < C.myfield: {b_field < c_field}")
++print(f"C.myfield < B.myfield: {c_field < b_field}")
++print(f"Length of set: {len({b_field, c_field})}")
++
++# Proposed fix
++class CustomField(Field):
++    def __eq__(self, other):
++        if isinstance(other, CustomField):
++            return (self.creation_counter == other.creation_counter and
++                    self.model is other.model)
++        return NotImplemented
++
++    def __hash__(self):
++        return hash((self.creation_counter, id(self.model)))
++
++    def __lt__(self, other):
++        if isinstance(other, CustomField):
++            return ((self.creation_counter, id(self.model)) <
++                    (other.creation_counter, id(other.model)))
++        return NotImplemented
++
++print("\nAfter fix:")
++class A(Model):
++    myfield = CustomField()
++
++class B(A):
++    pass
++
++class C(A):
++    pass
++
++b_field = B().myfield
++c_field = C().myfield
++
++print(f"B.myfield model: {b_field.model}")
++print(f"C.myfield model: {c_field.model}")
++print(f"B.myfield creation_counter: {b_field.creation_counter}")
++print(f"C.myfield creation_counter: {c_field.creation_counter}")
++print(f"B.myfield == C.myfield: {b_field == c_field}")
++print(f"hash(B.myfield) == hash(C.myfield): {hash(b_field) == hash(c_field)}")
++print(f"B.myfield < C.myfield: {b_field < c_field}")
++print(f"C.myfield < B.myfield: {c_field < b_field}")
++print(f"Length of set: {len({b_field, c_field})}")
++
++# Additional debug information
++print("\nAdditional debug information:")
++print(f"id(B): {id(B)}")
++print(f"id(C): {id(C)}")
++print(f"id(b_field.model): {id(b_field.model)}")
++print(f"id(c_field.model): {id(c_field.model)}")

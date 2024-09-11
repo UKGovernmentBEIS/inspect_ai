@@ -1,0 +1,850 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/backends/mysql/base.py
+	modified:   tests/dbshell/test_mysql.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit d06c5b358149c02a62da8a5469264d05f29ac659
+Author: Nick Pope <nick@nickpope.me.uk>
+Date:   Fri May 7 10:42:59 2021 +0100
+
+    Fixed #32366 -- Updated datetime module usage to recommended approach.
+    
+    - Replaced datetime.utcnow() with datetime.now().
+    - Replaced datetime.utcfromtimestamp() with datetime.fromtimestamp().
+    - Replaced datetime.utctimetuple() with datetime.timetuple().
+    - Replaced calendar.timegm() and datetime.utctimetuple() with datetime.timestamp().
+
+diff --git a/django/contrib/sessions/backends/file.py b/django/contrib/sessions/backends/file.py
+index cc5f93a8ff..7032b4b1f8 100644
+--- a/django/contrib/sessions/backends/file.py
++++ b/django/contrib/sessions/backends/file.py
+@@ -59,10 +59,8 @@ class SessionStore(SessionBase):
+         Return the modification time of the file storing the session's content.
+         """
+         modification = os.stat(self._key_to_file()).st_mtime
+-        if settings.USE_TZ:
+-            modification = datetime.datetime.utcfromtimestamp(modification)
+-            return modification.replace(tzinfo=timezone.utc)
+-        return datetime.datetime.fromtimestamp(modification)
++        tz = timezone.utc if settings.USE_TZ else None
++        return datetime.datetime.fromtimestamp(modification, tz=tz)
+ 
+     def _expiry_date(self, session_data):
+         """
+diff --git a/django/contrib/sitemaps/views.py b/django/contrib/sitemaps/views.py
+index bffdebb082..137049825f 100644
+--- a/django/contrib/sitemaps/views.py
++++ b/django/contrib/sitemaps/views.py
+@@ -1,5 +1,4 @@
+ import datetime
+-from calendar import timegm
+ from functools import wraps
+ 
+ from django.contrib.sites.shortcuts import get_current_site
+@@ -7,6 +6,7 @@ from django.core.paginator import EmptyPage, PageNotAnInteger
+ from django.http import Http404
+ from django.template.response import TemplateResponse
+ from django.urls import reverse
++from django.utils import timezone
+ from django.utils.http import http_date
+ 
+ 
+@@ -72,10 +72,10 @@ def sitemap(request, sitemaps, section=None,
+             if all_sites_lastmod:
+                 site_lastmod = getattr(site, 'latest_lastmod', None)
+                 if site_lastmod is not None:
+-                    site_lastmod = (
+-                        site_lastmod.utctimetuple() if isinstance(site_lastmod, datetime.datetime)
+-                        else site_lastmod.timetuple()
+-                    )
++                    if not isinstance(site_lastmod, datetime.datetime):
++                        site_lastmod = datetime.datetime.combine(site_lastmod, datetime.time.min)
++                    if timezone.is_naive(site_lastmod):
++                        site_lastmod = timezone.make_aware(site_lastmod, timezone.utc)
+                     lastmod = site_lastmod if lastmod is None else max(lastmod, site_lastmod)
+                 else:
+                     all_sites_lastmod = False
+@@ -88,5 +88,5 @@ def sitemap(request, sitemaps, section=None,
+     if all_sites_lastmod and lastmod is not None:
+         # if lastmod is defined for all sites, set header so as
+         # ConditionalGetMiddleware is able to send 304 NOT MODIFIED
+-        response.headers['Last-Modified'] = http_date(timegm(lastmod))
++        response.headers['Last-Modified'] = http_date(lastmod.timestamp())
+     return response
+diff --git a/django/contrib/syndication/views.py b/django/contrib/syndication/views.py
+index 6d567dd7db..7200907d7d 100644
+--- a/django/contrib/syndication/views.py
++++ b/django/contrib/syndication/views.py
+@@ -1,5 +1,3 @@
+-from calendar import timegm
+-
+ from django.contrib.sites.shortcuts import get_current_site
+ from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
+ from django.http import Http404, HttpResponse
+@@ -42,8 +40,7 @@ class Feed:
+         if hasattr(self, 'item_pubdate') or hasattr(self, 'item_updateddate'):
+             # if item_pubdate or item_updateddate is defined for the feed, set
+             # header so as ConditionalGetMiddleware is able to send 304 NOT MODIFIED
+-            response.headers['Last-Modified'] = http_date(
+-                timegm(feedgen.latest_post_date().utctimetuple()))
++            response.headers['Last-Modified'] = http_date(feedgen.latest_post_date().timestamp())
+         feedgen.write(response, 'utf-8')
+         return response
+ 
+diff --git a/django/core/cache/backends/db.py b/django/core/cache/backends/db.py
+index 905113903e..d62083a0f6 100644
+--- a/django/core/cache/backends/db.py
++++ b/django/core/cache/backends/db.py
+@@ -123,10 +123,9 @@ class DatabaseCache(BaseDatabaseCache):
+             now = now.replace(microsecond=0)
+             if timeout is None:
+                 exp = datetime.max
+-            elif settings.USE_TZ:
+-                exp = datetime.utcfromtimestamp(timeout)
+             else:
+-                exp = datetime.fromtimestamp(timeout)
++                tz = timezone.utc if settings.USE_TZ else None
++                exp = datetime.fromtimestamp(timeout, tz=tz)
+             exp = exp.replace(microsecond=0)
+             if num > self._max_entries:
+                 self._cull(db, cursor, now)
+@@ -235,11 +234,7 @@ class DatabaseCache(BaseDatabaseCache):
+         connection = connections[db]
+         quote_name = connection.ops.quote_name
+ 
+-        if settings.USE_TZ:
+-            now = datetime.utcnow()
+-        else:
+-            now = datetime.now()
+-        now = now.replace(microsecond=0)
++        now = timezone.now().replace(microsecond=0, tzinfo=None)
+ 
+         with connection.cursor() as cursor:
+             cursor.execute(
+diff --git a/django/core/files/storage.py b/django/core/files/storage.py
+index 8190791f9a..2cf5e2a5c7 100644
+--- a/django/core/files/storage.py
++++ b/django/core/files/storage.py
+@@ -347,11 +347,8 @@ class FileSystemStorage(Storage):
+         If timezone support is enabled, make an aware datetime object in UTC;
+         otherwise make a naive one in the local timezone.
+         """
+-        if settings.USE_TZ:
+-            # Safe to use .replace() because UTC doesn't have DST
+-            return datetime.utcfromtimestamp(ts).replace(tzinfo=timezone.utc)
+-        else:
+-            return datetime.fromtimestamp(ts)
++        tz = timezone.utc if settings.USE_TZ else None
++        return datetime.fromtimestamp(ts, tz=tz)
+ 
+     def get_accessed_time(self, name):
+         return self._datetime_from_timestamp(os.path.getatime(self.path(name)))
+diff --git a/django/http/response.py b/django/http/response.py
+index f1f0a1ed43..99f0020335 100644
+--- a/django/http/response.py
++++ b/django/http/response.py
+@@ -203,9 +203,9 @@ class HttpResponseBase:
+         self.cookies[key] = value
+         if expires is not None:
+             if isinstance(expires, datetime.datetime):
+-                if timezone.is_aware(expires):
+-                    expires = timezone.make_naive(expires, timezone.utc)
+-                delta = expires - expires.utcnow()
++                if timezone.is_naive(expires):
++                    expires = timezone.make_aware(expires, timezone.utc)
++                delta = expires - datetime.datetime.now(tz=timezone.utc)
+                 # Add one second so the date matches exactly (a fraction of
+                 # time gets lost between converting to a timedelta and
+                 # then the date string).
+diff --git a/django/utils/dateformat.py b/django/utils/dateformat.py
+index 4833b5af2c..0d4eb4bdf0 100644
+--- a/django/utils/dateformat.py
++++ b/django/utils/dateformat.py
+@@ -12,7 +12,6 @@ Usage:
+ """
+ import calendar
+ import datetime
+-import time
+ from email.utils import format_datetime as format_datetime_rfc5322
+ 
+ from django.utils.dates import (
+@@ -20,7 +19,7 @@ from django.utils.dates import (
+ )
+ from django.utils.regex_helper import _lazy_re_compile
+ from django.utils.timezone import (
+-    _datetime_ambiguous_or_imaginary, get_default_timezone, is_aware, is_naive,
++    _datetime_ambiguous_or_imaginary, get_default_timezone, is_naive,
+     make_aware,
+ )
+ from django.utils.translation import gettext as _
+@@ -295,10 +294,10 @@ class DateFormat(TimeFormat):
+ 
+     def U(self):
+         "Seconds since the Unix epoch (January 1 1970 00:00:00 GMT)"
+-        if isinstance(self.data, datetime.datetime) and is_aware(self.data):
+-            return int(calendar.timegm(self.data.utctimetuple()))
+-        else:
+-            return int(time.mktime(self.data.timetuple()))
++        value = self.data
++        if not isinstance(value, datetime.datetime):
++            value = datetime.datetime.combine(value, datetime.time.min)
++        return int(value.timestamp())
+ 
+     def w(self):
+         "Day of the week, numeric, i.e. '0' (Sunday) to '6' (Saturday)"
+diff --git a/django/utils/feedgenerator.py b/django/utils/feedgenerator.py
+index f08e89b25c..24b2d1d172 100644
+--- a/django/utils/feedgenerator.py
++++ b/django/utils/feedgenerator.py
+@@ -172,8 +172,7 @@ class SyndicationFeed:
+                     if latest_date is None or item_date > latest_date:
+                         latest_date = item_date
+ 
+-        # datetime.now(tz=utc) is slower, as documented in django.utils.timezone.now
+-        return latest_date or datetime.datetime.utcnow().replace(tzinfo=utc)
++        return latest_date or datetime.datetime.now(tz=utc)
+ 
+ 
+ class Enclosure:
+diff --git a/django/utils/http.py b/django/utils/http.py
+index 5397bb8190..6aa45a2cd6 100644
+--- a/django/utils/http.py
++++ b/django/utils/http.py
+@@ -1,5 +1,4 @@
+ import base64
+-import calendar
+ import datetime
+ import re
+ import unicodedata
+@@ -112,9 +111,10 @@ def parse_http_date(date):
+     else:
+         raise ValueError("%r is not in a valid HTTP date format" % date)
+     try:
++        tz = datetime.timezone.utc
+         year = int(m['year'])
+         if year < 100:
+-            current_year = datetime.datetime.utcnow().year
++            current_year = datetime.datetime.now(tz=tz).year
+             current_century = current_year - (current_year % 100)
+             if year - (current_year % 100) > 50:
+                 # year that appears to be more than 50 years in the future are
+@@ -127,8 +127,8 @@ def parse_http_date(date):
+         hour = int(m['hour'])
+         min = int(m['min'])
+         sec = int(m['sec'])
+-        result = datetime.datetime(year, month, day, hour, min, sec)
+-        return calendar.timegm(result.utctimetuple())
++        result = datetime.datetime(year, month, day, hour, min, sec, tzinfo=tz)
++        return int(result.timestamp())
+     except Exception as exc:
+         raise ValueError("%r is not a valid date" % date) from exc
+ 
+diff --git a/django/utils/timezone.py b/django/utils/timezone.py
+index cf22ec34d0..bb2b6b9594 100644
+--- a/django/utils/timezone.py
++++ b/django/utils/timezone.py
+@@ -194,11 +194,7 @@ def now():
+     """
+     Return an aware or naive datetime.datetime, depending on settings.USE_TZ.
+     """
+-    if settings.USE_TZ:
+-        # timeit shows that datetime.now(tz=utc) is 24% slower
+-        return datetime.utcnow().replace(tzinfo=utc)
+-    else:
+-        return datetime.now()
++    return datetime.now(tz=utc if settings.USE_TZ else None)
+ 
+ 
+ # By design, these four functions don't perform any checks on their arguments.
+diff --git a/django/utils/version.py b/django/utils/version.py
+index 18cd1387a0..a72d3202fa 100644
+--- a/django/utils/version.py
++++ b/django/utils/version.py
+@@ -89,8 +89,9 @@ def get_git_changeset():
+         shell=True, cwd=repo_dir, universal_newlines=True,
+     )
+     timestamp = git_log.stdout
++    tz = datetime.timezone.utc
+     try:
+-        timestamp = datetime.datetime.utcfromtimestamp(int(timestamp))
++        timestamp = datetime.datetime.fromtimestamp(int(timestamp), tz=tz)
+     except ValueError:
+         return None
+     return timestamp.strftime('%Y%m%d%H%M%S')
+diff --git a/django/views/decorators/http.py b/django/views/decorators/http.py
+index 5caf13e341..28da8dd921 100644
+--- a/django/views/decorators/http.py
++++ b/django/views/decorators/http.py
+@@ -2,11 +2,11 @@
+ Decorators for views based on HTTP headers.
+ """
+ 
+-from calendar import timegm
+ from functools import wraps
+ 
+ from django.http import HttpResponseNotAllowed
+ from django.middleware.http import ConditionalGetMiddleware
++from django.utils import timezone
+ from django.utils.cache import get_conditional_response
+ from django.utils.decorators import decorator_from_middleware
+ from django.utils.http import http_date, quote_etag
+@@ -82,7 +82,9 @@ def condition(etag_func=None, last_modified_func=None):
+                 if last_modified_func:
+                     dt = last_modified_func(request, *args, **kwargs)
+                     if dt:
+-                        return timegm(dt.utctimetuple())
++                        if not timezone.is_aware(dt):
++                            dt = timezone.make_aware(dt, timezone.utc)
++                        return int(dt.timestamp())
+ 
+             # The value from etag_func() could be quoted or unquoted.
+             res_etag = etag_func(request, *args, **kwargs) if etag_func else None
+diff --git a/tests/foreign_object/tests.py b/tests/foreign_object/tests.py
+index 2473a0a732..72d50cad6b 100644
+--- a/tests/foreign_object/tests.py
++++ b/tests/foreign_object/tests.py
+@@ -92,7 +92,7 @@ class MultiColumnFKTests(TestCase):
+ 
+     def test_reverse_query_filters_correctly(self):
+ 
+-        timemark = datetime.datetime.utcnow()
++        timemark = datetime.datetime.now(tz=datetime.timezone.utc).replace(tzinfo=None)
+         timedelta = datetime.timedelta(days=1)
+ 
+         # Creating a to valid memberships
+diff --git a/tests/migrations/test_writer.py b/tests/migrations/test_writer.py
+index 96b2140089..bb7506c052 100644
+--- a/tests/migrations/test_writer.py
++++ b/tests/migrations/test_writer.py
+@@ -479,8 +479,8 @@ class WriterTests(SimpleTestCase):
+         self.serialize_round_trip(models.SET(42))
+ 
+     def test_serialize_datetime(self):
+-        self.assertSerializedEqual(datetime.datetime.utcnow())
+-        self.assertSerializedEqual(datetime.datetime.utcnow)
++        self.assertSerializedEqual(datetime.datetime.now())
++        self.assertSerializedEqual(datetime.datetime.now)
+         self.assertSerializedEqual(datetime.datetime.today())
+         self.assertSerializedEqual(datetime.datetime.today)
+         self.assertSerializedEqual(datetime.date.today())
+@@ -662,8 +662,8 @@ class WriterTests(SimpleTestCase):
+         Tests serializing a simple migration.
+         """
+         fields = {
+-            'charfield': models.DateTimeField(default=datetime.datetime.utcnow),
+-            'datetimefield': models.DateTimeField(default=datetime.datetime.utcnow),
++            'charfield': models.DateTimeField(default=datetime.datetime.now),
++            'datetimefield': models.DateTimeField(default=datetime.datetime.now),
+         }
+ 
+         options = {
+diff --git a/tests/responses/test_cookie.py b/tests/responses/test_cookie.py
+index fd3a55442c..96dd603aac 100644
+--- a/tests/responses/test_cookie.py
++++ b/tests/responses/test_cookie.py
+@@ -19,7 +19,7 @@ class SetCookieTests(SimpleTestCase):
+         # evaluated expiration time and the time evaluated in set_cookie(). If
+         # this difference doesn't exist, the cookie time will be 1 second
+         # larger. The sleep guarantees that there will be a time difference.
+-        expires = datetime.utcnow() + timedelta(seconds=10)
++        expires = datetime.now(tz=utc).replace(tzinfo=None) + timedelta(seconds=10)
+         time.sleep(0.001)
+         response.set_cookie('datetime', expires=expires)
+         datetime_cookie = response.cookies['datetime']
+@@ -28,7 +28,7 @@ class SetCookieTests(SimpleTestCase):
+     def test_aware_expiration(self):
+         """set_cookie() accepts an aware datetime as expiration time."""
+         response = HttpResponse()
+-        expires = (datetime.utcnow() + timedelta(seconds=10)).replace(tzinfo=utc)
++        expires = datetime.now(tz=utc) + timedelta(seconds=10)
+         time.sleep(0.001)
+         response.set_cookie('datetime', expires=expires)
+         datetime_cookie = response.cookies['datetime']
+diff --git a/tests/utils_tests/test_dateformat.py b/tests/utils_tests/test_dateformat.py
+index f57c67078f..17ddd573ed 100644
+--- a/tests/utils_tests/test_dateformat.py
++++ b/tests/utils_tests/test_dateformat.py
+@@ -54,8 +54,8 @@ class DateFormatTests(SimpleTestCase):
+         self.assertEqual(datetime.fromtimestamp(int(format(dt, 'U')), ltz), dt)
+         # astimezone() is safe here because the target timezone doesn't have DST
+         self.assertEqual(datetime.fromtimestamp(int(format(dt, 'U'))), dt.astimezone(ltz).replace(tzinfo=None))
+-        self.assertEqual(datetime.fromtimestamp(int(format(dt, 'U')), tz).utctimetuple(), dt.utctimetuple())
+-        self.assertEqual(datetime.fromtimestamp(int(format(dt, 'U')), ltz).utctimetuple(), dt.utctimetuple())
++        self.assertEqual(datetime.fromtimestamp(int(format(dt, 'U')), tz).timetuple(), dt.astimezone(tz).timetuple())
++        self.assertEqual(datetime.fromtimestamp(int(format(dt, 'U')), ltz).timetuple(), dt.astimezone(ltz).timetuple())
+ 
+     def test_epoch(self):
+         udt = datetime(1970, 1, 1, tzinfo=utc)
+diff --git a/tests/utils_tests/test_http.py b/tests/utils_tests/test_http.py
+index 675a6e186e..6867ed8274 100644
+--- a/tests/utils_tests/test_http.py
++++ b/tests/utils_tests/test_http.py
+@@ -1,6 +1,6 @@
+ import platform
+ import unittest
+-from datetime import datetime
++from datetime import datetime, timezone
+ from unittest import mock
+ 
+ from django.test import SimpleTestCase
+@@ -288,38 +288,52 @@ class HttpDateProcessingTests(unittest.TestCase):
+ 
+     def test_parsing_rfc1123(self):
+         parsed = parse_http_date('Sun, 06 Nov 1994 08:49:37 GMT')
+-        self.assertEqual(datetime.utcfromtimestamp(parsed), datetime(1994, 11, 6, 8, 49, 37))
++        self.assertEqual(
++            datetime.fromtimestamp(parsed, timezone.utc),
++            datetime(1994, 11, 6, 8, 49, 37, tzinfo=timezone.utc),
++        )
+ 
+     @unittest.skipIf(platform.architecture()[0] == '32bit', 'The Year 2038 problem.')
+     @mock.patch('django.utils.http.datetime.datetime')
+     def test_parsing_rfc850(self, mocked_datetime):
+         mocked_datetime.side_effect = datetime
+-        mocked_datetime.utcnow = mock.Mock()
+-        utcnow_1 = datetime(2019, 11, 6, 8, 49, 37)
+-        utcnow_2 = datetime(2020, 11, 6, 8, 49, 37)
+-        utcnow_3 = datetime(2048, 11, 6, 8, 49, 37)
++        mocked_datetime.now = mock.Mock()
++        now_1 = datetime(2019, 11, 6, 8, 49, 37, tzinfo=timezone.utc)
++        now_2 = datetime(2020, 11, 6, 8, 49, 37, tzinfo=timezone.utc)
++        now_3 = datetime(2048, 11, 6, 8, 49, 37, tzinfo=timezone.utc)
+         tests = (
+-            (utcnow_1, 'Tuesday, 31-Dec-69 08:49:37 GMT', datetime(2069, 12, 31, 8, 49, 37)),
+-            (utcnow_1, 'Tuesday, 10-Nov-70 08:49:37 GMT', datetime(1970, 11, 10, 8, 49, 37)),
+-            (utcnow_1, 'Sunday, 06-Nov-94 08:49:37 GMT', datetime(1994, 11, 6, 8, 49, 37)),
+-            (utcnow_2, 'Wednesday, 31-Dec-70 08:49:37 GMT', datetime(2070, 12, 31, 8, 49, 37)),
+-            (utcnow_2, 'Friday, 31-Dec-71 08:49:37 GMT', datetime(1971, 12, 31, 8, 49, 37)),
+-            (utcnow_3, 'Sunday, 31-Dec-00 08:49:37 GMT', datetime(2000, 12, 31, 8, 49, 37)),
+-            (utcnow_3, 'Friday, 31-Dec-99 08:49:37 GMT', datetime(1999, 12, 31, 8, 49, 37)),
++            (now_1, 'Tuesday, 31-Dec-69 08:49:37 GMT', datetime(2069, 12, 31, 8, 49, 37, tzinfo=timezone.utc)),
++            (now_1, 'Tuesday, 10-Nov-70 08:49:37 GMT', datetime(1970, 11, 10, 8, 49, 37, tzinfo=timezone.utc)),
++            (now_1, 'Sunday, 06-Nov-94 08:49:37 GMT', datetime(1994, 11, 6, 8, 49, 37, tzinfo=timezone.utc)),
++            (now_2, 'Wednesday, 31-Dec-70 08:49:37 GMT', datetime(2070, 12, 31, 8, 49, 37, tzinfo=timezone.utc)),
++            (now_2, 'Friday, 31-Dec-71 08:49:37 GMT', datetime(1971, 12, 31, 8, 49, 37, tzinfo=timezone.utc)),
++            (now_3, 'Sunday, 31-Dec-00 08:49:37 GMT', datetime(2000, 12, 31, 8, 49, 37, tzinfo=timezone.utc)),
++            (now_3, 'Friday, 31-Dec-99 08:49:37 GMT', datetime(1999, 12, 31, 8, 49, 37, tzinfo=timezone.utc)),
+         )
+-        for utcnow, rfc850str, expected_date in tests:
++        for now, rfc850str, expected_date in tests:
+             with self.subTest(rfc850str=rfc850str):
+-                mocked_datetime.utcnow.return_value = utcnow
++                mocked_datetime.now.return_value = now
+                 parsed = parse_http_date(rfc850str)
+-                self.assertEqual(datetime.utcfromtimestamp(parsed), expected_date)
++                mocked_datetime.now.assert_called_once_with(tz=timezone.utc)
++                self.assertEqual(
++                    datetime.fromtimestamp(parsed, timezone.utc),
++                    expected_date,
++                )
++            mocked_datetime.reset_mock()
+ 
+     def test_parsing_asctime(self):
+         parsed = parse_http_date('Sun Nov  6 08:49:37 1994')
+-        self.assertEqual(datetime.utcfromtimestamp(parsed), datetime(1994, 11, 6, 8, 49, 37))
++        self.assertEqual(
++            datetime.fromtimestamp(parsed, timezone.utc),
++            datetime(1994, 11, 6, 8, 49, 37, tzinfo=timezone.utc),
++        )
+ 
+     def test_parsing_year_less_than_70(self):
+         parsed = parse_http_date('Sun Nov  6 08:49:37 0037')
+-        self.assertEqual(datetime.utcfromtimestamp(parsed), datetime(2037, 11, 6, 8, 49, 37))
++        self.assertEqual(
++            datetime.fromtimestamp(parsed, timezone.utc),
++            datetime(2037, 11, 6, 8, 49, 37, tzinfo=timezone.utc),
++        )
+ 
+ 
+ class EscapeLeadingSlashesTests(unittest.TestCase):
++ git diff d06c5b358149c02a62da8a5469264d05f29ac659
+diff --git a/django/db/backends/mysql/base.py b/django/db/backends/mysql/base.py
+index 2c62182d31..8b28a60485 100644
+--- a/django/db/backends/mysql/base.py
++++ b/django/db/backends/mysql/base.py
+@@ -200,9 +200,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
+         if settings_dict['USER']:
+             kwargs['user'] = settings_dict['USER']
+         if settings_dict['NAME']:
+-            kwargs['db'] = settings_dict['NAME']
++            kwargs['database'] = settings_dict['NAME']
+         if settings_dict['PASSWORD']:
+-            kwargs['passwd'] = settings_dict['PASSWORD']
++            kwargs['password'] = settings_dict['PASSWORD']
+         if settings_dict['HOST'].startswith('/'):
+             kwargs['unix_socket'] = settings_dict['HOST']
+         elif settings_dict['HOST']:
+diff --git a/tests/dbshell/test_mysql.py b/tests/dbshell/test_mysql.py
+index c3ecc6503b..1b7b72eb60 100644
+--- a/tests/dbshell/test_mysql.py
++++ b/tests/dbshell/test_mysql.py
+@@ -58,9 +58,9 @@ class MySqlDbshellCommandTestCase(SimpleTestCase):
+                 'HOST': 'settinghost',
+                 'PORT': settings_port,
+                 'OPTIONS': {
+-                    'db': 'optiondbname',
++                    'database': 'optiondbname',
+                     'user': 'optionuser',
+-                    'passwd': 'optionpassword',
++                    'password': 'optionpassword',
+                     'host': 'optionhost',
+                     'port': options_port,
+                 },
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.3.2 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0.dev20210512090841) (3.8.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0.dev20210512090841) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0.dev20210512090841) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from asgiref>=3.3.2->Django==4.0.dev20210512090841) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.0.dev20210512090841-0.editable-py3-none-any.whl size=26103 sha256=d761783c87ba0bcec1d1ea92c367ccfda40f2cf7f6da86cdf0fb9604a36494a2
+  Stored in directory: /tmp/pip-ephem-wheel-cache-1euw4swc/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.0.dev20210512090841
+    Uninstalling Django-4.0.dev20210512090841:
+      Successfully uninstalled Django-4.0.dev20210512090841
+Successfully installed Django-4.0.dev20210512090841
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout d06c5b358149c02a62da8a5469264d05f29ac659 tests/dbshell/test_mysql.py
+Updated 1 path from 2ca0d68840
++ git apply -v -
+Checking patch tests/dbshell/test_mysql.py...
+Applied patch tests/dbshell/test_mysql.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 dbshell.test_mysql
+test_basic_params_specified_in_settings (dbshell.test_mysql.MySqlDbshellCommandTestCase) ... ok
+test_can_connect_using_sockets (dbshell.test_mysql.MySqlDbshellCommandTestCase) ... ok
+test_crash_password_does_not_leak (dbshell.test_mysql.MySqlDbshellCommandTestCase) ... ok
+test_fails_with_keyerror_on_incomplete_config (dbshell.test_mysql.MySqlDbshellCommandTestCase) ... ok
+test_options_charset (dbshell.test_mysql.MySqlDbshellCommandTestCase) ... ok
+test_options_non_deprecated_keys_preferred (dbshell.test_mysql.MySqlDbshellCommandTestCase) ... FAIL
+test_options_override_settings_proper_values (dbshell.test_mysql.MySqlDbshellCommandTestCase) ... test_parameters (dbshell.test_mysql.MySqlDbshellCommandTestCase) ... ok
+test_ssl_certificate_is_added (dbshell.test_mysql.MySqlDbshellCommandTestCase) ... Testing against Django installed in '/testbed/django'
+Importing application dbshell
+Found 9 tests.
+Skipping setup of unused database(s): default, other.
+System check identified no issues (0 silenced).
+ok
+
+======================================================================
+FAIL: test_options_non_deprecated_keys_preferred (dbshell.test_mysql.MySqlDbshellCommandTestCase)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/dbshell/test_mysql.py", line 83, in test_options_non_deprecated_keys_preferred
+    self.assertEqual(
+AssertionError: Tuples differ: (['my[54 chars]4', 'deprecatedoptiondbname'], {'MYSQL_PWD': 'optionpassword'}) != (['my[54 chars]4', 'optiondbname'], {'MYSQL_PWD': 'optionpassword'})
+
+First differing element 0:
+['mys[19 chars]er', '--host=somehost', '--port=444', 'deprecatedoptiondbname']
+['mys[19 chars]er', '--host=somehost', '--port=444', 'optiondbname']
+
++ (['mysql', '--user=someuser', '--host=somehost', '--port=444', 'optiondbname'],
+- (['mysql',
+-   '--user=someuser',
+-   '--host=somehost',
+-   '--port=444',
+-   'deprecatedoptiondbname'],
+   {'MYSQL_PWD': 'optionpassword'})
+
+======================================================================
+FAIL: test_options_override_settings_proper_values (dbshell.test_mysql.MySqlDbshellCommandTestCase) (keys=('database', 'password'))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/dbshell/test_mysql.py", line 56, in test_options_override_settings_proper_values
+    self.assertEqual(
+AssertionError: Tuples differ: (['my[49 chars]--port=555', 'settingdbname'], {'MYSQL_PWD': 'optionpassword'}) != (['my[49 chars]--port=555', 'optiondbname'], {'MYSQL_PWD': 'optionpassword'})
+
+First differing element 0:
+['mys[14 chars]ptionuser', '--host=optionhost', '--port=555', 'settingdbname']
+['mys[14 chars]ptionuser', '--host=optionhost', '--port=555', 'optiondbname']
+
+  (['mysql',
+    '--user=optionuser',
+    '--host=optionhost',
+    '--port=555',
+-   'settingdbname'],
+?    ^^^   -
+
++   'optiondbname'],
+?    ^^  +
+
+   {'MYSQL_PWD': 'optionpassword'})
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.055s
+
+FAILED (failures=2)
++ git checkout d06c5b358149c02a62da8a5469264d05f29ac659 tests/dbshell/test_mysql.py
+Updated 1 path from 2ca0d68840

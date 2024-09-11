@@ -1,0 +1,34 @@
+
+diff --git a/django/conf/global_settings.py b/django/conf/global_settings.py
+index acee9887d2..bdeec80610 100644
+--- a/django/conf/global_settings.py
++++ b/django/conf/global_settings.py
+@@ -304,7 +304,7 @@ FILE_UPLOAD_TEMP_DIR = None
+ 
+ # The numeric mode to set newly-uploaded files to. The value should be a mode
+ # you'd pass directly to os.chmod; see https://docs.python.org/library/os.html#files-and-directories.
+-FILE_UPLOAD_PERMISSIONS = None
++FILE_UPLOAD_PERMISSIONS = 0o644
+ 
+ # The numeric mode to assign to newly-created directories, when uploading files.
+ # The value should be a mode as you'd pass to os.chmod;
+diff --git a/docs/topics/http/file-uploads.txt b/docs/topics/http/file-uploads.txt
+index 21a6f06853..384b70a96e 100644
+--- a/docs/topics/http/file-uploads.txt
++++ b/docs/topics/http/file-uploads.txt
+@@ -16,6 +16,15 @@ and in memory, and how to customize the default behavior.
+     untrusted users! See the security guide's topic on
+     :ref:`user-uploaded-content-security` for mitigation details.
+ 
++.. warning::
++
++    In the absence of explicitly configured FILE_UPLOAD_PERMISSIONS, the permissions
++    for a file uploaded to FileSystemStorage might not be consistent. This depends
++    on whether a MemoryUploadedFile or a TemporaryUploadedFile was used for temporary
++    storage of the uploaded data, which in turn depends on the size of the uploaded file
++    with the default FILE_UPLOAD_HANDLERS. As of the latest update, the default
++    FILE_UPLOAD_PERMISSIONS is set to 0o644 to ensure consistent permissions.
++
+ Basic file uploads
+ ==================
+ 

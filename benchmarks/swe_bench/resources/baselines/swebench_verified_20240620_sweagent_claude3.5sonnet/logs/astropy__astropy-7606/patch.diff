@@ -1,0 +1,31 @@
+
+diff --git a/astropy/units/core.py b/astropy/units/core.py
+index e9bd986d3..1b202395e 100644
+--- a/astropy/units/core.py
++++ b/astropy/units/core.py
+@@ -1710,6 +1710,8 @@ class UnrecognizedUnit(IrreducibleUnit):
+         _unrecognized_operator
+ 
+     def __eq__(self, other):
++        if other is None:
++            return False
+         other = Unit(other, parse_strict='silent')
+         return isinstance(other, UnrecognizedUnit) and self.name == other.name
+ 
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..968c02eeb
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,11 @@
++from astropy import units as u
++
++x = u.Unit('asdf', parse_strict='silent')
++
++try:
++    result = x == None
++    print(f"x == None resulted in: {result}")
++except TypeError as e:
++    print(f"TypeError occurred: {str(e)}")
++
++print("Script completed successfully.")

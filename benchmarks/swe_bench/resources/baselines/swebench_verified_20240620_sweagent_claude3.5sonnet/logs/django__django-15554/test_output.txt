@@ -1,0 +1,619 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/models/sql/query.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	tests/filtered_relation/test_multiple_filtered_relations.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 59ab3fd0e9e606d7f0f7ca26609c06ee679ece97
+Author: Carlton Gibson <carlton.gibson@noumenal.es>
+Date:   Thu Mar 24 11:09:55 2022 +0100
+
+    Refs #32365 -- Deprecated django.utils.timezone.utc.
+
+diff --git a/django/utils/timezone.py b/django/utils/timezone.py
+index 33c0440095..d22e358538 100644
+--- a/django/utils/timezone.py
++++ b/django/utils/timezone.py
+@@ -19,7 +19,7 @@ from asgiref.local import Local
+ from django.conf import settings
+ from django.utils.deprecation import RemovedInDjango50Warning
+ 
+-__all__ = [
++__all__ = [  # noqa for utc RemovedInDjango50Warning.
+     "utc",
+     "get_fixed_timezone",
+     "get_default_timezone",
+@@ -41,7 +41,18 @@ __all__ = [
+ NOT_PASSED = object()
+ 
+ 
+-utc = timezone.utc
++def __getattr__(name):
++    if name != "utc":
++        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
++
++    warnings.warn(
++        "The django.utils.timezone.utc alias is deprecated. "
++        "Please update your code to use datetime.timezone.utc instead.",
++        RemovedInDjango50Warning,
++        stacklevel=2,
++    )
++
++    return timezone.utc
+ 
+ 
+ def get_fixed_timezone(offset):
+@@ -339,3 +350,11 @@ def _datetime_ambiguous_or_imaginary(dt, tz):
+             return False
+ 
+     return tz.utcoffset(dt.replace(fold=not dt.fold)) != tz.utcoffset(dt)
++
++
++# RemovedInDjango50Warning.
++_DIR = dir()
++
++
++def __dir__():
++    return sorted([*_DIR, "utc"])
+diff --git a/docs/internals/deprecation.txt b/docs/internals/deprecation.txt
+index 31eb732297..ab147725c1 100644
+--- a/docs/internals/deprecation.txt
++++ b/docs/internals/deprecation.txt
+@@ -94,6 +94,9 @@ details on these changes.
+   ``django.contrib.auth.views.LogoutView`` and
+   ``django.contrib.auth.views.logout_then_login()`` will be removed.
+ 
++* The ``django.utils.timezone.utc`` alias to ``datetime.timezone.utc`` will be
++  removed.
++
+ .. _deprecation-removed-in-4.1:
+ 
+ 4.1
+diff --git a/docs/ref/utils.txt b/docs/ref/utils.txt
+index 8c12294cd6..a2be25f168 100644
+--- a/docs/ref/utils.txt
++++ b/docs/ref/utils.txt
+@@ -843,6 +843,11 @@ appropriate entities.
+ 
+     :class:`~datetime.tzinfo` instance that represents UTC.
+ 
++    .. deprecated:: 4.1
++
++        This is an alias to :attr:`datetime.timezone.utc`. Use
++        :attr:`datetime.timezone.utc` directly.
++
+ .. function:: get_fixed_timezone(offset)
+ 
+     Returns a :class:`~datetime.tzinfo` instance that represents a time zone
+diff --git a/docs/releases/4.1.txt b/docs/releases/4.1.txt
+index eb4bde652b..8fc81e5ee7 100644
+--- a/docs/releases/4.1.txt
++++ b/docs/releases/4.1.txt
+@@ -545,6 +545,9 @@ Miscellaneous
+   :meth:`.RemoteUserBackend.configure_user`. Support  for ``RemoteUserBackend``
+   subclasses that do not accept this argument is deprecated.
+ 
++* The :data:`django.utils.timezone.utc` alias to :attr:`datetime.timezone.utc`
++  is deprecated. Use :attr:`datetime.timezone.utc` directly.
++
+ Features removed in 4.1
+ =======================
+ 
+diff --git a/tests/migrations/test_writer.py b/tests/migrations/test_writer.py
+index 3e95ca6c15..6ec6d938b9 100644
+--- a/tests/migrations/test_writer.py
++++ b/tests/migrations/test_writer.py
+@@ -29,10 +29,11 @@ from django.core.validators import EmailValidator, RegexValidator
+ from django.db import migrations, models
+ from django.db.migrations.serializer import BaseSerializer
+ from django.db.migrations.writer import MigrationWriter, OperationWriter
+-from django.test import SimpleTestCase
++from django.test import SimpleTestCase, ignore_warnings
+ from django.utils.deconstruct import deconstructible
++from django.utils.deprecation import RemovedInDjango50Warning
+ from django.utils.functional import SimpleLazyObject
+-from django.utils.timezone import get_default_timezone, get_fixed_timezone, utc
++from django.utils.timezone import get_default_timezone, get_fixed_timezone
+ from django.utils.translation import gettext_lazy as _
+ 
+ from .models import FoodManager, FoodQuerySet
+@@ -532,6 +533,8 @@ class WriterTests(SimpleTestCase):
+             datetime.datetime(2014, 1, 1, 1, 1),
+             ("datetime.datetime(2014, 1, 1, 1, 1)", {"import datetime"}),
+         )
++        with ignore_warnings(category=RemovedInDjango50Warning):
++            from django.utils.timezone import utc
+         for tzinfo in (utc, datetime.timezone.utc):
+             with self.subTest(tzinfo=tzinfo):
+                 self.assertSerializedResultEqual(
+diff --git a/tests/timezones/tests.py b/tests/timezones/tests.py
+index 4e26516041..f2617f4d0f 100644
+--- a/tests/timezones/tests.py
++++ b/tests/timezones/tests.py
+@@ -88,6 +88,19 @@ def get_timezones(key):
+     return [constructor(key) for constructor in ZONE_CONSTRUCTORS]
+ 
+ 
++class UTCAliasTests(SimpleTestCase):
++    def test_alias_deprecation_warning(self):
++        msg = (
++            "The django.utils.timezone.utc alias is deprecated. "
++            "Please update your code to use datetime.timezone.utc instead."
++        )
++        with self.assertRaisesMessage(RemovedInDjango50Warning, msg):
++            timezone.utc
++
++    def test_timezone_module_dir_includes_utc(self):
++        self.assertIn("utc", dir(timezone))
++
++
+ @contextmanager
+ def override_database_connection_timezone(timezone):
+     try:
++ git diff 59ab3fd0e9e606d7f0f7ca26609c06ee679ece97
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 54f3258eac..034d8a4dbb 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -6,6 +6,14 @@ themselves do not have to (and could be backed by things other than SQL
+ databases). The abstraction barrier only works one way: this module has to know
+ all about the internals of models in order to get the information it needs.
+ """
++
++# TODO: Support for multiple FilteredRelation instances
++# This file has been modified to store multiple FilteredRelation instances
++# for each alias. However, the query generation process currently only uses
++# the first FilteredRelation for each alias. To fully support multiple
++# FilteredRelations, further modifications to the query generation process
++# are needed.
++
+ import copy
+ import difflib
+ import functools
+@@ -1598,7 +1606,9 @@ class Query(BaseExpression):
+                         "relations deeper than the relation_name (got %r for "
+                         "%r)." % (lookup, filtered_relation.relation_name)
+                     )
+-        self._filtered_relations[filtered_relation.alias] = filtered_relation
++        if filtered_relation.alias not in self._filtered_relations:
++            self._filtered_relations[filtered_relation.alias] = []
++        self._filtered_relations[filtered_relation.alias].append(filtered_relation)
+ 
+     def names_to_path(self, names, opts, allow_many=True, fail_on_missing=False):
+         """
+@@ -1631,7 +1641,11 @@ class Query(BaseExpression):
+                 if name in self.annotation_select:
+                     field = self.annotation_select[name].output_field
+                 elif name in self._filtered_relations and pos == 0:
+-                    filtered_relation = self._filtered_relations[name]
++                    filtered_relations = self._filtered_relations[name]
++                    # TODO: This currently only uses the first FilteredRelation.
++                    # To fully support multiple FilteredRelations, we need to modify
++                    # the query generation process to consider all FilteredRelations.
++                    filtered_relation = filtered_relations[0]
+                     if LOOKUP_SEP in filtered_relation.relation_name:
+                         parts = filtered_relation.relation_name.split(LOOKUP_SEP)
+                         filtered_relation_path, field, _, _ = self.names_to_path(
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.4.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20220329124744) (3.8.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20220329124744) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from asgiref>=3.4.1->Django==4.1.dev20220329124744) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.1.dev20220329124744-0.editable-py3-none-any.whl size=26937 sha256=9c6b6121a9ce60de9ffd44f2ca0c6d2e28cda08ab9780bd8d0209b05dcdc7824
+  Stored in directory: /tmp/pip-ephem-wheel-cache-_6ddipum/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.1.dev20220329124744
+    Uninstalling Django-4.1.dev20220329124744:
+      Successfully uninstalled Django-4.1.dev20220329124744
+Successfully installed Django-4.1.dev20220329124744
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 59ab3fd0e9e606d7f0f7ca26609c06ee679ece97 tests/filtered_relation/tests.py
+Updated 0 paths from 9014f24e17
++ git apply -v -
+Checking patch tests/filtered_relation/tests.py...
+Applied patch tests/filtered_relation/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 filtered_relation.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application filtered_relation
+Found 43 test(s).
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, filtered_relation, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table filtered_relation_author
+    Creating table filtered_relation_editor
+    Creating table filtered_relation_book
+    Creating table filtered_relation_borrower
+    Creating table filtered_relation_reservation
+    Creating table filtered_relation_rentalsession
+    Creating table filtered_relation_seller
+    Creating table filtered_relation_currency
+    Creating table filtered_relation_exchangerate
+    Creating table filtered_relation_bookdailysales
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+test_aggregate (filtered_relation.tests.FilteredRelationAggregationTests)
+filtered_relation() not only improves performance but also creates ... ok
+test_aggregate (filtered_relation.tests.FilteredRelationAnalyticalAggregationTests) ... ok
+test_as_subquery (filtered_relation.tests.FilteredRelationTests) ... ok
+test_condition_deeper_relation_name (filtered_relation.tests.FilteredRelationTests) ... ok
+test_condition_outside_relation_name (filtered_relation.tests.FilteredRelationTests) ... ok
+test_deep_nested_foreign_key (filtered_relation.tests.FilteredRelationTests) ... ok
+test_defer (filtered_relation.tests.FilteredRelationTests) ... ERROR
+test_difference (filtered_relation.tests.FilteredRelationTests) ... ok
+test_eq (filtered_relation.tests.FilteredRelationTests) ... ok
+test_exclude_relation_with_join (filtered_relation.tests.FilteredRelationTests) ... ok
+test_extra (filtered_relation.tests.FilteredRelationTests) ... ok
+test_internal_queryset_alias_mapping (filtered_relation.tests.FilteredRelationTests) ... ok
+test_intersection (filtered_relation.tests.FilteredRelationTests) ... ok
+test_multiple (filtered_relation.tests.FilteredRelationTests) ... FAIL
+test_multiple_times (filtered_relation.tests.FilteredRelationTests) ... ok
+test_nested_chained_relations (filtered_relation.tests.FilteredRelationTests) ... ok
+test_nested_foreign_key (filtered_relation.tests.FilteredRelationTests) ... ok
+test_nested_foreign_key_filtered_base_object (filtered_relation.tests.FilteredRelationTests) ... ok
+test_nested_foreign_key_nested_field (filtered_relation.tests.FilteredRelationTests) ... ok
+test_nested_m2m_filtered (filtered_relation.tests.FilteredRelationTests) ... ok
+test_only_not_supported (filtered_relation.tests.FilteredRelationTests) ... ok
+test_relation_name_lookup (filtered_relation.tests.FilteredRelationTests) ... ok
+test_select_for_update (filtered_relation.tests.FilteredRelationTests) ... ok
+test_select_related (filtered_relation.tests.FilteredRelationTests) ... ok
+test_select_related_foreign_key (filtered_relation.tests.FilteredRelationTests) ... ok
+test_select_related_foreign_key_for_update_of (filtered_relation.tests.FilteredRelationTests) ... skipped "Database doesn't support feature(s): has_select_for_update, has_select_for_update_of"
+test_select_related_multiple (filtered_relation.tests.FilteredRelationTests) ... ok
+test_select_related_with_empty_relation (filtered_relation.tests.FilteredRelationTests) ... ok
+test_union (filtered_relation.tests.FilteredRelationTests) ... ok
+test_values (filtered_relation.tests.FilteredRelationTests) ... ok
+test_values_list (filtered_relation.tests.FilteredRelationTests) ... ok
+test_with_condition_as_expression_error (filtered_relation.tests.FilteredRelationTests) ... ok
+test_with_empty_relation_name_error (filtered_relation.tests.FilteredRelationTests) ... ok
+test_with_exclude (filtered_relation.tests.FilteredRelationTests) ... ok
+test_with_generic_foreign_key (filtered_relation.tests.FilteredRelationTests) ... ok
+test_with_join (filtered_relation.tests.FilteredRelationTests) ... ok
+test_with_join_and_complex_condition (filtered_relation.tests.FilteredRelationTests) ... ok
+test_with_m2m (filtered_relation.tests.FilteredRelationTests) ... ok
+test_with_m2m_deep (filtered_relation.tests.FilteredRelationTests) ... ok
+test_with_m2m_multijoin (filtered_relation.tests.FilteredRelationTests) ... ok
+test_with_multiple_filter (filtered_relation.tests.FilteredRelationTests) ... ok
+test_with_prefetch_related (filtered_relation.tests.FilteredRelationTests) ... ok
+test_without_join (filtered_relation.tests.FilteredRelationTests) ... ok
+
+======================================================================
+ERROR: test_defer (filtered_relation.tests.FilteredRelationTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/filtered_relation/tests.py", line 411, in test_defer
+    self.assertQuerysetEqual(
+  File "/testbed/django/test/testcases.py", line 1239, in assertQuerysetEqual
+    items = map(transform, items)
+  File "/testbed/django/db/models/query.py", line 321, in __iter__
+    self._fetch_all()
+  File "/testbed/django/db/models/query.py", line 1647, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+  File "/testbed/django/db/models/query.py", line 58, in __iter__
+    results = compiler.execute_sql(
+  File "/testbed/django/db/models/sql/compiler.py", line 1367, in execute_sql
+    sql, params = self.as_sql()
+  File "/testbed/django/db/models/sql/compiler.py", line 585, in as_sql
+    extra_select, order_by, group_by = self.pre_sql_setup()
+  File "/testbed/django/db/models/sql/compiler.py", line 71, in pre_sql_setup
+    self.setup_query()
+  File "/testbed/django/db/models/sql/compiler.py", line 62, in setup_query
+    self.select, self.klass_info, self.annotation_col_map = self.get_select()
+  File "/testbed/django/db/models/sql/compiler.py", line 254, in get_select
+    cols = self.get_default_columns()
+  File "/testbed/django/db/models/sql/compiler.py", line 805, in get_default_columns
+    only_load = self.deferred_to_columns()
+  File "/testbed/django/db/models/sql/compiler.py", line 1298, in deferred_to_columns
+    self.query.deferred_to_data(columns, self.query.get_loaded_field_names_cb)
+  File "/testbed/django/db/models/sql/query.py", line 741, in deferred_to_data
+    name = self._filtered_relations[name].relation_name
+AttributeError: 'list' object has no attribute 'relation_name'
+
+======================================================================
+FAIL: test_multiple (filtered_relation.tests.FilteredRelationTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/filtered_relation/tests.py", line 228, in test_multiple
+    self.assertCountEqual(
+AssertionError: Element counts were not equal:
+First has 1, Second has 0:  {'book_title_alice__title': None, 'book_title_jane__title': None}
+First has 0, Second has 1:  {'book_title_alice__title': None, 'book_title_jane__title': 'The book by Jane A'}
+First has 0, Second has 1:  {'book_title_alice__title': None, 'book_title_jane__title': 'The book by Jane B'}
+
+----------------------------------------------------------------------
+Ran 43 tests in 0.177s
+
+FAILED (failures=1, errors=1, skipped=1)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout 59ab3fd0e9e606d7f0f7ca26609c06ee679ece97 tests/filtered_relation/tests.py
+Updated 1 path from 9014f24e17

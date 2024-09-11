@@ -1,0 +1,62 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..8117d54201
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,55 @@
++import os
++import django
++from django.conf import settings
++from django.core.management import call_command
++from io import StringIO
++
++# Configure Django settings
++if not settings.configured:
++    settings.configure(
++        DEBUG=True,
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++        ],
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        DEFAULT_AUTO_FIELD='django.db.models.AutoField'
++    )
++
++django.setup()
++
++from django.db import models
++from django.db.models import F, Value, ExpressionWrapper
++from django.db.models.fields import DurationField
++from datetime import datetime, timedelta
++
++class Experiment(models.Model):
++    start = models.DateTimeField()
++    end = models.DateTimeField()
++
++    class Meta:
++        app_label = 'contenttypes'
++
++# Run migrations
++out = StringIO()
++call_command('migrate', stdout=out)
++print(out.getvalue())
++
++try:
++    queryset = Experiment.objects.annotate(
++        delta=ExpressionWrapper(
++            F('end') - F('start') + Value(timedelta()),
++            output_field=DurationField()
++        )
++    )
++    print("Generated SQL:")
++    print(queryset.query)
++    print("Query executed successfully.")
++except Exception as e:
++    print(f"Error occurred: {str(e)}")
++
++print("Script completed.")

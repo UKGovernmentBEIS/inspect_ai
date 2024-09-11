@@ -1,0 +1,35 @@
+{
+    "django__django-12155": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "test_parse_rst_with_docstring_no_leading_line_feed (admin_docs.test_utils.TestUtils)"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_description_output (admin_docs.test_utils.TestUtils)",
+                    "test_initial_header_level (admin_docs.test_utils.TestUtils)",
+                    "test_parse_docstring (admin_docs.test_utils.TestUtils)",
+                    "test_parse_rst (admin_docs.test_utils.TestUtils)",
+                    "test_publish_parts (admin_docs.test_utils.TestUtils)",
+                    "test_title_output (admin_docs.test_utils.TestUtils)"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

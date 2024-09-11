@@ -1,0 +1,666 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	bugtest/
+
+nothing added to commit but untracked files present (use "git add" to track)
++ git show
+commit fbacaa58ffc5a62456ee68b90efa13957f761ce4
+Author: Mariusz Felisiak <felisiak.mariusz@gmail.com>
+Date:   Fri Mar 18 08:55:32 2022 +0100
+
+    Added packaging tools to GitHub actions.
+
+diff --git a/.github/workflows/schedule_tests.yml b/.github/workflows/schedule_tests.yml
+index 2b43a53e5c..bfd62b1275 100644
+--- a/.github/workflows/schedule_tests.yml
++++ b/.github/workflows/schedule_tests.yml
+@@ -28,7 +28,9 @@ jobs:
+           python-version: ${{ matrix.python-version }}
+           cache: 'pip'
+           cache-dependency-path: 'tests/requirements/py3.txt'
+-      - run: pip install -r tests/requirements/py3.txt -e .
++      - name: Install and upgrade packaging tools
++        run: python -m pip install --upgrade pip setuptools wheel
++      - run: python -m pip install -r tests/requirements/py3.txt -e .
+       - name: Run tests
+         run: python tests/runtests.py -v2
+ 
+diff --git a/.github/workflows/tests.yml b/.github/workflows/tests.yml
+index 3798b7dbe1..391c3e080f 100644
+--- a/.github/workflows/tests.yml
++++ b/.github/workflows/tests.yml
+@@ -31,7 +31,9 @@ jobs:
+           python-version: ${{ matrix.python-version }}
+           cache: 'pip'
+           cache-dependency-path: 'tests/requirements/py3.txt'
+-      - run: pip install -r tests/requirements/py3.txt -e .
++      - name: Install and upgrade packaging tools
++        run: python -m pip install --upgrade pip setuptools wheel
++      - run: python -m pip install -r tests/requirements/py3.txt -e .
+       - name: Run tests
+         run: python tests/runtests.py -v2
+ 
++ git diff fbacaa58ffc5a62456ee68b90efa13957f761ce4
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.4.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20220318075532) (3.8.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20220318075532) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from asgiref>=3.4.1->Django==4.1.dev20220318075532) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.1.dev20220318075532-0.editable-py3-none-any.whl size=26938 sha256=d8b31390b0b81c31ec1266aaaa1c7ab2a02c27c3b466018434c736caff6745de
+  Stored in directory: /tmp/pip-ephem-wheel-cache-8aqkguk1/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.1.dev20220318075532
+    Uninstalling Django-4.1.dev20220318075532:
+      Successfully uninstalled Django-4.1.dev20220318075532
+Successfully installed Django-4.1.dev20220318075532
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout fbacaa58ffc5a62456ee68b90efa13957f761ce4 tests/backends/sqlite/test_features.py tests/fixtures_regress/models.py tests/fixtures_regress/tests.py
+Updated 0 paths from 35dc7e61d2
++ git apply -v -
+Checking patch tests/backends/sqlite/test_features.py...
+Checking patch tests/fixtures_regress/fixtures/nk_with_foreign_key.json...
+Checking patch tests/fixtures_regress/models.py...
+Checking patch tests/fixtures_regress/tests.py...
+Applied patch tests/backends/sqlite/test_features.py cleanly.
+Applied patch tests/fixtures_regress/fixtures/nk_with_foreign_key.json cleanly.
+Applied patch tests/fixtures_regress/models.py cleanly.
+Applied patch tests/fixtures_regress/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 backends.sqlite.test_features fixtures_regress.models fixtures_regress.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application backends
+Importing application fixtures_regress
+Found 58 test(s).
+Operations to perform:
+  Synchronize unmigrated apps: auth, backends, contenttypes, fixtures_regress, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table backends_square
+    Creating table backends_person
+    Creating table backends_schoolclass
+    Creating table backends_verylongmodelnamezzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+    Creating table backends_tag
+    Creating table CaseSensitive_Post
+    Creating table backends_reporter
+    Creating table backends_article
+    Creating table backends_item
+    Creating table backends_object
+    Creating table backends_objectreference
+    Creating table backends_objectselfreference
+    Creating table backends_circulara
+    Creating table backends_circularb
+    Creating table backends_rawdata
+    Creating table backends_author
+    Creating table backends_book
+    Creating table order
+    Creating table fixtures_regress_animal
+    Creating table Fixtures_regress_plant
+    Creating table fixtures_regress_stuff
+    Creating table fixtures_regress_absolute
+    Creating table fixtures_regress_parent
+    Creating table fixtures_regress_child
+    Creating table fixtures_regress_channel
+    Creating table fixtures_regress_article
+    Creating table fixtures_regress_specialarticle
+    Creating table fixtures_regress_feature
+    Creating table fixtures_regress_widget
+    Creating table fixtures_regress_store
+    Creating table fixtures_regress_person
+    Creating table fixtures_regress_book
+    Creating table fixtures_regress_naturalkeywithfkdependency
+    Creating table fixtures_regress_nkchild
+    Creating table fixtures_regress_reftonkchild
+    Creating table fixtures_regress_circle1
+    Creating table fixtures_regress_circle2
+    Creating table fixtures_regress_circle3
+    Creating table fixtures_regress_circle4
+    Creating table fixtures_regress_circle5
+    Creating table fixtures_regress_circle6
+    Creating table fixtures_regress_externaldependency
+    Creating table fixtures_regress_thingy
+    Creating table fixtures_regress_m2mtoself
+    Creating table fixtures_regress_m2msimplea
+    Creating table fixtures_regress_m2msimpleb
+    Creating table fixtures_regress_m2msimplecirculara
+    Creating table fixtures_regress_m2msimplecircularb
+    Creating table fixtures_regress_m2mcomplexa
+    Creating table fixtures_regress_m2mcomplexb
+    Creating table fixtures_regress_m2mthroughab
+    Creating table fixtures_regress_m2mcomplexcircular1a
+    Creating table fixtures_regress_m2mcomplexcircular1b
+    Creating table fixtures_regress_m2mcomplexcircular1c
+    Creating table fixtures_regress_m2mcircular1throughab
+    Creating table fixtures_regress_m2mcircular1throughbc
+    Creating table fixtures_regress_m2mcircular1throughca
+    Creating table fixtures_regress_m2mcomplexcircular2a
+    Creating table fixtures_regress_m2mcomplexcircular2b
+    Creating table fixtures_regress_m2mcircular2throughab
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+Creating test database for alias 'other' ('file:memorydb_other?mode=memory&cache=shared')...
+Operations to perform:
+  Synchronize unmigrated apps: auth, backends, contenttypes, fixtures_regress, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table backends_square
+    Creating table backends_person
+    Creating table backends_schoolclass
+    Creating table backends_verylongmodelnamezzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+    Creating table backends_tag
+    Creating table CaseSensitive_Post
+    Creating table backends_reporter
+    Creating table backends_article
+    Creating table backends_item
+    Creating table backends_object
+    Creating table backends_objectreference
+    Creating table backends_objectselfreference
+    Creating table backends_circulara
+    Creating table backends_circularb
+    Creating table backends_rawdata
+    Creating table backends_author
+    Creating table backends_book
+    Creating table order
+    Creating table fixtures_regress_animal
+    Creating table Fixtures_regress_plant
+    Creating table fixtures_regress_stuff
+    Creating table fixtures_regress_absolute
+    Creating table fixtures_regress_parent
+    Creating table fixtures_regress_child
+    Creating table fixtures_regress_channel
+    Creating table fixtures_regress_article
+    Creating table fixtures_regress_specialarticle
+    Creating table fixtures_regress_feature
+    Creating table fixtures_regress_widget
+    Creating table fixtures_regress_store
+    Creating table fixtures_regress_person
+    Creating table fixtures_regress_book
+    Creating table fixtures_regress_naturalkeywithfkdependency
+    Creating table fixtures_regress_nkchild
+    Creating table fixtures_regress_reftonkchild
+    Creating table fixtures_regress_circle1
+    Creating table fixtures_regress_circle2
+    Creating table fixtures_regress_circle3
+    Creating table fixtures_regress_circle4
+    Creating table fixtures_regress_circle5
+    Creating table fixtures_regress_circle6
+    Creating table fixtures_regress_externaldependency
+    Creating table fixtures_regress_thingy
+    Creating table fixtures_regress_m2mtoself
+    Creating table fixtures_regress_m2msimplea
+    Creating table fixtures_regress_m2msimpleb
+    Creating table fixtures_regress_m2msimplecirculara
+    Creating table fixtures_regress_m2msimplecircularb
+    Creating table fixtures_regress_m2mcomplexa
+    Creating table fixtures_regress_m2mcomplexb
+    Creating table fixtures_regress_m2mthroughab
+    Creating table fixtures_regress_m2mcomplexcircular1a
+    Creating table fixtures_regress_m2mcomplexcircular1b
+    Creating table fixtures_regress_m2mcomplexcircular1c
+    Creating table fixtures_regress_m2mcircular1throughab
+    Creating table fixtures_regress_m2mcircular1throughbc
+    Creating table fixtures_regress_m2mcircular1throughca
+    Creating table fixtures_regress_m2mcomplexcircular2a
+    Creating table fixtures_regress_m2mcomplexcircular2b
+    Creating table fixtures_regress_m2mcircular2throughab
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+test_supports_json_field_operational_error (backends.sqlite.test_features.FeaturesTests) ... ok
+test_dependency_sorting_m2m_complex (fixtures_regress.tests.M2MNaturalKeyFixtureTests)
+M2M relations with explicit through models should NOT count as ... ok
+test_dependency_sorting_m2m_complex_circular_1 (fixtures_regress.tests.M2MNaturalKeyFixtureTests)
+Circular M2M relations with explicit through models should be serializable ... ok
+test_dependency_sorting_m2m_complex_circular_2 (fixtures_regress.tests.M2MNaturalKeyFixtureTests)
+Circular M2M relations with explicit through models should be serializable ... ok
+test_dependency_sorting_m2m_simple (fixtures_regress.tests.M2MNaturalKeyFixtureTests)
+M2M relations without explicit through models SHOULD count as dependencies ... ok
+test_dependency_sorting_m2m_simple_circular (fixtures_regress.tests.M2MNaturalKeyFixtureTests)
+Resolving circular M2M relations without explicit through models should ... ok
+test_dump_and_load_m2m_simple (fixtures_regress.tests.M2MNaturalKeyFixtureTests)
+Test serializing and deserializing back models with simple M2M relations ... ok
+test_natural_key_dependencies (fixtures_regress.tests.NaturalKeyFixtureOnOtherDatabaseTests)
+Natural keys with foreing keys in dependencies works in a multiple ... ERROR
+test_dependency_self_referential (fixtures_regress.tests.NaturalKeyFixtureTests) ... ok
+test_dependency_sorting (fixtures_regress.tests.NaturalKeyFixtureTests)
+It doesn't matter what order you mention the models,  Store *must* be ... ok
+test_dependency_sorting_2 (fixtures_regress.tests.NaturalKeyFixtureTests) ... ok
+test_dependency_sorting_3 (fixtures_regress.tests.NaturalKeyFixtureTests) ... ok
+test_dependency_sorting_4 (fixtures_regress.tests.NaturalKeyFixtureTests) ... ok
+test_dependency_sorting_5 (fixtures_regress.tests.NaturalKeyFixtureTests) ... ok
+test_dependency_sorting_6 (fixtures_regress.tests.NaturalKeyFixtureTests) ... ok
+test_dependency_sorting_dangling (fixtures_regress.tests.NaturalKeyFixtureTests) ... ok
+test_dependency_sorting_long (fixtures_regress.tests.NaturalKeyFixtureTests) ... ok
+test_dependency_sorting_normal (fixtures_regress.tests.NaturalKeyFixtureTests) ... ok
+test_dependency_sorting_tight_circular (fixtures_regress.tests.NaturalKeyFixtureTests) ... ok
+test_dependency_sorting_tight_circular_2 (fixtures_regress.tests.NaturalKeyFixtureTests) ... ok
+test_nk_deserialize (fixtures_regress.tests.NaturalKeyFixtureTests)
+Test for ticket #13030 - Python based parser version ... ok
+test_nk_deserialize_xml (fixtures_regress.tests.NaturalKeyFixtureTests)
+Test for ticket #13030 - XML version ... ok
+test_nk_on_serialize (fixtures_regress.tests.NaturalKeyFixtureTests)
+Natural key requirements are taken into account when serializing models. ... ok
+test_normal_pk (fixtures_regress.tests.NaturalKeyFixtureTests)
+Normal primary keys work on a model with natural key capabilities. ... ok
+test_absolute_path (fixtures_regress.tests.TestFixtures)
+Regression test for ticket #6436 -- ... ok
+test_close_connection_after_loaddata (fixtures_regress.tests.TestFixtures)
+Test for ticket #7572 -- MySQL has a problem if the same connection is ... ok
+test_dumpdata_uses_default_manager (fixtures_regress.tests.TestFixtures)
+Regression for #11286 ... ok
+test_duplicate_pk (fixtures_regress.tests.TestFixtures)
+This is a regression test for ticket #3790. ... ok
+test_empty (fixtures_regress.tests.TestFixtures)
+Test for ticket #18213 -- Loading a fixture file with no data output a warning. ... ok
+test_error_message (fixtures_regress.tests.TestFixtures)
+Regression for #9011 - error message is correct. ... ok
+test_field_value_coerce (fixtures_regress.tests.TestFixtures)
+Test for tickets #8298, #9942 - Field values should be coerced into the ... ok
+test_fixture_dirs_with_default_fixture_path (fixtures_regress.tests.TestFixtures)
+settings.FIXTURE_DIRS cannot contain a default fixtures directory ... ok
+test_fixture_dirs_with_duplicates (fixtures_regress.tests.TestFixtures)
+settings.FIXTURE_DIRS cannot contain duplicates in order to avoid ... ok
+test_fixtures_dir_pathlib (fixtures_regress.tests.TestFixtures) ... ok
+test_invalid_data (fixtures_regress.tests.TestFixtures)
+Test for ticket #4371 -- Loading a fixture file with invalid data ... ok
+test_invalid_data_no_ext (fixtures_regress.tests.TestFixtures)
+Test for ticket #4371 -- Loading a fixture file with invalid data ... ok
+test_loaddata_forward_refs_split_fixtures (fixtures_regress.tests.TestFixtures)
+Regression for #17530 - should be able to cope with forward references ... ok
+test_loaddata_no_fixture_specified (fixtures_regress.tests.TestFixtures)
+Error is quickly reported when no fixtures is provided in the command ... ok
+test_loaddata_not_found_fields_ignore (fixtures_regress.tests.TestFixtures)
+Test for ticket #9279 -- Ignores entries in ... ok
+test_loaddata_not_found_fields_ignore_xml (fixtures_regress.tests.TestFixtures)
+Test for ticket #19998 -- Ignore entries in the XML serialized data ... ok
+test_loaddata_not_found_fields_not_ignore (fixtures_regress.tests.TestFixtures)
+Test for ticket #9279 -- Error is raised for entries in ... ok
+test_loaddata_raises_error_when_fixture_has_invalid_foreign_key (fixtures_regress.tests.TestFixtures)
+Data with nonexistent child key references raises error. ... ok
+test_loaddata_with_m2m_to_self (fixtures_regress.tests.TestFixtures)
+Regression test for ticket #17946. ... ok
+test_loaddata_with_valid_fixture_dirs (fixtures_regress.tests.TestFixtures) ... ok
+test_loaddata_works_when_fixture_has_forward_refs (fixtures_regress.tests.TestFixtures)
+Forward references cause fixtures not to load in MySQL (InnoDB). ... ok
+test_path_containing_dots (fixtures_regress.tests.TestFixtures) ... ok
+test_pg_sequence_resetting_checks (fixtures_regress.tests.TestFixtures)
+Test for ticket #7565 -- PostgreSQL sequence resetting checks shouldn't ... ok
+test_pretty_print_xml (fixtures_regress.tests.TestFixtures)
+Regression test for ticket #4558 -- pretty printing of XML fixtures ... ok
+test_pretty_print_xml_empty_strings (fixtures_regress.tests.TestFixtures)
+Regression test for ticket #4558 -- pretty printing of XML fixtures ... skipped "Database doesn't support feature(s): interprets_empty_strings_as_nulls"
+test_proxy_model_included (fixtures_regress.tests.TestFixtures)
+Regression for #11428 - Proxy models aren't included when you dumpdata ... ok
+test_relative_path (fixtures_regress.tests.TestFixtures) ... ok
+test_relative_path_in_fixture_dirs (fixtures_regress.tests.TestFixtures) ... ok
+test_ticket_20820 (fixtures_regress.tests.TestFixtures)
+Regression for ticket #20820 -- loaddata on a model that inherits ... ok
+test_ticket_22421 (fixtures_regress.tests.TestFixtures)
+Regression for ticket #22421 -- loaddata on a model that inherits from ... ok
+test_unimportable_serializer (fixtures_regress.tests.TestFixtures)
+Failing serializer import raises the proper error ... ok
+test_unknown_format (fixtures_regress.tests.TestFixtures)
+Test for ticket #4371 -- Loading data of an unknown format should fail ... ok
+test_fixtures_loaded (fixtures_regress.tests.TestLoadFixtureFromOtherAppDirectory) ... ok
+test_ticket_11101 (fixtures_regress.tests.TestTicket11101)
+Fixtures can be rolled back (ticket #11101). ... ok
+
+======================================================================
+ERROR: test_natural_key_dependencies (fixtures_regress.tests.NaturalKeyFixtureOnOtherDatabaseTests)
+Natural keys with foreing keys in dependencies works in a multiple
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/db/models/fields/related_descriptors.py", line 187, in __get__
+    rel_obj = self.field.get_cached_value(instance)
+  File "/testbed/django/db/models/fields/mixins.py", line 15, in get_cached_value
+    return instance._state.fields_cache[cache_name]
+KeyError: 'author'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/testbed/django/core/serializers/json.py", line 70, in Deserializer
+    yield from PythonDeserializer(objects, **options)
+  File "/testbed/django/core/serializers/python.py", line 174, in Deserializer
+    obj = base.build_instance(Model, data, using)
+  File "/testbed/django/core/serializers/base.py", line 339, in build_instance
+    natural_key = Model(**data).natural_key()
+  File "/testbed/tests/fixtures_regress/models.py", line 165, in natural_key
+    return (self.name,) + self.author.natural_key()
+  File "/testbed/django/db/models/fields/related_descriptors.py", line 205, in __get__
+    rel_obj = self.get_object(instance)
+  File "/testbed/django/db/models/fields/related_descriptors.py", line 168, in get_object
+    return qs.get(self.field.get_reverse_related_filter(instance))
+  File "/testbed/django/db/models/query.py", line 538, in get
+    num = len(clone)
+  File "/testbed/django/db/models/query.py", line 303, in __len__
+    self._fetch_all()
+  File "/testbed/django/db/models/query.py", line 1647, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+  File "/testbed/django/db/models/query.py", line 58, in __iter__
+    results = compiler.execute_sql(
+  File "/testbed/django/db/models/sql/compiler.py", line 1378, in execute_sql
+    cursor = self.connection.cursor()
+  File "/testbed/django/test/testcases.py", line 165, in __call__
+    raise DatabaseOperationForbidden(self.message)
+django.test.testcases.DatabaseOperationForbidden: Database queries to 'default' are not allowed in this test. Add 'default' to fixtures_regress.tests.NaturalKeyFixtureOnOtherDatabaseTests.databases to ensure proper test isolation and silence this failure.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/testbed/tests/fixtures_regress/tests.py", line 803, in test_natural_key_dependencies
+    management.call_command(
+  File "/testbed/django/core/management/__init__.py", line 198, in call_command
+    return command.execute(*args, **defaults)
+  File "/testbed/django/core/management/base.py", line 448, in execute
+    output = self.handle(*args, **options)
+  File "/testbed/django/core/management/commands/loaddata.py", line 102, in handle
+    self.loaddata(fixture_labels)
+  File "/testbed/django/core/management/commands/loaddata.py", line 163, in loaddata
+    self.load_label(fixture_label)
+  File "/testbed/django/core/management/commands/loaddata.py", line 251, in load_label
+    for obj in objects:
+  File "/testbed/django/core/serializers/json.py", line 74, in Deserializer
+    raise DeserializationError() from exc
+django.core.serializers.base.DeserializationError: Problem installing fixture '/testbed/tests/fixtures_regress/fixtures/nk_with_foreign_key.json': 
+
+----------------------------------------------------------------------
+Ran 58 tests in 0.485s
+
+FAILED (errors=1, skipped=1)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Destroying test database for alias 'other' ('file:memorydb_other?mode=memory&cache=shared')...
++ git checkout fbacaa58ffc5a62456ee68b90efa13957f761ce4 tests/backends/sqlite/test_features.py tests/fixtures_regress/models.py tests/fixtures_regress/tests.py
+Updated 3 paths from 35dc7e61d2

@@ -1,0 +1,232 @@
+
+diff --git a/django/forms/models.py b/django/forms/models.py
+index dafc11f995..5644fa7275 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -1173,12 +1173,6 @@ class ModelChoiceIterator:
+ 
+ class ModelChoiceField(ChoiceField):
+     """A ChoiceField whose choices are a model QuerySet."""
+-    # This class is a subclass of ChoiceField for purity, but it doesn't
+-    # actually use any of ChoiceField's implementation.
+-    default_error_messages = {
+-        'invalid_choice': _('Select a valid choice. That choice is not one of'
+-                            ' the available choices.'),
+-    }
+     iterator = ModelChoiceIterator
+ 
+     def __init__(self, queryset, *, empty_label="---------",
+@@ -1200,6 +1194,18 @@ class ModelChoiceField(ChoiceField):
+         self.limit_choices_to = limit_choices_to   # limit the queryset later.
+         self.to_field_name = to_field_name
+ 
++        self._set_queryset(queryset)
++        self._set_empty_label(empty_label)
++
++    def _set_empty_label(self, empty_label):
++        # Check if the field is not blank in the model
++        if self.queryset is not None and self.queryset.model is not None:
++            model_field = self.queryset.model._meta.get_field(self.to_field_name or 'pk')
++            if not model_field.blank and self.required:
++                self.empty_label = None
++            else:
++                self.empty_label = empty_label
++
+     def get_limit_choices_to(self):
+         """
+         Return ``limit_choices_to`` for this form field.
+diff --git a/django/forms/widgets.py b/django/forms/widgets.py
+index 40ac1d3162..055a577030 100644
+--- a/django/forms/widgets.py
++++ b/django/forms/widgets.py
+@@ -759,9 +759,42 @@ class RadioSelect(ChoiceWidget):
+     template_name = 'django/forms/widgets/radio.html'
+     option_template_name = 'django/forms/widgets/radio_option.html'
+ 
++    def get_context(self, name, value, attrs):
++        context = super().get_context(name, value, attrs)
++        if hasattr(self.choices, 'field') and hasattr(self.choices.field, 'queryset'):
++            model_field = self.choices.field.queryset.model._meta.get_field(self.choices.field.to_field_name or 'pk')
++            if self.choices.field.required and not model_field.blank:
++                context['widget']['optgroups'] = [
++                    (group, [option for option in options if option['value'] != ''], index)
++                    for group, options, index in context['widget']['optgroups']
++                ]
++        return context
+ 
+-class CheckboxSelectMultiple(ChoiceWidget):
+-    allow_multiple_selected = True
++    def optgroups(self, name, value, attrs=None):
++        groups = super().optgroups(name, value, attrs)
++        # Check if this is a ModelChoiceField and if the related model field is not blank
++        if hasattr(self.choices, 'field') and hasattr(self.choices.field, 'queryset'):
++            model_field = self.choices.field.queryset.model._meta.get_field(self.choices.field.to_field_name or 'pk')
++            if not model_field.blank:
++                # Filter out the empty option
++                return [(group, [option for option in options if option['value'] != ''], index)
++                        for group, options, index in groups]
++        return groups
++
++    def value_omitted_from_data(self, data, files, name):
++        # HTML checkboxes don't appear in POST data if not checked, so it's
++        # never known if the value is actually omitted.
++        return False
++
++    def id_for_label(self, id_, index=None):
++        """"
++        Don't include for="field_0" in <label> because clicking such a label
++        would toggle the first checkbox.
++        """
++        if index is None:
++            return ''
++        return super().id_for_label(id_, index)
++class CheckboxSelectMultiple(SelectMultiple):
+     input_type = 'checkbox'
+     template_name = 'django/forms/widgets/checkbox_select.html'
+     option_template_name = 'django/forms/widgets/checkbox_option.html'
+@@ -785,7 +818,6 @@ class CheckboxSelectMultiple(ChoiceWidget):
+             return ''
+         return super().id_for_label(id_, index)
+ 
+-
+ class MultiWidget(Widget):
+     """
+     A widget that is composed of multiple widgets.
+diff --git a/test_radio_app/__init__.py b/test_radio_app/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_radio_app/models.py b/test_radio_app/models.py
+new file mode 100644
+index 0000000000..c457011832
+--- /dev/null
++++ b/test_radio_app/models.py
+@@ -0,0 +1,14 @@
++from django.db import models
++from django.forms import ModelForm, RadioSelect
++
++class BatchData(models.Model):
++    name = models.CharField(max_length=100)
++
++class TestRun(models.Model):
++    data_file = models.ForeignKey(BatchData, on_delete=models.SET_NULL, null=True, blank=False)
++
++class TestRunForm(ModelForm):
++    class Meta:
++        model = TestRun
++        fields = ['data_file']
++        widgets = {'data_file': RadioSelect()}
+diff --git a/test_radio_app/tests.py b/test_radio_app/tests.py
+new file mode 100644
+index 0000000000..8584ac3964
+--- /dev/null
++++ b/test_radio_app/tests.py
+@@ -0,0 +1,20 @@
++from django.test import TestCase
++from .models import BatchData, TestRun, TestRunForm
++
++class RadioSelectTestCase(TestCase):
++    def setUp(self):
++        BatchData.objects.create(name="First Data File")
++        BatchData.objects.create(name="Second Data File")
++
++    def test_radio_select_no_blank_option(self):
++        form = TestRunForm()
++        rendered_form = form.as_p()
++        self.assertNotIn('value=""', rendered_form)
++        self.assertNotIn('---------', rendered_form)
++
++    def test_radio_select_with_blank_option(self):
++        TestRun._meta.get_field('data_file').blank = True
++        form = TestRunForm()
++        rendered_form = form.as_p()
++        self.assertIn('value=""', rendered_form)
++        self.assertIn('---------', rendered_form)
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..09d9c08323
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,44 @@
++SECRET_KEY = 'dummy_secret_key_for_testing'
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'django.contrib.auth',
++    'django.contrib.sites',
++    'django.contrib.sessions',
++    'django.contrib.messages',
++    'django.contrib.admin.apps.SimpleAdminConfig',
++    'django.contrib.staticfiles',
++    'test_radio_app',
++]
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++PASSWORD_RESET_TIMEOUT = 3600  # 1 hour
++USE_TZ = True
++DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
++
++MIDDLEWARE = [
++    'django.contrib.sessions.middleware.SessionMiddleware',
++    'django.middleware.common.CommonMiddleware',
++    'django.middleware.csrf.CsrfViewMiddleware',
++    'django.contrib.auth.middleware.AuthenticationMiddleware',
++    'django.contrib.messages.middleware.MessageMiddleware',
++]
++
++TEMPLATES = [
++    {
++        'BACKEND': 'django.template.backends.django.DjangoTemplates',
++        'DIRS': [],
++        'APP_DIRS': True,
++        'OPTIONS': {
++            'context_processors': [
++                'django.template.context_processors.debug',
++                'django.template.context_processors.request',
++                'django.contrib.auth.context_processors.auth',
++                'django.contrib.messages.context_processors.messages',
++            ],
++        },
++    },
++]
+diff --git a/tests/forms_tests/test_radio_select.py b/tests/forms_tests/test_radio_select.py
+new file mode 100644
+index 0000000000..abac6874d4
+--- /dev/null
++++ b/tests/forms_tests/test_radio_select.py
+@@ -0,0 +1,33 @@
++from django.test import TestCase
++from django.forms import ModelForm, RadioSelect
++from django.db import models
++
++class BatchData(models.Model):
++    name = models.CharField(max_length=100)
++
++class TestRun(models.Model):
++    data_file = models.ForeignKey(BatchData, on_delete=models.SET_NULL, null=True, blank=False)
++
++class TestRunForm(ModelForm):
++    class Meta:
++        model = TestRun
++        fields = ['data_file']
++        widgets = {'data_file': RadioSelect()}
++
++class RadioSelectTestCase(TestCase):
++    def setUp(self):
++        BatchData.objects.create(name="First Data File")
++        BatchData.objects.create(name="Second Data File")
++
++    def test_radio_select_no_blank_option(self):
++        form = TestRunForm()
++        rendered_form = form.as_p()
++        self.assertNotIn('value=""', rendered_form)
++        self.assertNotIn('---------', rendered_form)
++
++    def test_radio_select_with_blank_option(self):
++        TestRun._meta.get_field('data_file').blank = True
++        form = TestRunForm()
++        rendered_form = form.as_p()
++        self.assertIn('value=""', rendered_form)
++        self.assertIn('---------', rendered_form)

@@ -1,0 +1,36 @@
+
+diff --git a/astropy/units/decorators.py b/astropy/units/decorators.py
+index 8bece5a85..163e7c021 100644
+--- a/astropy/units/decorators.py
++++ b/astropy/units/decorators.py
+@@ -221,7 +221,10 @@ class QuantityInput:
+             with add_enabled_equivalencies(self.equivalencies):
+                 return_ = wrapped_function(*func_args, **func_kwargs)
+             if wrapped_signature.return_annotation is not inspect.Signature.empty:
+-                return return_.to(wrapped_signature.return_annotation)
++                if return_ is not None:
++                    return return_.to(wrapped_signature.return_annotation)
++                else:
++                    return None
+             else:
+                 return return_
+ 
+diff --git a/poc.py b/poc.py
+new file mode 100644
+index 000000000..43a98c488
+--- /dev/null
++++ b/poc.py
+@@ -0,0 +1,13 @@
++import astropy.units as u
++
++
++class PoC(object):
++
++    @u.quantity_input
++    def __init__(self, voltage: u.V) -> None:
++        pass
++
++
++if __name__ == '__main__':
++    poc = PoC(1.*u.V)
++    print("Script completed successfully, no errors.")

@@ -1,0 +1,180 @@
+
+diff --git a/django/db/models/fields/files.py b/django/db/models/fields/files.py
+index 7f8eb128e1..7237cffc77 100644
+--- a/django/db/models/fields/files.py
++++ b/django/db/models/fields/files.py
+@@ -441,8 +441,10 @@ class ImageField(FileField):
+         # after their corresponding image field don't stay cleared by
+         # Model.__init__, see bug #11196.
+         # Only run post-initialization dimension update on non-abstract models
+-        if not cls._meta.abstract:
++        # and only if width_field or height_field is set
++        if not cls._meta.abstract and (self.width_field or self.height_field):
+             signals.post_init.connect(self.update_dimension_fields, sender=cls)
++            setattr(cls, '_image_field_signal_connected', True)
+ 
+     def update_dimension_fields(self, instance, force=False, *args, **kwargs):
+         """
+diff --git a/test_imagefield_minimal.py b/test_imagefield_minimal.py
+new file mode 100644
+index 0000000000..0d62c244f9
+--- /dev/null
++++ b/test_imagefield_minimal.py
+@@ -0,0 +1,26 @@
++import os
++import django
++from django.test import TestCase
++from django.apps import AppConfig
++
++os.environ.setdefault("DJANGO_SETTINGS_MODULE", "test_settings")
++
++class TestAppConfig(AppConfig):
++    name = 'test_app'
++
++django.setup()
++
++from test_models import TestModelNoDimensions, TestModelWithDimensions
++
++class ImageFieldTest(TestCase):
++    def test_imagefield_no_dimensions(self):
++        instance = TestModelNoDimensions()
++        self.assertFalse(hasattr(instance, '_post_init_signal'))
++
++    def test_imagefield_with_dimensions(self):
++        instance = TestModelWithDimensions()
++        self.assertTrue(hasattr(instance, '_post_init_signal'))
++
++if __name__ == '__main__':
++    import unittest
++    unittest.main()
+diff --git a/test_models.py b/test_models.py
+new file mode 100644
+index 0000000000..8c42181534
+--- /dev/null
++++ b/test_models.py
+@@ -0,0 +1,13 @@
++from django.db import models
++
++class TestImageFieldModel(models.Model):
++    class Meta:
++        app_label = 'test_app'
++
++class TestModelNoDimensions(TestImageFieldModel):
++    image = models.ImageField(upload_to='test_images/')
++
++class TestModelWithDimensions(TestImageFieldModel):
++    image = models.ImageField(upload_to='test_images/', width_field='width', height_field='height')
++    width = models.IntegerField()
++    height = models.IntegerField()
+diff --git a/test_project/manage.py b/test_project/manage.py
+new file mode 100755
+index 0000000000..87ab2e2dbb
+--- /dev/null
++++ b/test_project/manage.py
+@@ -0,0 +1,8 @@
++#!/usr/bin/env python
++import os
++import sys
++
++if __name__ == "__main__":
++    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "settings")
++    from django.core.management import execute_from_command_line
++    execute_from_command_line(sys.argv)
+diff --git a/test_project/settings.py b/test_project/settings.py
+new file mode 100644
+index 0000000000..4d17611522
+--- /dev/null
++++ b/test_project/settings.py
+@@ -0,0 +1,22 @@
++import os
++
++BASE_DIR = os.path.dirname(os.path.abspath(__file__))
++
++SECRET_KEY = 'dummy-secret-key-for-tests'
++
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'test_app',
++]
++
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++
++DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
++
++MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
++MEDIA_URL = '/media/'
+diff --git a/test_project/test_app/__init__.py b/test_project/test_app/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_project/test_app/models.py b/test_project/test_app/models.py
+new file mode 100644
+index 0000000000..54c1df0fdc
+--- /dev/null
++++ b/test_project/test_app/models.py
+@@ -0,0 +1,9 @@
++from django.db import models
++
++class TestModelNoDimensions(models.Model):
++    image = models.ImageField(upload_to='test_images/')
++
++class TestModelWithDimensions(models.Model):
++    image = models.ImageField(upload_to='test_images/', width_field='width', height_field='height')
++    width = models.IntegerField()
++    height = models.IntegerField()
+diff --git a/test_project/test_app/tests.py b/test_project/test_app/tests.py
+new file mode 100644
+index 0000000000..51ece0a4d3
+--- /dev/null
++++ b/test_project/test_app/tests.py
+@@ -0,0 +1,15 @@
++from django.test import TestCase
++from .models import TestModelNoDimensions, TestModelWithDimensions
++
++class ImageFieldTest(TestCase):
++    def test_imagefield_signal_connection(self):
++        # Create instances to trigger signal connections
++        instance_no_dimensions = TestModelNoDimensions()
++        instance_with_dimensions = TestModelWithDimensions()
++
++        # Check if the signal is connected for the model with dimensions
++        self.assertFalse(hasattr(TestModelNoDimensions, '_image_field_signal_connected'))
++        self.assertTrue(hasattr(TestModelWithDimensions, '_image_field_signal_connected'))
++
++        print(f"TestModelNoDimensions signal connected: {hasattr(TestModelNoDimensions, '_image_field_signal_connected')}")
++        print(f"TestModelWithDimensions signal connected: {hasattr(TestModelWithDimensions, '_image_field_signal_connected')}")
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..7fddd7b2f0
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,25 @@
++import os
++
++BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
++
++SECRET_KEY = 'dummy-secret-key-for-tests'
++
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'test_app',  # Add this line
++]
++
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++
++DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
++
++MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
++MEDIA_URL = '/media/'
++
++# Disable migrations
++MIGRATION_MODULES = {app: None for app in INSTALLED_APPS}

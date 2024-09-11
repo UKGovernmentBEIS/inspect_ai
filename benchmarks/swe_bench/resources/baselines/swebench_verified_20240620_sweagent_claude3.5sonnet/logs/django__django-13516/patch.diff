@@ -1,0 +1,78 @@
+
+diff --git a/django/core/management/base.py b/django/core/management/base.py
+index e6cbf8c64f..14c0355dd8 100644
+--- a/django/core/management/base.py
++++ b/django/core/management/base.py
+@@ -150,6 +150,10 @@ class OutputWrapper(TextIOBase):
+         style_func = style_func or self.style_func
+         self._out.write(style_func(msg))
+ 
++    def flush(self):
++        if hasattr(self._out, 'flush'):
++            self._out.flush()
++
+ 
+ class BaseCommand:
+     """
+diff --git a/django/core/management/commands/migrate.py b/django/core/management/commands/migrate.py
+index a65500d76a..c4a317d2e0 100644
+--- a/django/core/management/commands/migrate.py
++++ b/django/core/management/commands/migrate.py
+@@ -302,6 +302,8 @@ class Command(BaseCommand):
+             elif action == "render_success":
+                 elapsed = " (%.3fs)" % (time.monotonic() - self.start) if compute_time else ""
+                 self.stdout.write(self.style.SUCCESS(" DONE" + elapsed))
++                self.stdout.flush()
++
+ 
+     def sync_apps(self, connection, app_labels):
+         """Run the old syncdb-style operation on a list of app_labels."""
+diff --git a/test_migration_output.py b/test_migration_output.py
+new file mode 100644
+index 0000000000..c974ccc03b
+--- /dev/null
++++ b/test_migration_output.py
+@@ -0,0 +1,43 @@
++import sys
++import time
++from django.core.management.commands.migrate import Command
++
++class TestStdout:
++    def __init__(self):
++        self.content = []
++
++    def write(self, message, ending=None):
++        self.content.append(message)
++        if ending:
++            self.content.append(ending)
++        sys.stdout.write(message + (ending or ''))
++        sys.stdout.flush()
++
++    def flush(self):
++        sys.stdout.flush()
++
++def test_migration_output():
++    command = Command()
++    command.stdout = TestStdout()
++    command.verbosity = 2
++
++    print("Starting test migration...")
++    command.migration_progress_callback("apply_start", "test_migration")
++    time.sleep(1)  # Simulate some work
++    command.migration_progress_callback("apply_success", "test_migration")
++    print("\nTest migration complete.")
++
++    expected_output = [
++        "  Applying test_migration...",
++        " OK"
++    ]
++
++    actual_output = ''.join(command.stdout.content)
++    if all(expected in actual_output for expected in expected_output):
++        print("Test passed: All expected output was present and flushed correctly.")
++    else:
++        print("Test failed: Some expected output was missing or not flushed.")
++        print("Actual output:", actual_output)
++
++if __name__ == "__main__":
++    test_migration_output()

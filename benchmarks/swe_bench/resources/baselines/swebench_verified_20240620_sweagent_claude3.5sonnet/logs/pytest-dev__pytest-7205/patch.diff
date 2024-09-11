@@ -1,0 +1,27 @@
+
+diff --git a/src/_pytest/setuponly.py b/src/_pytest/setuponly.py
+index c9cc589ff..20ecc5464 100644
+--- a/src/_pytest/setuponly.py
++++ b/src/_pytest/setuponly.py
+@@ -66,7 +66,7 @@ def _show_fixture_action(fixturedef, msg):
+             tw.write(" (fixtures used: {})".format(", ".join(deps)))
+ 
+     if hasattr(fixturedef, "cached_param"):
+-        tw.write("[{}]".format(fixturedef.cached_param))
++        tw.write("[{}]".format(repr(fixturedef.cached_param)))
+ 
+     tw.flush()
+ 
+diff --git a/test_bytes_warning.py b/test_bytes_warning.py
+new file mode 100644
+index 000000000..2d8d3bc77
+--- /dev/null
++++ b/test_bytes_warning.py
+@@ -0,0 +1,7 @@
++import pytest
++
++@pytest.mark.parametrize('data', [b'Hello World'])
++def test_data(data):
++    pass
++
++print("Script completed successfully, no errors.")

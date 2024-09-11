@@ -1,0 +1,28 @@
+
+diff --git a/django/contrib/admin/checks.py b/django/contrib/admin/checks.py
+index c395b0bde2..4c8ccc9e6e 100644
+--- a/django/contrib/admin/checks.py
++++ b/django/contrib/admin/checks.py
+@@ -771,13 +771,15 @@ class BaseModelAdminChecks:
+             except FieldDoesNotExist:
+                 return [
+                     checks.Error(
+-                        "The value of '%s' is not a callable, an attribute of "
+-                        "'%s', or an attribute of '%s'."
+-                        % (
+-                            label,
+-                            obj.__class__.__name__,
+-                            obj.model._meta.label,
+-                        ),
++                        "The value of '%(label)s' refers to '%(field_name)s', which is "
++                        "not a callable, an attribute of '%(class_name)s', or an attribute of "
++                        "'%(model_name)s'."
++                        % {
++                            'label': label,
++                            'field_name': field_name,
++                            'class_name': obj.__class__.__name__,
++                            'model_name': obj.model._meta.label,
++                        },
+                         obj=obj.__class__,
+                         id="admin.E035",
+                     )

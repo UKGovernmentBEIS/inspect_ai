@@ -1,0 +1,159 @@
+
+diff --git a/CHANGES.rst b/CHANGES.rst
+index c0049469b..7760f5df6 100644
+--- a/CHANGES.rst
++++ b/CHANGES.rst
+@@ -181,14 +181,16 @@ astropy.modeling
+   of using the ``wofz`` method using the `scipy.special.wofz` implementation of the
+   Fadeeva function whenever `scipy` is installed. [#14013]
+ 
+-- Deprecated ``astropy.modeling.utils.comb()`` function in favor of ``comb()``
+-  from ``math`` standard library. [#14038]
++  from ``scipy.special``. [#14013]
+ 
+-- Propagate measurement uncertainties via the ``weights`` keyword argument into the
+-  parameter covariances. [#14519]
++Bug Fixes
++---------
++
++astropy.nddata
++^^^^^^^^^^^^^^
++
++- Fixed an issue with mask propagation in NDDataRef arithmetic operations when one operand doesn't have a mask. [#XXXX]
+ 
+-astropy.units
+-^^^^^^^^^^^^^
+ 
+ - The conversion of ``astropy.units.Quantity`` to ``bool``
+   that was deprecated since astropy 3.0 now raises a ``ValueError``.
+diff --git a/astropy/nddata/mixins/ndarithmetic.py b/astropy/nddata/mixins/ndarithmetic.py
+index 4153dfccb..5c3411110 100644
+--- a/astropy/nddata/mixins/ndarithmetic.py
++++ b/astropy/nddata/mixins/ndarithmetic.py
+@@ -486,8 +486,11 @@ class NDArithmeticMixin:
+         """
+         Calculate the resulting mask.
+ 
+-        This is implemented as the piecewise ``or`` operation if both have a
+-        mask.
++        This method handles mask propagation for arithmetic operations.
++        The behavior is as follows:
++        - If neither operand has a mask, return None.
++        - If only one operand has a mask, return a copy of that mask.
++        - If both operands have masks, use the handle_mask function.
+ 
+         Parameters
+         ----------
+@@ -508,24 +511,17 @@ class NDArithmeticMixin:
+         Returns
+         -------
+         result_mask : any type
+-            If only one mask was present this mask is returned.
+-            If neither had a mask ``None`` is returned. Otherwise
+-            ``handle_mask`` must create (and copy) the returned mask.
++            The resulting mask after the arithmetic operation.
+         """
+-        # If only one mask is present we need not bother about any type checks
+-        if (
+-            self.mask is None and operand is not None and operand.mask is None
+-        ) or handle_mask is None:
++        # Fix for issue: mask propagation fails when one operand doesn't have a mask
++        if self.mask is None and (operand is None or operand.mask is None):
+             return None
+-        elif self.mask is None and operand is not None:
+-            # Make a copy so there is no reference in the result.
+-            return deepcopy(operand.mask)
+-        elif operand is None:
++        elif self.mask is not None and (operand is None or operand.mask is None):
+             return deepcopy(self.mask)
++        elif self.mask is None and operand is not None and operand.mask is not None:
++            return deepcopy(operand.mask)
+         else:
+-            # Now lets calculate the resulting mask (operation enforces copy)
+             return handle_mask(self.mask, operand.mask, **kwds)
+-
+     def _arithmetic_wcs(self, operation, operand, compare_wcs, **kwds):
+         """
+         Calculate the resulting wcs.
+diff --git a/astropy/nddata/tests/test_nddata.py b/astropy/nddata/tests/test_nddata.py
+index 033b555fa..84aa77511 100644
+--- a/astropy/nddata/tests/test_nddata.py
++++ b/astropy/nddata/tests/test_nddata.py
+@@ -707,3 +707,26 @@ def test_collapse(mask, unit, propagate_uncertainties, operation_ignores_mask):
+             # as the data array, so we can just check for equality:
+             if method in ext_methods and propagate_uncertainties:
+                 assert np.ma.all(np.ma.equal(astropy_method, nddata_method))
++def test_arithmetic_mask_propagation():
++    from astropy.nddata import NDDataRef
++    import numpy as np
++
++    array = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]])
++    mask = np.array([[0, 1, 1], [1, 0, 1], [0, 1, 0]])
++
++    nref_nomask = NDDataRef(array)
++    nref_mask = NDDataRef(array, mask=mask)
++
++    # Test multiplication of masked and unmasked NDDataRef
++    result = nref_mask.multiply(nref_nomask)
++    assert np.array_equal(result.mask, mask), "Mask not propagated correctly in multiplication"
++
++    # Test addition of masked and unmasked NDDataRef
++    result = nref_mask.add(nref_nomask)
++    assert np.array_equal(result.mask, mask), "Mask not propagated correctly in addition"
++
++    # Test multiplication with a constant
++    result = nref_mask.multiply(2)
++    assert np.array_equal(result.mask, mask), "Mask not propagated correctly in multiplication with constant"
++
++    print("All mask propagation tests passed successfully.")
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..e598e39bd
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,45 @@
++import numpy as np
++from astropy.nddata import NDDataRef
++
++array = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]])
++mask = np.array([[0, 1, 64], [8, 0, 1], [2, 1, 0]])
++
++nref_nomask = NDDataRef(array)
++nref_mask = NDDataRef(array, mask=mask)
++
++print("1. Multiply no mask by constant:")
++try:
++    result = nref_nomask.multiply(1., handle_mask=np.bitwise_or).mask
++    print(result)
++except Exception as e:
++    print(f"Error: {e}")
++
++print("\n2. Multiply no mask by itself:")
++try:
++    result = nref_nomask.multiply(nref_nomask, handle_mask=np.bitwise_or).mask
++    print(result)
++except Exception as e:
++    print(f"Error: {e}")
++
++print("\n3. Multiply mask by constant:")
++try:
++    result = nref_mask.multiply(1., handle_mask=np.bitwise_or).mask
++    print(result)
++except Exception as e:
++    print(f"Error: {e}")
++
++print("\n4. Multiply mask by itself:")
++try:
++    result = nref_mask.multiply(nref_mask, handle_mask=np.bitwise_or).mask
++    print(result)
++except Exception as e:
++    print(f"Error: {e}")
++
++print("\n5. Multiply mask by no mask:")
++try:
++    result = nref_mask.multiply(nref_nomask, handle_mask=np.bitwise_or).mask
++    print(result)
++except Exception as e:
++    print(f"Error: {e}")
++
++print("\nScript completed.")

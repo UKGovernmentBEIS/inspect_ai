@@ -1,0 +1,62 @@
+
+diff --git a/bug_reproduction.png b/bug_reproduction.png
+new file mode 100644
+index 0000000000..d69b92a3d2
+Binary files /dev/null and b/bug_reproduction.png differ
+diff --git a/lib/matplotlib/offsetbox.py b/lib/matplotlib/offsetbox.py
+index 3a506543ac..b566c67abd 100644
+--- a/lib/matplotlib/offsetbox.py
++++ b/lib/matplotlib/offsetbox.py
+@@ -166,12 +166,12 @@ def _get_aligned_offsets(hd_list, height, align="baseline"):
+         descent = max(d for h, d in hd_list)
+         height = height_descent + descent
+         offsets = [0. for h, d in hd_list]
+-    elif align in ["left", "top"]:
+-        descent = 0.
+-        offsets = [d for h, d in hd_list]
+-    elif align in ["right", "bottom"]:
++    elif align == "top":
+         descent = 0.
+         offsets = [height - h + d for h, d in hd_list]
++    elif align == "bottom":
++        descent = 0.
++        offsets = [d for h, d in hd_list]
+     elif align == "center":
+         descent = 0.
+         offsets = [(height - h) * .5 + d for h, d in hd_list]
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..3f8f1a9232
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,30 @@
++import matplotlib.pyplot as plt
++from matplotlib.offsetbox import DrawingArea, HPacker, VPacker, AnchoredOffsetbox, TextArea
++from matplotlib.patches import Rectangle
++
++def create_figure(align):
++    da1 = DrawingArea(10, 20)
++    rect1 = Rectangle((0, 0), 10, 20)
++    da1.add_artist(rect1)
++
++    da2 = DrawingArea(10, 30)
++    rect2 = Rectangle((0, 0), 10, 30)
++    da2.add_artist(rect2)
++
++    pack = HPacker(children=[da1, da2], pad=10, sep=10, align=align)
++    title = TextArea(f"align='{align}'")
++    pack = VPacker(children=[title, pack], sep=10, pad=10, align="center")
++
++    box = AnchoredOffsetbox(child=pack, loc="center")
++
++    ax = plt.subplot(1, 2, 1 if align == "bottom" else 2)
++    ax.add_artist(box)
++    ax.set_title(f"align='{align}'")
++
++fig, _ = plt.subplots(1, 2, figsize=(10, 5))
++create_figure("bottom")
++create_figure("top")
++
++plt.tight_layout()
++plt.savefig('bug_reproduction.png')
++print("Script completed successfully, figure saved as bug_reproduction.png")

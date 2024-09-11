@@ -1,0 +1,89 @@
+{
+    "scikit-learn__scikit-learn-25102": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "sklearn/feature_selection/tests/test_base.py::test_output_dataframe",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_dataframe_output_dtypes"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "sklearn/feature_selection/tests/test_base.py::test_transform_dense",
+                    "sklearn/feature_selection/tests/test_base.py::test_transform_sparse",
+                    "sklearn/feature_selection/tests/test_base.py::test_inverse_transform_dense",
+                    "sklearn/feature_selection/tests/test_base.py::test_inverse_transform_sparse",
+                    "sklearn/feature_selection/tests/test_base.py::test_get_support",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_f_oneway_vs_scipy_stats",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_f_oneway_ints",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_f_classif",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_r_regression[True]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_r_regression[False]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_f_regression",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_f_regression_input_dtype",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_f_regression_center",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_r_regression_force_finite[X0-y0-expected_corr_coef0-True]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_r_regression_force_finite[X1-y1-expected_corr_coef1-True]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_r_regression_force_finite[X2-y2-expected_corr_coef2-False]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_r_regression_force_finite[X3-y3-expected_corr_coef3-False]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_f_regression_corner_case[X0-y0-expected_f_statistic0-expected_p_values0-True]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_f_regression_corner_case[X1-y1-expected_f_statistic1-expected_p_values1-True]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_f_regression_corner_case[X2-y2-expected_f_statistic2-expected_p_values2-True]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_f_regression_corner_case[X3-y3-expected_f_statistic3-expected_p_values3-True]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_f_regression_corner_case[X4-y4-expected_f_statistic4-expected_p_values4-False]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_f_regression_corner_case[X5-y5-expected_f_statistic5-expected_p_values5-False]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_f_regression_corner_case[X6-y6-expected_f_statistic6-expected_p_values6-False]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_f_regression_corner_case[X7-y7-expected_f_statistic7-expected_p_values7-False]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_f_classif_multi_class",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_percentile_classif",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_percentile_classif_sparse",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_kbest_classif",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_kbest_all",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_kbest_zero[float32]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_kbest_zero[float64]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_heuristics_classif",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_percentile_regression",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_percentile_regression_full",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_kbest_regression",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_heuristics_regression",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_boundary_case_ch2",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_fdr_regression[1-0.001]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_fdr_regression[1-0.01]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_fdr_regression[1-0.1]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_fdr_regression[5-0.001]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_fdr_regression[5-0.01]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_fdr_regression[5-0.1]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_fdr_regression[10-0.001]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_fdr_regression[10-0.01]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_fdr_regression[10-0.1]",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_select_fwe_regression",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_selectkbest_tiebreaking",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_selectpercentile_tiebreaking",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_tied_pvalues",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_scorefunc_multilabel",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_tied_scores",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_nans",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_invalid_k",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_f_classif_constant_feature",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_no_feature_selected",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_mutual_info_classif",
+                    "sklearn/feature_selection/tests/test_feature_select.py::test_mutual_info_regression"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

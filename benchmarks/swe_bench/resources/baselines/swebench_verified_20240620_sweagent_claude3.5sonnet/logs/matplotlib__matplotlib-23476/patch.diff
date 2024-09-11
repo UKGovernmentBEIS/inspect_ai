@@ -1,0 +1,139 @@
+
+diff --git a/doc/users/explain/backends.rst b/doc/users/explain/backends.rst
+index 871c4e9d41..2ac1b18ea4 100644
+--- a/doc/users/explain/backends.rst
++++ b/doc/users/explain/backends.rst
+@@ -173,6 +173,12 @@ GTK4Agg   Agg rendering to a GTK_ 4.x canvas (requires PyGObject_,
+           IPython with ``%matplotlib gtk4``.
+ macosx    Agg rendering into a Cocoa canvas in OSX.  This backend can be
+           activated in IPython with ``%matplotlib osx``.
++          
++          The MacOSX backend now supports a 'macosx.dpi_scaling' configuration
++          option to handle DPI scaling issues on Retina displays, particularly
++          on M1 Macs. This can be set to 'auto' (default), 'old', or 'new'.
++          Use 'old' to revert to the previous behavior if you encounter DPI
++          scaling issues.
+ TkAgg     Agg rendering to a Tk_ canvas (requires TkInter_). This
+           backend can be activated in IPython with ``%matplotlib tk``.
+ nbAgg     Embed an interactive figure in a Jupyter classic notebook.  This
+diff --git a/lib/matplotlib/backends/backend_macosx.py b/lib/matplotlib/backends/backend_macosx.py
+index 700d1d4c58..0a305f9717 100644
+--- a/lib/matplotlib/backends/backend_macosx.py
++++ b/lib/matplotlib/backends/backend_macosx.py
+@@ -94,12 +94,36 @@ class FigureCanvasMac(FigureCanvasAgg, _macosx.FigureCanvas, FigureCanvasBase):
+ 
+     def resize(self, width, height):
+         # Size from macOS is logical pixels, dpi is physical.
+-        scale = self.figure.dpi / self.device_pixel_ratio
+-        width /= scale
+-        height /= scale
++        import logging
++        import platform
++        logging.basicConfig(level=logging.DEBUG)
++        logger = logging.getLogger(__name__)
++        
++        logger.debug(f"Resize called with width={width}, height={height}")
++        logger.debug(f"Before: dpi={self.figure.dpi}, device_pixel_ratio={self.device_pixel_ratio}")
++        logger.debug(f"System architecture: {platform.machine()}")
++        
++        original_dpi = self.figure.dpi
++        dpi_scaling = mpl.rcParams.get('macosx.dpi_scaling', 'auto')
++        
++        if dpi_scaling == 'old' or (dpi_scaling == 'auto' and platform.machine() != 'arm64'):
++            scale = self.figure.dpi / self.device_pixel_ratio
++            width /= scale
++            height /= scale
++        elif dpi_scaling == 'new' or (dpi_scaling == 'auto' and platform.machine() == 'arm64'):
++            # Use the new behavior (no scaling)
++            pass
++        else:
++            logger.warning(f"Invalid macosx.dpi_scaling value: {dpi_scaling}. Using 'auto'.")
++        
++        logger.debug(f"After: width={width}, height={height}")
++        logger.debug(f"After: dpi={self.figure.dpi}")
++        
++        if self.figure.dpi != original_dpi:
++            logger.warning(f"DPI changed unexpectedly from {original_dpi} to {self.figure.dpi}")
++        
+         self.figure.set_size_inches(width, height, forward=False)
+-        ResizeEvent("resize_event", self)._process()
+-        self.draw_idle()
++        logger.debug(f"Final: dpi={self.figure.dpi}, size_inches={self.figure.get_size_inches()}")
+ 
+ 
+ class NavigationToolbar2Mac(_macosx.NavigationToolbar2, NavigationToolbar2):
+diff --git a/lib/matplotlib/rcsetup.py b/lib/matplotlib/rcsetup.py
+index c5fa25f647..8771c30b2c 100644
+--- a/lib/matplotlib/rcsetup.py
++++ b/lib/matplotlib/rcsetup.py
+@@ -1243,6 +1243,9 @@ _validators = {
+      # Additional arguments for convert movie writer (using pipes)
+     "animation.convert_args": validate_stringlist,
+ 
++    # MacOSX backend settings
++    "macosx.dpi_scaling": ["auto", "old", "new"],
++
+     # Classic (pre 2.0) compatibility mode
+     # This is used for things that are hard to make backward compatible
+     # with a sane rcParam alone.  This does *not* turn on classic mode
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..5d8bfd2dc8
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,47 @@
++import numpy as np
++import matplotlib
++import matplotlib.pyplot as plt
++import pickle
++import platform
++import logging
++
++logging.basicConfig(level=logging.DEBUG)
++logger = logging.getLogger(__name__)
++
++print(matplotlib.get_backend())
++print('Matplotlib ver:', matplotlib.__version__)
++print('Platform:', platform.platform())
++print('System:', platform.system())
++print('Release:', platform.release())
++print('Python ver:', platform.python_version())
++
++def create_and_save_figure(dpi=100):
++    fig, ax = plt.subplots(dpi=dpi)
++    x = np.linspace(0, 2*np.pi)
++    y = np.sin(x)
++    ax.plot(x, y)
++    logger.info(f"Original DPI: {fig.dpi}")
++    with open('test_figure.pickle', 'wb') as file:
++        pickle.dump(fig, file)
++    plt.close(fig)
++
++def load_and_resize_figure():
++    with open('test_figure.pickle', 'rb') as file:
++        fig = pickle.load(file)
++    logger.info(f"DPI after loading: {fig.dpi}")
++    
++    for i in range(5):  # Resize multiple times
++        new_size = (10 + i, 6 + i)
++        fig.set_size_inches(*new_size)
++        logger.info(f"Resize {i+1}: size={new_size}, DPI={fig.dpi}")
++    
++    plt.close(fig)
++
++def run():
++    create_and_save_figure(dpi=200)  # Create with a specific DPI
++    load_and_resize_figure()
++
++if __name__ == '__main__':
++    run()
++
++logger.info("Script completed successfully, no errors.")
+diff --git a/sinus.pickle b/sinus.pickle
+new file mode 100644
+index 0000000000..8f974934ab
+Binary files /dev/null and b/sinus.pickle differ
+diff --git a/test_figure.pickle b/test_figure.pickle
+new file mode 100644
+index 0000000000..3755253058
+Binary files /dev/null and b/test_figure.pickle differ

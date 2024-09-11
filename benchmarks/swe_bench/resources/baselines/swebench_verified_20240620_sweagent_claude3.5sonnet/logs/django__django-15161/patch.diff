@@ -1,0 +1,49 @@
+
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index 8642e1f151..1c066a33a9 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -390,7 +390,7 @@ class BaseExpression:
+         return sql, params
+ 
+ 
+-@deconstructible
++@deconstructible(path='django.db.models.Expression')
+ class Expression(BaseExpression, Combinable):
+     """An expression that can be combined with other expressions."""
+ 
+@@ -651,6 +651,7 @@ class OuterRef(F):
+         return self
+ 
+ 
++@deconstructible(path='django.db.models.Func')
+ class Func(SQLiteNumericMixin, Expression):
+     """An SQL function call."""
+     function = None
+@@ -730,7 +731,7 @@ class Func(SQLiteNumericMixin, Expression):
+         copy.extra = self.extra.copy()
+         return copy
+ 
+-
++@deconstructible(path='django.db.models.Value')
+ class Value(SQLiteNumericMixin, Expression):
+     """Represent a wrapped value as a node within an expression."""
+     # Provide a default value for `for_save` in order to allow unresolved
+@@ -1051,7 +1052,7 @@ class When(Expression):
+             cols.extend(source.get_group_by_cols())
+         return cols
+ 
+-
++@deconstructible(path='django.db.models.Case')
+ class Case(SQLiteNumericMixin, Expression):
+     """
+     An SQL searched CASE expression:
+@@ -1224,7 +1225,7 @@ class Exists(Subquery):
+             sql = 'CASE WHEN {} THEN 1 ELSE 0 END'.format(sql)
+         return sql, params
+ 
+-
++@deconstructible(path='django.db.models.OrderBy')
+ class OrderBy(Expression):
+     template = '%(expression)s %(ordering)s'
+     conditional = False

@@ -1,0 +1,41 @@
+
+diff --git a/django/forms/fields.py b/django/forms/fields.py
+index 36dad72704..7d543f7f9f 100644
+--- a/django/forms/fields.py
++++ b/django/forms/fields.py
+@@ -343,6 +343,8 @@ class DecimalField(IntegerField):
+             return None
+         if self.localize:
+             value = formats.sanitize_separators(value)
++        if isinstance(value, dict):
++            raise ValidationError(self.error_messages['invalid'], code='invalid')
+         value = str(value).strip()
+         try:
+             value = Decimal(value)
+diff --git a/tests/forms_tests/test_decimal_field.py b/tests/forms_tests/test_decimal_field.py
+new file mode 100644
+index 0000000000..91fd85d5ad
+--- /dev/null
++++ b/tests/forms_tests/test_decimal_field.py
+@@ -0,0 +1,21 @@
++from decimal import Decimal
++from django.core.exceptions import ValidationError
++from django.forms import DecimalField
++from django.test import SimpleTestCase
++
++class DecimalFieldTest(SimpleTestCase):
++    def test_decimalfield_1(self):
++        f = DecimalField()
++        with self.assertRaises(ValidationError) as cm:
++            f.clean({'key': 'value'})
++        self.assertEqual(cm.exception.messages, ['Enter a number.'])
++
++    def test_decimalfield_2(self):
++        f = DecimalField()
++        self.assertEqual(f.clean('3.14'), Decimal('3.14'))
++
++    def test_decimalfield_3(self):
++        f = DecimalField()
++        with self.assertRaises(ValidationError) as cm:
++            f.clean('foo')
++        self.assertEqual(cm.exception.messages, ['Enter a number.'])

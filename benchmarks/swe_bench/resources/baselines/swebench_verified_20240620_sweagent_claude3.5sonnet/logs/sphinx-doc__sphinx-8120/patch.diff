@@ -1,0 +1,270 @@
+
+diff --git a/setup.py b/setup.py
+index a404f1fa5..2c6848797 100644
+--- a/setup.py
++++ b/setup.py
+@@ -15,22 +15,22 @@ if sys.version_info < (3, 5):
+     sys.exit(1)
+ 
+ install_requires = [
+-    'sphinxcontrib-applehelp',
+-    'sphinxcontrib-devhelp',
++    'sphinxcontrib-applehelp<=1.0.7',
++    'sphinxcontrib-devhelp<=1.0.5',
+     'sphinxcontrib-jsmath',
+-    'sphinxcontrib-htmlhelp',
+-    'sphinxcontrib-serializinghtml',
+-    'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'sphinxcontrib-htmlhelp<=2.0.4',
++    'sphinxcontrib-serializinghtml<=1.1.9',
++    'sphinxcontrib-qthelp<=1.0.6',
++    'Jinja2<3.0',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+     'babel>=1.3',
+-    'alabaster>=0.7,<0.8',
++    'alabaster>=0.7,<0.7.12',
+     'imagesize',
+     'requests>=2.5.0',
+     'setuptools',
+-    'packaging',
++    'packaging', 'markupsafe<=2.0.1',
+ ]
+ 
+ extras_require = {
+diff --git a/sphinx/application.py b/sphinx/application.py
+index 385b74d8a..2b4530070 100644
+--- a/sphinx/application.py
++++ b/sphinx/application.py
+@@ -137,17 +137,17 @@ class Sphinx:
+     def __init__(self, srcdir: str, confdir: str, outdir: str, doctreedir: str,
+                  buildername: str, confoverrides: Dict = None,
+                  status: IO = sys.stdout, warning: IO = sys.stderr,
+-                 freshenv: bool = False, warningiserror: bool = False, tags: List[str] = None,
+-                 verbosity: int = 0, parallel: int = 0, keep_going: bool = False) -> None:
+-        self.phase = BuildPhase.INITIALIZATION
++                 freshenv: bool = False, warningiserror: bool = False,
++                 tags: List[str] = None, verbosity: int = 0, parallel: int = 0,
++                 keep_going: bool = False, quiet: bool = False) -> None:
+         self.verbosity = verbosity
+-        self.extensions = {}                    # type: Dict[str, Extension]
+-        self.builder = None                     # type: Builder
+-        self.env = None                         # type: BuildEnvironment
+-        self.project = None                     # type: Project
+-        self.registry = SphinxComponentRegistry()
+-        self.html_themes = {}                   # type: Dict[str, str]
+-
++        self.quiet = quiet
++        self.keep_going = keep_going
++        self._init_logging()
++        logging.getLogger('sphinx.util.i18n').setLevel(logging.DEBUG)  # Add this line
++        self.events = EventManager(self)
++        self.srcdir = abspath(srcdir)
++        self.confdir = abspath(confdir)
+         # validate provided directories
+         self.srcdir = abspath(srcdir)
+         self.outdir = abspath(outdir)
+@@ -277,10 +277,11 @@ class Sphinx:
+         self._init_builder()
+ 
+     def _init_i18n(self) -> None:
+-        """Load translated strings from the configured localedirs if enabled in
+-        the configuration.
+-        """
++        logger.debug("Initializing i18n")
++        logger.debug(f"Config language: {self.config.language}")
++        logger.debug(f"Config locale_dirs: {self.config.locale_dirs}")
+         if self.config.language is None:
++            logger.debug("No language specified, skipping i18n setup")
+             self.translator, has_translation = locale.init([], None)
+         else:
+             logger.info(bold(__('loading translations [%s]... ') % self.config.language),
+@@ -289,12 +290,20 @@ class Sphinx:
+             # compile mo files if sphinx.po file in user locale directories are updated
+             repo = CatalogRepository(self.srcdir, self.config.locale_dirs,
+                                      self.config.language, self.config.source_encoding)
++            logger.debug(f"CatalogRepository created with: srcdir={self.srcdir}, "
++                         f"locale_dirs={self.config.locale_dirs}, "
++                         f"language={self.config.language}, "
++                         f"encoding={self.config.source_encoding}")
+             for catalog in repo.catalogs:
++                logger.debug(f"Processing catalog: {catalog.domain}")
+                 if catalog.domain == 'sphinx' and catalog.is_outdated():
++                    logger.debug(f"Catalog {catalog.domain} is outdated, writing mo file")
+                     catalog.write_mo(self.config.language)
+ 
+             locale_dirs = [None, path.join(package_dir, 'locale')] + list(repo.locale_dirs)
++            logger.debug(f"Final locale_dirs: {locale_dirs}")
+             self.translator, has_translation = locale.init(locale_dirs, self.config.language)
++            logger.debug(f"Translator initialized, has_translation: {has_translation}")
+             if has_translation or self.config.language == 'en':
+                 # "en" never needs to be translated
+                 logger.info(__('done'))
+@@ -335,14 +344,17 @@ class Sphinx:
+     # ---- main "build" method -------------------------------------------------
+ 
+     def build(self, force_all: bool = False, filenames: List[str] = None) -> None:
+-        self.phase = BuildPhase.READING
++        """Build the project."""
++        logger.debug("Starting build process")
++        logger.debug(f"force_all: {force_all}, filenames: {filenames}")
++        logger.debug(f"Current logging level for sphinx.util.i18n: {logging.getLogger('sphinx.util.i18n').level}")
++        logger.debug(f"Config locale_dirs: {self.config.locale_dirs}")
++        logger.debug(f"Config language: {self.config.language}")
++
++        self.phase = BuildPhase.INITIALIZATION
+         try:
+             if force_all:
+                 self.builder.compile_all_catalogs()
+-                self.builder.build_all()
+-            elif filenames:
+-                self.builder.compile_specific_catalogs(filenames)
+-                self.builder.build_specific(filenames)
+             else:
+                 self.builder.compile_update_catalogs()
+                 self.builder.build_update()
+diff --git a/sphinx/util/i18n.py b/sphinx/util/i18n.py
+index 41407f4e1..619115591 100644
+--- a/sphinx/util/i18n.py
++++ b/sphinx/util/i18n.py
+@@ -84,37 +84,62 @@ class CatalogRepository:
+         self._locale_dirs = locale_dirs
+         self.language = language
+         self.encoding = encoding
++        logger.debug(f"CatalogRepository initialized with:")
++        logger.debug(f"  basedir: {basedir}")
++        logger.debug(f"  locale_dirs: {locale_dirs}")
++        logger.debug(f"  language: {language}")
++        logger.debug(f"  encoding: {encoding}")
+ 
+     @property
+     def locale_dirs(self) -> Generator[str, None, None]:
+         if not self.language:
++            logger.debug("No language specified, skipping locale directories")
+             return
+ 
+         for locale_dir in self._locale_dirs:
+             locale_dir = path.join(self.basedir, locale_dir)
+-            if path.exists(path.join(locale_dir, self.language, 'LC_MESSAGES')):
++            expected_path = path.join(locale_dir, self.language, 'LC_MESSAGES')
++            logger.debug(f"Checking locale directory: {locale_dir}")
++            logger.debug(f"Expected path: {expected_path}")
++            if path.exists(expected_path):
++                logger.debug(f"Found valid locale directory: {locale_dir}")
+                 yield locale_dir
++            else:
++                logger.debug(f"Skipping invalid locale directory: {locale_dir}")
+ 
+     @property
+     def pofiles(self) -> Generator[Tuple[str, str], None, None]:
+         for locale_dir in self.locale_dirs:
+             basedir = path.join(locale_dir, self.language, 'LC_MESSAGES')
++            logger.debug(f"Searching for .po files in: {basedir}")
+             for root, dirnames, filenames in os.walk(basedir):
+                 # skip dot-directories
+                 for dirname in dirnames:
+                     if dirname.startswith('.'):
+                         dirnames.remove(dirname)
++                        logger.debug(f"Skipping dot-directory: {dirname}")
+ 
+                 for filename in filenames:
+                     if filename.endswith('.po'):
+                         fullpath = path.join(root, filename)
++                        logger.debug(f"Found .po file: {fullpath}")
+                         yield basedir, relpath(fullpath, basedir)
++                    else:
++                        logger.debug(f"Skipping non-.po file: {filename}")
+ 
+     @property
+     def catalogs(self) -> Generator[CatalogInfo, None, None]:
++        logger.debug(f"Searching for catalogs in locale directories")
+         for basedir, filename in self.pofiles:
+             domain = canon_path(path.splitext(filename)[0])
+-            yield CatalogInfo(basedir, domain, self.encoding)
++            logger.debug(f"Creating CatalogInfo for domain: {domain}")
++            logger.debug(f"  basedir: {basedir}")
++            logger.debug(f"  filename: {filename}")
++            logger.debug(f"  encoding: {self.encoding}")
++            catalog_info = CatalogInfo(basedir, domain, self.encoding)
++            logger.debug(f"  po_path: {catalog_info.po_path}")
++            logger.debug(f"  mo_path: {catalog_info.mo_path}")
++            yield catalog_info
+ 
+ 
+ def find_catalog(docname: str, compaction: bool) -> str:
+@@ -168,36 +193,39 @@ def find_catalog_source_files(locale_dirs: List[str], locale: str, domains: List
+        default is False.
+     :return: [CatalogInfo(), ...]
+     """
++    logger.debug(f"Finding catalog source files:")
++    logger.debug(f"  locale_dirs: {locale_dirs}")
++    logger.debug(f"  locale: {locale}")
++    logger.debug(f"  domains: {domains}")
++    logger.debug(f"  charset: {charset}")
++    logger.debug(f"  force_all: {force_all}")
++    logger.debug(f"  excluded: {excluded}")
+     warnings.warn('find_catalog_source_files() is deprecated.',
+                   RemovedInSphinx40Warning, stacklevel=2)
+ 
+     catalogs = set()  # type: Set[CatalogInfo]
+ 
+     if not locale:
++        logger.debug("No locale specified, returning empty catalog set")
+         return catalogs  # locale is not specified
+ 
+-    for locale_dir in locale_dirs:
+-        if not locale_dir:
+-            continue  # skip system locale directory
+-
+-        base_dir = path.join(locale_dir, locale, 'LC_MESSAGES')
+-
+-        if not path.exists(base_dir):
+-            continue  # locale path is not found
+-
+-        for dirpath, dirnames, filenames in os.walk(base_dir, followlinks=True):
+-            filenames = [f for f in filenames if f.endswith('.po')]
+-            for filename in filenames:
+-                if excluded(path.join(relpath(dirpath, base_dir), filename)):
+-                    continue
+-                base = path.splitext(filename)[0]
+-                domain = relpath(path.join(dirpath, base), base_dir).replace(path.sep, SEP)
+-                if domains and domain not in domains:
+-                    continue
+-                cat = CatalogInfo(base_dir, domain, charset)
+-                if force_all or cat.is_outdated():
+-                    catalogs.add(cat)
++    repo = CatalogRepository('.', locale_dirs, locale, charset)
++    
++    for catalog in repo.catalogs:
++        logger.debug(f"Processing catalog: {catalog.domain}")
++        if domains and catalog.domain not in domains:
++            logger.debug(f"Skipping catalog {catalog.domain} (not in specified domains)")
++            continue
++        if excluded(catalog.domain):
++            logger.debug(f"Skipping catalog {catalog.domain} (excluded)")
++            continue
++        if force_all or catalog.is_outdated():
++            logger.debug(f"Adding catalog {catalog.domain} to result set")
++            catalogs.add(catalog)
++        else:
++            logger.debug(f"Skipping catalog {catalog.domain} (not outdated and force_all is False)")
+ 
++    logger.debug(f"Returning {len(catalogs)} catalogs")
+     return catalogs
+ 
+ 
+diff --git a/tox.ini b/tox.ini
+index a61299979..e2baccc07 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+     PYTEST_ADDOPTS = --color yes
+ commands=
+-    pytest --durations 25 {posargs}
++    pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

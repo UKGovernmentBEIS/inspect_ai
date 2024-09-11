@@ -1,0 +1,33 @@
+
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 000000000..308496ccc
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,11 @@
++from unittest.mock import patch
++
++@patch(target='os.getcwd', new=[-5.5, 3.0])
++def test_function():
++    pass
++
++if __name__ == "__main__":
++    import pytest
++    pytest.main([__file__])
++
++print("Script completed successfully, no errors.")
+diff --git a/src/_pytest/compat.py b/src/_pytest/compat.py
+index d238061b4..07b03b8dc 100644
+--- a/src/_pytest/compat.py
++++ b/src/_pytest/compat.py
+@@ -68,8 +68,8 @@ def num_mock_patch_args(function):
+     if any(mock_modules):
+         sentinels = [m.DEFAULT for m in mock_modules if m is not None]
+         return len(
+-            [p for p in patchings if not p.attribute_name and p.new in sentinels]
+-        )
++            [p for p in patchings if not p.attribute_name and (not hasattr(p.new, '__iter__') or p.new in sentinels)]
++        )  # Check if p.new is iterable to avoid ValueError with array-like objects
+     return len(patchings)
+ 
+ 

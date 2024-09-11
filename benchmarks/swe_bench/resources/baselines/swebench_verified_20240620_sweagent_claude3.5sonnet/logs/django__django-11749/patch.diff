@@ -1,0 +1,91 @@
+
+diff --git a/django/core/management/__init__.py b/django/core/management/__init__.py
+index 5f2e64761e..e3aa721df1 100644
+--- a/django/core/management/__init__.py
++++ b/django/core/management/__init__.py
+@@ -132,10 +132,18 @@ def call_command(command_name, *args, **options):
+     parser_actions = list(get_actions(parser))
+     # Any required arguments which are passed in via **options must be passed
+     # to parse_args().
+-    parse_args += [
+-        '{}={}'.format(min(opt.option_strings), arg_options[opt.dest])
+-        for opt in parser_actions if opt.required and opt.dest in options
+-    ]
++    for opt in parser_actions:
++        if opt.required and opt.dest in options:
++            parse_args.append('{}={}'.format(min(opt.option_strings), arg_options[opt.dest]))
++    
++    # Handle mutually exclusive groups
++    for group in parser._mutually_exclusive_groups:
++        if group.required:
++            group_options = [action.dest for action in group._group_actions if action.dest in options and options[action.dest] is not None]
++            if len(group_options) == 1:
++                dest = group_options[0]
++                option_strings = next(action.option_strings for action in group._group_actions if action.dest == dest)
++                parse_args.append('{}={}'.format(min(option_strings), arg_options[dest]))
+     defaults = parser.parse_args(args=parse_args)
+     defaults = dict(defaults._get_kwargs(), **arg_options)
+     # Raise an error if any unknown options were passed.
+diff --git a/test_call_command.py b/test_call_command.py
+new file mode 100644
+index 0000000000..6b3969af0d
+--- /dev/null
++++ b/test_call_command.py
+@@ -0,0 +1,57 @@
++from django.core.management import call_command, CommandError
++from django.core.management.base import BaseCommand
++from django.test import TestCase
++
++class TestCommand(BaseCommand):
++    def add_arguments(self, parser):
++        group = parser.add_mutually_exclusive_group(required=True)
++        group.add_argument('--shop-id', type=int)
++        group.add_argument('--shop', type=str)
++
++    def handle(self, *args, **options):
++        print(f"Received options: {options}")
++        if options.get('shop_id') is not None:
++            return f"Shop ID: {options['shop_id']}"
++        elif options.get('shop'):
++            return f"Shop Name: {options['shop']}"
++        else:
++            return "No valid option provided"
++
++class CallCommandTests(TestCase):
++    def test_mutually_exclusive_group(self):
++        # Test with shop_id
++        result = call_command(TestCommand(), shop_id=1)
++        self.assertEqual(result, "Shop ID: 1")
++
++        # Test with shop name
++        result = call_command(TestCommand(), shop="Test Shop")
++        self.assertEqual(result, "Shop Name: Test Shop")
++
++        # Test with both (should raise an error)
++        with self.assertRaises(CommandError):
++            call_command(TestCommand(), shop_id=1, shop="Test Shop")
++
++        # Test with neither (should raise an error)
++        with self.assertRaises(CommandError):
++            call_command(TestCommand())
++
++if __name__ == '__main__':
++    import django
++    from django.conf import settings
++    settings.configure(
++        DEBUG=True,
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++        ],
++    )
++    django.setup()
++    
++    import unittest
++    unittest.main()

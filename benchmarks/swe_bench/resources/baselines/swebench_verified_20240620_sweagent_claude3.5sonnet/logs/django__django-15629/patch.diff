@@ -1,0 +1,63 @@
+
+diff --git a/django/db/backends/mysql/schema.py b/django/db/backends/mysql/schema.py
+index 562b209eef..da9afbf0f4 100644
+--- a/django/db/backends/mysql/schema.py
++++ b/django/db/backends/mysql/schema.py
+@@ -100,6 +100,28 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
+             return "(%s)"
+         return super()._column_default_sql(field)
+ 
++    def _alter_column_type_sql(self, model, old_field, new_field, new_type):
++        sql = super()._alter_column_type_sql(model, old_field, new_field, new_type)
++        if new_field.db_collation:
++            sql += " COLLATE " + new_field.db_collation
++        return sql
++
++    def _update_foreign_key_collations(self, model, old_field, new_field, new_type):
++        if old_field.primary_key:
++            for related_object in model._meta.related_objects:
++                related_model = related_object.related_model
++                related_field = related_object.field
++                if related_field.db_collation != new_field.db_collation:
++                    self.execute(
++                        self.sql_alter_column % {
++                            "table": self.quote_name(related_model._meta.db_table),
++                            "changes": self.sql_alter_column_type % {
++                                "column": self.quote_name(related_field.column),
++                                "type": new_type,
++                            } + " COLLATE " + new_field.db_collation,
++                        }
++                    )
++
+     def add_field(self, model, field):
+         super().add_field(model, field)
+ 
+@@ -116,6 +138,28 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
+                 [effective_default],
+             )
+ 
++    def alter_field(self, model, old_field, new_field, strict=False):
++        old_db_params = old_field.db_parameters(connection=self.connection)
++        old_type = old_db_params['type']
++        new_db_params = new_field.db_parameters(connection=self.connection)
++        new_type = new_db_params['type']
++        # Check for changes in type, null status, or collation
++        if (old_type != new_type or 
++            old_field.null != new_field.null or 
++            old_field.db_collation != new_field.db_collation):
++            alter_sql = self._alter_column_type_sql(model, old_field, new_field, new_type)
++            self.execute(
++                self.sql_alter_column % {
++                    "table": self.quote_name(model._meta.db_table),
++                    "changes": alter_sql,
++                }
++            )
++            # Propagate collation changes to related foreign keys
++            if old_field.db_collation != new_field.db_collation:
++                self._update_foreign_key_collations(model, old_field, new_field, new_type)
++        else:
++            super().alter_field(model, old_field, new_field, strict)
++
+     def _field_should_be_indexed(self, model, field):
+         if not super()._field_should_be_indexed(model, field):
+             return False

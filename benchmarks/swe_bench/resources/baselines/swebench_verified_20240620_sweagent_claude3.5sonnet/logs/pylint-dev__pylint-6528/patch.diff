@@ -1,0 +1,107 @@
+
+diff --git a/.a/foo.py b/.a/foo.py
+new file mode 100644
+index 000000000..b199df542
+--- /dev/null
++++ b/.a/foo.py
+@@ -0,0 +1 @@
++import re
+diff --git a/bar.py b/bar.py
+new file mode 100644
+index 000000000..b199df542
+--- /dev/null
++++ b/bar.py
+@@ -0,0 +1 @@
++import re
+diff --git a/pylint/lint/pylinter.py b/pylint/lint/pylinter.py
+index 53345a6b1..ddd62d439 100644
+--- a/pylint/lint/pylinter.py
++++ b/pylint/lint/pylinter.py
+@@ -564,8 +564,7 @@ class PyLinter(
+             if not msg.may_be_emitted():
+                 self._msgs_state[msg.msgid] = False
+ 
+-    @staticmethod
+-    def _discover_files(files_or_modules: Sequence[str]) -> Iterator[str]:
++    def _discover_files(self, files_or_modules: Sequence[str]) -> Iterator[str]:
+         """Discover python modules and packages in sub-directory.
+ 
+         Returns iterator of paths to discovered modules and packages.
+@@ -575,10 +574,13 @@ class PyLinter(
+                 os.path.join(something, "__init__.py")
+             ):
+                 skip_subtrees: list[str] = []
+-                for root, _, files in os.walk(something):
++                for root, dirs, files in os.walk(something):
+                     if any(root.startswith(s) for s in skip_subtrees):
+                         # Skip subtree of already discovered package.
+                         continue
++                    if self._is_path_ignored(root):
++                        dirs[:] = []  # Don't recurse into ignored directories
++                        continue
+                     if "__init__.py" in files:
+                         skip_subtrees.append(root)
+                         yield root
+@@ -586,11 +588,19 @@ class PyLinter(
+                         yield from (
+                             os.path.join(root, file)
+                             for file in files
+-                            if file.endswith(".py")
++                            if file.endswith(".py") and not self._is_path_ignored(os.path.join(root, file))
+                         )
+-            else:
++            elif not self._is_path_ignored(something):
+                 yield something
+ 
++    def _is_path_ignored(self, path: str) -> bool:
++        """Check if the given path should be ignored based on ignore options."""
++        return (
++            any(ignored_path in path for ignored_path in self.config.ignore)
++            or any(pattern.search(path) for pattern in self.config.ignore_patterns)
++            or any(pattern.search(path) for pattern in self.config.ignore_paths)
++        )
++
+     def check(self, files_or_modules: Sequence[str] | str) -> None:
+         """Main checking entry: check a list of files or modules from their name.
+ 
+diff --git a/test_ignore/.a/foo.py b/test_ignore/.a/foo.py
+new file mode 100644
+index 000000000..e69de29bb
+diff --git a/test_ignore/bar.py b/test_ignore/bar.py
+new file mode 100644
+index 000000000..e69de29bb
+diff --git a/test_ignore_recursive.py b/test_ignore_recursive.py
+new file mode 100644
+index 000000000..d3c69b5db
+--- /dev/null
++++ b/test_ignore_recursive.py
+@@ -0,0 +1,29 @@
++import sys
++from pylint.lint import Run
++from pylint.reporters.base_reporter import BaseReporter
++
++class TestReporter(BaseReporter):
++    def __init__(self):
++        super().__init__()
++        self.messages = []
++        self.path_strip_prefix = ''
++
++    def handle_message(self, msg):
++        self.messages.append(msg)
++        print(f"Message: {msg}")
++
++    def on_set_current_module(self, module, filepath):
++        print(f"Checking file: {filepath}")
++
++    def _display(self, layout):
++        pass
++
++args = [
++    '--recursive=y',
++    '--ignore=.a',
++    'test_ignore'
++]
++
++reporter = TestReporter()
++Run(args, reporter=reporter, exit=False)
++print(f"Number of messages: {len(reporter.messages)}")

@@ -1,0 +1,69 @@
+
+diff --git a/bug_reproduction.png b/bug_reproduction.png
+new file mode 100644
+index 0000000000..23eb2f8cde
+Binary files /dev/null and b/bug_reproduction.png differ
+diff --git a/lib/matplotlib/dates.py b/lib/matplotlib/dates.py
+index 4d8ddf3ee5..fe50f34eb3 100644
+--- a/lib/matplotlib/dates.py
++++ b/lib/matplotlib/dates.py
+@@ -840,7 +840,13 @@ class ConciseDateFormatter(ticker.Formatter):
+ 
+         if show_offset:
+             # set the offset string:
+-            self.offset_string = tickdatetime[-1].strftime(offsetfmts[level])
++            start_year = tickdatetime[0].year
++            end_year = tickdatetime[-1].year
++            if start_year != end_year or tickdatetime[0].month != 1:
++                # Always show year in offset if spanning multiple years or not starting in January
++                self.offset_string = tickdatetime[-1].strftime('%Y')
++            else:
++                self.offset_string = tickdatetime[-1].strftime(offsetfmts[level])
+             if self._usetex:
+                 self.offset_string = _wrap_in_tex(self.offset_string)
+         else:
+@@ -852,6 +858,12 @@ class ConciseDateFormatter(ticker.Formatter):
+             return labels
+ 
+     def get_offset(self):
++        if not self.offset_string:
++            # If offset_string is empty, check if we need to add the year
++            if hasattr(self, '_locator'):
++                dmin, dmax = self._locator.viewlim_to_dt()
++                if dmin.year != dmax.year or dmin.month != 1:
++                    return dmin.strftime('%Y')
+         return self.offset_string
+ 
+     def format_data_short(self, value):
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..644b5067ae
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,26 @@
++import matplotlib.pyplot as plt
++import matplotlib.dates as mdates
++from datetime import datetime, timedelta
++
++#create time array
++initial = datetime(2021,2,14,0,0,0)
++time_array = [initial + timedelta(days=x) for x in range(1,200)]
++
++#create data array
++data = [-x**2/20000 for x in range(1,200)]
++
++#plot data
++fig,ax = plt.subplots()
++ax.plot(time_array,data) 
++        
++locator = mdates.AutoDateLocator()
++formatter = mdates.ConciseDateFormatter(locator)
++
++ax.grid(True)
++ax.set_ylabel("Temperature ($\degree$C)")
++ax.xaxis.set_major_locator(locator)   
++ax.xaxis.set_major_formatter(formatter)
++fig.autofmt_xdate() #automatically makes the x-labels rotate
++print(f"Offset string: {formatter.get_offset()}")
++plt.savefig('bug_reproduction.png')
++print("Script completed successfully, no errors.")

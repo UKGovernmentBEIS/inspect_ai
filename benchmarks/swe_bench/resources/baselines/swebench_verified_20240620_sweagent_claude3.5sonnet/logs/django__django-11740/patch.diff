@@ -1,0 +1,162 @@
+
+diff --git a/django/db/migrations/autodetector.py b/django/db/migrations/autodetector.py
+index 0dc1c77c53..33f2ed1cf4 100644
+--- a/django/db/migrations/autodetector.py
++++ b/django/db/migrations/autodetector.py
+@@ -974,8 +974,21 @@ class MigrationAutodetector:
+                     )
+                 else:
+                     # We cannot alter between m2m and concrete fields
+-                    self._generate_removed_field(app_label, model_name, field_name)
+-                    self._generate_added_field(app_label, model_name, field_name)
++                    if isinstance(old_field, models.UUIDField) and isinstance(new_field, models.ForeignKey):
++                        print(f"Changing UUIDField to ForeignKey: {app_label}.{model_name}.{field_name}")
++                        # Add dependency for the new ForeignKey
++                        self.add_operation(
++                            app_label,
++                            operations.AddField(
++                                model_name=model_name,
++                                name=field_name,
++                                field=new_field,
++                            ),
++                            dependencies=[(new_field.remote_field.model._meta.app_label, new_field.remote_field.model._meta.model_name, None, None)]
++                        )
++                    else:
++                        self._generate_removed_field(app_label, model_name, field_name)
++                        self._generate_added_field(app_label, model_name, field_name)
+ 
+     def create_altered_indexes(self):
+         option_name = operations.AddIndex.option_name
+diff --git a/django/db/migrations/test_uuid_to_fk.py b/django/db/migrations/test_uuid_to_fk.py
+new file mode 100644
+index 0000000000..cd962af0e9
+--- /dev/null
++++ b/django/db/migrations/test_uuid_to_fk.py
+@@ -0,0 +1,127 @@
++import os
++import sys
++import tempfile
++import shutil
++import django
++from django.conf import settings
++from django.db import models
++from django.db.migrations.autodetector import MigrationAutodetector
++from django.db.migrations.state import ProjectState, ModelState
++from django.db.migrations.questioner import MigrationQuestioner
++from django.db.migrations.graph import MigrationGraph
++from django.apps import AppConfig
++
++# Create a temporary directory for our dummy app
++temp_dir = tempfile.mkdtemp()
++app_dir = os.path.join(temp_dir, 'testapp')
++os.makedirs(app_dir, exist_ok=True)
++# Create __init__.py
++with open(os.path.join(app_dir, '__init__.py'), 'w') as f:
++    f.write("default_app_config = 'testapp.apps.TestAppConfig'\n")
++
++# Create apps.py
++with open(os.path.join(app_dir, 'apps.py'), 'w') as f:
++    f.write("""
++from django.apps import AppConfig
++
++class TestAppConfig(AppConfig):
++    name = 'testapp'
++    path = '{}'
++""".format(app_dir.replace('\\', '\\\\')))
++
++# Add the temp directory to sys.path
++sys.path.insert(0, temp_dir)
++
++# Configure Django settings
++if not settings.configured:
++    settings.configure(
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++            'testapp',
++        ],
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++    )
++    django.setup()
++
++class OldTestModel(models.Model):
++    id = models.UUIDField(primary_key=True)
++
++    class Meta:
++        app_label = 'testapp'
++
++class NewTestModel(models.Model):
++    id = models.ForeignKey('OtherModel', on_delete=models.CASCADE)
++
++    class Meta:
++        app_label = 'testapp'
++
++class OtherModel(models.Model):
++    class Meta:
++        app_label = 'testapp'
++
++old_state = ProjectState()
++old_state.add_model(ModelState('testapp', 'testmodel', [
++    ('id', models.UUIDField(primary_key=True)),
++]))
++old_state.add_model(ModelState.from_model(OtherModel))
++
++new_state = ProjectState()
++new_state.add_model(ModelState('testapp', 'testmodel', [
++    ('id', models.ForeignKey('OtherModel', on_delete=models.CASCADE)),
++]))
++new_state.add_model(ModelState.from_model(OtherModel))
++print("Old state models:")
++for model_key, model_state in old_state.models.items():
++    print(f"  {model_key}:")
++    for field in model_state.fields:
++        print(f"    {field[0]}: {field[1]}")
++
++print("\nNew state models:")
++for model_key, model_state in new_state.models.items():
++    print(f"  {model_key}:")
++    for field in model_state.fields:
++        print(f"    {field[0]}: {field[1]}")
++
++questioner = MigrationQuestioner()
++autodetector = MigrationAutodetector(old_state, new_state, questioner)
++print("\nAutodetector created")
++
++# Print out the internal state of the autodetector
++print("\nAutodetector internal state:")
++for attr in dir(autodetector):
++    if not attr.startswith('__') and not callable(getattr(autodetector, attr)):
++        print(f"  {attr}: {getattr(autodetector, attr)}")
++
++# Now run the full changes detection
++full_changes = autodetector.changes(graph=MigrationGraph())
++print("\nFull changes detected:", full_changes)
++
++# If no changes were detected, let's print out more details about the states
++if not full_changes:
++    print("\nNo changes detected. Comparing states:")
++    print("Old state:")
++    print(old_state.apps.get_models())
++    print("New state:")
++    print(new_state.apps.get_models())
++
++print("\nManual field comparison:")
++old_model = old_state.models[('testapp', 'testmodel')]
++new_model = new_state.models[('testapp', 'testmodel')]
++for field_name, old_field in old_model.fields:
++    new_field = next((f for n, f in new_model.fields if n == field_name), None)
++    if new_field:
++        if type(old_field) != type(new_field):
++            print(f"Field '{field_name}' changed from {type(old_field)} to {type(new_field)}")
++            print(f"Old field: {old_field}")
++            print(f"New field: {new_field}")
++
++print("\nScript completed successfully, no errors.")
++
++# Clean up the temporary directory
++shutil.rmtree(temp_dir)

@@ -1,0 +1,35 @@
+
+diff --git a/reproduce_posify_issue.py b/reproduce_posify_issue.py
+new file mode 100644
+index 0000000000..4487818248
+--- /dev/null
++++ b/reproduce_posify_issue.py
+@@ -0,0 +1,11 @@
++from sympy import Symbol, posify
++
++x = Symbol('x', finite=True)
++print("x._assumptions:", x._assumptions)
++print("x.is_finite:", x.is_finite)
++
++xp, _ = posify(x)
++print("xp._assumptions:", xp._assumptions)
++print("xp.is_finite:", xp.is_finite)
++
++print("Script completed successfully, no errors.")
+diff --git a/sympy/simplify/simplify.py b/sympy/simplify/simplify.py
+index c6b511f206..603f3788f8 100644
+--- a/sympy/simplify/simplify.py
++++ b/sympy/simplify/simplify.py
+@@ -251,8 +251,10 @@ def posify(eq):
+             eq[i] = e.subs(reps)
+         return f(eq), {r: s for s, r in reps.items()}
+ 
+-    reps = {s: Dummy(s.name, positive=True)
+-                 for s in eq.free_symbols if s.is_positive is None}
++    reps = {s: Dummy(s.name, positive=True, finite=s.is_finite,
++                     integer=s.is_integer, rational=s.is_rational,
++                     prime=s.is_prime, even=s.is_even, odd=s.is_odd)
++            for s in eq.free_symbols if s.is_positive is None}
+     eq = eq.subs(reps)
+     return eq, {r: s for s, r in reps.items()}
+ 

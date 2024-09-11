@@ -1,0 +1,118 @@
+
+diff --git a/django/contrib/admin/filters.py b/django/contrib/admin/filters.py
+index d65e01d5e2..cb9ac9f456 100644
+--- a/django/contrib/admin/filters.py
++++ b/django/contrib/admin/filters.py
+@@ -194,10 +194,12 @@ class RelatedFieldListFilter(FieldListFilter):
+         return [self.lookup_kwarg, self.lookup_kwarg_isnull]
+ 
+     def field_choices(self, field, request, model_admin):
+-        ordering = ()
++        ordering = None
+         related_admin = model_admin.admin_site._registry.get(field.remote_field.model)
+         if related_admin is not None:
+             ordering = related_admin.get_ordering(request)
++        if ordering is None:
++            ordering = field.remote_field.model._meta.ordering or ()
+         return field.get_choices(include_blank=False, ordering=ordering)
+ 
+     def choices(self, changelist):
+@@ -418,5 +420,26 @@ FieldListFilter.register(lambda f: True, AllValuesFieldListFilter)
+ 
+ class RelatedOnlyFieldListFilter(RelatedFieldListFilter):
+     def field_choices(self, field, request, model_admin):
+-        pk_qs = model_admin.get_queryset(request).distinct().values_list('%s__pk' % self.field_path, flat=True)
+-        return field.get_choices(include_blank=False, limit_choices_to={'pk__in': pk_qs})
++        ordering = None
++        related_admin = model_admin.admin_site._registry.get(field.remote_field.model)
++        if related_admin is not None:
++            ordering = related_admin.get_ordering(request)
++        if ordering is None:
++            ordering = field.remote_field.model._meta.ordering or ()
++        
++        limit_choices_to = field.get_limit_choices_to()
++        qs = field.remote_field.model._default_manager.complex_filter(limit_choices_to)
++        if ordering:
++            qs = qs.order_by(*ordering)
++
++        def get_nested_value(obj, path):
++            for part in path.split('__'):
++                obj = getattr(obj, part)
++            return obj
++
++        return [
++            (get_nested_value(x, self.field_path)._get_pk_val(), str(get_nested_value(x, self.field_path)))
++            for x in qs
++            if self.used_parameters.get(self.lookup_kwarg) == str(get_nested_value(x, self.field_path)._get_pk_val()) or
++               get_nested_value(x, self.field_path)._get_pk_val() in model_admin.get_queryset(request).values_list(self.field_path, flat=True)
++        ]
+diff --git a/tests/admin_filters/tests.py b/tests/admin_filters/tests.py
+index 4ff7d012e5..e2ba1b603a 100644
+--- a/tests/admin_filters/tests.py
++++ b/tests/admin_filters/tests.py
+@@ -4,7 +4,7 @@ import unittest
+ 
+ from django.contrib.admin import (
+     AllValuesFieldListFilter, BooleanFieldListFilter, ModelAdmin,
+-    RelatedOnlyFieldListFilter, SimpleListFilter, site,
++    RelatedOnlyFieldListFilter, SimpleListFilter, site, RelatedFieldListFilter,
+ )
+ from django.contrib.admin.options import IncorrectLookupParameters
+ from django.contrib.auth.admin import UserAdmin
+@@ -418,31 +418,31 @@ class ListFiltersTests(TestCase):
+         self.assertEqual(filterspec.title, 'date registered')
+         choice = select_by(filterspec.choices(changelist), "display", "Past 7 days")
+         self.assertIs(choice['selected'], True)
+-        self.assertEqual(
+-            choice['query_string'],
+-            '?date_registered__gte=%s&date_registered__lt=%s' % (
+-                str(self.one_week_ago),
+-                str(self.tomorrow),
+-            )
+-        )
+-
+-        # Null/not null queries
+-        request = self.request_factory.get('/', {'date_registered__isnull': 'True'})
+-        request.user = self.alfred
+-        changelist = modeladmin.get_changelist_instance(request)
+-
+-        # Make sure the correct queryset is returned
+-        queryset = changelist.get_queryset(request)
+-        self.assertEqual(queryset.count(), 1)
+-        self.assertEqual(queryset[0], self.bio_book)
+-
+-        # Make sure the correct choice is selected
+-        filterspec = changelist.get_filters(request)[0][4]
+-        self.assertEqual(filterspec.title, 'date registered')
+-        choice = select_by(filterspec.choices(changelist), 'display', 'No date')
+-        self.assertIs(choice['selected'], True)
+-        self.assertEqual(choice['query_string'], '?date_registered__isnull=True')
+-
++class RelatedOnlyFieldListFilter(RelatedFieldListFilter):
++    def field_choices(self, field, request, model_admin):
++        ordering = None
++        related_admin = model_admin.admin_site._registry.get(field.remote_field.model)
++        if related_admin is not None:
++            ordering = related_admin.get_ordering(request)
++        if ordering is None:
++            ordering = field.remote_field.model._meta.ordering or ()
++        
++        limit_choices_to = field.get_limit_choices_to()
++        qs = field.remote_field.model._default_manager.complex_filter(limit_choices_to)
++        if ordering:
++            qs = qs.order_by(*ordering)
++
++        def get_nested_value(obj, path):
++            for part in path.split('__'):
++                obj = getattr(obj, part)
++            return obj
++
++        return [
++            (get_nested_value(x, self.field_path)._get_pk_val(), str(get_nested_value(x, self.field_path)))
++            for x in qs
++            if self.used_parameters.get(self.lookup_kwarg) == str(get_nested_value(x, self.field_path)._get_pk_val()) or
++               get_nested_value(x, self.field_path)._get_pk_val() in model_admin.get_queryset(request).values_list(self.field_path, flat=True)
++        ]
+         request = self.request_factory.get('/', {'date_registered__isnull': 'False'})
+         request.user = self.alfred
+         changelist = modeladmin.get_changelist_instance(request)

@@ -1,0 +1,20 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 00000000..f1171ac9
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,13 @@
++import requests
++
++# This should work
++files = {u'file': open(u'/usr/bin/diff', u'rb')}
++response = requests.request(method='POST', url=u'http://httpbin.org/post', files=files)
++print("First request completed successfully")
++
++# This should raise an error
++files = {u'file': open(u'/usr/bin/diff', u'rb')}
++response = requests.request(method=u'POST', url=u'http://httpbin.org/post', files=files)
++print("Second request completed successfully")
++
++print("Script completed successfully, no errors.")

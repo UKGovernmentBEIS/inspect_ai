@@ -1,0 +1,482 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/backends/postgresql/client.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit d87bd29c4f8dfcdf3f4a4eb8340e6770a2416fe3
+Author: can <cansarigol@derinbilgi.com.tr>
+Date:   Wed Apr 17 09:24:28 2019 +0300
+
+    Fixed #30335, #29139 -- Fixed crash when ordering or aggregating over a nested JSONField key transform.
+
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index f4b1faabc2..3d133cb672 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -14,6 +14,7 @@ from django.db.models.sql.query import Query, get_order_dir
+ from django.db.transaction import TransactionManagementError
+ from django.db.utils import DatabaseError, NotSupportedError
+ from django.utils.deprecation import RemovedInDjango31Warning
++from django.utils.hashable import make_hashable
+ 
+ FORCE = object()
+ 
+@@ -126,9 +127,10 @@ class SQLCompiler:
+ 
+         for expr in expressions:
+             sql, params = self.compile(expr)
+-            if (sql, tuple(params)) not in seen:
++            params_hash = make_hashable(params)
++            if (sql, params_hash) not in seen:
+                 result.append((sql, params))
+-                seen.add((sql, tuple(params)))
++                seen.add((sql, params_hash))
+         return result
+ 
+     def collapse_group_by(self, expressions, having):
+@@ -352,9 +354,10 @@ class SQLCompiler:
+             # is refactored into expressions, then we can check each part as we
+             # generate it.
+             without_ordering = self.ordering_parts.search(sql).group(1)
+-            if (without_ordering, tuple(params)) in seen:
++            params_hash = make_hashable(params)
++            if (without_ordering, params_hash) in seen:
+                 continue
+-            seen.add((without_ordering, tuple(params)))
++            seen.add((without_ordering, params_hash))
+             result.append((resolved, (sql, params, is_ref)))
+         return result
+ 
+diff --git a/docs/releases/2.2.1.txt b/docs/releases/2.2.1.txt
+index 3a2453dbd1..a740f516ec 100644
+--- a/docs/releases/2.2.1.txt
++++ b/docs/releases/2.2.1.txt
+@@ -33,3 +33,8 @@ Bugfixes
+ * Reverted an optimization in Django 2.2 (:ticket:`29725`) that caused the
+   inconsistent behavior of ``count()`` and ``exists()`` on a reverse
+   many-to-many relationship with a custom manager (:ticket:`30325`).
++
++* Fixed a regression in Django 2.2 where
++  :class:`~django.core.paginator.Paginator` crashed when ``object_list`` was
++  a queryset ordered or aggregated over a nested ``JSONField`` key transform
++  (:ticket:`30335`).
+diff --git a/tests/postgres_tests/test_json.py b/tests/postgres_tests/test_json.py
+index eab7f8a272..ee0bb6d5ea 100644
+--- a/tests/postgres_tests/test_json.py
++++ b/tests/postgres_tests/test_json.py
+@@ -1,10 +1,11 @@
+ import datetime
++import operator
+ import uuid
+ from decimal import Decimal
+ 
+ from django.core import checks, exceptions, serializers
+ from django.core.serializers.json import DjangoJSONEncoder
+-from django.db.models import Q
++from django.db.models import Count, Q
+ from django.forms import CharField, Form, widgets
+ from django.test.utils import isolate_apps
+ from django.utils.html import escape
+@@ -15,6 +16,7 @@ from .models import JSONModel, PostgreSQLModel
+ try:
+     from django.contrib.postgres import forms
+     from django.contrib.postgres.fields import JSONField
++    from django.contrib.postgres.fields.jsonb import KeyTextTransform, KeyTransform
+ except ImportError:
+     pass
+ 
+@@ -162,6 +164,27 @@ class TestQuerying(PostgreSQLTestCase):
+         query = JSONModel.objects.filter(field__name__isnull=False).order_by('field__ord')
+         self.assertSequenceEqual(query, [objs[4], objs[2], objs[3], objs[1], objs[0]])
+ 
++    def test_ordering_grouping_by_key_transform(self):
++        base_qs = JSONModel.objects.filter(field__d__0__isnull=False)
++        for qs in (
++            base_qs.order_by('field__d__0'),
++            base_qs.annotate(key=KeyTransform('0', KeyTransform('d', 'field'))).order_by('key'),
++        ):
++            self.assertSequenceEqual(qs, [self.objs[8]])
++        qs = JSONModel.objects.filter(field__isnull=False)
++        self.assertQuerysetEqual(
++            qs.values('field__d__0').annotate(count=Count('field__d__0')).order_by('count'),
++            [1, 10],
++            operator.itemgetter('count'),
++        )
++        self.assertQuerysetEqual(
++            qs.filter(field__isnull=False).annotate(
++                key=KeyTextTransform('f', KeyTransform('1', KeyTransform('d', 'field'))),
++            ).values('key').annotate(count=Count('key')).order_by('count'),
++            [(None, 0), ('g', 1)],
++            operator.itemgetter('key', 'count'),
++        )
++
+     def test_deep_values(self):
+         query = JSONModel.objects.values_list('field__k__l')
+         self.assertSequenceEqual(
++ git diff d87bd29c4f8dfcdf3f4a4eb8340e6770a2416fe3
+diff --git a/django/db/backends/postgresql/client.py b/django/db/backends/postgresql/client.py
+index cf4df76882..77ed4c9cf1 100644
+--- a/django/db/backends/postgresql/client.py
++++ b/django/db/backends/postgresql/client.py
+@@ -17,6 +17,10 @@ class DatabaseClient(BaseDatabaseClient):
+         dbname = conn_params.get('database', '')
+         user = conn_params.get('user', '')
+         passwd = conn_params.get('password', '')
++        # Add support for SSL options
++        sslmode = conn_params.get('sslmode')
++        sslcert = conn_params.get('sslcert')
++        sslkey = conn_params.get('sslkey')
+ 
+         if user:
+             args += ['-U', user]
+@@ -24,6 +28,13 @@ class DatabaseClient(BaseDatabaseClient):
+             args += ['-h', host]
+         if port:
+             args += ['-p', str(port)]
++        # Pass SSL options to psql command
++        if sslmode:
++            args += [f'--set=sslmode={sslmode}']
++        if sslcert:
++            args += [f'--set=sslcert={sslcert}']
++        if sslkey:
++            args += [f'--set=sslkey={sslkey}']
+         args += [dbname]
+ 
+         sigint_handler = signal.getsignal(signal.SIGINT)
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0.dev20190418051650) (2024.1)
+Requirement already satisfied: sqlparse in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0.dev20190418051650) (0.4.4)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.0.dev20190418051650
+    Uninstalling Django-3.0.dev20190418051650:
+      Successfully uninstalled Django-3.0.dev20190418051650
+  Running setup.py develop for Django
+Successfully installed Django-3.0.dev20190418051650
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout d87bd29c4f8dfcdf3f4a4eb8340e6770a2416fe3 tests/dbshell/test_postgresql.py
+Updated 0 paths from e878f4755b
++ git apply -v -
+Checking patch tests/dbshell/test_postgresql.py...
+Applied patch tests/dbshell/test_postgresql.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 dbshell.test_postgresql
+test_accent (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase) ... ok
+test_basic (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase) ... ok
+test_column (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase) ... ok
+test_nopass (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase) ... ok
+test_sigint_handler (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase)
+SIGINT is ignored in Python and passed to psql to abort quries. ... ok
+test_ssl_certificate (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase) ... Testing against Django installed in '/testbed/django'
+Importing application dbshell
+Skipping setup of unused database(s): default, other.
+System check identified no issues (0 silenced).
+FAIL
+
+======================================================================
+FAIL: test_ssl_certificate (dbshell.test_postgresql.PostgreSqlDbshellCommandTestCase)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/dbshell/test_postgresql.py", line 72, in test_ssl_certificate
+    'PGSSLROOTCERT': 'root.crt',
+AssertionError: Tuples differ: (['ps[50 chars]4', '--set=sslmode=verify-ca', '--set=sslcert=[49 chars], {}) != (['ps[50 chars]4', 'dbname'], {'PGSSLCERT': 'client.crt', 'PG[73 chars]rt'})
+
+First differing element 0:
+['psq[49 chars]4', '--set=sslmode=verify-ca', '--set=sslcert=[44 chars]ame']
+['psq[49 chars]4', 'dbname']
+
++ (['psql', '-U', 'someuser', '-h', 'somehost', '-p', '444', 'dbname'],
++  {'PGSSLCERT': 'client.crt',
++   'PGSSLKEY': 'client.key',
++   'PGSSLMODE': 'verify-ca',
++   'PGSSLROOTCERT': 'root.crt'})
+- (['psql',
+-   '-U',
+-   'someuser',
+-   '-h',
+-   'somehost',
+-   '-p',
+-   '444',
+-   '--set=sslmode=verify-ca',
+-   '--set=sslcert=client.crt',
+-   '--set=sslkey=client.key',
+-   'dbname'],
+-  {})
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.003s
+
+FAILED (failures=1)
++ git checkout d87bd29c4f8dfcdf3f4a4eb8340e6770a2416fe3 tests/dbshell/test_postgresql.py
+Updated 1 path from e878f4755b

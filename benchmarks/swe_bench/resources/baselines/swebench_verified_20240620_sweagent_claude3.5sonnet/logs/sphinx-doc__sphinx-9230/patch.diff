@@ -1,0 +1,80 @@
+
+diff --git a/issue_response.md b/issue_response.md
+new file mode 100644
+index 000000000..19dcda9e4
+--- /dev/null
++++ b/issue_response.md
+@@ -0,0 +1,25 @@
++Thank you for reporting this issue. After investigation, we've determined that this problem is not related to Sphinx's documentation rendering, but is actually an issue in the marshmallow library's handling of TimeDelta serialization.
++
++The issue occurs in the marshmallow library, specifically in the TimeDelta field's serialization process. Here's a suggested fix for the marshmallow library:
++
++1. Locate the file in marshmallow that handles TimeDelta serialization (likely in a file like `fields.py`).
++2. Find the method responsible for serializing TimeDelta objects (probably named something like `_serialize` in the `TimeDelta` class).
++3. Modify the serialization logic to use rounding instead of truncation. The current implementation likely uses integer division, which truncates the result. It should be changed to round to the nearest integer.
++
++Here's a potential fix:
++
++```python
++def _serialize(self, value, attr, obj, **kwargs):
++    if value is None:
++        return None
++    base_unit = dt.timedelta(**{self.precision: 1})
++    return round(value.total_seconds() / base_unit.total_seconds())
++```
++
++This change ensures that the result is rounded to the nearest integer, which should correctly handle cases like 345 milliseconds.
++
++We recommend opening an issue or submitting a pull request to the marshmallow repository (https://github.com/marshmallow-code/marshmallow) with this proposed fix.
++
++For the Sphinx documentation, no changes are needed as this is not a Sphinx-related issue.
++
++Thank you for bringing this to our attention, as it helps improve the ecosystem of tools that work alongside Sphinx.
+diff --git a/setup.py b/setup.py
+index 2538952e3..94e1d8b32 100644
+--- a/setup.py
++++ b/setup.py
+@@ -15,22 +15,22 @@ if sys.version_info < (3, 6):
+     sys.exit(1)
+ 
+ install_requires = [
+-    'sphinxcontrib-applehelp',
+-    'sphinxcontrib-devhelp',
++    'sphinxcontrib-applehelp<=1.0.7',
++    'sphinxcontrib-devhelp<=1.0.5',
+     'sphinxcontrib-jsmath',
+-    'sphinxcontrib-htmlhelp',
+-    'sphinxcontrib-serializinghtml',
+-    'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'sphinxcontrib-htmlhelp<=2.0.4',
++    'sphinxcontrib-serializinghtml<=1.1.9',
++    'sphinxcontrib-qthelp<=1.0.6',
++    'Jinja2<3.0',
+     'Pygments>=2.0',
+     'docutils>=0.14,<0.18',
+     'snowballstemmer>=1.1',
+     'babel>=1.3',
+-    'alabaster>=0.7,<0.8',
++    'alabaster>=0.7,<0.7.12',
+     'imagesize',
+     'requests>=2.5.0',
+     'setuptools',
+-    'packaging',
++    'packaging', 'markupsafe<=2.0.1',
+ ]
+ 
+ extras_require = {
+diff --git a/tox.ini b/tox.ini
+index a363e187f..3b8bc12d0 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,7 +27,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

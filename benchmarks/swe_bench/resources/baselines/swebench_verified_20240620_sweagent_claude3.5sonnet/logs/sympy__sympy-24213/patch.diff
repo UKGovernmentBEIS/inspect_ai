@@ -1,0 +1,60 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..150a481f5d
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,19 @@
++from sympy.physics import units
++from sympy.physics.units.systems.si import SI
++
++v1 = units.Quantity('v1')
++SI.set_quantity_dimension(v1, units.velocity)
++SI.set_quantity_scale_factor(v1, 2 * units.meter / units.second)
++
++a1 = units.Quantity('a1')
++SI.set_quantity_dimension(a1, units.acceleration)
++SI.set_quantity_scale_factor(a1, -9.8 * units.meter / units.second**2)
++
++t1 = units.Quantity('t1')
++SI.set_quantity_dimension(t1, units.time)
++SI.set_quantity_scale_factor(t1, 5 * units.second)
++
++expr1 = a1*t1 + v1
++SI._collect_factor_and_dimension(expr1)
++
++print("Script completed successfully, no errors.")
+diff --git a/sympy/physics/units/unitsystem.py b/sympy/physics/units/unitsystem.py
+index a436880c4b..b984d7f82d 100644
+--- a/sympy/physics/units/unitsystem.py
++++ b/sympy/physics/units/unitsystem.py
+@@ -171,17 +171,18 @@ def _collect_factor_and_dimension(self, expr):
+                 exp_dim = 1
+             return factor ** exp_factor, dim ** (exp_factor * exp_dim)
+         elif isinstance(expr, Add):
+-            factor, dim = self._collect_factor_and_dimension(expr.args[0])
+-            for addend in expr.args[1:]:
+-                addend_factor, addend_dim = \
+-                    self._collect_factor_and_dimension(addend)
+-                if dim != addend_dim:
+-                    raise ValueError(
+-                        'Dimension of "{}" is {}, '
+-                        'but it should be {}'.format(
+-                            addend, addend_dim, dim))
+-                factor += addend_factor
+-            return factor, dim
++            factors = []
++            dims = []
++            for term in expr.args:
++                term_factor, term_dim = self._collect_factor_and_dimension(term)
++                factors.append(term_factor)
++                dims.append(term_dim)
++            
++            dim_system = self.get_dimension_system()
++            if not all(dim_system.is_dimensionless(dim) or dim_system.equivalent_dims(dim, dims[0]) for dim in dims):
++                raise ValueError(f"Cannot add quantities with incompatible dimensions: {dims}")
++            
++            return Add(*factors), dims[0]
+         elif isinstance(expr, Derivative):
+             factor, dim = self._collect_factor_and_dimension(expr.args[0])
+             for independent, count in expr.variable_count:

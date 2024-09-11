@@ -1,0 +1,177 @@
+
+diff --git a/commit_message.txt b/commit_message.txt
+new file mode 100644
+index 0000000000..8093fd31c9
+--- /dev/null
++++ b/commit_message.txt
+@@ -0,0 +1,6 @@
++Fixed GenericForeignKey prefetch_related with UUID primary keys
++
++The get_prefetch_queryset method in GenericForeignKey now correctly handles
++models with UUID primary keys. This fixes an issue where prefetch_related
++was not working properly for GenericForeignKey fields when the related
++model used a UUID as its primary key.
+diff --git a/django/contrib/contenttypes/fields.py b/django/contrib/contenttypes/fields.py
+index ed98ecb48c..4d21c3d7e7 100644
+--- a/django/contrib/contenttypes/fields.py
++++ b/django/contrib/contenttypes/fields.py
+@@ -202,12 +202,14 @@ class GenericForeignKey(FieldCacheMixin):
+             else:
+                 model = self.get_content_type(id=ct_id,
+                                               using=obj._state.db).model_class()
+-                return (model._meta.pk.get_prep_value(getattr(obj, self.fk_field)),
+-                        model)
++                pk_value = getattr(obj, self.fk_field)
++                if isinstance(model._meta.pk, models.UUIDField):
++                    pk_value = str(pk_value)
++                return (pk_value, model)
+ 
+         return (
+             ret_val,
+-            lambda obj: (obj.pk, obj.__class__),
++            lambda obj: (str(obj.pk) if isinstance(obj._meta.pk, models.UUIDField) else obj.pk, obj.__class__),
+             gfk_key,
+             True,
+             self.name,
+diff --git a/gfk_uuid_fix.patch b/gfk_uuid_fix.patch
+new file mode 100644
+index 0000000000..1db3f8b413
+--- /dev/null
++++ b/gfk_uuid_fix.patch
+@@ -0,0 +1,17 @@
++--- a/django/contrib/contenttypes/fields.py
+++++ b/django/contrib/contenttypes/fields.py
++@@ -203,6 +203,8 @@ class GenericForeignKey(FieldCacheMixin):
++                 model = self.get_content_type(id=ct_id,
++                                               using=obj._state.db).model_class()
++                 pk_value = getattr(obj, self.fk_field)
+++                if isinstance(model._meta.pk, models.UUIDField):
+++                    pk_value = str(pk_value)
++                 return (pk_value, model)
++ 
++         return (
++             ret_val,
++-            lambda obj: (obj.pk, obj.__class__),
+++            lambda obj: (str(obj.pk) if isinstance(obj._meta.pk, models.UUIDField) else obj.pk, obj.__class__),
++             gfk_key,
++             True,
++             self.name,
+diff --git a/reproduce_gfk_uuid_issue.py b/reproduce_gfk_uuid_issue.py
+new file mode 100644
+index 0000000000..209aa8ed5c
+--- /dev/null
++++ b/reproduce_gfk_uuid_issue.py
+@@ -0,0 +1,94 @@
++import os
++import django
++from django.conf import settings
++
++def setup_django():
++    if not settings.configured:
++        settings.configure(
++            DEBUG=True,
++            INSTALLED_APPS=[
++                'django.contrib.contenttypes',
++                'django.contrib.auth',
++            ],
++            DATABASES={
++                'default': {
++                    'ENGINE': 'django.db.backends.sqlite3',
++                    'NAME': ':memory:',
++                }
++            },
++            USE_TZ=True,
++        )
++    django.setup()
++
++setup_django()
++
++import unittest
++from django.core.management import call_command
++from django.db import connection
++import uuid
++from django.db import models
++from django.contrib.contenttypes.fields import GenericForeignKey
++from django.contrib.contenttypes.models import ContentType
++from django.test import TestCase
++
++class Foo(models.Model):
++    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
++    name = models.CharField(max_length=100)
++
++    class Meta:
++        app_label = 'contenttypes'
++
++class Bar(models.Model):
++    foo_content_type = models.ForeignKey(
++        ContentType, related_name='actor',
++        on_delete=models.CASCADE, db_index=True
++    )
++    foo_object_id = models.CharField(max_length=255, db_index=True)
++    foo = GenericForeignKey('foo_content_type', 'foo_object_id')
++    name = models.CharField(max_length=100)
++
++    class Meta:
++        app_label = 'contenttypes'
++
++def create_custom_models():
++    call_command('migrate')
++    # Create tables for our custom models
++    with connection.schema_editor() as schema_editor:
++        schema_editor.create_model(Foo)
++        schema_editor.create_model(Bar)
++
++create_custom_models()
++
++class TestGFKUUIDIssue(TestCase):
++    def setUp(self):
++        self.foo = Foo.objects.create(name="Test Foo")
++        self.bar = Bar.objects.create(
++            foo_content_type=ContentType.objects.get_for_model(Foo),
++            foo_object_id=str(self.foo.id),
++            name="Test Bar"
++        )
++
++    def test_prefetch_related(self):
++        # First, verify that the relationship works without prefetch_related
++        bar_without_prefetch = Bar.objects.first()
++        print(f"Without prefetch_related:")
++        print(f"Bar name: {bar_without_prefetch.name}")
++        print(f"Foo name: {bar_without_prefetch.foo.name if bar_without_prefetch.foo else 'None'}")
++        
++        # Now test with prefetch_related
++        bar_with_prefetch = Bar.objects.all().prefetch_related('foo').first()
++        print(f"\nWith prefetch_related:")
++        print(f"Bar name: {bar_with_prefetch.name}")
++        print(f"Foo name: {bar_with_prefetch.foo.name if bar_with_prefetch.foo else 'None'}")
++        
++        # Assert that both methods return the same result
++        self.assertEqual(bar_without_prefetch.foo, bar_with_prefetch.foo)
++        self.assertEqual(bar_without_prefetch.foo.name, bar_with_prefetch.foo.name)
++        self.assertEqual(bar_without_prefetch.foo.id, bar_with_prefetch.foo.id)
++        
++        # Check if the prefetch_related actually prefetched the related object
++        with self.assertNumQueries(0):
++            _ = bar_with_prefetch.foo
++
++if __name__ == '__main__':
++    unittest.main(verbosity=2)
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..8f5cc6c85b
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,13 @@
++SECRET_KEY = 'fake-key'
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'reproduce_gfk_uuid_issue',
++]
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++USE_TZ = True
++

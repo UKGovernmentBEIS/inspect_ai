@@ -1,0 +1,92 @@
+
+diff --git a/sphinx/ext/graphviz.py b/sphinx/ext/graphviz.py
+index 8b21d9e3b..1e2655efa 100644
+--- a/sphinx/ext/graphviz.py
++++ b/sphinx/ext/graphviz.py
+@@ -218,13 +218,20 @@ class GraphvizSimple(SphinxDirective):
+ 
+ 
+ def fix_svg_relative_paths(self: SphinxTranslator, filepath: str) -> None:
+-    """Change relative links in generated svg files to be relative to imgpath."""
++    """Change relative links in generated svg files to be relative to the document."""
+     tree = ET.parse(filepath)  # NoQA: S314
+     root = tree.getroot()
+     ns = {'svg': 'http://www.w3.org/2000/svg', 'xlink': 'http://www.w3.org/1999/xlink'}
+     href_name = '{http://www.w3.org/1999/xlink}href'
+     modified = False
+ 
++    # Get the directory of the current document
++    if hasattr(self, 'document') and 'source' in self.document:
++        docdir = path.dirname(self.document['source'])
++    else:
++        # Fallback to the directory of the output file
++        docdir = path.dirname(filepath)
++
+     for element in chain(
+         root.findall('.//svg:image[@xlink:href]', ns),
+         root.findall('.//svg:a[@xlink:href]', ns),
+@@ -234,11 +241,9 @@ def fix_svg_relative_paths(self: SphinxTranslator, filepath: str) -> None:
+             # not a relative link
+             continue
+ 
+-        old_path = path.join(self.builder.outdir, url)
+-        new_path = path.relpath(
+-            old_path,
+-            start=path.join(self.builder.outdir, self.builder.imgpath),
+-        )
++        # Make the path relative to the document directory
++        old_path = path.normpath(path.join(docdir, url))
++        new_path = path.relpath(old_path, start=docdir)
+         modified_url = urlunsplit((scheme, hostname, new_path, query, fragment))
+ 
+         element.set(href_name, modified_url)
+@@ -330,12 +335,15 @@ def render_dot_html(self: HTML5Translator, node: graphviz, code: str, options: d
+         if 'align' in node:
+             self.body.append('<div align="%s" class="align-%s">' %
+                              (node['align'], node['align']))
++        
++        # Convert fname to a relative path
++        relative_fname = path.relpath(outfn, self.builder.outdir)
++        relative_fname = relative_fname.replace(path.sep, '/')  # Ensure forward slashes
++        
+         if format == 'svg':
+             self.body.append('<div class="graphviz">')
+-            self.body.append('<object data="%s" type="image/svg+xml" class="%s">\n' %
+-                             (fname, imgcls))
+-            self.body.append('<p class="warning">%s</p>' % alt)
+-            self.body.append('</object></div>\n')
++            self.body.append('<img src="%s" alt="%s" class="%s" />' % (relative_fname, alt, imgcls))
++            self.body.append('</div>\n')
+         else:
+             assert outfn is not None
+             with open(outfn + '.map', encoding='utf-8') as mapfile:
+@@ -344,14 +352,14 @@ def render_dot_html(self: HTML5Translator, node: graphviz, code: str, options: d
+                     # has a map
+                     self.body.append('<div class="graphviz">')
+                     self.body.append('<img src="%s" alt="%s" usemap="#%s" class="%s" />' %
+-                                     (fname, alt, imgmap.id, imgcls))
++                                     (relative_fname, alt, imgmap.id, imgcls))
+                     self.body.append('</div>\n')
+                     self.body.append(imgmap.generate_clickable_map())
+                 else:
+                     # nothing in image map
+                     self.body.append('<div class="graphviz">')
+                     self.body.append('<img src="%s" alt="%s" class="%s" />' %
+-                                     (fname, alt, imgcls))
++                                     (relative_fname, alt, imgcls))
+                     self.body.append('</div>\n')
+         if 'align' in node:
+             self.body.append('</div>\n')
+diff --git a/tox.ini b/tox.ini
+index a3dc56211..c76147de3 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -24,7 +24,7 @@ setenv =
+     PYTHONWARNINGS = error
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -X warn_default_encoding -m pytest --durations 25 {posargs}
++    python -X dev -X warn_default_encoding -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:docs]
+ basepython = python3

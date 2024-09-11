@@ -1,0 +1,551 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
+Generation complete.
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/contrib/auth/validators.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test_username_validators.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit d26b2424437dabeeca94d7900b37d2df4410da0c
+Author: Nick Pope <nick.pope@flightdataservices.com>
+Date:   Wed Mar 20 08:27:34 2019 +0000
+
+    Fixed #30271 -- Added the Sign database function.
+
+diff --git a/django/db/backends/sqlite3/base.py b/django/db/backends/sqlite3/base.py
+index 7552956cd9..6a19236c48 100644
+--- a/django/db/backends/sqlite3/base.py
++++ b/django/db/backends/sqlite3/base.py
+@@ -231,6 +231,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
+         conn.create_function('SHA256', 1, none_guard(lambda x: hashlib.sha256(x.encode()).hexdigest()))
+         conn.create_function('SHA384', 1, none_guard(lambda x: hashlib.sha384(x.encode()).hexdigest()))
+         conn.create_function('SHA512', 1, none_guard(lambda x: hashlib.sha512(x.encode()).hexdigest()))
++        conn.create_function('SIGN', 1, none_guard(lambda x: (x > 0) - (x < 0)))
+         conn.create_function('SIN', 1, none_guard(math.sin))
+         conn.create_function('SQRT', 1, none_guard(math.sqrt))
+         conn.create_function('TAN', 1, none_guard(math.tan))
+diff --git a/django/db/models/functions/__init__.py b/django/db/models/functions/__init__.py
+index fb899127d2..c928873661 100644
+--- a/django/db/models/functions/__init__.py
++++ b/django/db/models/functions/__init__.py
+@@ -7,7 +7,7 @@ from .datetime import (
+ )
+ from .math import (
+     Abs, ACos, ASin, ATan, ATan2, Ceil, Cos, Cot, Degrees, Exp, Floor, Ln, Log,
+-    Mod, Pi, Power, Radians, Round, Sin, Sqrt, Tan,
++    Mod, Pi, Power, Radians, Round, Sign, Sin, Sqrt, Tan,
+ )
+ from .text import (
+     MD5, SHA1, SHA224, SHA256, SHA384, SHA512, Chr, Concat, ConcatPair, Left,
+@@ -32,7 +32,7 @@ __all__ = [
+     # math
+     'Abs', 'ACos', 'ASin', 'ATan', 'ATan2', 'Ceil', 'Cos', 'Cot', 'Degrees',
+     'Exp', 'Floor', 'Ln', 'Log', 'Mod', 'Pi', 'Power', 'Radians', 'Round',
+-    'Sin', 'Sqrt', 'Tan',
++    'Sign', 'Sin', 'Sqrt', 'Tan',
+     # text
+     'MD5', 'SHA1', 'SHA224', 'SHA256', 'SHA384', 'SHA512', 'Chr', 'Concat',
+     'ConcatPair', 'Left', 'Length', 'Lower', 'LPad', 'LTrim', 'Ord', 'Repeat',
+diff --git a/django/db/models/functions/math.py b/django/db/models/functions/math.py
+index 1a574eb9ab..909a3088bb 100644
+--- a/django/db/models/functions/math.py
++++ b/django/db/models/functions/math.py
+@@ -146,6 +146,11 @@ class Round(Transform):
+     lookup_name = 'round'
+ 
+ 
++class Sign(Transform):
++    function = 'SIGN'
++    lookup_name = 'sign'
++
++
+ class Sin(NumericOutputFieldMixin, Transform):
+     function = 'SIN'
+     lookup_name = 'sin'
+diff --git a/docs/ref/models/database-functions.txt b/docs/ref/models/database-functions.txt
+index b79f7972cf..9c6121097b 100644
+--- a/docs/ref/models/database-functions.txt
++++ b/docs/ref/models/database-functions.txt
+@@ -1099,6 +1099,31 @@ It can also be registered as a transform. For example::
+     >>> # Get vectors whose round() is less than 20
+     >>> vectors = Vector.objects.filter(x__round__lt=20, y__round__lt=20)
+ 
++``Sign``
++--------
++
++.. class:: Sign(expression, **extra)
++
++.. versionadded:: 3.0
++
++Returns the sign (-1, 0, 1) of a numeric field or expression.
++
++Usage example::
++
++    >>> from django.db.models.functions import Sign
++    >>> Vector.objects.create(x=5.4, y=-2.3)
++    >>> vector = Vector.objects.annotate(x_sign=Sign('x'), y_sign=Sign('y')).get()
++    >>> vector.x_sign, vector.y_sign
++    (1, -1)
++
++It can also be registered as a transform. For example::
++
++    >>> from django.db.models import FloatField
++    >>> from django.db.models.functions import Sign
++    >>> FloatField.register_lookup(Sign)
++    >>> # Get vectors whose signs of components are less than 0.
++    >>> vectors = Vector.objects.filter(x__sign__lt=0, y__sign__lt=0)
++
+ ``Sin``
+ -------
+ 
+diff --git a/docs/releases/3.0.txt b/docs/releases/3.0.txt
+index 72ecdd3c74..69925e7fca 100644
+--- a/docs/releases/3.0.txt
++++ b/docs/releases/3.0.txt
+@@ -178,6 +178,8 @@ Models
+   :class:`~django.db.models.functions.SHA384`, and
+   :class:`~django.db.models.functions.SHA512`.
+ 
++* Added the :class:`~django.db.models.functions.Sign` database function.
++
+ * The new ``is_dst``  parameter of the
+   :class:`~django.db.models.functions.Trunc` database functions determines the
+   treatment of nonexistent and ambiguous datetimes.
+diff --git a/tests/db_functions/math/test_sign.py b/tests/db_functions/math/test_sign.py
+new file mode 100644
+index 0000000000..0458932cee
+--- /dev/null
++++ b/tests/db_functions/math/test_sign.py
+@@ -0,0 +1,53 @@
++from decimal import Decimal
++
++from django.db.models import DecimalField
++from django.db.models.functions import Sign
++from django.test import TestCase
++from django.test.utils import register_lookup
++
++from ..models import DecimalModel, FloatModel, IntegerModel
++
++
++class SignTests(TestCase):
++
++    def test_null(self):
++        IntegerModel.objects.create()
++        obj = IntegerModel.objects.annotate(null_sign=Sign('normal')).first()
++        self.assertIsNone(obj.null_sign)
++
++    def test_decimal(self):
++        DecimalModel.objects.create(n1=Decimal('-12.9'), n2=Decimal('0.6'))
++        obj = DecimalModel.objects.annotate(n1_sign=Sign('n1'), n2_sign=Sign('n2')).first()
++        self.assertIsInstance(obj.n1_sign, Decimal)
++        self.assertIsInstance(obj.n2_sign, Decimal)
++        self.assertEqual(obj.n1_sign, Decimal('-1'))
++        self.assertEqual(obj.n2_sign, Decimal('1'))
++
++    def test_float(self):
++        FloatModel.objects.create(f1=-27.5, f2=0.33)
++        obj = FloatModel.objects.annotate(f1_sign=Sign('f1'), f2_sign=Sign('f2')).first()
++        self.assertIsInstance(obj.f1_sign, float)
++        self.assertIsInstance(obj.f2_sign, float)
++        self.assertEqual(obj.f1_sign, -1.0)
++        self.assertEqual(obj.f2_sign, 1.0)
++
++    def test_integer(self):
++        IntegerModel.objects.create(small=-20, normal=0, big=20)
++        obj = IntegerModel.objects.annotate(
++            small_sign=Sign('small'),
++            normal_sign=Sign('normal'),
++            big_sign=Sign('big'),
++        ).first()
++        self.assertIsInstance(obj.small_sign, int)
++        self.assertIsInstance(obj.normal_sign, int)
++        self.assertIsInstance(obj.big_sign, int)
++        self.assertEqual(obj.small_sign, -1)
++        self.assertEqual(obj.normal_sign, 0)
++        self.assertEqual(obj.big_sign, 1)
++
++    def test_transform(self):
++        with register_lookup(DecimalField, Sign):
++            DecimalModel.objects.create(n1=Decimal('5.4'), n2=Decimal('0'))
++            DecimalModel.objects.create(n1=Decimal('-0.1'), n2=Decimal('0'))
++            obj = DecimalModel.objects.filter(n1__sign__lt=0, n2__sign=0).get()
++            self.assertEqual(obj.n1, Decimal('-0.1'))
++ git diff d26b2424437dabeeca94d7900b37d2df4410da0c
+diff --git a/django/contrib/auth/validators.py b/django/contrib/auth/validators.py
+index b4878cfd45..1304f20a60 100644
+--- a/django/contrib/auth/validators.py
++++ b/django/contrib/auth/validators.py
+@@ -7,7 +7,7 @@ from django.utils.translation import gettext_lazy as _
+ 
+ @deconstructible
+ class ASCIIUsernameValidator(validators.RegexValidator):
+-    regex = r'^[\w.@+-]+$'
++    regex = r'\A[\w.@+-]+\Z'
+     message = _(
+         'Enter a valid username. This value may contain only English letters, '
+         'numbers, and @/./+/-/_ characters.'
+@@ -17,7 +17,7 @@ class ASCIIUsernameValidator(validators.RegexValidator):
+ 
+ @deconstructible
+ class UnicodeUsernameValidator(validators.RegexValidator):
+-    regex = r'^[\w.@+-]+$'
++    regex = r'\A[\w.@+-]+\Z'
+     message = _(
+         'Enter a valid username. This value may contain only letters, '
+         'numbers, and @/./+/-/_ characters.'
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0.dev20190322115239) (2024.1)
+Requirement already satisfied: sqlparse in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0.dev20190322115239) (0.4.4)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.0.dev20190322115239
+    Uninstalling Django-3.0.dev20190322115239:
+      Successfully uninstalled Django-3.0.dev20190322115239
+  Running setup.py develop for Django
+Successfully installed Django-3.0.dev20190322115239
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout d26b2424437dabeeca94d7900b37d2df4410da0c tests/auth_tests/test_validators.py
+Updated 0 paths from cb08383bf7
++ git apply -v -
+Checking patch tests/auth_tests/test_validators.py...
+Applied patch tests/auth_tests/test_validators.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 auth_tests.test_validators
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+test_help_text (auth_tests.test_validators.UserAttributeSimilarityValidatorTest) ... ok
+test_validate (auth_tests.test_validators.UserAttributeSimilarityValidatorTest) ... ok
+test_validate_property (auth_tests.test_validators.UserAttributeSimilarityValidatorTest) ... ok
+test_help_text (auth_tests.test_validators.CommonPasswordValidatorTest) ... ok
+test_validate (auth_tests.test_validators.CommonPasswordValidatorTest) ... ok
+test_validate_custom_list (auth_tests.test_validators.CommonPasswordValidatorTest) ... ok
+test_validate_django_supplied_file (auth_tests.test_validators.CommonPasswordValidatorTest) ... ok
+test_help_text (auth_tests.test_validators.MinimumLengthValidatorTest) ... ok
+test_validate (auth_tests.test_validators.MinimumLengthValidatorTest) ... ok
+test_help_text (auth_tests.test_validators.NumericPasswordValidatorTest) ... ok
+test_validate (auth_tests.test_validators.NumericPasswordValidatorTest) ... ok
+test_empty_password_validator_help_text_html (auth_tests.test_validators.PasswordValidationTest) ... ok
+test_get_default_password_validators (auth_tests.test_validators.PasswordValidationTest) ... ok
+test_get_password_validators_custom (auth_tests.test_validators.PasswordValidationTest) ... ok
+test_password_changed (auth_tests.test_validators.PasswordValidationTest) ... ok
+test_password_changed_with_custom_validator (auth_tests.test_validators.PasswordValidationTest) ... ok
+test_password_validators_help_text_html (auth_tests.test_validators.PasswordValidationTest) ... ok
+test_password_validators_help_text_html_escaping (auth_tests.test_validators.PasswordValidationTest) ... ok
+test_password_validators_help_texts (auth_tests.test_validators.PasswordValidationTest) ... ok
+test_validate_password (auth_tests.test_validators.PasswordValidationTest) ... ok
+test_ascii_validator (auth_tests.test_validators.UsernameValidatorsTests) ... ok
+test_unicode_validator (auth_tests.test_validators.UsernameValidatorsTests) ... Testing against Django installed in '/testbed/django'
+Importing application auth_tests
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, auth_tests, contenttypes, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table auth_tests_customuser
+    Creating table auth_tests_customuserwithoutisactivefield
+    Creating table auth_tests_extensionuser
+    Creating table auth_tests_custompermissionsuser
+    Creating table auth_tests_customusernonuniqueusername
+    Creating table auth_tests_isactivetestuser1
+    Creating table auth_tests_minimaluser
+    Creating table auth_tests_nopassworduser
+    Creating table auth_tests_concrete
+    Creating table auth_tests_uuiduser
+    Creating table auth_tests_email
+    Creating table auth_tests_customuserwithfk
+    Creating table auth_tests_integerusernameuser
+    Creating table auth_tests_userwithdisabledlastloginfield
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+ok
+
+----------------------------------------------------------------------
+Ran 22 tests in 0.135s
+
+OK
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout d26b2424437dabeeca94d7900b37d2df4410da0c tests/auth_tests/test_validators.py
+Updated 1 path from cb08383bf7

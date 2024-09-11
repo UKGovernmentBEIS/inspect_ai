@@ -1,0 +1,50 @@
+{
+    "scikit-learn__scikit-learn-25931": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "sklearn/ensemble/tests/test_iforest.py::test_iforest_preserve_feature_names"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "sklearn/ensemble/tests/test_iforest.py::test_iforest[42]",
+                    "sklearn/ensemble/tests/test_iforest.py::test_iforest_sparse[42]",
+                    "sklearn/ensemble/tests/test_iforest.py::test_iforest_error",
+                    "sklearn/ensemble/tests/test_iforest.py::test_recalculate_max_depth",
+                    "sklearn/ensemble/tests/test_iforest.py::test_max_samples_attribute",
+                    "sklearn/ensemble/tests/test_iforest.py::test_iforest_parallel_regression[42]",
+                    "sklearn/ensemble/tests/test_iforest.py::test_iforest_performance[42]",
+                    "sklearn/ensemble/tests/test_iforest.py::test_iforest_works[42-0.25]",
+                    "sklearn/ensemble/tests/test_iforest.py::test_iforest_works[42-auto]",
+                    "sklearn/ensemble/tests/test_iforest.py::test_max_samples_consistency",
+                    "sklearn/ensemble/tests/test_iforest.py::test_iforest_subsampled_features",
+                    "sklearn/ensemble/tests/test_iforest.py::test_iforest_average_path_length",
+                    "sklearn/ensemble/tests/test_iforest.py::test_score_samples",
+                    "sklearn/ensemble/tests/test_iforest.py::test_iforest_warm_start",
+                    "sklearn/ensemble/tests/test_iforest.py::test_iforest_chunks_works1[42-0.25-3]",
+                    "sklearn/ensemble/tests/test_iforest.py::test_iforest_chunks_works1[42-auto-2]",
+                    "sklearn/ensemble/tests/test_iforest.py::test_iforest_chunks_works2[42-0.25-3]",
+                    "sklearn/ensemble/tests/test_iforest.py::test_iforest_chunks_works2[42-auto-2]",
+                    "sklearn/ensemble/tests/test_iforest.py::test_iforest_with_uniform_data",
+                    "sklearn/ensemble/tests/test_iforest.py::test_iforest_with_n_jobs_does_not_segfault",
+                    "sklearn/ensemble/tests/test_iforest.py::test_base_estimator_property_deprecated"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

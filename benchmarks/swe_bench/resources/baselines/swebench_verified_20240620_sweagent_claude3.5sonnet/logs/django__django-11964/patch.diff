@@ -1,0 +1,225 @@
+
+diff --git a/README_TEXT_CHOICES_FIX.md b/README_TEXT_CHOICES_FIX.md
+new file mode 100644
+index 0000000000..39572a18e8
+--- /dev/null
++++ b/README_TEXT_CHOICES_FIX.md
+@@ -0,0 +1,34 @@
++# TextChoices Serialization Fix
++
++## Issue
++When using a CharField with choices from a TextChoices enum, the string representation of the field returns the enum name (e.g., 'MyChoice.FIRST_CHOICE') instead of the actual value (e.g., 'first').
++
++## Reproduction
++```python
++from django.db import models
++from django.utils.translation import gettext_lazy as _
++
++class MyChoice(models.TextChoices):
++    FIRST_CHOICE = "first", _("The first choice, it is")
++    SECOND_CHOICE = "second", _("The second choice, it is")
++
++class MyObject(models.Model):
++    my_str_value = models.CharField(max_length=10, choices=MyChoice.choices)
++
++obj = MyObject.objects.create(my_str_value=MyChoice.FIRST_CHOICE)
++print(str(obj.my_str_value))  # Outputs: 'MyChoice.FIRST_CHOICE' instead of 'first'
++```
++
++## Fix
++The proposed fix adds a `__str__` method to the TextChoices class to return the value instead of the enum name:
++
++```python
++class TextChoices(models.TextChoices):
++    def __str__(self):
++        return self.value
++```
++
++This change ensures that when the field value is converted to a string, it returns the actual value rather than the enum name.
++
++## Patch
++A patch file `django_text_choices_fix.patch` is provided with this fix. Apply it to the appropriate Django source file (likely `django/db/models/enums.py`).
+diff --git a/django_text_choices_fix.patch b/django_text_choices_fix.patch
+new file mode 100644
+index 0000000000..033374008e
+--- /dev/null
++++ b/django_text_choices_fix.patch
+@@ -0,0 +1,8 @@
++--- a/django/db/models/enums.py
+++++ b/django/db/models/enums.py
++@@ -1,3 +1,6 @@
++ class TextChoices(models.TextChoices):
+++    def __str__(self):
+++        return self.value
+++
++ # Rest of the TextChoices class implementation...
+diff --git a/tests/enum_choices_test/manage.py b/tests/enum_choices_test/manage.py
+new file mode 100644
+index 0000000000..ca75a41050
+--- /dev/null
++++ b/tests/enum_choices_test/manage.py
+@@ -0,0 +1,15 @@
++#!/usr/bin/env python
++import os
++import sys
++
++if __name__ == "__main__":
++    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tests.enum_choices_test.settings")
++    try:
++        from django.core.management import execute_from_command_line
++    except ImportError as exc:
++        raise ImportError(
++            "Couldn't import Django. Are you sure it's installed and "
++            "available on your PYTHONPATH environment variable? Did you "
++            "forget to activate a virtual environment?"
++        ) from exc
++    execute_from_command_line(sys.argv)
+diff --git a/tests/enum_choices_test/run_test.py b/tests/enum_choices_test/run_test.py
+new file mode 100644
+index 0000000000..5ebc5d33d1
+--- /dev/null
++++ b/tests/enum_choices_test/run_test.py
+@@ -0,0 +1,16 @@
++import os
++import django
++from django.conf import settings
++from django.test.runner import DiscoverRunner
++
++class NoMigrationTestRunner(DiscoverRunner):
++    def setup_databases(self, **kwargs):
++        pass
++
++if __name__ == "__main__":
++    os.environ['DJANGO_SETTINGS_MODULE'] = 'tests.enum_choices_test.settings'
++    django.setup()
++    test_runner = NoMigrationTestRunner(verbosity=1, interactive=False)
++    print("Running tests...")
++    failures = test_runner.run_tests(["tests.test_enum_choices"])
++    print(f"Test failures: {failures}")
+diff --git a/tests/enum_choices_test/settings.py b/tests/enum_choices_test/settings.py
+new file mode 100644
+index 0000000000..2e41b5a083
+--- /dev/null
++++ b/tests/enum_choices_test/settings.py
+@@ -0,0 +1,13 @@
++SECRET_KEY = 'dummy'
++INSTALLED_APPS = [
++    'django.contrib.auth',
++    'django.contrib.contenttypes',
++    'tests.enum_test_app',
++]
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++USE_TZ = True
+diff --git a/tests/enum_test_app/__init__.py b/tests/enum_test_app/__init__.py
+new file mode 100644
+index 0000000000..8b13789179
+--- /dev/null
++++ b/tests/enum_test_app/__init__.py
+@@ -0,0 +1 @@
++
+diff --git a/tests/enum_test_app/apps.py b/tests/enum_test_app/apps.py
+new file mode 100644
+index 0000000000..26d1490e6e
+--- /dev/null
++++ b/tests/enum_test_app/apps.py
+@@ -0,0 +1,5 @@
++from django.apps import AppConfig
++
++class EnumTestAppConfig(AppConfig):
++    name = 'tests.enum_test_app'
++    label = 'enum_test_app'
+diff --git a/tests/enum_test_app/models.py b/tests/enum_test_app/models.py
+new file mode 100644
+index 0000000000..f6e896fbe6
+--- /dev/null
++++ b/tests/enum_test_app/models.py
+@@ -0,0 +1,12 @@
++from django.db import models
++from django.utils.translation import gettext_lazy as _
++
++class MyChoice(models.TextChoices):
++    FIRST_CHOICE = "first", _("The first choice, it is")
++    SECOND_CHOICE = "second", _("The second choice, it is")
++
++    def __str__(self):
++        return self.value
++
++class MyObject(models.Model):
++    my_str_value = models.CharField(max_length=10, choices=MyChoice.choices)
+diff --git a/tests/enum_test_app/tests.py b/tests/enum_test_app/tests.py
+new file mode 100644
+index 0000000000..27695fd4db
+--- /dev/null
++++ b/tests/enum_test_app/tests.py
+@@ -0,0 +1,16 @@
++from django.test import TestCase
++from .models import MyObject, MyChoice
++
++class EnumTest(TestCase):
++    def setUp(self) -> None:
++        self.my_object = MyObject.objects.create(my_str_value=MyChoice.FIRST_CHOICE)
++
++    def test_created_object_is_str(self):
++        my_object = self.my_object
++        self.assertIsInstance(my_object.my_str_value, str)
++        self.assertEqual(str(my_object.my_str_value), "first")
++
++    def test_retrieved_object_is_str(self):
++        my_object = MyObject.objects.last()
++        self.assertIsInstance(my_object.my_str_value, str)
++        self.assertEqual(str(my_object.my_str_value), "first")
+diff --git a/tests/management/commands/run_enum_test.py b/tests/management/commands/run_enum_test.py
+new file mode 100644
+index 0000000000..b1be7b2a4d
+--- /dev/null
++++ b/tests/management/commands/run_enum_test.py
+@@ -0,0 +1,12 @@
++from django.core.management.base import BaseCommand
++from django.test.utils import get_runner
++from django.conf import settings
++
++class Command(BaseCommand):
++    help = 'Runs the enum choices test'
++
++    def handle(self, *args, **options):
++        TestRunner = get_runner(settings)
++        test_runner = TestRunner(verbosity=2, interactive=False)
++        failures = test_runner.run_tests(["tests.test_enum_choices"])
++        self.stdout.write(self.style.SUCCESS(f'Test failures: {failures}'))
+diff --git a/tests/test_enum_choices.py b/tests/test_enum_choices.py
+new file mode 100644
+index 0000000000..7c9227f50a
+--- /dev/null
++++ b/tests/test_enum_choices.py
+@@ -0,0 +1,26 @@
++from django.db import models
++from django.test import TestCase
++from django.utils.translation import gettext_lazy as _
++
++class MyChoice(models.TextChoices):
++    FIRST_CHOICE = "first", _("The first choice, it is")
++    SECOND_CHOICE = "second", _("The second choice, it is")
++
++class MyObject(models.Model):
++    my_str_value = models.CharField(max_length=10, choices=MyChoice.choices)
++
++class EnumTest(TestCase):
++    def setUp(self) -> None:
++        self.my_object = MyObject.objects.create(my_str_value=MyChoice.FIRST_CHOICE)
++
++    def test_created_object_is_str(self):
++        my_object = self.my_object
++        self.assertIsInstance(my_object.my_str_value, str)
++        self.assertEqual(str(my_object.my_str_value), "first")
++
++    def test_retrieved_object_is_str(self):
++        my_object = MyObject.objects.last()
++        self.assertIsInstance(my_object.my_str_value, str)
++        self.assertEqual(str(my_object.my_str_value), "first")
++
++print("Script completed successfully, no errors.")

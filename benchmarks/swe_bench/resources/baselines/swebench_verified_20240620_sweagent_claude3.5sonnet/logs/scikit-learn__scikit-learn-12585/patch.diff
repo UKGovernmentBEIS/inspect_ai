@@ -1,0 +1,31 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..e559cda04
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,11 @@
++from sklearn.preprocessing import StandardScaler
++from sklearn.base import clone
++
++try:
++    clone(StandardScaler(with_mean=StandardScaler))
++    print("No error occurred. The issue might have been fixed.")
++except TypeError as e:
++    print(f"TypeError occurred: {str(e)}")
++    print("The issue is still present.")
++
++print("Script completed successfully.")
+diff --git a/sklearn/base.py b/sklearn/base.py
+index 56ffb18bf..34998270c 100644
+--- a/sklearn/base.py
++++ b/sklearn/base.py
+@@ -48,7 +48,7 @@ def clone(estimator, safe=True):
+     # XXX: not handling dictionaries
+     if estimator_type in (list, tuple, set, frozenset):
+         return estimator_type([clone(e, safe=safe) for e in estimator])
+-    elif not hasattr(estimator, 'get_params'):
++    elif not hasattr(estimator, 'get_params') or isinstance(estimator, type):
+         if not safe:
+             return copy.deepcopy(estimator)
+         else:

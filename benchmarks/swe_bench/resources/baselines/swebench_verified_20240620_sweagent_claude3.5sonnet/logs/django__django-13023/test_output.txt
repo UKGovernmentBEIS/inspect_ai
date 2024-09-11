@@ -1,0 +1,748 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/forms/fields.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	tests/forms_tests/test_decimal_field.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit f83b44075dafa429d59e8755aa47e15577cc49f9
+Author: Mariusz Felisiak <felisiak.mariusz@gmail.com>
+Date:   Wed Jun 3 06:44:05 2020 +0200
+
+    Refs #30913 -- Added system checks for covering indexes and unique constraints support.
+
+diff --git a/django/db/models/base.py b/django/db/models/base.py
+index d082c35917..fcda6e202f 100644
+--- a/django/db/models/base.py
++++ b/django/db/models/base.py
+@@ -1614,12 +1614,10 @@ class Model(metaclass=ModelBase):
+             if not router.allow_migrate_model(db, cls):
+                 continue
+             connection = connections[db]
+-            if (
++            if not (
+                 connection.features.supports_partial_indexes or
+                 'supports_partial_indexes' in cls._meta.required_db_features
+-            ):
+-                continue
+-            if any(index.condition is not None for index in cls._meta.indexes):
++            ) and any(index.condition is not None for index in cls._meta.indexes):
+                 errors.append(
+                     checks.Warning(
+                         '%s does not support indexes with conditions.'
+@@ -1632,6 +1630,22 @@ class Model(metaclass=ModelBase):
+                         id='models.W037',
+                     )
+                 )
++            if not (
++                connection.features.supports_covering_indexes or
++                'supports_covering_indexes' in cls._meta.required_db_features
++            ) and any(index.include for index in cls._meta.indexes):
++                errors.append(
++                    checks.Warning(
++                        '%s does not support indexes with non-key columns.'
++                        % connection.display_name,
++                        hint=(
++                            "Non-key columns will be ignored. Silence this "
++                            "warning if you don't care about it."
++                        ),
++                        obj=cls,
++                        id='models.W040',
++                    )
++                )
+         fields = [field for index in cls._meta.indexes for field, _ in index.fields_orders]
+         fields += [include for index in cls._meta.indexes for include in index.include]
+         errors.extend(cls._check_local_fields(fields, 'indexes'))
+@@ -1927,6 +1941,25 @@ class Model(metaclass=ModelBase):
+                         id='models.W038',
+                     )
+                 )
++            if not (
++                connection.features.supports_covering_indexes or
++                'supports_covering_indexes' in cls._meta.required_db_features
++            ) and any(
++                isinstance(constraint, UniqueConstraint) and constraint.include
++                for constraint in cls._meta.constraints
++            ):
++                errors.append(
++                    checks.Warning(
++                        '%s does not support unique constraints with non-key '
++                        'columns.' % connection.display_name,
++                        hint=(
++                            "A constraint won't be created. Silence this "
++                            "warning if you don't care about it."
++                        ),
++                        obj=cls,
++                        id='models.W039',
++                    )
++                )
+             fields = chain.from_iterable(
+                 (*constraint.fields, *constraint.include)
+                 for constraint in cls._meta.constraints if isinstance(constraint, UniqueConstraint)
+diff --git a/docs/ref/checks.txt b/docs/ref/checks.txt
+index d5aeca2d8c..792c3936f6 100644
+--- a/docs/ref/checks.txt
++++ b/docs/ref/checks.txt
+@@ -360,6 +360,10 @@ Models
+ * **models.W037**: ``<database>`` does not support indexes with conditions.
+ * **models.W038**: ``<database>`` does not support deferrable unique
+   constraints.
++* **models.W039**: ``<database>`` does not support unique constraints with
++  non-key columns.
++* **models.W040**: ``<database>`` does not support indexes with non-key
++  columns.
+ 
+ Security
+ --------
+diff --git a/tests/constraints/models.py b/tests/constraints/models.py
+index 947d1b4ff1..1460673a18 100644
+--- a/tests/constraints/models.py
++++ b/tests/constraints/models.py
+@@ -88,6 +88,7 @@ class UniqueConstraintInclude(models.Model):
+     class Meta:
+         required_db_features = {
+             'supports_table_check_constraints',
++            'supports_covering_indexes',
+         }
+         constraints = [
+             models.UniqueConstraint(
+diff --git a/tests/invalid_models_tests/test_models.py b/tests/invalid_models_tests/test_models.py
+index 374eff6028..7875705860 100644
+--- a/tests/invalid_models_tests/test_models.py
++++ b/tests/invalid_models_tests/test_models.py
+@@ -375,6 +375,51 @@ class IndexesTests(TestCase):
+ 
+         self.assertEqual(Model.check(databases=self.databases), [])
+ 
++    def test_index_with_include(self):
++        class Model(models.Model):
++            age = models.IntegerField()
++
++            class Meta:
++                indexes = [
++                    models.Index(
++                        fields=['age'],
++                        name='index_age_include_id',
++                        include=['id'],
++                    ),
++                ]
++
++        errors = Model.check(databases=self.databases)
++        expected = [] if connection.features.supports_covering_indexes else [
++            Warning(
++                '%s does not support indexes with non-key columns.'
++                % connection.display_name,
++                hint=(
++                    "Non-key columns will be ignored. Silence this warning if "
++                    "you don't care about it."
++                ),
++                obj=Model,
++                id='models.W040',
++            )
++        ]
++        self.assertEqual(errors, expected)
++
++    def test_index_with_include_required_db_features(self):
++        class Model(models.Model):
++            age = models.IntegerField()
++
++            class Meta:
++                required_db_features = {'supports_covering_indexes'}
++                indexes = [
++                    models.Index(
++                        fields=['age'],
++                        name='index_age_include_id',
++                        include=['id'],
++                    ),
++                ]
++
++        self.assertEqual(Model.check(databases=self.databases), [])
++
++    @skipUnlessDBFeature('supports_covering_indexes')
+     def test_index_include_pointing_to_missing_field(self):
+         class Model(models.Model):
+             class Meta:
+@@ -390,6 +435,7 @@ class IndexesTests(TestCase):
+             ),
+         ])
+ 
++    @skipUnlessDBFeature('supports_covering_indexes')
+     def test_index_include_pointing_to_m2m_field(self):
+         class Model(models.Model):
+             m2m = models.ManyToManyField('self')
+@@ -406,6 +452,7 @@ class IndexesTests(TestCase):
+             ),
+         ])
+ 
++    @skipUnlessDBFeature('supports_covering_indexes')
+     def test_index_include_pointing_to_non_local_field(self):
+         class Parent(models.Model):
+             field1 = models.IntegerField()
+@@ -428,6 +475,7 @@ class IndexesTests(TestCase):
+             ),
+         ])
+ 
++    @skipUnlessDBFeature('supports_covering_indexes')
+     def test_index_include_pointing_to_fk(self):
+         class Target(models.Model):
+             pass
+@@ -1641,6 +1689,51 @@ class ConstraintsTests(TestCase):
+ 
+         self.assertEqual(Model.check(databases=self.databases), [])
+ 
++    def test_unique_constraint_with_include(self):
++        class Model(models.Model):
++            age = models.IntegerField()
++
++            class Meta:
++                constraints = [
++                    models.UniqueConstraint(
++                        fields=['age'],
++                        name='unique_age_include_id',
++                        include=['id'],
++                    ),
++                ]
++
++        errors = Model.check(databases=self.databases)
++        expected = [] if connection.features.supports_covering_indexes else [
++            Warning(
++                '%s does not support unique constraints with non-key columns.'
++                % connection.display_name,
++                hint=(
++                    "A constraint won't be created. Silence this warning if "
++                    "you don't care about it."
++                ),
++                obj=Model,
++                id='models.W039',
++            ),
++        ]
++        self.assertEqual(errors, expected)
++
++    def test_unique_constraint_with_include_required_db_features(self):
++        class Model(models.Model):
++            age = models.IntegerField()
++
++            class Meta:
++                required_db_features = {'supports_covering_indexes'}
++                constraints = [
++                    models.UniqueConstraint(
++                        fields=['age'],
++                        name='unique_age_include_id',
++                        include=['id'],
++                    ),
++                ]
++
++        self.assertEqual(Model.check(databases=self.databases), [])
++
++    @skipUnlessDBFeature('supports_covering_indexes')
+     def test_unique_constraint_include_pointing_to_missing_field(self):
+         class Model(models.Model):
+             class Meta:
+@@ -1661,6 +1754,7 @@ class ConstraintsTests(TestCase):
+             ),
+         ])
+ 
++    @skipUnlessDBFeature('supports_covering_indexes')
+     def test_unique_constraint_include_pointing_to_m2m_field(self):
+         class Model(models.Model):
+             m2m = models.ManyToManyField('self')
+@@ -1683,6 +1777,7 @@ class ConstraintsTests(TestCase):
+             ),
+         ])
+ 
++    @skipUnlessDBFeature('supports_covering_indexes')
+     def test_unique_constraint_include_pointing_to_non_local_field(self):
+         class Parent(models.Model):
+             field1 = models.IntegerField()
+@@ -1709,6 +1804,7 @@ class ConstraintsTests(TestCase):
+             ),
+         ])
+ 
++    @skipUnlessDBFeature('supports_covering_indexes')
+     def test_unique_constraint_include_pointing_to_fk(self):
+         class Target(models.Model):
+             pass
++ git diff f83b44075dafa429d59e8755aa47e15577cc49f9
+diff --git a/django/forms/fields.py b/django/forms/fields.py
+index 36dad72704..7d543f7f9f 100644
+--- a/django/forms/fields.py
++++ b/django/forms/fields.py
+@@ -343,6 +343,8 @@ class DecimalField(IntegerField):
+             return None
+         if self.localize:
+             value = formats.sanitize_separators(value)
++        if isinstance(value, dict):
++            raise ValidationError(self.error_messages['invalid'], code='invalid')
+         value = str(value).strip()
+         try:
+             value = Decimal(value)
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: asgiref>=3.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (3.4.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (0.4.4)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref>=3.2->Django==3.2) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.2
+    Uninstalling Django-3.2:
+      Successfully uninstalled Django-3.2
+  Running setup.py develop for Django
+Successfully installed Django-3.2
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout f83b44075dafa429d59e8755aa47e15577cc49f9 tests/model_fields/test_decimalfield.py
+Updated 0 paths from 71191d9568
++ git apply -v -
+Checking patch tests/model_fields/test_decimalfield.py...
+Applied patch tests/model_fields/test_decimalfield.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 model_fields.test_decimalfield
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+test_default (model_fields.test_decimalfield.DecimalFieldTests) ... ok
+test_fetch_from_db_without_float_rounding (model_fields.test_decimalfield.DecimalFieldTests) ... skipped 'SQLite stores values rounded to 15 significant digits.'
+test_filter_with_strings (model_fields.test_decimalfield.DecimalFieldTests) ... ok
+test_get_prep_value (model_fields.test_decimalfield.DecimalFieldTests) ... ok
+test_invalid_value (model_fields.test_decimalfield.DecimalFieldTests) ... test_lookup_really_big_value (model_fields.test_decimalfield.DecimalFieldTests) ... ok
+test_max_decimal_places_validation (model_fields.test_decimalfield.DecimalFieldTests) ... ok
+test_max_digits_validation (model_fields.test_decimalfield.DecimalFieldTests) ... ok
+test_max_whole_digits_validation (model_fields.test_decimalfield.DecimalFieldTests) ... ok
+test_roundtrip_with_trailing_zeros (model_fields.test_decimalfield.DecimalFieldTests)
+Trailing zeros in the fractional part aren't truncated. ... ok
+test_save_without_float_conversion (model_fields.test_decimalfield.DecimalFieldTests) ... ok
+test_to_python (model_fields.test_decimalfield.DecimalFieldTests) ... ok
+
+======================================================================
+ERROR: test_invalid_value (model_fields.test_decimalfield.DecimalFieldTests) [()]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/model_fields/test_decimalfield.py", line 41, in test_invalid_value
+    field.clean(value, None)
+  File "/testbed/django/db/models/fields/__init__.py", line 650, in clean
+    value = self.to_python(value)
+  File "/testbed/django/db/models/fields/__init__.py", line 1503, in to_python
+    return decimal.Decimal(value)
+ValueError: argument must be a sequence of length 3
+
+======================================================================
+ERROR: test_invalid_value (model_fields.test_decimalfield.DecimalFieldTests) [[]]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/model_fields/test_decimalfield.py", line 41, in test_invalid_value
+    field.clean(value, None)
+  File "/testbed/django/db/models/fields/__init__.py", line 650, in clean
+    value = self.to_python(value)
+  File "/testbed/django/db/models/fields/__init__.py", line 1503, in to_python
+    return decimal.Decimal(value)
+ValueError: argument must be a sequence of length 3
+
+======================================================================
+ERROR: test_invalid_value (model_fields.test_decimalfield.DecimalFieldTests) [{}]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/model_fields/test_decimalfield.py", line 41, in test_invalid_value
+    field.clean(value, None)
+  File "/testbed/django/db/models/fields/__init__.py", line 650, in clean
+    value = self.to_python(value)
+  File "/testbed/django/db/models/fields/__init__.py", line 1503, in to_python
+    return decimal.Decimal(value)
+TypeError: conversion from dict to Decimal is not supported
+
+======================================================================
+ERROR: test_invalid_value (model_fields.test_decimalfield.DecimalFieldTests) [set()]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/model_fields/test_decimalfield.py", line 41, in test_invalid_value
+    field.clean(value, None)
+  File "/testbed/django/db/models/fields/__init__.py", line 650, in clean
+    value = self.to_python(value)
+  File "/testbed/django/db/models/fields/__init__.py", line 1503, in to_python
+    return decimal.Decimal(value)
+TypeError: conversion from set to Decimal is not supported
+
+======================================================================
+ERROR: test_invalid_value (model_fields.test_decimalfield.DecimalFieldTests) [<object object at 0x7ff59ed9ac30>]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/model_fields/test_decimalfield.py", line 41, in test_invalid_value
+    field.clean(value, None)
+  File "/testbed/django/db/models/fields/__init__.py", line 650, in clean
+    value = self.to_python(value)
+  File "/testbed/django/db/models/fields/__init__.py", line 1503, in to_python
+    return decimal.Decimal(value)
+TypeError: conversion from object to Decimal is not supported
+
+======================================================================
+ERROR: test_invalid_value (model_fields.test_decimalfield.DecimalFieldTests) [0j]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/model_fields/test_decimalfield.py", line 41, in test_invalid_value
+    field.clean(value, None)
+  File "/testbed/django/db/models/fields/__init__.py", line 650, in clean
+    value = self.to_python(value)
+  File "/testbed/django/db/models/fields/__init__.py", line 1503, in to_python
+    return decimal.Decimal(value)
+TypeError: conversion from complex to Decimal is not supported
+
+======================================================================
+ERROR: test_invalid_value (model_fields.test_decimalfield.DecimalFieldTests) [b'non-numeric byte-string']
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/model_fields/test_decimalfield.py", line 41, in test_invalid_value
+    field.clean(value, None)
+  File "/testbed/django/db/models/fields/__init__.py", line 650, in clean
+    value = self.to_python(value)
+  File "/testbed/django/db/models/fields/__init__.py", line 1503, in to_python
+    return decimal.Decimal(value)
+TypeError: conversion from bytes to Decimal is not supported
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.024s
+
+FAILED (errors=7, skipped=1)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application model_fields
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, model_fields, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table model_fields_foo
+    Creating table model_fields_bar
+    Creating table model_fields_whiz
+    Creating table model_fields_whizdelayed
+    Creating table model_fields_whiziter
+    Creating table model_fields_whiziterempty
+    Creating table model_fields_choiceful
+    Creating table model_fields_bigd
+    Creating table model_fields_floatmodel
+    Creating table model_fields_bigs
+    Creating table model_fields_unicodeslugfield
+    Creating table model_fields_automodel
+    Creating table model_fields_bigautomodel
+    Creating table model_fields_smallautomodel
+    Creating table model_fields_smallintegermodel
+    Creating table model_fields_integermodel
+    Creating table model_fields_bigintegermodel
+    Creating table model_fields_positivebigintegermodel
+    Creating table model_fields_positivesmallintegermodel
+    Creating table model_fields_positiveintegermodel
+    Creating table model_fields_post
+    Creating table model_fields_nullbooleanmodel
+    Creating table model_fields_booleanmodel
+    Creating table model_fields_datetimemodel
+    Creating table model_fields_durationmodel
+    Creating table model_fields_nulldurationmodel
+    Creating table model_fields_primarykeycharmodel
+    Creating table model_fields_fkstobooleans
+    Creating table model_fields_fktochar
+    Creating table model_fields_renamedfield
+    Creating table model_fields_verbosenamefield
+    Creating table model_fields_genericipaddress
+    Creating table model_fields_decimallessthanone
+    Creating table model_fields_fieldclassattributemodel
+    Creating table model_fields_datamodel
+    Creating table model_fields_document
+    Creating table model_fields_person
+    Creating table model_fields_personwithheight
+    Creating table model_fields_personwithheightandwidth
+    Creating table model_fields_persondimensionsfirst
+    Creating table model_fields_persontwoimages
+    Creating table model_fields_jsonmodel
+    Creating table model_fields_nullablejsonmodel
+    Creating table model_fields_allfieldsmodel
+    Creating table model_fields_manytomany
+    Creating table model_fields_uuidmodel
+    Creating table model_fields_nullableuuidmodel
+    Creating table model_fields_primarykeyuuidmodel
+    Creating table model_fields_relatedtouuidmodel
+    Creating table model_fields_uuidchild
+    Creating table model_fields_uuidgrandchild
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (3 silenced).
++ git checkout f83b44075dafa429d59e8755aa47e15577cc49f9 tests/model_fields/test_decimalfield.py
+Updated 1 path from 71191d9568

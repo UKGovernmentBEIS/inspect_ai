@@ -1,0 +1,51 @@
+
+diff --git a/django/forms/boundfield.py b/django/forms/boundfield.py
+index 2ff8b0ee26..7fb73cc47f 100644
+--- a/django/forms/boundfield.py
++++ b/django/forms/boundfield.py
+@@ -277,7 +277,7 @@ class BoundWidget:
+ 
+     @property
+     def id_for_label(self):
+-        return 'id_%s_%s' % (self.data['name'], self.data['index'])
++        return self.data['attrs'].get('id') or 'id_%s_%s' % (self.data['name'], self.data['index'])
+ 
+     @property
+     def choice_label(self):
+diff --git a/run_tests.py b/run_tests.py
+new file mode 100644
+index 0000000000..108ac5f9b1
+--- /dev/null
++++ b/run_tests.py
+@@ -0,0 +1,8 @@
++import os
++import django
++from django.core.management import call_command
++
++if __name__ == "__main__":
++    os.environ['DJANGO_SETTINGS_MODULE'] = 'tests.test_sqlite'
++    django.setup()
++    call_command('test', 'tests.forms_tests.widget_tests.test_bound_widget', verbosity=2)
+diff --git a/tests/forms_tests/widget_tests/test_bound_widget.py b/tests/forms_tests/widget_tests/test_bound_widget.py
+new file mode 100644
+index 0000000000..0700fc7cf1
+--- /dev/null
++++ b/tests/forms_tests/widget_tests/test_bound_widget.py
+@@ -0,0 +1,17 @@
++from django.forms import TextInput
++from django.forms.boundfield import BoundWidget
++from django.forms.renderers import DjangoTemplates
++from django.test import SimpleTestCase
++
++class TestBoundWidget(SimpleTestCase):
++    def test_id_for_label(self):
++        widget = TextInput()
++        renderer = DjangoTemplates()
++        
++        # Test when id is provided in attrs
++        bound_widget = BoundWidget(widget, {'name': 'test', 'value': 'value', 'attrs': {'id': 'custom_id'}, 'index': 0}, renderer)
++        self.assertEqual(bound_widget.id_for_label, 'custom_id')
++        
++        # Test when id is not provided in attrs
++        bound_widget = BoundWidget(widget, {'name': 'test', 'value': 'value', 'attrs': {}, 'index': 0}, renderer)
++        self.assertEqual(bound_widget.id_for_label, 'id_test_0')

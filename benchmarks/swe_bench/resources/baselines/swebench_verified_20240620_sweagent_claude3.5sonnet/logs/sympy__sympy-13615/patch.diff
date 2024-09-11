@@ -1,0 +1,47 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..a3a6cf9284
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,11 @@
++from sympy import FiniteSet, Interval, Complement, symbols, init_printing
++
++init_printing()
++
++x, y = symbols('x y')
++a = FiniteSet(x, y, 2)
++b = Interval(-10, 10)
++result = Complement(a, b)
++print(f"Result: {result}")
++print(f"Expected: {{x, y}} \\ [-10, 10]")
++print("Script completed successfully, no errors.")
+diff --git a/sympy/sets/sets.py b/sympy/sets/sets.py
+index 917717bb74..8cec7d8e15 100644
+--- a/sympy/sets/sets.py
++++ b/sympy/sets/sets.py
+@@ -1717,7 +1717,6 @@ def __new__(cls, a, b, evaluate=True):
+     def reduce(A, B):
+         """
+         Simplify a :class:`Complement`.
+-
+         """
+         if B == S.UniversalSet or A.is_subset(B):
+             return EmptySet()
+@@ -1725,6 +1724,16 @@ def reduce(A, B):
+         if isinstance(B, Union):
+             return Intersection(s.complement(A) for s in B.args)
+ 
++        if isinstance(A, FiniteSet):
++            # Handle the case where A contains both symbols and numbers
++            symbols = [elem for elem in A.args if elem.is_Symbol]
++            numbers = [elem for elem in A.args if not elem.is_Symbol]
++            
++            if symbols and numbers:
++                number_set = FiniteSet(*numbers)
++                symbol_set = FiniteSet(*symbols)
++                return Union(Complement(symbol_set, B), number_set - B)
++
+         result = B._complement(A)
+         if result != None:
+             return result

@@ -1,0 +1,1473 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/migrations/optimizer.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test_optimizer.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
++ git diff f9fe062de5fc0896d6bbbf3f260b5c44473b3c77
+commit f9fe062de5fc0896d6bbbf3f260b5c44473b3c77
+Author: Adam Johnson <me@adamj.eu>
+Date:   Tue Apr 14 13:53:42 2020 +0100
+
+    Doc'd that Meta.indexes is preferred to Field.db_index.
+
+diff --git a/docs/ref/models/fields.txt b/docs/ref/models/fields.txt
+index 81f3013892..c449a1381c 100644
+--- a/docs/ref/models/fields.txt
++++ b/docs/ref/models/fields.txt
+@@ -351,6 +351,13 @@ looking at your Django code. For example::
+ 
+ If ``True``, a database index will be created for this field.
+ 
++.. admonition:: Use the :attr:`~Options.indexes` option instead.
++
++    Where possible, use the :attr:`Meta.indexes <Options.indexes>` option
++    instead. In nearly all cases, :attr:`~Options.indexes` provides more
++    functionality than ``db_index``. ``db_index`` may be deprecated in the
++    future.
++
+ ``db_tablespace``
+ -----------------
+ 
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
+diff --git a/django/db/migrations/optimizer.py b/django/db/migrations/optimizer.py
+index 7e5dea2377..dd981e7fef 100644
+--- a/django/db/migrations/optimizer.py
++++ b/django/db/migrations/optimizer.py
+@@ -1,3 +1,5 @@
++from django.db.migrations.operations.fields import AlterField
++
+ class MigrationOptimizer:
+     """
+     Power the optimization process, where you provide a list of Operations
+@@ -38,32 +40,31 @@ class MigrationOptimizer:
+             operations = result
+ 
+     def optimize_inner(self, operations, app_label):
+-        """Inner optimization loop."""
++        """
++        Inner optimization loop.
++        
++        This method now optimizes consecutive AlterField operations on the same model and field
++        by merging them into a single operation with all the latest field attributes.
++        """
+         new_operations = []
+-        for i, operation in enumerate(operations):
+-            right = True  # Should we reduce on the right or on the left.
+-            # Compare it to each operation after it
+-            for j, other in enumerate(operations[i + 1 :]):
+-                result = operation.reduce(other, app_label)
+-                if isinstance(result, list):
+-                    in_between = operations[i + 1 : i + j + 1]
+-                    if right:
+-                        new_operations.extend(in_between)
+-                        new_operations.extend(result)
+-                    elif all(op.reduce(other, app_label) is True for op in in_between):
+-                        # Perform a left reduction if all of the in-between
+-                        # operations can optimize through other.
+-                        new_operations.extend(result)
+-                        new_operations.extend(in_between)
+-                    else:
+-                        # Otherwise keep trying.
+-                        new_operations.append(operation)
+-                        break
+-                    new_operations.extend(operations[i + j + 2 :])
+-                    return new_operations
+-                elif not result:
+-                    # Can't perform a right reduction.
+-                    right = False
++        i = 0
++        while i < len(operations):
++            operation = operations[i]
++            if isinstance(operation, AlterField):
++                # Look ahead for consecutive AlterField operations on the same model and field
++                j = i + 1
++                while j < len(operations) and isinstance(operations[j], AlterField) and \
++                      operations[j].model_name == operation.model_name and \
++                      operations[j].name == operation.name:
++                    # Merge the field attributes, keeping the latest values
++                    new_attrs = operation.field.deconstruct()[3].copy()
++                    new_attrs.update(operations[j].field.deconstruct()[3])
++                    operation.field = type(operation.field)(**new_attrs)
++                    j += 1
++                new_operations.append(operation)
++                i = j  # Skip the merged operations
+             else:
+                 new_operations.append(operation)
++                i += 1
++
+         return new_operations
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.6.0 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from Django==5.0.dev20230224080859) (3.8.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from Django==5.0.dev20230224080859) (0.5.1)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-5.0.dev20230224080859-0.editable-py3-none-any.whl size=27363 sha256=1dd524dcc6f99ccce14f97af1816c05723f12e7d62e16da5705fd3840be477f5
+  Stored in directory: /tmp/pip-ephem-wheel-cache-je7fzbvx/wheels/49/5f/4f/01b7d31ea6ddac9643da788242d33e5fd3467d95d17b032c6b
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 5.0.dev20230224080859
+    Uninstalling Django-5.0.dev20230224080859:
+      Successfully uninstalled Django-5.0.dev20230224080859
+Successfully installed Django-5.0.dev20230224080859
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout f9fe062de5fc0896d6bbbf3f260b5c44473b3c77 tests/migrations/test_optimizer.py
+Updated 0 paths from cff96c32c0
++ git apply -v -
+Checking patch tests/migrations/test_optimizer.py...
+Applied patch tests/migrations/test_optimizer.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 migrations.test_optimizer
+Testing against Django installed in '/testbed/django'
+Importing application migrations
+Found 38 test(s).
+Skipping setup of unused database(s): default, other.
+System check identified no issues (0 silenced).
+test_add_field_alter_field (migrations.test_optimizer.OptimizerTests.test_add_field_alter_field)
+AlterField should optimize into AddField. ... FAIL
+test_add_field_delete_field (migrations.test_optimizer.OptimizerTests.test_add_field_delete_field)
+RemoveField should cancel AddField ... FAIL
+test_add_field_rename_field (migrations.test_optimizer.OptimizerTests.test_add_field_rename_field)
+RenameField should optimize into AddField ... FAIL
+test_alter_alter_field (migrations.test_optimizer.OptimizerTests.test_alter_alter_field) ... ok
+test_alter_alter_index_model (migrations.test_optimizer.OptimizerTests.test_alter_alter_index_model) ... FAIL
+test_alter_alter_owrt_model (migrations.test_optimizer.OptimizerTests.test_alter_alter_owrt_model) ... FAIL
+test_alter_alter_table_model (migrations.test_optimizer.OptimizerTests.test_alter_alter_table_model) ... FAIL
+test_alter_alter_unique_model (migrations.test_optimizer.OptimizerTests.test_alter_alter_unique_model) ... FAIL
+test_alter_field_delete_field (migrations.test_optimizer.OptimizerTests.test_alter_field_delete_field)
+RemoveField should absorb AlterField ... FAIL
+test_alter_field_rename_field (migrations.test_optimizer.OptimizerTests.test_alter_field_rename_field)
+RenameField should optimize to the other side of AlterField, ... FAIL
+test_create_alter_index_delete_model (migrations.test_optimizer.OptimizerTests.test_create_alter_index_delete_model) ... FAIL
+test_create_alter_index_field (migrations.test_optimizer.OptimizerTests.test_create_alter_index_field) ... FAIL
+test_create_alter_model_managers (migrations.test_optimizer.OptimizerTests.test_create_alter_model_managers) ... FAIL
+test_create_alter_model_options (migrations.test_optimizer.OptimizerTests.test_create_alter_model_options) ... FAIL
+test_create_alter_owrt_delete_model (migrations.test_optimizer.OptimizerTests.test_create_alter_owrt_delete_model) ... FAIL
+test_create_alter_owrt_field (migrations.test_optimizer.OptimizerTests.test_create_alter_owrt_field) ... FAIL
+test_create_alter_unique_delete_model (migrations.test_optimizer.OptimizerTests.test_create_alter_unique_delete_model) ... FAIL
+test_create_alter_unique_field (migrations.test_optimizer.OptimizerTests.test_create_alter_unique_field) ... FAIL
+test_create_delete_model (migrations.test_optimizer.OptimizerTests.test_create_delete_model)
+CreateModel and DeleteModel should collapse into nothing. ... FAIL
+test_create_model_add_field (migrations.test_optimizer.OptimizerTests.test_create_model_add_field)
+AddField should optimize into CreateModel. ... FAIL
+test_create_model_add_field_not_through_m2m_through (migrations.test_optimizer.OptimizerTests.test_create_model_add_field_not_through_m2m_through)
+AddField should NOT optimize into CreateModel if it's an M2M using a ... ok
+test_create_model_alter_field (migrations.test_optimizer.OptimizerTests.test_create_model_alter_field)
+AlterField should optimize into CreateModel. ... FAIL
+test_create_model_and_remove_model_options (migrations.test_optimizer.OptimizerTests.test_create_model_and_remove_model_options) ... FAIL
+test_create_model_no_reordering_for_unrelated_fk (migrations.test_optimizer.OptimizerTests.test_create_model_no_reordering_for_unrelated_fk)
+CreateModel order remains unchanged if the later AddField operation ... ok
+test_create_model_no_reordering_of_inherited_model (migrations.test_optimizer.OptimizerTests.test_create_model_no_reordering_of_inherited_model)
+A CreateModel that inherits from another isn't reordered to avoid ... FAIL
+test_create_model_remove_field (migrations.test_optimizer.OptimizerTests.test_create_model_remove_field)
+RemoveField should optimize into CreateModel. ... FAIL
+test_create_model_rename_field (migrations.test_optimizer.OptimizerTests.test_create_model_rename_field)
+RenameField should optimize into CreateModel. ... FAIL
+test_create_model_reordering (migrations.test_optimizer.OptimizerTests.test_create_model_reordering)
+AddField optimizes into CreateModel if it's a FK to a model that's ... FAIL
+test_create_model_reordering_circular_fk (migrations.test_optimizer.OptimizerTests.test_create_model_reordering_circular_fk)
+CreateModel reordering behavior doesn't result in an infinite loop if ... FAIL
+test_create_rename_model (migrations.test_optimizer.OptimizerTests.test_create_rename_model)
+CreateModel should absorb RenameModels. ... FAIL
+test_none_app_label (migrations.test_optimizer.OptimizerTests.test_none_app_label) ... ok
+test_optimize_elidable_operation (migrations.test_optimizer.OptimizerTests.test_optimize_elidable_operation) ... FAIL
+test_optimize_through_create (migrations.test_optimizer.OptimizerTests.test_optimize_through_create)
+We should be able to optimize away create/delete through a create or ... FAIL
+test_optimize_through_fields (migrations.test_optimizer.OptimizerTests.test_optimize_through_fields)
+field-level through checking is working. This should manage to collapse ... FAIL
+test_rename_index (migrations.test_optimizer.OptimizerTests.test_rename_index) ... FAIL
+test_rename_model_self (migrations.test_optimizer.OptimizerTests.test_rename_model_self)
+RenameModels should absorb themselves. ... FAIL
+test_single (migrations.test_optimizer.OptimizerTests.test_single)
+The optimizer does nothing on a single operation, ... ok
+test_swapping_fields_names (migrations.test_optimizer.OptimizerTests.test_swapping_fields_names) ... ok
+
+======================================================================
+FAIL: test_add_field_alter_field (migrations.test_optimizer.OptimizerTests.test_add_field_alter_field)
+AlterField should optimize into AddField.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 793, in test_add_field_alter_field
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[71 chars]dels.FloatField(default=2.4),\n)"] != ["mig[71 chars]dels.IntegerField(),\n)", "migrations.AlterFie[86 chars]\n)"]
+
+First differing element 0:
+"migr[40 chars]n    name='age',\n    field=models.FloatField(default=2.4),\n)"
+"migr[40 chars]n    name='age',\n    field=models.IntegerField(),\n)"
+
+Second list contains 1 additional elements.
+First extra element 1:
+"migrations.AlterField(\n    model_name='Foo',\n    name='age',\n    field=models.FloatField(default=2.4),\n)"
+
+  ['migrations.AddField(\n'
++  "    model_name='Foo',\n"
++  "    name='age',\n"
++  '    field=models.IntegerField(),\n'
++  ')',
++  'migrations.AlterField(\n'
+   "    model_name='Foo',\n"
+   "    name='age',\n"
+   '    field=models.FloatField(default=2.4),\n'
+   ')']
+
+======================================================================
+FAIL: test_add_field_delete_field (migrations.test_optimizer.OptimizerTests.test_add_field_delete_field)
+RemoveField should cancel AddField
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 809, in test_add_field_delete_field
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: [] != ["migrations.AddField(\n    model_name='Fo[124 chars]\n)"]
+
+Second list contains 2 additional elements.
+First extra element 0:
+"migrations.AddField(\n    model_name='Foo',\n    name='age',\n    field=models.IntegerField(),\n)"
+
+- []
++ ['migrations.AddField(\n'
++  "    model_name='Foo',\n"
++  "    name='age',\n"
++  '    field=models.IntegerField(),\n'
++  ')',
++  "migrations.RemoveField(\n    model_name='Foo',\n    name='age',\n)"]
+
+======================================================================
+FAIL: test_add_field_rename_field (migrations.test_optimizer.OptimizerTests.test_add_field_rename_field)
+RenameField should optimize into AddField
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 713, in test_add_field_rename_field
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[47 chars]ame='title',\n    field=models.CharField(max_length=255),\n)"] != ["mig[47 chars]ame='name',\n    field=models.CharField(max_le[108 chars]\n)"]
+
+First differing element 0:
+"migr[44 chars] name='title',\n    field=models.CharField(max_length=255),\n)"
+"migr[44 chars] name='name',\n    field=models.CharField(max_length=255),\n)"
+
+Second list contains 1 additional elements.
+First extra element 1:
+"migrations.RenameField(\n    model_name='Foo',\n    old_name='name',\n    new_name='title',\n)"
+
+  ['migrations.AddField(\n'
+   "    model_name='Foo',\n"
+-  "    name='title',\n"
+?             ^^^^
+
++  "    name='name',\n"
+?             ^^^
+
+   '    field=models.CharField(max_length=255),\n'
++  ')',
++  'migrations.RenameField(\n'
++  "    model_name='Foo',\n"
++  "    old_name='name',\n"
++  "    new_name='title',\n"
+   ')']
+
+======================================================================
+FAIL: test_alter_alter_index_model (migrations.test_optimizer.OptimizerTests.test_alter_alter_index_model)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 252, in test_alter_alter_index_model
+    self._test_alter_alter(
+  File "/testbed/tests/migrations/test_optimizer.py", line 229, in _test_alter_alter
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[68 chars]a', 'c')},\n)"] != ["mig[68 chars]a', 'b')},\n)", "migrations.AlterIndexTogether[52 chars]\n)"]
+
+First differing element 0:
+"migr[18 chars]ogether(\n    name='Foo',\n    index_together={('a', 'c')},\n)"
+"migr[18 chars]ogether(\n    name='Foo',\n    index_together={('a', 'b')},\n)"
+
+Second list contains 1 additional elements.
+First extra element 1:
+"migrations.AlterIndexTogether(\n    name='Foo',\n    index_together={('a', 'c')},\n)"
+
+  ['migrations.AlterIndexTogether(\n'
++  "    name='Foo',\n"
++  "    index_together={('a', 'b')},\n"
++  ')',
++  'migrations.AlterIndexTogether(\n'
+   "    name='Foo',\n"
+   "    index_together={('a', 'c')},\n"
+   ')']
+
+======================================================================
+FAIL: test_alter_alter_owrt_model (migrations.test_optimizer.OptimizerTests.test_alter_alter_owrt_model)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 258, in test_alter_alter_owrt_model
+    self._test_alter_alter(
+  File "/testbed/tests/migrations/test_optimizer.py", line 229, in _test_alter_alter
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[73 chars]_to='b',\n)"] != ["mig[73 chars]_to='a',\n)", "migrations.AlterOrderWithRespec[53 chars]\n)"]
+
+First differing element 0:
+"migr[21 chars]RespectTo(\n    name='Foo',\n    order_with_respect_to='b',\n)"
+"migr[21 chars]RespectTo(\n    name='Foo',\n    order_with_respect_to='a',\n)"
+
+Second list contains 1 additional elements.
+First extra element 1:
+"migrations.AlterOrderWithRespectTo(\n    name='Foo',\n    order_with_respect_to='b',\n)"
+
+  ['migrations.AlterOrderWithRespectTo(\n'
++  "    name='Foo',\n"
++  "    order_with_respect_to='a',\n"
++  ')',
++  'migrations.AlterOrderWithRespectTo(\n'
+   "    name='Foo',\n"
+   "    order_with_respect_to='b',\n"
+   ')']
+
+======================================================================
+FAIL: test_alter_alter_table_model (migrations.test_optimizer.OptimizerTests.test_alter_alter_table_model)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 240, in test_alter_alter_table_model
+    self._test_alter_alter(
+  File "/testbed/tests/migrations/test_optimizer.py", line 229, in _test_alter_alter
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[49 chars]ble='b',\n)"] != ["mig[49 chars]ble='a',\n)", "migrations.AlterModelTable(\n  [29 chars]\n)"]
+
+First differing element 0:
+"migrations.AlterModelTable(\n    name='Foo',\n    table='b',\n)"
+"migrations.AlterModelTable(\n    name='Foo',\n    table='a',\n)"
+
+Second list contains 1 additional elements.
+First extra element 1:
+"migrations.AlterModelTable(\n    name='Foo',\n    table='b',\n)"
+
++ ["migrations.AlterModelTable(\n    name='Foo',\n    table='a',\n)",
+- ["migrations.AlterModelTable(\n    name='Foo',\n    table='b',\n)"]
+? ^
+
++  "migrations.AlterModelTable(\n    name='Foo',\n    table='b',\n)"]
+? ^
+
+
+======================================================================
+FAIL: test_alter_alter_unique_model (migrations.test_optimizer.OptimizerTests.test_alter_alter_unique_model)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 246, in test_alter_alter_unique_model
+    self._test_alter_alter(
+  File "/testbed/tests/migrations/test_optimizer.py", line 229, in _test_alter_alter
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[70 chars]a', 'c')},\n)"] != ["mig[70 chars]a', 'b')},\n)", "migrations.AlterUniqueTogethe[54 chars]\n)"]
+
+First differing element 0:
+"migr[20 chars]gether(\n    name='Foo',\n    unique_together={('a', 'c')},\n)"
+"migr[20 chars]gether(\n    name='Foo',\n    unique_together={('a', 'b')},\n)"
+
+Second list contains 1 additional elements.
+First extra element 1:
+"migrations.AlterUniqueTogether(\n    name='Foo',\n    unique_together={('a', 'c')},\n)"
+
+  ['migrations.AlterUniqueTogether(\n'
++  "    name='Foo',\n"
++  "    unique_together={('a', 'b')},\n"
++  ')',
++  'migrations.AlterUniqueTogether(\n'
+   "    name='Foo',\n"
+   "    unique_together={('a', 'c')},\n"
+   ')']
+
+======================================================================
+FAIL: test_alter_field_delete_field (migrations.test_optimizer.OptimizerTests.test_alter_field_delete_field)
+RemoveField should absorb AlterField
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 821, in test_alter_field_delete_field
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["migrations.RemoveField(\n    model_name='Foo',\n    name='age',\n)"] != ["migrations.AlterField(\n    model_name='Foo',\n    n[114 chars]\n)"]
+
+First differing element 0:
+"migrations.RemoveField(\n    model_name='Foo',\n    name='age',\n)"
+"migrations.AlterField(\n    model_name='Foo',\n    n[43 chars],\n)"
+
+Second list contains 1 additional elements.
+First extra element 1:
+"migrations.RemoveField(\n    model_name='Foo',\n    name='age',\n)"
+
++ ['migrations.AlterField(\n'
++  "    model_name='Foo',\n"
++  "    name='age',\n"
++  '    field=models.IntegerField(),\n'
++  ')',
+- ["migrations.RemoveField(\n    model_name='Foo',\n    name='age',\n)"]
+? ^
+
++  "migrations.RemoveField(\n    model_name='Foo',\n    name='age',\n)"]
+? ^
+
+
+======================================================================
+FAIL: test_alter_field_rename_field (migrations.test_optimizer.OptimizerTests.test_alter_field_rename_field)
+RenameField should optimize to the other side of AlterField,
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 728, in test_alter_field_rename_field
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["migrations.RenameField(\n    model_name='Foo',\n    [151 chars]\n)"] != ["migrations.AlterField(\n    model_name='Foo',\n    n[251 chars]\n)"]
+
+First differing element 0:
+"migrations.RenameField(\n    model_name='Foo',\n    [36 chars],\n)"
+"migrations.AlterField(\n    model_name='Foo',\n    n[55 chars],\n)"
+
+Second list contains 1 additional elements.
+First extra element 2:
+"migrations.RenameField(\n    model_name='Foo',\n    old_name='title',\n    new_name='nom',\n)"
+
++ ['migrations.AlterField(\n'
++  "    model_name='Foo',\n"
++  "    name='name',\n"
++  '    field=models.CharField(max_length=255),\n'
++  ')',
+- ['migrations.RenameField(\n'
+? ^
+
++  'migrations.RenameField(\n'
+? ^
+
+   "    model_name='Foo',\n"
+   "    old_name='name',\n"
++  "    new_name='title',\n"
++  ')',
++  'migrations.RenameField(\n'
++  "    model_name='Foo',\n"
++  "    old_name='title',\n"
+   "    new_name='nom',\n"
+-  ')',
+-  'migrations.AlterField(\n'
+-  "    model_name='Foo',\n"
+-  "    name='nom',\n"
+-  '    field=models.CharField(max_length=255),\n'
+   ')']
+
+======================================================================
+FAIL: test_create_alter_index_delete_model (migrations.test_optimizer.OptimizerTests.test_create_alter_index_delete_model)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 215, in test_create_alter_index_delete_model
+    self._test_create_alter_foo_delete_model(
+  File "/testbed/tests/migrations/test_optimizer.py", line 197, in _test_create_alter_foo_delete_model
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: [] != ["migrations.CreateModel(\n    name='Foo',[282 chars]\n)"]
+
+Second list contains 4 additional elements.
+First extra element 0:
+"migrations.CreateModel(\n    name='Foo',\n    fields=[\n        ('name', models.CharField(max_length=255)),\n    ],\n)"
+
+- []
++ ['migrations.CreateModel(\n'
++  "    name='Foo',\n"
++  '    fields=[\n'
++  "        ('name', models.CharField(max_length=255)),\n"
++  '    ],\n'
++  ')',
++  "migrations.AlterModelTable(\n    name='Foo',\n    table='woohoo',\n)",
++  'migrations.AlterIndexTogether(\n'
++  "    name='Foo',\n"
++  "    index_together={('a', 'b')},\n"
++  ')',
++  "migrations.DeleteModel(\n    name='Foo',\n)"]
+
+======================================================================
+FAIL: test_create_alter_index_field (migrations.test_optimizer.OptimizerTests.test_create_alter_index_field)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 1065, in test_create_alter_index_field
+    self._test_create_alter_foo_field(
+  File "/testbed/tests/migrations/test_optimizer.py", line 840, in _test_create_alter_foo_field
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[130 chars]n        ('c', models.IntegerField()),\n    ],[64 chars]\n)"] != ["mig[130 chars]n    ],\n)", "migrations.AlterIndexTogether(\n[148 chars]\n)"]
+
+First differing element 0:
+"migr[129 chars]n        ('c', models.IntegerField()),\n    ],[63 chars],\n)"
+"migr[129 chars]n    ],\n)"
+
+Second list contains 2 additional elements.
+First extra element 1:
+"migrations.AlterIndexTogether(\n    name='Foo',\n    index_together={('a', 'b')},\n)"
+
+  ['migrations.CreateModel(\n'
+   "    name='Foo',\n"
+   '    fields=[\n'
+   "        ('a', models.IntegerField()),\n"
+   "        ('b', models.IntegerField()),\n"
+-  "        ('c', models.IntegerField()),\n"
+   '    ],\n'
+-  '    options={\n'
++  ')',
++  'migrations.AlterIndexTogether(\n'
++  "    name='Foo',\n"
+-  "        'index_together': {('a', 'b')},\n"
+?       -----              ^^^
+
++  "    index_together={('a', 'b')},\n"
+?                     ^
+
+-  '    },\n'
++  ')',
++  'migrations.AddField(\n'
++  "    model_name='Foo',\n"
++  "    name='c',\n"
++  '    field=models.IntegerField(),\n'
+   ')']
+
+======================================================================
+FAIL: test_create_alter_model_managers (migrations.test_optimizer.OptimizerTests.test_create_alter_model_managers)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 133, in test_create_alter_model_managers
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[56 chars] ],\n    managers=[\n        ('objects', djang[96 chars]\n)"] != ["mig[56 chars] ],\n)", "migrations.AlterModelManagers(\n    [150 chars]\n)"]
+
+First differing element 0:
+"migr[55 chars] ],\n    managers=[\n        ('objects', djang[95 chars],\n)"
+"migr[55 chars] ],\n)"
+
+Second list contains 1 additional elements.
+First extra element 1:
+"migrations.AlterModelManagers(\n    name='Foo',\n    managers=[\n        ('objects', django.db.models.manager.Manager()),\n        ('things', django.db.models.manager.Manager()),\n    ],\n)"
+
+- ['migrations.CreateModel(\n'
++ ["migrations.CreateModel(\n    name='Foo',\n    fields=[\n    ],\n)",
++  'migrations.AlterModelManagers(\n'
+   "    name='Foo',\n"
+-  '    fields=[\n'
+-  '    ],\n'
+   '    managers=[\n'
+   "        ('objects', django.db.models.manager.Manager()),\n"
+   "        ('things', django.db.models.manager.Manager()),\n"
+   '    ],\n'
+   ')']
+
+======================================================================
+FAIL: test_create_alter_model_options (migrations.test_optimizer.OptimizerTests.test_create_alter_model_options)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 118, in test_create_alter_model_options
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[56 chars] ],\n    options={\n        'verbose_name_plur[22 chars]\n)"] != ["mig[56 chars] ],\n)", "migrations.AlterModelOptions(\n    n[58 chars]\n)"]
+
+First differing element 0:
+"migr[55 chars] ],\n    options={\n        'verbose_name_plur[21 chars],\n)"
+"migr[55 chars] ],\n)"
+
+Second list contains 1 additional elements.
+First extra element 1:
+"migrations.AlterModelOptions(\n    name='Foo',\n    options={'verbose_name_plural': 'Foozes'},\n)"
+
+- ['migrations.CreateModel(\n'
++ ["migrations.CreateModel(\n    name='Foo',\n    fields=[\n    ],\n)",
++  'migrations.AlterModelOptions(\n'
+   "    name='Foo',\n"
+-  '    fields=[\n'
+-  '    ],\n'
+-  '    options={\n'
+-  "        'verbose_name_plural': 'Foozes',\n"
+?       ^^^^
+
++  "    options={'verbose_name_plural': 'Foozes'},\n"
+?       ^^^^^^^^^                               +
+
+-  '    },\n'
+   ')']
+
+======================================================================
+FAIL: test_create_alter_owrt_delete_model (migrations.test_optimizer.OptimizerTests.test_create_alter_owrt_delete_model)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 220, in test_create_alter_owrt_delete_model
+    self._test_create_alter_foo_delete_model(
+  File "/testbed/tests/migrations/test_optimizer.py", line 197, in _test_create_alter_foo_delete_model
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: [] != ["migrations.CreateModel(\n    name='Foo',[285 chars]\n)"]
+
+Second list contains 4 additional elements.
+First extra element 0:
+"migrations.CreateModel(\n    name='Foo',\n    fields=[\n        ('name', models.CharField(max_length=255)),\n    ],\n)"
+
+- []
++ ['migrations.CreateModel(\n'
++  "    name='Foo',\n"
++  '    fields=[\n'
++  "        ('name', models.CharField(max_length=255)),\n"
++  '    ],\n'
++  ')',
++  "migrations.AlterModelTable(\n    name='Foo',\n    table='woohoo',\n)",
++  'migrations.AlterOrderWithRespectTo(\n'
++  "    name='Foo',\n"
++  "    order_with_respect_to='a',\n"
++  ')',
++  "migrations.DeleteModel(\n    name='Foo',\n)"]
+
+======================================================================
+FAIL: test_create_alter_owrt_field (migrations.test_optimizer.OptimizerTests.test_create_alter_owrt_field)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 1070, in test_create_alter_owrt_field
+    self._test_create_alter_foo_field(
+  File "/testbed/tests/migrations/test_optimizer.py", line 840, in _test_create_alter_foo_field
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[130 chars]n        ('c', models.IntegerField()),\n    ],[62 chars]\n)"] != ["mig[130 chars]n    ],\n)", "migrations.AlterOrderWithRespect[151 chars]\n)"]
+
+First differing element 0:
+"migr[129 chars]n        ('c', models.IntegerField()),\n    ],[61 chars],\n)"
+"migr[129 chars]n    ],\n)"
+
+Second list contains 2 additional elements.
+First extra element 1:
+"migrations.AlterOrderWithRespectTo(\n    name='Foo',\n    order_with_respect_to='b',\n)"
+
+  ['migrations.CreateModel(\n'
+   "    name='Foo',\n"
+   '    fields=[\n'
+   "        ('a', models.IntegerField()),\n"
+   "        ('b', models.IntegerField()),\n"
+-  "        ('c', models.IntegerField()),\n"
+   '    ],\n'
+-  '    options={\n'
++  ')',
++  'migrations.AlterOrderWithRespectTo(\n'
++  "    name='Foo',\n"
+-  "        'order_with_respect_to': 'b',\n"
+?       -----                     ^^^
+
++  "    order_with_respect_to='b',\n"
+?                            ^
+
+-  '    },\n'
++  ')',
++  'migrations.AddField(\n'
++  "    model_name='Foo',\n"
++  "    name='c',\n"
++  '    field=models.IntegerField(),\n'
+   ')']
+
+======================================================================
+FAIL: test_create_alter_unique_delete_model (migrations.test_optimizer.OptimizerTests.test_create_alter_unique_delete_model)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 210, in test_create_alter_unique_delete_model
+    self._test_create_alter_foo_delete_model(
+  File "/testbed/tests/migrations/test_optimizer.py", line 197, in _test_create_alter_foo_delete_model
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: [] != ["migrations.CreateModel(\n    name='Foo',[284 chars]\n)"]
+
+Second list contains 4 additional elements.
+First extra element 0:
+"migrations.CreateModel(\n    name='Foo',\n    fields=[\n        ('name', models.CharField(max_length=255)),\n    ],\n)"
+
+- []
++ ['migrations.CreateModel(\n'
++  "    name='Foo',\n"
++  '    fields=[\n'
++  "        ('name', models.CharField(max_length=255)),\n"
++  '    ],\n'
++  ')',
++  "migrations.AlterModelTable(\n    name='Foo',\n    table='woohoo',\n)",
++  'migrations.AlterUniqueTogether(\n'
++  "    name='Foo',\n"
++  "    unique_together={('a', 'b')},\n"
++  ')',
++  "migrations.DeleteModel(\n    name='Foo',\n)"]
+
+======================================================================
+FAIL: test_create_alter_unique_field (migrations.test_optimizer.OptimizerTests.test_create_alter_unique_field)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 1060, in test_create_alter_unique_field
+    self._test_create_alter_foo_field(
+  File "/testbed/tests/migrations/test_optimizer.py", line 840, in _test_create_alter_foo_field
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[130 chars]n        ('c', models.IntegerField()),\n    ],[65 chars]\n)"] != ["mig[130 chars]n    ],\n)", "migrations.AlterUniqueTogether(\[150 chars]\n)"]
+
+First differing element 0:
+"migr[129 chars]n        ('c', models.IntegerField()),\n    ],[64 chars],\n)"
+"migr[129 chars]n    ],\n)"
+
+Second list contains 2 additional elements.
+First extra element 1:
+"migrations.AlterUniqueTogether(\n    name='Foo',\n    unique_together={('a', 'b')},\n)"
+
+  ['migrations.CreateModel(\n'
+   "    name='Foo',\n"
+   '    fields=[\n'
+   "        ('a', models.IntegerField()),\n"
+   "        ('b', models.IntegerField()),\n"
+-  "        ('c', models.IntegerField()),\n"
+   '    ],\n'
+-  '    options={\n'
++  ')',
++  'migrations.AlterUniqueTogether(\n'
++  "    name='Foo',\n"
+-  "        'unique_together': {('a', 'b')},\n"
+?       -----               ^^^
+
++  "    unique_together={('a', 'b')},\n"
+?                      ^
+
+-  '    },\n'
++  ')',
++  'migrations.AddField(\n'
++  "    model_name='Foo',\n"
++  "    name='c',\n"
++  '    field=models.IntegerField(),\n'
+   ')']
+
+======================================================================
+FAIL: test_create_delete_model (migrations.test_optimizer.OptimizerTests.test_create_delete_model)
+CreateModel and DeleteModel should collapse into nothing.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 66, in test_create_delete_model
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: [] != ["migrations.CreateModel(\n    name='Foo',[122 chars]\n)"]
+
+Second list contains 2 additional elements.
+First extra element 0:
+"migrations.CreateModel(\n    name='Foo',\n    fields=[\n        ('name', models.CharField(max_length=255)),\n    ],\n)"
+
+- []
++ ['migrations.CreateModel(\n'
++  "    name='Foo',\n"
++  '    fields=[\n'
++  "        ('name', models.CharField(max_length=255)),\n"
++  '    ],\n'
++  ')',
++  "migrations.DeleteModel(\n    name='Foo',\n)"]
+
+======================================================================
+FAIL: test_create_model_add_field (migrations.test_optimizer.OptimizerTests.test_create_model_add_field)
+AddField should optimize into CreateModel.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 465, in test_create_model_add_field
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[105 chars]n        ('age', models.IntegerField()),\n    [183 chars]\n)"] != ["mig[105 chars]n    ],\n    options={\n        'verbose_name'[243 chars]\n)"]
+
+First differing element 0:
+"migr[104 chars]n        ('age', models.IntegerField()),\n    [182 chars],\n)"
+"migr[104 chars]n    ],\n    options={\n        'verbose_name'[141 chars],\n)"
+
+Second list contains 1 additional elements.
+First extra element 1:
+"migrations.AddField(\n    model_name='Foo',\n    name='age',\n    field=models.IntegerField(),\n)"
+
+  ['migrations.CreateModel(\n'
+   "    name='Foo',\n"
+   '    fields=[\n'
+   "        ('name', models.CharField(max_length=255)),\n"
+-  "        ('age', models.IntegerField()),\n"
+   '    ],\n'
+   '    options={\n'
+   "        'verbose_name': 'Foo',\n"
+   '    },\n'
+   '    bases=(migrations.models.UnicodeModel,),\n'
+   '    managers=[\n'
+   "        ('objects', migrations.models.EmptyManager()),\n"
+   '    ],\n'
++  ')',
++  'migrations.AddField(\n'
++  "    model_name='Foo',\n"
++  "    name='age',\n"
++  '    field=models.IntegerField(),\n'
+   ')']
+
+======================================================================
+FAIL: test_create_model_alter_field (migrations.test_optimizer.OptimizerTests.test_create_model_alter_field)
+AlterField should optimize into CreateModel.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 656, in test_create_model_alter_field
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[72 chars]dels.IntegerField()),\n    ],\n    options={\n[164 chars]\n)"] != ["mig[72 chars]dels.CharField(max_length=255)),\n    ],\n    [279 chars]\n)"]
+
+First differing element 0:
+"migr[71 chars]dels.IntegerField()),\n    ],\n    options={\n[163 chars],\n)"
+"migr[71 chars]dels.CharField(max_length=255)),\n    ],\n    [174 chars],\n)"
+
+Second list contains 1 additional elements.
+First extra element 1:
+"migrations.AlterField(\n    model_name='Foo',\n    name='name',\n    field=models.IntegerField(),\n)"
+
+Diff is 647 characters long. Set self.maxDiff to None to see it.
+
+======================================================================
+FAIL: test_create_model_and_remove_model_options (migrations.test_optimizer.OptimizerTests.test_create_model_and_remove_model_options)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 157, in test_create_model_and_remove_model_options
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[60 chars] ],\n)"] != ["mig[60 chars] ],\n    options={\n        'verbose_name': 'M[91 chars]\n)"]
+
+First differing element 0:
+"migr[59 chars] ],\n)"
+"migr[59 chars] ],\n    options={\n        'verbose_name': 'M[16 chars],\n)"
+
+Second list contains 1 additional elements.
+First extra element 1:
+"migrations.AlterModelOptions(\n    name='MyModel',\n    options={},\n)"
+
++ ['migrations.CreateModel(\n'
++  "    name='MyModel',\n"
++  '    fields=[\n'
++  '    ],\n'
++  '    options={\n'
++  "        'verbose_name': 'My Model',\n"
++  '    },\n'
++  ')',
+- ["migrations.CreateModel(\n    name='MyModel',\n    fields=[\n    ],\n)"]
+? ^            ^^^^                                   ^ ^^^  ^^^^^^^^
+
++  "migrations.AlterModelOptions(\n    name='MyModel',\n    options={},\n)"]
+? ^            ^^  +     +++++++                            ^^^ ^^  ^^
+
+
+======================================================================
+FAIL: test_create_model_no_reordering_of_inherited_model (migrations.test_optimizer.OptimizerTests.test_create_model_no_reordering_of_inherited_model)
+A CreateModel that inherits from another isn't reordered to avoid
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 577, in test_create_model_no_reordering_of_inherited_model
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[27 chars]ame='ParentModel',\n    fields=[\n        ('ba[446 chars]\n)"] != ["mig[27 chars]ame='Other',\n    fields=[\n        ('foo', mo[508 chars]\n)"]
+
+First differing element 0:
+"migr[26 chars]ame='ParentModel',\n    fields=[\n        ('ba[45 chars],\n)"
+"migr[26 chars]ame='Other',\n    fields=[\n        ('foo', mo[39 chars],\n)"
+
+Second list contains 1 additional elements.
+First extra element 3:
+"migrations.AddField(\n    model_name='Other',\n    name='fk',\n    field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='migrations.childmodel'),\n)"
+
+Diff is 1120 characters long. Set self.maxDiff to None to see it.
+
+======================================================================
+FAIL: test_create_model_remove_field (migrations.test_optimizer.OptimizerTests.test_create_model_remove_field)
+RemoveField should optimize into CreateModel.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 762, in test_create_model_remove_field
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[105 chars]n    ],\n    options={\n        'verbose_name'[142 chars]\n)"] != ["mig[105 chars]n        ('age', models.IntegerField()),\n    [253 chars]\n)"]
+
+First differing element 0:
+"migr[104 chars]n    ],\n    options={\n        'verbose_name'[141 chars],\n)"
+"migr[104 chars]n        ('age', models.IntegerField()),\n    [182 chars],\n)"
+
+Second list contains 1 additional elements.
+First extra element 1:
+"migrations.RemoveField(\n    model_name='Foo',\n    name='age',\n)"
+
+  ['migrations.CreateModel(\n'
+   "    name='Foo',\n"
+   '    fields=[\n'
+   "        ('name', models.CharField(max_length=255)),\n"
++  "        ('age', models.IntegerField()),\n"
+   '    ],\n'
+   '    options={\n'
+   "        'verbose_name': 'Foo',\n"
+   '    },\n'
+   '    bases=(migrations.models.UnicodeModel,),\n'
+   '    managers=[\n'
+   "        ('objects', migrations.models.EmptyManager()),\n"
+   '    ],\n'
+-  ')']
+?     ^
+
++  ')',
+?     ^
+
++  "migrations.RemoveField(\n    model_name='Foo',\n    name='age',\n)"]
+
+======================================================================
+FAIL: test_create_model_rename_field (migrations.test_optimizer.OptimizerTests.test_create_model_rename_field)
+RenameField should optimize into CreateModel.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 685, in test_create_model_rename_field
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[58 chars]   ('title', models.CharField(max_length=255))[190 chars]\n)"] != ["mig[58 chars]   ('name', models.CharField(max_length=255)),[287 chars]\n)"]
+
+First differing element 0:
+"migr[57 chars]   ('title', models.CharField(max_length=255))[189 chars],\n)"
+"migr[57 chars]   ('name', models.CharField(max_length=255)),[188 chars],\n)"
+
+Second list contains 1 additional elements.
+First extra element 1:
+"migrations.RenameField(\n    model_name='Foo',\n    old_name='name',\n    new_name='title',\n)"
+
+  ['migrations.CreateModel(\n'
+   "    name='Foo',\n"
+   '    fields=[\n'
+-  "        ('title', models.CharField(max_length=255)),\n"
+?             ^^^^
+
++  "        ('name', models.CharField(max_length=255)),\n"
+?             ^^^
+
+   '    ],\n'
+   '    options={\n'
+   "        'verbose_name': 'Foo',\n"
+   '    },\n'
+   '    bases=(migrations.models.UnicodeModel,),\n'
+   '    managers=[\n'
+   "        ('objects', migrations.models.EmptyManager()),\n"
+   '    ],\n'
++  ')',
++  'migrations.RenameField(\n'
++  "    model_name='Foo',\n"
++  "    old_name='name',\n"
++  "    new_name='title',\n"
+   ')']
+
+======================================================================
+FAIL: test_create_model_reordering (migrations.test_optimizer.OptimizerTests.test_create_model_reordering)
+AddField optimizes into CreateModel if it's a FK to a model that's
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 496, in test_create_model_reordering
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[27 chars]ame='Link',\n    fields=[\n        ('url', mod[252 chars]\n)"] != ["mig[27 chars]ame='Foo',\n    fields=[\n        ('name', mod[312 chars]\n)"]
+
+First differing element 0:
+"migr[26 chars]ame='Link',\n    fields=[\n        ('url', mod[24 chars],\n)"
+"migr[26 chars]ame='Foo',\n    fields=[\n        ('name', mod[38 chars],\n)"
+
+Second list contains 1 additional elements.
+First extra element 2:
+"migrations.AddField(\n    model_name='Foo',\n    name='link',\n    field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='migrations.link'),\n)"
+
+Diff is 874 characters long. Set self.maxDiff to None to see it.
+
+======================================================================
+FAIL: test_create_model_reordering_circular_fk (migrations.test_optimizer.OptimizerTests.test_create_model_reordering_circular_fk)
+CreateModel reordering behavior doesn't result in an infinite loop if
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 523, in test_create_model_reordering_circular_fk
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[27 chars]ame='Foo',\n    fields=[\n        ('name', mod[418 chars]\n)"] != ["mig[27 chars]ame='Bar',\n    fields=[\n        ('url', mode[478 chars]\n)"]
+
+First differing element 0:
+"migr[26 chars]ame='Foo',\n    fields=[\n        ('name', mod[38 chars],\n)"
+"migr[26 chars]ame='Bar',\n    fields=[\n        ('url', mode[23 chars],\n)"
+
+Second list contains 1 additional elements.
+First extra element 3:
+"migrations.AddField(\n    model_name='Foo',\n    name='bar_fk',\n    field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='migrations.bar'),\n)"
+
+Diff is 1058 characters long. Set self.maxDiff to None to see it.
+
+======================================================================
+FAIL: test_create_rename_model (migrations.test_optimizer.OptimizerTests.test_create_rename_model)
+CreateModel should absorb RenameModels.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 81, in test_create_rename_model
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[27 chars]ame='Bar',\n    fields=[\n        ('name', mod[220 chars]\n)"] != ["mig[27 chars]ame='Foo',\n    fields=[\n        ('name', mod[292 chars]\n)"]
+
+First differing element 0:
+"migr[26 chars]ame='Bar',\n    fields=[\n        ('name', mod[219 chars],\n)"
+"migr[26 chars]ame='Foo',\n    fields=[\n        ('name', mod[219 chars],\n)"
+
+Second list contains 1 additional elements.
+First extra element 1:
+"migrations.RenameModel(\n    old_name='Foo',\n    new_name='Bar',\n)"
+
+  ['migrations.CreateModel(\n'
+-  "    name='Bar',\n"
+?             ^^^
+
++  "    name='Foo',\n"
+?             ^^^
+
+   '    fields=[\n'
+   "        ('name', models.CharField(max_length=255)),\n"
+   '    ],\n'
+   '    options={\n'
+   "        'verbose_name': 'Foo',\n"
+   '    },\n'
+   '    bases=(migrations.models.UnicodeModel,),\n'
+   '    managers=[\n'
+   "        ('objects', migrations.models.EmptyManager()),\n"
+   '    ],\n'
+-  ')']
+?     ^
+
++  ')',
+?     ^
+
++  "migrations.RenameModel(\n    old_name='Foo',\n    new_name='Bar',\n)"]
+
+======================================================================
+FAIL: test_optimize_elidable_operation (migrations.test_optimizer.OptimizerTests.test_optimize_elidable_operation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 1104, in test_optimize_elidable_operation
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["migrations.CreateModel(\n    name='Phou'[76 chars]\n)"] != ['django.db.migrations.operations.base.Ope[522 chars]\n)']
+
+First differing element 0:
+"migrations.CreateModel(\n    name='Phou'[75 chars],\n)"
+'django.db.migrations.operations.base.Operation(\n)'
+
+Second list contains 7 additional elements.
+First extra element 1:
+"migrations.CreateModel(\n    name='Foo',\n    fields=[\n        ('name', models.CharField(max_length=255)),\n    ],\n)"
+
+Diff is 783 characters long. Set self.maxDiff to None to see it.
+
+======================================================================
+FAIL: test_optimize_through_create (migrations.test_optimizer.OptimizerTests.test_optimize_through_create)
+We should be able to optimize away create/delete through a create or
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 276, in test_optimize_through_create
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[27 chars]ame='Bar',\n    fields=[\n        ('size', mod[28 chars]\n)"] != ["mig[27 chars]ame='Foo',\n    fields=[\n        ('name', mod[197 chars]\n)"]
+
+First differing element 0:
+"migr[26 chars]ame='Bar',\n    fields=[\n        ('size', mod[27 chars],\n)"
+"migr[26 chars]ame='Foo',\n    fields=[\n        ('name', mod[38 chars],\n)"
+
+Second list contains 2 additional elements.
+First extra element 1:
+"migrations.CreateModel(\n    name='Bar',\n    fields=[\n        ('size', models.IntegerField()),\n    ],\n)"
+
+  ['migrations.CreateModel(\n'
++  "    name='Foo',\n"
++  '    fields=[\n'
++  "        ('name', models.CharField(max_length=255)),\n"
++  '    ],\n'
++  ')',
++  'migrations.CreateModel(\n'
+   "    name='Bar',\n"
+   '    fields=[\n'
+   "        ('size', models.IntegerField()),\n"
+   '    ],\n'
+-  ')']
+?     ^
+
++  ')',
+?     ^
+
++  "migrations.DeleteModel(\n    name='Foo',\n)"]
+
+======================================================================
+FAIL: test_optimize_through_fields (migrations.test_optimizer.OptimizerTests.test_optimize_through_fields)
+field-level through checking is working. This should manage to collapse
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 1080, in test_optimize_through_fields
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[27 chars]ame='Bar',\n    fields=[\n        ('width', mo[29 chars]\n)"] != ["mig[27 chars]ame='Foo',\n    fields=[\n        ('name', mod[900 chars]\n)"]
+
+First differing element 0:
+"migr[26 chars]ame='Bar',\n    fields=[\n        ('width', mo[28 chars],\n)"
+"migr[26 chars]ame='Foo',\n    fields=[\n        ('name', mod[38 chars],\n)"
+
+Second list contains 10 additional elements.
+First extra element 1:
+"migrations.CreateModel(\n    name='Bar',\n    fields=[\n        ('size', models.IntegerField()),\n    ],\n)"
+
+Diff is 1288 characters long. Set self.maxDiff to None to see it.
+
+======================================================================
+FAIL: test_rename_index (migrations.test_optimizer.OptimizerTests.test_rename_index)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 1125, in test_rename_index
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[55 chars]ame='new_name',\n    old_fields=('weight', 'pink'),\n)"] != ["mig[55 chars]ame='mid_name',\n    old_fields=('weight', 'pi[111 chars]\n)"]
+
+First differing element 0:
+"migr[46 chars]   new_name='new_name',\n    old_fields=('weight', 'pink'),\n)"
+"migr[46 chars]   new_name='mid_name',\n    old_fields=('weight', 'pink'),\n)"
+
+Second list contains 1 additional elements.
+First extra element 1:
+"migrations.RenameIndex(\n    model_name='Pony',\n    new_name='new_name',\n    old_name='mid_name',\n)"
+
+  ['migrations.RenameIndex(\n'
+   "    model_name='Pony',\n"
++  "    new_name='mid_name',\n"
++  "    old_fields=('weight', 'pink'),\n"
++  ')',
++  'migrations.RenameIndex(\n'
++  "    model_name='Pony',\n"
+   "    new_name='new_name',\n"
+-  "    old_fields=('weight', 'pink'),\n"
++  "    old_name='mid_name',\n"
+   ')']
+
+======================================================================
+FAIL: test_rename_model_self (migrations.test_optimizer.OptimizerTests.test_rename_model_self)
+RenameModels should absorb themselves.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_optimizer.py", line 107, in test_rename_model_self
+    self.assertOptimizesTo(
+  File "/testbed/tests/migrations/test_optimizer.py", line 31, in assertOptimizesTo
+    self.assertEqual(expected, result)
+AssertionError: Lists differ: ["mig[54 chars]e='Bar',\n)"] != ["mig[54 chars]e='Baa',\n)", "migrations.RenameModel(\n    ol[34 chars]\n)"]
+
+First differing element 0:
+"migrations.RenameModel(\n    old_name='Foo',\n    new_name='Bar',\n)"
+"migrations.RenameModel(\n    old_name='Foo',\n    new_name='Baa',\n)"
+
+Second list contains 1 additional elements.
+First extra element 1:
+"migrations.RenameModel(\n    old_name='Baa',\n    new_name='Bar',\n)"
+
+- ["migrations.RenameModel(\n    old_name='Foo',\n    new_name='Bar',\n)"]
+?                                                                 ^      ^
+
++ ["migrations.RenameModel(\n    old_name='Foo',\n    new_name='Baa',\n)",
+?                                                                 ^      ^
+
++  "migrations.RenameModel(\n    old_name='Baa',\n    new_name='Bar',\n)"]
+
+----------------------------------------------------------------------
+Ran 38 tests in 0.076s
+
+FAILED (failures=32)
++ git checkout f9fe062de5fc0896d6bbbf3f260b5c44473b3c77 tests/migrations/test_optimizer.py
+Updated 1 path from cff96c32c0

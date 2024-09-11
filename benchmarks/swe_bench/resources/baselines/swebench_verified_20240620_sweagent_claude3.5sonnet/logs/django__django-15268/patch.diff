@@ -1,0 +1,147 @@
+
+diff --git a/django/db/migrations/migration.py b/django/db/migrations/migration.py
+index 5ee0ae5191..4838ec196b 100644
+--- a/django/db/migrations/migration.py
++++ b/django/db/migrations/migration.py
+@@ -1,9 +1,11 @@
+ from django.db.migrations.utils import get_migration_name_timestamp
+ from django.db.transaction import atomic
++from django.db.migrations.operations.models import AlterTogetherOptionOperation
+ 
+ from .exceptions import IrreversibleError
+ 
+ 
++
+ class Migration:
+     """
+     The base class for all migrations.
+@@ -97,6 +99,9 @@ class Migration:
+         Return the resulting project state for efficient reuse by following
+         Migrations.
+         """
++        # Optimize AlterFooTogether operations
++        self.operations = AlterTogetherOptionOperation.optimize_together(self.operations)
++
+         for operation in self.operations:
+             # If this operation cannot be represented as SQL, place a comment
+             # there instead
+@@ -138,6 +143,9 @@ class Migration:
+         2. The operations are applied in reverse order using the states
+            recorded in step 1.
+         """
++        # Optimize AlterFooTogether operations
++        self.operations = AlterTogetherOptionOperation.optimize_together(self.operations)
++
+         # Construct all the intermediate states we need for a reverse migration
+         to_run = []
+         new_state = project_state
+diff --git a/django/db/migrations/operations/models.py b/django/db/migrations/operations/models.py
+index c120f5d32d..422437304f 100644
+--- a/django/db/migrations/operations/models.py
++++ b/django/db/migrations/operations/models.py
+@@ -528,6 +528,35 @@ class AlterTogetherOptionOperation(ModelOptionOperation):
+     def migration_name_fragment(self):
+         return 'alter_%s_%s' % (self.name_lower, self.option_name)
+ 
++    @classmethod
++    def optimize_together(cls, operations):
++        """
++        Optimize multiple AlterFooTogether operations into one.
++        """
++        optimized = []
++        current_op = None
++
++        for op in operations:
++            if isinstance(op, cls):
++                if current_op is None:
++                    current_op = op
++                elif current_op.name == op.name:
++                    # Merge the operations
++                    current_op.option_value = op.option_value
++                else:
++                    optimized.append(current_op)
++                    current_op = op
++            else:
++                if current_op is not None:
++                    optimized.append(current_op)
++                    current_op = None
++                optimized.append(op)
++
++        if current_op is not None:
++            optimized.append(current_op)
++
++        return optimized
++
+ 
+ class AlterUniqueTogether(AlterTogetherOptionOperation):
+     """
+diff --git a/run_tests.py b/run_tests.py
+new file mode 100644
+index 0000000000..cf2602a155
+--- /dev/null
++++ b/run_tests.py
+@@ -0,0 +1,12 @@
++import os
++import django
++from django.conf import settings
++from django.test.utils import get_runner
++
++if __name__ == "__main__":
++    os.environ['DJANGO_SETTINGS_MODULE'] = 'django.conf.global_settings'
++    django.setup()
++    TestRunner = get_runner(settings)
++    test_runner = TestRunner()
++    failures = test_runner.run_tests(["tests.migrations.test_optimizer"])
++    exit(bool(failures))
+diff --git a/tests/migrations/test_optimizer.py b/tests/migrations/test_optimizer.py
+index 0caaf66f9e..45b62c2fef 100644
+--- a/tests/migrations/test_optimizer.py
++++ b/tests/migrations/test_optimizer.py
+@@ -883,3 +883,47 @@ class OptimizerTests(SimpleTestCase):
+                 migrations.CreateModel("Phou", [("name", models.CharField(max_length=255))]),
+             ],
+         )
++
++    def test_optimize_alter_foo_together(self):
++        """
++        Test that multiple AlterUniqueTogether and AlterIndexTogether operations
++        are optimized into a single operation each.
++        """
++        self.assertOptimizesTo(
++            [
++                migrations.AlterUniqueTogether(
++                    name='mymodel',
++                    unique_together=set(),
++                ),
++                migrations.AlterIndexTogether(
++                    name='mymodel',
++                    index_together=set(),
++                ),
++                migrations.AlterUniqueTogether(
++                    name='mymodel',
++                    unique_together={("col1",)},
++                ),
++                migrations.AlterIndexTogether(
++                    name='mymodel',
++                    index_together={("col1",)},
++                ),
++                migrations.AlterUniqueTogether(
++                    name='mymodel',
++                    unique_together={("col1", "col2")},
++                ),
++                migrations.AlterIndexTogether(
++                    name='mymodel',
++                    index_together={("col1", "col2")},
++                ),
++            ],
++            [
++                migrations.AlterUniqueTogether(
++                    name='mymodel',
++                    unique_together={("col1", "col2")},
++                ),
++                migrations.AlterIndexTogether(
++                    name='mymodel',
++                    index_together={("col1", "col2")},
++                ),
++            ],
++        )

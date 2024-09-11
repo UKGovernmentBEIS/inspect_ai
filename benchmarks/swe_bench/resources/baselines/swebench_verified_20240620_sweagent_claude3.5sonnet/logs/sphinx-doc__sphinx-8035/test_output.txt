@@ -1,0 +1,679 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sphinx/ext/autodoc/__init__.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	setup.py.orig
+	tox.ini.orig
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 5e6da19f0e44a0ae83944fb6ce18f18f781e1a6e
+Merge: 6084c44b5 76e12a59f
+Author: Takeshi KOMIYA <i.tkomiya@gmail.com>
+Date:   Sat Aug 1 18:07:03 2020 +0900
+
+    Merge pull request #8027 from tk0miya/8032_evaluate_signature_in_py39
+    
+    Fix #8023: evaluate_signature() does not work properly in python3.9
+
++ git diff 5e6da19f0e44a0ae83944fb6ce18f18f781e1a6e
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index 8c3509c3b..6f8e67818 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -20,6 +20,7 @@ from typing import (
+ )
+ 
+ from docutils.statemachine import StringList
++from docutils.parsers.rst import directives
+ 
+ import sphinx
+ from sphinx.application import Sphinx
+@@ -28,6 +29,29 @@ from sphinx.deprecation import RemovedInSphinx40Warning, RemovedInSphinx50Warnin
+ from sphinx.environment import BuildEnvironment
+ from sphinx.ext.autodoc.importer import import_object, get_module_members, get_object_members
+ from sphinx.ext.autodoc.mock import mock
++
++def bool_or_members_option(arg: Any) -> Union[bool, List[str], None]:
++    """
++    Parse the 'private-members' option value.
++    
++    This function allows the 'private-members' option to accept either a boolean value,
++    a list of member names, or None.
++    
++    :param arg: The option value to parse.
++    :return: Either a boolean value, a list of strings, or None.
++    :raises ValueError: If the input is neither a boolean, None, nor a valid string for members_option.
++    """
++    if arg is None:
++        return None
++    if isinstance(arg, bool):
++        return arg
++    elif isinstance(arg, str):
++        return directives.members_option(arg)
++    else:
++        raise ValueError('Expected boolean, None, or string value')
++
++
++
+ from sphinx.locale import _, __
+ from sphinx.pycode import ModuleAnalyzer, PycodeError
+ from sphinx.util import inspect
+@@ -563,7 +587,7 @@ class Documenter:
+         Members are skipped if
+ 
+         - they are private (except if given explicitly or the private-members
+-          option is set)
++          option is set to True, or the member name is in the private-members list)
+         - they are special methods (except if given explicitly or the
+           special-members option is set)
+         - they are undocumented (except if the undoc-members option is set)
+@@ -616,55 +640,74 @@ class Documenter:
+             has_doc = bool(doc)
+ 
+             metadata = extract_metadata(doc)
++            keep = False  # Initialize keep to False
+             if 'private' in metadata:
+                 # consider a member private if docstring has "private" metadata
+                 isprivate = True
+             elif 'public' in metadata:
+                 # consider a member public if docstring has "public" metadata
+                 isprivate = False
++                keep = True  # Always keep members with 'public' metadata
+             else:
+                 isprivate = membername.startswith('_')
+ 
+-            keep = False
+-            if safe_getattr(member, '__sphinx_mock__', False):
+-                # mocked module or object
+-                pass
+-            elif (self.options.exclude_members not in (None, ALL) and
+-                  membername in self.options.exclude_members):
+-                # remove members given by exclude-members
+-                keep = False
+-            elif want_all and membername.startswith('__') and \
+-                    membername.endswith('__') and len(membername) > 4:
+-                # special __methods__
+-                if self.options.special_members is ALL:
+-                    if membername == '__doc__':
+-                        keep = False
+-                    elif is_filtered_inherited_member(membername):
+-                        keep = False
++            if not keep:  # If not already decided to keep (i.e., not 'public')
++                if safe_getattr(member, '__sphinx_mock__', False):
++                    # mocked module or object
++                    keep = False
++                elif (self.options.exclude_members not in (None, ALL) and
++                      membername in self.options.exclude_members):
++                    # remove members given by exclude-members
++                    keep = False
++                elif want_all and membername.startswith('__') and \
++                        membername.endswith('__') and len(membername) > 4:
++                    # special __methods__
++                    if self.options.special_members is ALL:
++                        if membername == '__doc__':
++                            keep = False
++                        elif is_filtered_inherited_member(membername):
++                            keep = False
++                        else:
++                            keep = has_doc or self.options.undoc_members
++                    elif self.options.special_members:
++                        if membername in self.options.special_members:
++                            keep = has_doc or self.options.undoc_members
++                elif (namespace, membername) in attr_docs:
++                    if want_all and isprivate:
++                        # ignore members whose name starts with _ by default
++                        if self.options.private_members is ALL:
++                            keep = True
++                        elif isinstance(self.options.private_members, list):
++                            keep = membername in self.options.private_members
++                        elif self.options.private_members:
++                            keep = True
++                        else:
++                            keep = False
+                     else:
+-                        keep = has_doc or self.options.undoc_members
+-                elif self.options.special_members:
+-                    if membername in self.options.special_members:
+-                        keep = has_doc or self.options.undoc_members
+-            elif (namespace, membername) in attr_docs:
+-                if want_all and isprivate:
++                        # keep documented attributes
++                        keep = True
++                    isattr = True
++                elif want_all and isprivate:
+                     # ignore members whose name starts with _ by default
+-                    keep = self.options.private_members
+-                else:
+-                    # keep documented attributes
+-                    keep = True
+-                isattr = True
+-            elif want_all and isprivate:
+-                # ignore members whose name starts with _ by default
+-                keep = self.options.private_members and \
+-                    (has_doc or self.options.undoc_members)
+-            else:
+-                if self.options.members is ALL and is_filtered_inherited_member(membername):
+-                    keep = False
++                    if self.options.private_members is ALL:
++                        keep = True
++                    elif isinstance(self.options.private_members, list):
++                        keep = membername in self.options.private_members
++                    elif self.options.private_members:
++                        keep = True
++                    else:
++                        keep = False
+                 else:
+-                    # ignore undocumented members if :undoc-members: is not given
+-                    keep = has_doc or self.options.undoc_members
++                    # ignore members whose name starts with _ by default
++                    keep = not isprivate
++
++            # Always keep members with 'public' metadata, regardless of other conditions
++            if 'public' in metadata:
++                keep = True
+ 
++            # If private_members is None (not specified), only keep public members
++            if self.options.private_members is None and isprivate and 'public' not in metadata:
++                keep = False
+             # give the user a chance to decide whether this member
+             # should be skipped
+             if self.env.app:
+@@ -698,8 +741,8 @@ class Documenter:
+             self.env.temp_data['autodoc:class'] = self.objpath[0]
+ 
+         want_all = all_members or self.options.inherited_members or \
+-            self.options.members is ALL
+-        # find out which members are documentable
++            self.options.members is ALL or \
++            (isinstance(self.options.private_members, bool) and self.options.private_members)
+         members_check_module, members = self.get_object_members(want_all)
+ 
+         # document non-skipped members
+@@ -859,7 +902,7 @@ class ModuleDocumenter(Documenter):
+         'show-inheritance': bool_option, 'synopsis': identity,
+         'platform': identity, 'deprecated': bool_option,
+         'member-order': member_order_option, 'exclude-members': members_set_option,
+-        'private-members': bool_option, 'special-members': members_option,
++        'private-members': bool_or_members_option, 'special-members': members_option,
+         'imported-members': bool_option, 'ignore-module-all': bool_option
+     }  # type: Dict[str, Callable]
+ 
+@@ -1279,7 +1322,7 @@ class ClassDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # type:
+         'noindex': bool_option, 'inherited-members': inherited_members_option,
+         'show-inheritance': bool_option, 'member-order': member_order_option,
+         'exclude-members': members_set_option,
+-        'private-members': bool_option, 'special-members': members_option,
++        'private-members': bool_or_members_option, 'special-members': members_option,
+     }  # type: Dict[str, Callable]
+ 
+     _signature_class = None  # type: Any
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e '.[test]'
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: sphinxcontrib-applehelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (1.0.4)
+Requirement already satisfied: sphinxcontrib-devhelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (1.0.2)
+Requirement already satisfied: sphinxcontrib-jsmath in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (1.0.1)
+Requirement already satisfied: sphinxcontrib-htmlhelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (2.0.1)
+Requirement already satisfied: sphinxcontrib-serializinghtml in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (1.1.5)
+Requirement already satisfied: sphinxcontrib-qthelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (1.0.3)
+Requirement already satisfied: Jinja2>=2.3 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (2.11.3)
+Requirement already satisfied: Pygments>=2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (2.18.0)
+Requirement already satisfied: docutils>=0.12 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (0.21.2)
+Requirement already satisfied: snowballstemmer>=1.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (2.2.0)
+Requirement already satisfied: babel>=1.3 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (2.15.0)
+Requirement already satisfied: alabaster<0.8,>=0.7 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (0.7.11)
+Requirement already satisfied: imagesize in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (1.4.1)
+Requirement already satisfied: requests>=2.5.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (2.32.3)
+Requirement already satisfied: setuptools in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (69.5.1)
+Requirement already satisfied: packaging in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (24.1)
+Requirement already satisfied: pytest in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (8.3.2)
+Requirement already satisfied: pytest-cov in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (5.0.0)
+Requirement already satisfied: html5lib in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (1.1)
+Requirement already satisfied: typed_ast in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (1.5.5)
+Requirement already satisfied: cython in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (3.0.10)
+Requirement already satisfied: MarkupSafe>=0.23 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Jinja2>=2.3->Sphinx==3.2.0.dev20240725) (2.0.1)
+Requirement already satisfied: charset-normalizer<4,>=2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.2.0.dev20240725) (3.3.2)
+Requirement already satisfied: idna<4,>=2.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.2.0.dev20240725) (3.7)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.2.0.dev20240725) (2.2.2)
+Requirement already satisfied: certifi>=2017.4.17 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.2.0.dev20240725) (2024.7.4)
+Requirement already satisfied: six>=1.9 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from html5lib->Sphinx==3.2.0.dev20240725) (1.16.0)
+Requirement already satisfied: webencodings in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from html5lib->Sphinx==3.2.0.dev20240725) (0.5.1)
+Requirement already satisfied: iniconfig in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.2.0.dev20240725) (2.0.0)
+Requirement already satisfied: pluggy<2,>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.2.0.dev20240725) (1.5.0)
+Requirement already satisfied: exceptiongroup>=1.0.0rc8 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.2.0.dev20240725) (1.2.2)
+Requirement already satisfied: tomli>=1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.2.0.dev20240725) (2.0.1)
+Requirement already satisfied: coverage>=5.2.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from coverage[toml]>=5.2.1->pytest-cov->Sphinx==3.2.0.dev20240725) (7.6.0)
+Installing collected packages: Sphinx
+  Attempting uninstall: Sphinx
+    Found existing installation: Sphinx 3.2.0.dev20240725
+    Uninstalling Sphinx-3.2.0.dev20240725:
+      Successfully uninstalled Sphinx-3.2.0.dev20240725
+  Running setup.py develop for Sphinx
+Successfully installed Sphinx-3.2.0.dev20240725
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 5e6da19f0e44a0ae83944fb6ce18f18f781e1a6e tests/test_ext_autodoc_private_members.py
+Updated 0 paths from f214334fe
++ git apply -v -
+Checking patch tests/test_ext_autodoc_private_members.py...
+Applied patch tests/test_ext_autodoc_private_members.py cleanly.
++ tox --current-env -epy39 -v -- tests/test_ext_autodoc_private_members.py
+py39: commands[0]> pytest --durations 25 tests/test_ext_autodoc_private_members.py
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-8.3.2, pluggy-1.5.0
+cachedir: .tox/py39/.pytest_cache
+libraries: Sphinx-3.2.0, docutils-0.21.2
+base tempdir: /tmp/pytest-of-root/pytest-0
+rootdir: /testbed
+configfile: setup.cfg
+plugins: cov-5.0.0
+collected 3 items
+
+tests/test_ext_autodoc_private_members.py .FF                            [100%]
+
+=================================== FAILURES ===================================
+____________________ test_private_field_and_private_members ____________________
+
+app = <SphinxTestApp buildername='html'>
+
+    @pytest.mark.sphinx('html', testroot='ext-autodoc')
+    def test_private_field_and_private_members(app):
+        app.config.autoclass_content = 'class'
+        options = {"members": None,
+                   "private-members": None}
+        actual = do_autodoc(app, 'module', 'target.private', options)
+>       assert list(actual) == [
+            '',
+            '.. py:module:: target.private',
+            '',
+            '',
+            '.. py:function:: _public_function(name)',
+            '   :module: target.private',
+            '',
+            '   public_function is a docstring().',
+            '',
+            '   :meta public:',
+            '',
+            '',
+            '.. py:function:: private_function(name)',
+            '   :module: target.private',
+            '',
+            '   private_function is a docstring().',
+            '',
+            '   :meta private:',
+            '',
+        ]
+E       AssertionError: assert ['', '.. py:m...private', ...] == ['', '.. py:m...private', ...]
+E         
+E         Right contains 8 more items, first extra item: ''
+E         Use -v to get more diff
+
+tests/test_ext_autodoc_private_members.py:42: AssertionError
+--------------------------- Captured stdout teardown ---------------------------
+# testroot: root
+# builder: html
+# srcdir: /tmp/pytest-of-root/pytest-0/ext-autodoc
+# outdir: /tmp/pytest-of-root/pytest-0/ext-autodoc/_build/html
+# status: 
+[01mRunning Sphinx v3.2.0[39;49;00m
+
+# warning: 
+[91mWARNING: while setting up extension sphinx.addnodes: node class 'meta' is already registered, its visitors will be overridden[39;49;00m
+
+_____________________________ test_private_members _____________________________
+
+app = <SphinxTestApp buildername='html'>
+
+    @pytest.mark.sphinx('html', testroot='ext-autodoc')
+    def test_private_members(app):
+        app.config.autoclass_content = 'class'
+        options = {"members": None,
+                   "private-members": "_public_function"}
+>       actual = do_autodoc(app, 'module', 'target.private', options)
+
+tests/test_ext_autodoc_private_members.py:70: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_ext_autodoc.py:38: in do_autodoc
+    docoptions = process_documenter_options(doccls, app.config, options)
+sphinx/ext/autodoc/directive.py:89: in process_documenter_options
+    return Options(assemble_option_dict(options.items(), documenter.option_spec))
+/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/docutils/utils/__init__.py:334: in assemble_option_dict
+    options[name] = convertor(value)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+arg = '_public_function'
+
+    def bool_or_members_option(arg: Any) -> Union[bool, List[str], None]:
+        """
+        Parse the 'private-members' option value.
+    
+        This function allows the 'private-members' option to accept either a boolean value,
+        a list of member names, or None.
+    
+        :param arg: The option value to parse.
+        :return: Either a boolean value, a list of strings, or None.
+        :raises ValueError: If the input is neither a boolean, None, nor a valid string for members_option.
+        """
+        if arg is None:
+            return None
+        if isinstance(arg, bool):
+            return arg
+        elif isinstance(arg, str):
+>           return directives.members_option(arg)
+E           AttributeError: module 'docutils.parsers.rst.directives' has no attribute 'members_option'
+
+sphinx/ext/autodoc/__init__.py:49: AttributeError
+--------------------------- Captured stdout teardown ---------------------------
+# testroot: root
+# builder: html
+# srcdir: /tmp/pytest-of-root/pytest-0/ext-autodoc
+# outdir: /tmp/pytest-of-root/pytest-0/ext-autodoc/_build/html
+# status: 
+[01mRunning Sphinx v3.2.0[39;49;00m
+
+# warning: 
+[91mWARNING: while setting up extension sphinx.addnodes: node class 'meta' is already registered, its visitors will be overridden[39;49;00m
+
+=============================== warnings summary ===============================
+sphinx/util/docutils.py:45
+  /testbed/sphinx/util/docutils.py:45: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    __version_info__ = tuple(LooseVersion(docutils.__version__).version)
+
+sphinx/registry.py:22
+  /testbed/sphinx/registry.py:22: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+    from pkg_resources import iter_entry_points
+
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('sphinxcontrib')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+sphinx/directives/patches.py:15
+  /testbed/sphinx/directives/patches.py:15: DeprecationWarning: The `docutils.parsers.rst.directive.html` module will be removed in Docutils 2.0. Since Docutils 0.18, the "Meta" node is defined in `docutils.parsers.rst.directives.misc`.
+    from docutils.parsers.rst.directives import images, html, tables
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================= slowest 25 durations =============================
+0.65s setup    tests/test_ext_autodoc_private_members.py::test_private_field
+0.04s setup    tests/test_ext_autodoc_private_members.py::test_private_members
+0.04s setup    tests/test_ext_autodoc_private_members.py::test_private_field_and_private_members
+0.02s call     tests/test_ext_autodoc_private_members.py::test_private_field_and_private_members
+0.01s call     tests/test_ext_autodoc_private_members.py::test_private_field
+0.01s teardown tests/test_ext_autodoc_private_members.py::test_private_members
+0.01s teardown tests/test_ext_autodoc_private_members.py::test_private_field
+
+(2 durations < 0.005s hidden.  Use -vv to show these durations.)
+=========================== short test summary info ============================
+FAILED tests/test_ext_autodoc_private_members.py::test_private_field_and_private_members
+FAILED tests/test_ext_autodoc_private_members.py::test_private_members - Attr...
+=================== 2 failed, 1 passed, 7 warnings in 1.39s ====================
+py39: exit 1 (2.72 seconds) /testbed> pytest --durations 25 tests/test_ext_autodoc_private_members.py pid=108
+  py39: FAIL code 1 (2.75=setup[0.03]+cmd[2.72] seconds)
+  evaluation failed :( (3.01 seconds)
++ git checkout 5e6da19f0e44a0ae83944fb6ce18f18f781e1a6e tests/test_ext_autodoc_private_members.py
+Updated 1 path from f214334fe

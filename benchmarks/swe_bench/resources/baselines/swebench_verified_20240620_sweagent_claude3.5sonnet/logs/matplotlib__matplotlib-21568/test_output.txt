@@ -1,0 +1,555 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	3.5.0.dev2475+gf0632c0fc7.png
+	normal.png
+	reproduce_bug.py
+	simulated_tex.png
+	simulated_wider_labels.png
+
+nothing added to commit but untracked files present (use "git add" to track)
++ git show
+commit f0632c0fc7339f68e992ed63ae4cfac76cd41aad
+Merge: b525983fb5 cf204e5cd5
+Author: Tim Hoffmann <2836374+timhoffm@users.noreply.github.com>
+Date:   Mon Nov 8 16:16:59 2021 +0100
+
+    Merge pull request #21558 from anntzer/sp
+    
+    Various small fixes for streamplot().
+
++ git diff f0632c0fc7339f68e992ed63ae4cfac76cd41aad
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: cycler>=0.10 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev2475+gf0632c0fc7) (0.12.1)
+Requirement already satisfied: fonttools>=4.22.0 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev2475+gf0632c0fc7) (4.53.1)
+Requirement already satisfied: kiwisolver>=1.0.1 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev2475+gf0632c0fc7) (1.4.5)
+Requirement already satisfied: numpy>=1.17 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev2475+gf0632c0fc7) (1.24.4)
+Requirement already satisfied: packaging>=20.0 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev2475+gf0632c0fc7) (24.1)
+Requirement already satisfied: pillow>=6.2.0 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev2475+gf0632c0fc7) (10.4.0)
+Requirement already satisfied: pyparsing<3.0.0,>=2.2.1 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev2475+gf0632c0fc7) (2.4.7)
+Requirement already satisfied: python-dateutil>=2.7 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev2475+gf0632c0fc7) (2.9.0.post0)
+Requirement already satisfied: setuptools_scm>=4 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev2475+gf0632c0fc7) (8.1.0)
+Requirement already satisfied: six>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from python-dateutil>=2.7->matplotlib==3.5.0.dev2475+gf0632c0fc7) (1.16.0)
+Requirement already satisfied: setuptools in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from setuptools_scm>=4->matplotlib==3.5.0.dev2475+gf0632c0fc7) (69.5.1)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from setuptools_scm>=4->matplotlib==3.5.0.dev2475+gf0632c0fc7) (4.12.2)
+Requirement already satisfied: tomli>=1 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from setuptools_scm>=4->matplotlib==3.5.0.dev2475+gf0632c0fc7) (2.0.1)
+Installing collected packages: matplotlib
+  Attempting uninstall: matplotlib
+    Found existing installation: matplotlib 3.5.0.dev2475+gf0632c0fc7
+    Uninstalling matplotlib-3.5.0.dev2475+gf0632c0fc7:
+      Successfully uninstalled matplotlib-3.5.0.dev2475+gf0632c0fc7
+  Running setup.py develop for matplotlib
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+Successfully installed matplotlib-3.5.0.dev2475+gf0632c0fc7
++ git checkout f0632c0fc7339f68e992ed63ae4cfac76cd41aad lib/matplotlib/tests/test_dates.py
+Updated 0 paths from 210948c271
++ git apply -v -
+Checking patch lib/matplotlib/tests/test_dates.py...
+Applied patch lib/matplotlib/tests/test_dates.py cleanly.
++ pytest -rA lib/matplotlib/tests/test_dates.py
+============================= test session starts ==============================
+platform linux -- Python 3.8.19, pytest-8.3.1, pluggy-1.5.0
+rootdir: /testbed
+configfile: pytest.ini
+plugins: cov-5.0.0, rerunfailures-14.0, timeout-2.3.1, xdist-3.6.1
+collected 77 items
+
+lib/matplotlib/tests/test_dates.py ..................................... [ 48%]
+FF..............FF......................                                 [100%]
+
+=================================== FAILURES ===================================
+_________________ test_date_formatter_usetex[delta2-expected2] _________________
+
+delta = datetime.timedelta(seconds=72000)
+expected = ['$\\mathdefault{01{-}01\\;00}$', '$\\mathdefault{01{-}01\\;02}$', '$\\mathdefault{01{-}01\\;04}$', '$\\mathdefault{01{-}01\\;06}$', '$\\mathdefault{01{-}01\\;08}$', '$\\mathdefault{01{-}01\\;10}$', ...]
+
+    @pytest.mark.parametrize('delta, expected', [
+        (datetime.timedelta(weeks=52 * 200),
+         [r'$\mathdefault{%d}$' % year for year in range(1990, 2171, 20)]),
+        (datetime.timedelta(days=30),
+         [r'$\mathdefault{1990{-}01{-}%02d}$' % day for day in range(1, 32, 3)]),
+        (datetime.timedelta(hours=20),
+         [r'$\mathdefault{01{-}01\;%02d}$' % hour for hour in range(0, 21, 2)]),
+        (datetime.timedelta(minutes=10),
+         [r'$\mathdefault{01\;00{:}%02d}$' % minu for minu in range(0, 11)]),
+    ])
+    def test_date_formatter_usetex(delta, expected):
+        style.use("default")
+    
+        d1 = datetime.datetime(1990, 1, 1)
+        d2 = d1 + delta
+    
+        locator = mdates.AutoDateLocator(interval_multiples=False)
+        locator.create_dummy_axis()
+        locator.axis.set_view_interval(mdates.date2num(d1), mdates.date2num(d2))
+    
+        formatter = mdates.AutoDateFormatter(locator, usetex=True)
+>       assert [formatter(loc) for loc in locator()] == expected
+E       AssertionError: assert ['$\\mathdefa...01 10}$', ...] == ['$\\mathdefa...\\;10}$', ...]
+E         
+E         At index 0 diff: '$\\mathdefault{01{-}01 00}$' != '$\\mathdefault{01{-}01\\;00}$'
+E         Use -v to get more diff
+
+lib/matplotlib/tests/test_dates.py:345: AssertionError
+_________________ test_date_formatter_usetex[delta3-expected3] _________________
+
+delta = datetime.timedelta(seconds=600)
+expected = ['$\\mathdefault{01\\;00{:}00}$', '$\\mathdefault{01\\;00{:}01}$', '$\\mathdefault{01\\;00{:}02}$', '$\\mathdefault{01\\;00{:}03}$', '$\\mathdefault{01\\;00{:}04}$', '$\\mathdefault{01\\;00{:}05}$', ...]
+
+    @pytest.mark.parametrize('delta, expected', [
+        (datetime.timedelta(weeks=52 * 200),
+         [r'$\mathdefault{%d}$' % year for year in range(1990, 2171, 20)]),
+        (datetime.timedelta(days=30),
+         [r'$\mathdefault{1990{-}01{-}%02d}$' % day for day in range(1, 32, 3)]),
+        (datetime.timedelta(hours=20),
+         [r'$\mathdefault{01{-}01\;%02d}$' % hour for hour in range(0, 21, 2)]),
+        (datetime.timedelta(minutes=10),
+         [r'$\mathdefault{01\;00{:}%02d}$' % minu for minu in range(0, 11)]),
+    ])
+    def test_date_formatter_usetex(delta, expected):
+        style.use("default")
+    
+        d1 = datetime.datetime(1990, 1, 1)
+        d2 = d1 + delta
+    
+        locator = mdates.AutoDateLocator(interval_multiples=False)
+        locator.create_dummy_axis()
+        locator.axis.set_view_interval(mdates.date2num(d1), mdates.date2num(d2))
+    
+        formatter = mdates.AutoDateFormatter(locator, usetex=True)
+>       assert [formatter(loc) for loc in locator()] == expected
+E       AssertionError: assert ['$\\mathdefa...00:05}$', ...] == ['$\\mathdefa...{:}05}$', ...]
+E         
+E         At index 0 diff: '$\\mathdefault{01 00:00}$' != '$\\mathdefault{01\\;00{:}00}$'
+E         Use -v to get more diff
+
+lib/matplotlib/tests/test_dates.py:345: AssertionError
+______________ test_concise_formatter_usetex[t_delta2-expected2] _______________
+
+t_delta = datetime.timedelta(days=1, seconds=57600)
+expected = ['Jan$\\mathdefault{{-}01}$', '$\\mathdefault{04{:}00}$', '$\\mathdefault{08{:}00}$', '$\\mathdefault{12{:}00}$', '$\\mathdefault{16{:}00}$', '$\\mathdefault{20{:}00}$', ...]
+
+    @pytest.mark.parametrize('t_delta, expected', [
+        (datetime.timedelta(weeks=52 * 200),
+         ['$\\mathdefault{%d}$' % (t, ) for t in range(1980, 2201, 20)]),
+        (datetime.timedelta(days=40),
+         ['Jan', '$\\mathdefault{05}$', '$\\mathdefault{09}$',
+          '$\\mathdefault{13}$', '$\\mathdefault{17}$', '$\\mathdefault{21}$',
+          '$\\mathdefault{25}$', '$\\mathdefault{29}$', 'Feb',
+          '$\\mathdefault{05}$', '$\\mathdefault{09}$']),
+        (datetime.timedelta(hours=40),
+         ['Jan$\\mathdefault{{-}01}$', '$\\mathdefault{04{:}00}$',
+          '$\\mathdefault{08{:}00}$', '$\\mathdefault{12{:}00}$',
+          '$\\mathdefault{16{:}00}$', '$\\mathdefault{20{:}00}$',
+          'Jan$\\mathdefault{{-}02}$', '$\\mathdefault{04{:}00}$',
+          '$\\mathdefault{08{:}00}$', '$\\mathdefault{12{:}00}$',
+          '$\\mathdefault{16{:}00}$']),
+        (datetime.timedelta(seconds=2),
+         ['$\\mathdefault{59.5}$', '$\\mathdefault{00{:}00}$',
+          '$\\mathdefault{00.5}$', '$\\mathdefault{01.0}$',
+          '$\\mathdefault{01.5}$', '$\\mathdefault{02.0}$',
+          '$\\mathdefault{02.5}$']),
+    ])
+    def test_concise_formatter_usetex(t_delta, expected):
+        d1 = datetime.datetime(1997, 1, 1)
+        d2 = d1 + t_delta
+    
+        locator = mdates.AutoDateLocator(interval_multiples=True)
+        locator.create_dummy_axis()
+        locator.axis.set_view_interval(mdates.date2num(d1), mdates.date2num(d2))
+    
+        formatter = mdates.ConciseDateFormatter(locator, usetex=True)
+>       assert formatter.format_ticks(locator()) == expected
+E       AssertionError: assert ['Jan$\\mathd...20:00}$', ...] == ['Jan$\\mathd...{:}00}$', ...]
+E         
+E         At index 1 diff: '$\\mathdefault{04:00}$' != '$\\mathdefault{04{:}00}$'
+E         Use -v to get more diff
+
+lib/matplotlib/tests/test_dates.py:637: AssertionError
+______________ test_concise_formatter_usetex[t_delta3-expected3] _______________
+
+t_delta = datetime.timedelta(seconds=2)
+expected = ['$\\mathdefault{59.5}$', '$\\mathdefault{00{:}00}$', '$\\mathdefault{00.5}$', '$\\mathdefault{01.0}$', '$\\mathdefault{01.5}$', '$\\mathdefault{02.0}$', ...]
+
+    @pytest.mark.parametrize('t_delta, expected', [
+        (datetime.timedelta(weeks=52 * 200),
+         ['$\\mathdefault{%d}$' % (t, ) for t in range(1980, 2201, 20)]),
+        (datetime.timedelta(days=40),
+         ['Jan', '$\\mathdefault{05}$', '$\\mathdefault{09}$',
+          '$\\mathdefault{13}$', '$\\mathdefault{17}$', '$\\mathdefault{21}$',
+          '$\\mathdefault{25}$', '$\\mathdefault{29}$', 'Feb',
+          '$\\mathdefault{05}$', '$\\mathdefault{09}$']),
+        (datetime.timedelta(hours=40),
+         ['Jan$\\mathdefault{{-}01}$', '$\\mathdefault{04{:}00}$',
+          '$\\mathdefault{08{:}00}$', '$\\mathdefault{12{:}00}$',
+          '$\\mathdefault{16{:}00}$', '$\\mathdefault{20{:}00}$',
+          'Jan$\\mathdefault{{-}02}$', '$\\mathdefault{04{:}00}$',
+          '$\\mathdefault{08{:}00}$', '$\\mathdefault{12{:}00}$',
+          '$\\mathdefault{16{:}00}$']),
+        (datetime.timedelta(seconds=2),
+         ['$\\mathdefault{59.5}$', '$\\mathdefault{00{:}00}$',
+          '$\\mathdefault{00.5}$', '$\\mathdefault{01.0}$',
+          '$\\mathdefault{01.5}$', '$\\mathdefault{02.0}$',
+          '$\\mathdefault{02.5}$']),
+    ])
+    def test_concise_formatter_usetex(t_delta, expected):
+        d1 = datetime.datetime(1997, 1, 1)
+        d2 = d1 + t_delta
+    
+        locator = mdates.AutoDateLocator(interval_multiples=True)
+        locator.create_dummy_axis()
+        locator.axis.set_view_interval(mdates.date2num(d1), mdates.date2num(d2))
+    
+        formatter = mdates.ConciseDateFormatter(locator, usetex=True)
+>       assert formatter.format_ticks(locator()) == expected
+E       AssertionError: assert ['$\\mathdefa...{02.0}$', ...] == ['$\\mathdefa...{02.0}$', ...]
+E         
+E         At index 1 diff: '$\\mathdefault{00:00}$' != '$\\mathdefault{00{:}00}$'
+E         Use -v to get more diff
+
+lib/matplotlib/tests/test_dates.py:637: AssertionError
+==================================== PASSES ====================================
+___________________________ test_too_many_date_ticks ___________________________
+------------------------------ Captured log call -------------------------------
+WARNING  matplotlib.ticker:ticker.py:1634 Locator attempting to generate 1461 ticks ([10246.0, ..., 11706.0]), which exceeds Locator.MAXTICKS (1000).
+=========================== short test summary info ============================
+PASSED lib/matplotlib/tests/test_dates.py::test_date_numpyx
+PASSED lib/matplotlib/tests/test_dates.py::test_date_date2num_numpy[datetime64[s]-t00]
+PASSED lib/matplotlib/tests/test_dates.py::test_date_date2num_numpy[datetime64[s]-t01]
+PASSED lib/matplotlib/tests/test_dates.py::test_date_date2num_numpy[datetime64[s]-t02]
+PASSED lib/matplotlib/tests/test_dates.py::test_date_date2num_numpy[datetime64[us]-t00]
+PASSED lib/matplotlib/tests/test_dates.py::test_date_date2num_numpy[datetime64[us]-t01]
+PASSED lib/matplotlib/tests/test_dates.py::test_date_date2num_numpy[datetime64[us]-t02]
+PASSED lib/matplotlib/tests/test_dates.py::test_date_date2num_numpy[datetime64[ms]-t00]
+PASSED lib/matplotlib/tests/test_dates.py::test_date_date2num_numpy[datetime64[ms]-t01]
+PASSED lib/matplotlib/tests/test_dates.py::test_date_date2num_numpy[datetime64[ms]-t02]
+PASSED lib/matplotlib/tests/test_dates.py::test_date_date2num_numpy[datetime64[ns]-t00]
+PASSED lib/matplotlib/tests/test_dates.py::test_date_date2num_numpy[datetime64[ns]-t01]
+PASSED lib/matplotlib/tests/test_dates.py::test_date_date2num_numpy[datetime64[ns]-t02]
+PASSED lib/matplotlib/tests/test_dates.py::test_date2num_NaT[datetime64[s]]
+PASSED lib/matplotlib/tests/test_dates.py::test_date2num_NaT[datetime64[us]]
+PASSED lib/matplotlib/tests/test_dates.py::test_date2num_NaT[datetime64[ms]]
+PASSED lib/matplotlib/tests/test_dates.py::test_date2num_NaT[datetime64[ns]]
+PASSED lib/matplotlib/tests/test_dates.py::test_date2num_NaT_scalar[s]
+PASSED lib/matplotlib/tests/test_dates.py::test_date2num_NaT_scalar[ms]
+PASSED lib/matplotlib/tests/test_dates.py::test_date2num_NaT_scalar[us]
+PASSED lib/matplotlib/tests/test_dates.py::test_date2num_NaT_scalar[ns]
+PASSED lib/matplotlib/tests/test_dates.py::test_date_empty
+PASSED lib/matplotlib/tests/test_dates.py::test_date_not_empty
+PASSED lib/matplotlib/tests/test_dates.py::test_axhline
+PASSED lib/matplotlib/tests/test_dates.py::test_date_axhspan[png]
+PASSED lib/matplotlib/tests/test_dates.py::test_date_axvspan[png]
+PASSED lib/matplotlib/tests/test_dates.py::test_date_axhline[png]
+PASSED lib/matplotlib/tests/test_dates.py::test_date_axvline[png]
+PASSED lib/matplotlib/tests/test_dates.py::test_too_many_date_ticks
+PASSED lib/matplotlib/tests/test_dates.py::test_RRuleLocator[png]
+PASSED lib/matplotlib/tests/test_dates.py::test_RRuleLocator_dayrange
+PASSED lib/matplotlib/tests/test_dates.py::test_RRuleLocator_close_minmax
+PASSED lib/matplotlib/tests/test_dates.py::test_DateFormatter[png]
+PASSED lib/matplotlib/tests/test_dates.py::test_locator_set_formatter
+PASSED lib/matplotlib/tests/test_dates.py::test_date_formatter_callable
+PASSED lib/matplotlib/tests/test_dates.py::test_date_formatter_usetex[delta0-expected0]
+PASSED lib/matplotlib/tests/test_dates.py::test_date_formatter_usetex[delta1-expected1]
+PASSED lib/matplotlib/tests/test_dates.py::test_drange
+PASSED lib/matplotlib/tests/test_dates.py::test_auto_date_locator
+PASSED lib/matplotlib/tests/test_dates.py::test_auto_date_locator_intmult
+PASSED lib/matplotlib/tests/test_dates.py::test_concise_formatter_subsecond
+PASSED lib/matplotlib/tests/test_dates.py::test_concise_formatter
+PASSED lib/matplotlib/tests/test_dates.py::test_concise_formatter_show_offset[t_delta0-1997-Jan-01 00:00]
+PASSED lib/matplotlib/tests/test_dates.py::test_concise_formatter_show_offset[t_delta1-1997-Jan-01 00:01]
+PASSED lib/matplotlib/tests/test_dates.py::test_concise_formatter_show_offset[t_delta2-1997-Jan-01]
+PASSED lib/matplotlib/tests/test_dates.py::test_concise_formatter_show_offset[t_delta3-1997-Jan-02]
+PASSED lib/matplotlib/tests/test_dates.py::test_concise_formatter_show_offset[t_delta4-1997-Jan]
+PASSED lib/matplotlib/tests/test_dates.py::test_concise_formatter_show_offset[t_delta5-]
+PASSED lib/matplotlib/tests/test_dates.py::test_concise_formatter_show_offset[t_delta6-]
+PASSED lib/matplotlib/tests/test_dates.py::test_concise_formatter_usetex[t_delta0-expected0]
+PASSED lib/matplotlib/tests/test_dates.py::test_concise_formatter_usetex[t_delta1-expected1]
+PASSED lib/matplotlib/tests/test_dates.py::test_concise_formatter_formats
+PASSED lib/matplotlib/tests/test_dates.py::test_concise_formatter_zformats
+PASSED lib/matplotlib/tests/test_dates.py::test_concise_formatter_tz
+PASSED lib/matplotlib/tests/test_dates.py::test_auto_date_locator_intmult_tz
+PASSED lib/matplotlib/tests/test_dates.py::test_date_inverted_limit[png]
+PASSED lib/matplotlib/tests/test_dates.py::test_date2num_dst
+PASSED lib/matplotlib/tests/test_dates.py::test_date2num_dst_pandas
+PASSED lib/matplotlib/tests/test_dates.py::test_rrulewrapper
+PASSED lib/matplotlib/tests/test_dates.py::test_rrulewrapper_pytz
+PASSED lib/matplotlib/tests/test_dates.py::test_yearlocator_pytz
+PASSED lib/matplotlib/tests/test_dates.py::test_YearLocator
+PASSED lib/matplotlib/tests/test_dates.py::test_DayLocator
+PASSED lib/matplotlib/tests/test_dates.py::test_tz_utc
+PASSED lib/matplotlib/tests/test_dates.py::test_num2timedelta[1-tdelta0]
+PASSED lib/matplotlib/tests/test_dates.py::test_num2timedelta[x1-tdelta1]
+PASSED lib/matplotlib/tests/test_dates.py::test_datetime64_in_list
+PASSED lib/matplotlib/tests/test_dates.py::test_change_epoch
+PASSED lib/matplotlib/tests/test_dates.py::test_warn_notintervals
+PASSED lib/matplotlib/tests/test_dates.py::test_change_converter
+PASSED lib/matplotlib/tests/test_dates.py::test_change_interval_multiples
+PASSED lib/matplotlib/tests/test_dates.py::test_epoch2num
+PASSED lib/matplotlib/tests/test_dates.py::test_julian2num
+FAILED lib/matplotlib/tests/test_dates.py::test_date_formatter_usetex[delta2-expected2]
+FAILED lib/matplotlib/tests/test_dates.py::test_date_formatter_usetex[delta3-expected3]
+FAILED lib/matplotlib/tests/test_dates.py::test_concise_formatter_usetex[t_delta2-expected2]
+FAILED lib/matplotlib/tests/test_dates.py::test_concise_formatter_usetex[t_delta3-expected3]
+======================== 4 failed, 73 passed in 14.60s =========================
++ git checkout f0632c0fc7339f68e992ed63ae4cfac76cd41aad lib/matplotlib/tests/test_dates.py
+Updated 1 path from 210948c271

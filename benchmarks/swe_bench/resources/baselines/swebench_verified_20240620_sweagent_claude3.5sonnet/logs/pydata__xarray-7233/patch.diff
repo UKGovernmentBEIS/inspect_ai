@@ -1,0 +1,128 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 00000000..cdcd6890
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,21 @@
++import xarray as xr
++import numpy as np
++
++da = xr.DataArray(np.arange(24), dims=["time"])
++da = da.assign_coords(day=365 * da)
++ds = da.to_dataset(name="T")
++
++print("Original dataset:")
++print(ds)
++print("\nOriginal dataset coordinates:")
++for name, coord in ds.coords.items():
++    print(f"{name}: {type(coord).__name__}")
++
++coarsened = ds.coarsen(time=12).construct(time=("year", "month"))
++print("\nCoarsened dataset:")
++print(coarsened)
++print("\nCoarsened dataset coordinates:")
++for name, coord in coarsened.coords.items():
++    print(f"{name}: {type(coord).__name__}")
++
++print("\nScript completed successfully, no errors.")
+diff --git a/xarray/core/rolling.py b/xarray/core/rolling.py
+index c194ec08..7087e105 100644
+--- a/xarray/core/rolling.py
++++ b/xarray/core/rolling.py
+@@ -961,26 +961,52 @@ class Coarsen(CoarsenArithmetic, Generic[T_Xarray]):
+ 
+         reshaped.attrs = obj.attrs if keep_attrs else {}
+ 
++        # Preserve coordinate information
++        for name, coord in obj.coords.items():
++            if name not in obj.dims:
++                window_dim_coord = {k: v for k, v in window_dim.items() if k in coord.dims}
++                reshaped_dims = tuple(
++                    itertools.chain(*[window_dim_coord.get(dim, [dim]) for dim in list(coord.dims)])
++                )
++                if reshaped_dims != coord.dims:
++                    windows = {w: self.windows[w] for w in window_dim_coord}
++                    reshaped_coord, _ = coord.variable.coarsen_reshape(windows, self.boundary, self.side)
++                    reshaped.coords[name] = (reshaped_dims, reshaped_coord)
++                else:
++                    reshaped.coords[name] = coord
++            elif name in window_dim:
++                window_size = self.windows[name]
++                new_dims = window_dim[name]
++                reshaped_coord = coord.coarsen({name: window_size}).construct(window_dim={name: new_dims})
++                reshaped.coords[name] = reshaped_coord
++
+         for key, var in obj.variables.items():
+-            reshaped_dims = tuple(
+-                itertools.chain(*[window_dim.get(dim, [dim]) for dim in list(var.dims)])
+-            )
+-            if reshaped_dims != var.dims:
+-                windows = {w: self.windows[w] for w in window_dim if w in var.dims}
+-                reshaped_var, _ = var.coarsen_reshape(windows, self.boundary, self.side)
+-                attrs = var.attrs if keep_attrs else {}
+-                reshaped[key] = (reshaped_dims, reshaped_var, attrs)
+-            else:
+-                reshaped[key] = var
++            if key not in obj.coords:
++                window_dim_var = {k: v for k, v in window_dim.items() if k in var.dims}
++                reshaped_dims = tuple(
++                    itertools.chain(*[window_dim_var.get(dim, [dim]) for dim in list(var.dims)])
++                )
++                if reshaped_dims != var.dims:
++                    windows = {w: self.windows[w] for w in window_dim_var}
++                    reshaped_var, _ = var.coarsen_reshape(windows, self.boundary, self.side)
++                    attrs = var.attrs if keep_attrs else {}
++                    reshaped[key] = (reshaped_dims, reshaped_var, attrs)
++                else:
++                    reshaped[key] = var
+ 
+-        should_be_coords = set(window_dim) & set(self.obj.coords)
++        # Remove original dimensions that were coarsened
++        for dim in window_dim:
++            if dim in reshaped.dims:
++                reshaped = reshaped.drop_dims(dim)
++
++        # Ensure coordinates are properly set
++        should_be_coords = set(obj.coords) & set(reshaped.variables)
+         result = reshaped.set_coords(should_be_coords)
++
+         if isinstance(self.obj, DataArray):
+             return self.obj._from_temp_dataset(result)
+         else:
+             return result
+-
+-
+ class DataArrayCoarsen(Coarsen["DataArray"]):
+     __slots__ = ()
+ 
+@@ -1109,16 +1135,19 @@ class DatasetCoarsen(Coarsen["Dataset"]):
+ 
+             coords = {}
+             for c, v in self.obj.coords.items():
+-                # variable.coarsen returns variables not containing the window dims
+-                # unchanged (maybe removes attrs)
+-                coords[c] = v.variable.coarsen(
+-                    self.windows,
+-                    self.coord_func[c],
+-                    self.boundary,
+-                    self.side,
+-                    keep_attrs=keep_attrs,
+-                    **kwargs,
+-                )
++                if c not in self.obj.dims:
++                    # For non-dimensional coordinates, keep them as is
++                    coords[c] = v.variable
++                else:
++                    # For dimensional coordinates, apply coarsening
++                    coords[c] = v.variable.coarsen(
++                        self.windows,
++                        self.coord_func[c],
++                        self.boundary,
++                        self.side,
++                        keep_attrs=keep_attrs,
++                        **kwargs,
++                    )
+ 
+             return Dataset(reduced, coords=coords, attrs=attrs)
+ 

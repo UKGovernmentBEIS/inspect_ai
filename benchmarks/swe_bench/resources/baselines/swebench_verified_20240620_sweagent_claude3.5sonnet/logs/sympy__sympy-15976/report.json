@@ -1,0 +1,66 @@
+{
+    "sympy__sympy-15976": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "test_presentation_symbol"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_mathml_printer",
+                    "test_content_printmethod",
+                    "test_content_mathml_core",
+                    "test_content_mathml_functions",
+                    "test_content_mathml_limits",
+                    "test_content_mathml_integrals",
+                    "test_content_mathml_matrices",
+                    "test_content_mathml_sums",
+                    "test_content_mathml_tuples",
+                    "test_content_mathml_add",
+                    "test_content_mathml_Rational",
+                    "test_content_mathml_constants",
+                    "test_content_mathml_trig",
+                    "test_content_mathml_relational",
+                    "test_content_symbol",
+                    "test_content_mathml_greek",
+                    "test_content_mathml_order",
+                    "test_content_settings",
+                    "test_presentation_printmethod",
+                    "test_presentation_mathml_core",
+                    "test_presentation_mathml_functions",
+                    "test_presentation_mathml_limits",
+                    "test_presentation_mathml_integrals",
+                    "test_presentation_mathml_matrices",
+                    "test_presentation_mathml_sums",
+                    "test_presentation_mathml_add",
+                    "test_presentation_mathml_Rational",
+                    "test_presentation_mathml_constants",
+                    "test_presentation_mathml_trig",
+                    "test_presentation_mathml_relational",
+                    "test_presentation_mathml_greek",
+                    "test_presentation_mathml_order",
+                    "test_presentation_settings",
+                    "test_toprettyxml_hooking",
+                    "test_print_basic",
+                    "test_root_notation_print",
+                    "test_print_matrix_symbol"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

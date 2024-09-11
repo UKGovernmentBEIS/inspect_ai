@@ -1,0 +1,1098 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sympy/matrices/expressions/matadd.py
+	modified:   sympy/matrices/expressions/matexpr.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce.py
+	test_matrix_sub.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 9986b38181cdd556a3f3411e553864f11912244e
+Merge: d792416242 021f7e44f1
+Author: Leonid Kovalev <leonidvkovalev@gmail.com>
+Date:   Tue Feb 20 07:08:46 2018 -0500
+
+    Merge pull request #14254 from akash9712/prob_cond
+    
+    Probability of continuous random variables lying in a finite set is now zero
+
++ git diff 9986b38181cdd556a3f3411e553864f11912244e
+diff --git a/sympy/matrices/expressions/matadd.py b/sympy/matrices/expressions/matadd.py
+index bef8e1e9ea..1db953fd6e 100644
+--- a/sympy/matrices/expressions/matadd.py
++++ b/sympy/matrices/expressions/matadd.py
+@@ -114,3 +114,38 @@ def merge_explicit(matadd):
+ 
+ canonicalize = exhaust(condition(lambda x: isinstance(x, MatAdd),
+                                  do_one(*rules)))
++class MatSub(MatrixExpr):
++    """A Subtraction of Matrix Expressions"""
++    is_MatSub = True
++
++    def __new__(cls, A, B):
++        A = sympify(A)
++        B = sympify(B)
++        obj = Basic.__new__(cls, A, B)
++        return obj
++
++    @property
++    def shape(self):
++        return self.args[0].shape
++
++    def _entry(self, i, j):
++        return self.args[0]._entry(i, j) - self.args[1]._entry(i, j)
++
++    def _eval_transpose(self):
++        return MatSub(transpose(self.args[0]), transpose(self.args[1]))
++
++    def _eval_adjoint(self):
++        return MatSub(adjoint(self.args[0]), adjoint(self.args[1]))
++
++    def doit(self, **kwargs):
++        deep = kwargs.get('deep', True)
++        if deep:
++            args = [arg.doit(**kwargs) for arg in self.args]
++        else:
++            args = self.args
++        return MatSub(*args)
++
++    def __str__(self):
++        return f"{self.args[0]} - {self.args[1]}"
++
++    __repr__ = __str__
+diff --git a/sympy/matrices/expressions/matexpr.py b/sympy/matrices/expressions/matexpr.py
+index 07dd23549b..7f397d025e 100644
+--- a/sympy/matrices/expressions/matexpr.py
++++ b/sympy/matrices/expressions/matexpr.py
+@@ -97,12 +97,14 @@ def __radd__(self, other):
+     @_sympifyit('other', NotImplemented)
+     @call_highest_priority('__rsub__')
+     def __sub__(self, other):
+-        return MatAdd(self, -other).doit()
++        from sympy.matrices.expressions.matadd import MatSub
++        return MatSub(self, other).doit()
+ 
+     @_sympifyit('other', NotImplemented)
+     @call_highest_priority('__sub__')
+     def __rsub__(self, other):
+-        return MatAdd(other, -self).doit()
++        from sympy.matrices.expressions.matadd import MatSub
++        return MatSub(other, self).doit()
+ 
+     @_sympifyit('other', NotImplemented)
+     @call_highest_priority('__rmul__')
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: mpmath>=0.19 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from sympy==1.1.2.dev0) (1.3.0)
+Installing collected packages: sympy
+  Attempting uninstall: sympy
+    Found existing installation: sympy 1.1.2.dev0
+    Uninstalling sympy-1.1.2.dev0:
+      Successfully uninstalled sympy-1.1.2.dev0
+  Running setup.py develop for sympy
+Successfully installed sympy-1.1.2.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 9986b38181cdd556a3f3411e553864f11912244e sympy/printing/pretty/tests/test_pretty.py sympy/printing/tests/test_ccode.py sympy/printing/tests/test_fcode.py sympy/printing/tests/test_jscode.py sympy/printing/tests/test_julia.py sympy/printing/tests/test_latex.py sympy/printing/tests/test_octave.py sympy/printing/tests/test_rcode.py sympy/printing/tests/test_str.py
+Updated 0 paths from 32dc0bcd64
++ git apply -v -
+Checking patch sympy/printing/pretty/tests/test_pretty.py...
+Checking patch sympy/printing/tests/test_ccode.py...
+Checking patch sympy/printing/tests/test_fcode.py...
+Checking patch sympy/printing/tests/test_jscode.py...
+Checking patch sympy/printing/tests/test_julia.py...
+Checking patch sympy/printing/tests/test_latex.py...
+Checking patch sympy/printing/tests/test_octave.py...
+Checking patch sympy/printing/tests/test_rcode.py...
+Checking patch sympy/printing/tests/test_str.py...
+Applied patch sympy/printing/pretty/tests/test_pretty.py cleanly.
+Applied patch sympy/printing/tests/test_ccode.py cleanly.
+Applied patch sympy/printing/tests/test_fcode.py cleanly.
+Applied patch sympy/printing/tests/test_jscode.py cleanly.
+Applied patch sympy/printing/tests/test_julia.py cleanly.
+Applied patch sympy/printing/tests/test_latex.py cleanly.
+Applied patch sympy/printing/tests/test_octave.py cleanly.
+Applied patch sympy/printing/tests/test_rcode.py cleanly.
+Applied patch sympy/printing/tests/test_str.py cleanly.
++ PYTHONWARNINGS=ignore::UserWarning,ignore::SyntaxWarning
++ bin/test -C --verbose sympy/printing/pretty/tests/test_pretty.py sympy/printing/tests/test_ccode.py sympy/printing/tests/test_fcode.py sympy/printing/tests/test_jscode.py sympy/printing/tests/test_julia.py sympy/printing/tests/test_latex.py sympy/printing/tests/test_octave.py sympy/printing/tests/test_rcode.py sympy/printing/tests/test_str.py
+/testbed/sympy/core/basic.py:3: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Mapping, defaultdict
+/testbed/sympy/core/expr.py:12: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import defaultdict, Iterable
+/testbed/sympy/core/containers.py:271: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  class OrderedSet(collections.MutableSet):
+/testbed/sympy/plotting/plot.py:28: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Callable
+/testbed/sympy/core/basic.py:3: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Mapping, defaultdict
+/testbed/sympy/core/expr.py:12: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import defaultdict, Iterable
+/testbed/sympy/core/containers.py:271: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  class OrderedSet(collections.MutableSet):
+/testbed/sympy/plotting/plot.py:28: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Callable
+============================= test process starts ==============================
+executable:         /opt/miniconda3/envs/testbed/bin/python  (3.9.19-final-0) [CPython]
+architecture:       64-bit
+cache:              no
+ground types:       python 
+numpy:              None
+random seed:        11769272
+hash randomization: on (PYTHONHASHSEED=2609806481)
+
+sympy/printing/pretty/tests/test_pretty.py[116] 
+test_pretty_ascii_str ok
+test_pretty_unicode_str ok
+test_upretty_greek ok
+test_upretty_multiindex ok
+test_upretty_sub_super ok
+test_upretty_subs_missing_in_24 ok
+test_missing_in_2X_issue_9047 X
+test_upretty_modifiers ok
+test_pretty_Cycle ok
+test_pretty_basic ok
+test_negative_fractions ok
+test_issue_5524 ok
+test_pretty_ordering ok
+test_EulerGamma ok
+test_GoldenRatio ok
+test_pretty_relational ok
+test_Assignment ok
+test_AugmentedAssignment ok
+test_issue_7117 ok
+test_pretty_rational ok
+test_pretty_functions ok
+test_pretty_sqrt ok
+test_pretty_sqrt_char_knob ok
+test_pretty_sqrt_longsymbol_no_sqrt_char ok
+test_pretty_KroneckerDelta ok
+test_pretty_product ok
+test_pretty_lambda ok
+test_pretty_order ok
+test_pretty_derivatives ok
+test_pretty_integrals ok
+test_pretty_matrix ok
+test_pretty_ndim_arrays ok
+test_tensor_TensorProduct ok
+test_diffgeom_print_WedgeProduct ok
+test_Adjoint ok
+test_pretty_Trace_issue_9044 ok
+test_MatrixExpressions ok
+test_pretty_dotproduct ok
+test_pretty_piecewise ok
+test_pretty_ITE ok
+test_pretty_seq ok
+test_any_object_in_sequence ok
+test_print_builtin_set ok
+test_pretty_sets ok
+test_pretty_SetExpr ok
+test_pretty_ImageSet ok
+test_pretty_ConditionSet ok
+test_pretty_ComplexRegion ok
+test_pretty_Union_issue_10414 ok
+test_pretty_Intersection_issue_10414 ok
+test_ProductSet_paranthesis ok
+test_ProductSet_prod_char_issue_10413 ok
+test_pretty_sequences ok
+test_pretty_FourierSeries ok
+test_pretty_FormalPowerSeries ok
+test_pretty_limits ok
+test_pretty_ComplexRootOf ok
+test_pretty_RootSum ok
+test_GroebnerBasis ok
+test_pretty_Boolean ok
+test_pretty_Domain ok
+test_pretty_prec ok
+test_pprint ok
+test_pretty_class ok
+test_pretty_no_wrap_line ok
+test_settings ok
+test_pretty_sum ok
+test_units ok
+test_pretty_Subs ok
+test_gammas ok
+test_beta ok
+test_function_subclass_different_name ok
+test_SingularityFunction ok
+test_deltas ok
+test_hyper ok
+test_meijerg ok
+test_noncommutative ok
+test_pretty_special_functions ok
+test_pretty_geometry E
+test_expint ok
+test_elliptic_functions ok
+test_RandomDomain ok
+test_PrettyPoly ok
+test_issue_6285 ok
+test_issue_6359 ok
+test_issue_6739 ok
+test_complicated_symbol_unchanged ok
+test_categories ok
+test_PrettyModules ok
+test_QuotientRing ok
+test_Homomorphism ok
+test_Tr ok
+test_pretty_Add ok
+test_issue_7179 ok
+test_issue_7180 ok
+test_pretty_Complement ok
+test_pretty_SymmetricDifference ok
+test_pretty_Contains ok
+test_issue_8292 E
+test_issue_4335 ok
+test_issue_8344 E
+test_issue_6324 ok
+test_issue_7927 ok
+test_issue_6134 ok
+test_issue_9877 ok
+test_issue_13651 ok
+test_pretty_primenu ok
+test_pretty_primeomega ok
+test_pretty_Mod ok
+test_issue_11801 ok
+test_pretty_UnevaluatedExpr ok
+test_issue_10472 ok
+test_MatrixElement_printing F
+test_MatrixSymbol_printing F
+test_degree_printing ok
+test_vector_expr_pretty_printing ok                                       [FAIL]
+
+sympy/printing/tests/test_ccode.py[46] 
+test_printmethod ok
+test_ccode_sqrt ok
+test_ccode_Pow ok
+test_ccode_Max ok
+test_ccode_constants_mathh ok
+test_ccode_constants_other ok
+test_ccode_Rational ok
+test_ccode_Integer ok
+test_ccode_functions ok
+test_ccode_inline_function ok
+test_ccode_exceptions ok
+test_ccode_user_functions ok
+test_ccode_boolean ok
+test_ccode_Relational ok
+test_ccode_Piecewise ok
+test_ccode_sinc ok
+test_ccode_Piecewise_deep ok
+test_ccode_ITE ok
+test_ccode_settings ok
+test_ccode_Indexed ok
+test_ccode_Indexed_without_looking_for_contraction ok
+test_ccode_loops_matrix_vector ok
+test_dummy_loops ok
+test_ccode_loops_add ok
+test_ccode_loops_multiple_contractions ok
+test_ccode_loops_addfactor ok
+test_ccode_loops_multiple_terms ok
+test_dereference_printing ok
+test_Matrix_printing ok
+test_ccode_reserved_words ok
+test_ccode_sign ok
+test_ccode_Assignment ok
+test_ccode_For ok
+test_ccode_Max_Min ok
+test_ccode_standard ok
+test_CCodePrinter ok
+test_C89CodePrinter ok
+test_C99CodePrinter ok
+test_C99CodePrinter__precision_f80 f
+test_C99CodePrinter__precision ok
+test_get_math_macros ok
+test_ccode_Declaration ok
+test_C99CodePrinter_custom_type ok
+test_MatrixElement_printing F
+test_subclass_CCodePrinter ok
+test_ccode_math_macros ok                                                 [FAIL]
+
+sympy/printing/tests/test_fcode.py[37] 
+test_printmethod ok
+test_fcode_sign ok
+test_fcode_Pow ok
+test_fcode_Rational ok
+test_fcode_Integer ok
+test_fcode_Float ok
+test_fcode_functions ok
+test_case ok
+test_fcode_functions_with_integers ok
+test_fcode_NumberSymbol ok
+test_fcode_complex ok
+test_implicit ok
+test_not_fortran ok
+test_user_functions ok
+test_inline_function ok
+test_assign_to ok
+test_line_wrapping ok
+test_fcode_precedence ok
+test_fcode_Logical ok
+test_fcode_Xlogical ok
+test_fcode_Relational ok
+test_fcode_Piecewise ok
+test_wrap_fortran ok
+test_wrap_fortran_keep_d0 ok
+test_settings ok
+test_free_form_code_line ok
+test_free_form_continuation_line ok
+test_free_form_comment_line ok
+test_loops ok
+test_dummy_loops ok
+test_fcode_Indexed_without_looking_for_contraction ok
+test_derived_classes ok
+test_indent ok
+test_Matrix_printing ok
+test_fcode_For ok
+test_fcode_Declaration ok
+test_MatrixElement_printing F                                             [FAIL]
+
+sympy/printing/tests/test_jscode.py[23] 
+test_printmethod ok
+test_jscode_sqrt ok
+test_jscode_Pow ok
+test_jscode_constants_mathh ok
+test_jscode_constants_other ok
+test_jscode_Rational ok
+test_jscode_Integer ok
+test_jscode_functions ok
+test_jscode_inline_function ok
+test_jscode_exceptions ok
+test_jscode_boolean ok
+test_jscode_Piecewise ok
+test_jscode_Piecewise_deep ok
+test_jscode_settings ok
+test_jscode_Indexed ok
+test_jscode_loops_matrix_vector ok
+test_dummy_loops ok
+test_jscode_loops_add ok
+test_jscode_loops_multiple_contractions ok
+test_jscode_loops_addfactor ok
+test_jscode_loops_multiple_terms ok
+test_Matrix_printing ok
+test_MatrixElement_printing F                                             [FAIL]
+
+sympy/printing/tests/test_julia.py[32] 
+test_Integer ok
+test_Rational ok
+test_Function ok
+test_Pow ok
+test_basic_ops ok
+test_1_over_x_and_sqrt ok
+test_mix_number_mult_symbols ok
+test_mix_number_pow_symbols ok
+test_imag ok
+test_constants ok
+test_constants_other ok
+test_boolean ok
+test_Matrices ok
+test_vector_entries_hadamard ok
+test_Matrices_entries_not_hadamard f
+test_MatrixSymbol ok
+test_special_matrices ok
+test_containers ok
+test_julia_noninline ok
+test_julia_piecewise ok
+test_julia_piecewise_times_const ok
+test_julia_matrix_assign_to ok
+test_julia_matrix_assign_to_more ok
+test_julia_matrix_1x1 ok
+test_julia_matrix_elements ok
+test_julia_boolean ok
+test_julia_not_supported ok
+test_trick_indent_with_end_else_words ok
+test_haramard ok
+test_sparse ok
+test_specfun ok
+test_MatrixElement_printing F                                             [FAIL]
+
+sympy/printing/tests/test_latex.py[122] 
+test_printmethod ok
+test_latex_basic ok
+test_latex_builtins ok
+test_latex_SingularityFunction ok
+test_latex_cycle ok
+test_latex_permutation ok
+test_latex_Float ok
+test_latex_vector_expressions ok
+test_latex_symbols ok
+test_latex_symbols_failing f
+test_latex_functions ok
+test_function_subclass_different_name ok
+test_hyper_printing ok
+test_latex_bessel ok
+test_latex_fresnel ok
+test_latex_brackets ok
+test_latex_indexed ok
+test_latex_derivatives ok
+test_latex_subs ok
+test_latex_integrals ok
+test_latex_sets ok
+test_latex_SetExpr ok
+test_latex_Range ok
+test_latex_sequences ok
+test_latex_FourierSeries ok
+test_latex_FormalPowerSeries ok
+test_latex_intervals ok
+test_latex_AccumuBounds ok
+test_latex_emptyset ok
+test_latex_commutator ok
+test_latex_union ok
+test_latex_symmetric_difference ok
+test_latex_Complement ok
+test_latex_Complexes ok
+test_latex_productset ok
+test_latex_Naturals ok
+test_latex_Naturals0 ok
+test_latex_Integers ok
+test_latex_ImageSet ok
+test_latex_ConditionSet ok
+test_latex_ComplexRegion ok
+test_latex_Contains ok
+test_latex_sum ok
+test_latex_product ok
+test_latex_limits ok
+test_latex_log ok
+test_issue_3568 ok
+test_latex ok
+test_latex_dict ok
+test_latex_list ok
+test_latex_rational ok
+test_latex_inverse ok
+test_latex_DiracDelta ok
+test_latex_Heaviside ok
+test_latex_KroneckerDelta ok
+test_latex_LeviCivita ok
+test_mode ok
+test_latex_Piecewise ok
+test_latex_Matrix ok
+test_latex_matrix_with_functions ok
+test_latex_NDimArray ok
+test_latex_mul_symbol ok
+test_latex_issue_4381 ok
+test_latex_issue_4576 ok
+test_latex_pow_fraction ok
+test_noncommutative ok
+test_latex_order ok
+test_latex_Lambda ok
+test_latex_PolyElement ok
+test_latex_FracElement ok
+test_latex_Poly ok
+test_latex_ComplexRootOf ok
+test_latex_RootSum ok
+test_settings ok
+test_latex_numbers ok
+test_latex_euler ok
+test_lamda ok
+test_custom_symbol_names ok
+test_matAdd F
+test_matMul ok
+test_latex_MatrixSlice ok
+test_latex_RandomDomain ok
+test_PrettyPoly ok
+test_integral_transforms ok
+test_PolynomialRingBase ok
+test_categories ok
+test_Modules ok
+test_QuotientRing ok
+test_Tr ok
+test_Adjoint ok
+test_Hadamard ok
+test_ZeroMatrix ok
+test_boolean_args_order ok
+test_imaginary ok
+test_builtins_without_args ok
+test_latex_greek_functions ok
+test_translate ok
+test_other_symbols ok
+test_modifiers ok
+test_greek_symbols ok
+test_builtin_without_args_mismatched_names f
+test_builtin_no_args ok
+test_issue_6853 ok
+test_Mul ok
+test_Pow ok
+test_issue_7180 ok
+test_issue_8409 ok
+test_issue_8470 E
+test_issue_7117 ok
+test_issue_2934 ok
+test_issue_10489 ok
+test_issue_12886 ok
+test_issue_13559 E
+test_issue_13651 ok
+test_latex_UnevaluatedExpr ok
+test_MatrixElement_printing F
+test_MatrixSymbol_printing F
+test_Quaternion_latex_printing ok
+test_TensorProduct_printing ok
+test_WedgeProduct_printing ok
+test_units ok
+test_latex_degree ok                                                      [FAIL]
+
+sympy/printing/tests/test_octave.py[33] 
+test_Integer ok
+test_Rational ok
+test_Function ok
+test_Pow ok
+test_basic_ops ok
+test_1_over_x_and_sqrt ok
+test_mix_number_mult_symbols ok
+test_mix_number_pow_symbols ok
+test_imag ok
+test_constants ok
+test_constants_other ok
+test_boolean ok
+test_Matrices ok
+test_vector_entries_hadamard ok
+test_Matrices_entries_not_hadamard f
+test_MatrixSymbol ok
+test_special_matrices ok
+test_containers ok
+test_octave_noninline ok
+test_octave_piecewise ok
+test_octave_piecewise_times_const ok
+test_octave_matrix_assign_to ok
+test_octave_matrix_assign_to_more ok
+test_octave_matrix_1x1 ok
+test_octave_matrix_elements ok
+test_octave_boolean ok
+test_octave_not_supported ok
+test_trick_indent_with_end_else_words ok
+test_haramard ok
+test_sparse ok
+test_sinc ok
+test_specfun ok
+test_MatrixElement_printing F                                             [FAIL]
+
+sympy/printing/tests/test_rcode.py[33] 
+test_printmethod ok
+test_rcode_sqrt ok
+test_rcode_Pow ok
+test_rcode_Max ok
+test_rcode_constants_mathh ok
+test_rcode_constants_other ok
+test_rcode_Rational ok
+test_rcode_Integer ok
+test_rcode_functions ok
+test_rcode_inline_function ok
+test_rcode_exceptions ok
+test_rcode_user_functions ok
+test_rcode_boolean ok
+test_rcode_Relational ok
+test_rcode_Piecewise ok
+test_rcode_sinc ok
+test_rcode_Piecewise_deep ok
+test_rcode_ITE ok
+test_rcode_settings ok
+test_rcode_Indexed ok
+test_rcode_Indexed_without_looking_for_contraction ok
+test_rcode_loops_matrix_vector ok
+test_dummy_loops ok
+test_rcode_loops_add ok
+test_rcode_loops_multiple_contractions ok
+test_rcode_loops_addfactor ok
+test_rcode_loops_multiple_terms ok
+test_dereference_printing ok
+test_Matrix_printing ok
+test_rcode_sgn ok
+test_rcode_Assignment ok
+test_rcode_For ok
+test_MatrixElement_printing F                                             [FAIL]
+
+sympy/printing/tests/test_str.py[78] 
+test_printmethod ok
+test_Abs ok
+test_Add ok
+test_Catalan ok
+test_ComplexInfinity ok
+test_Derivative ok
+test_dict ok
+test_Dict ok
+test_Dummy ok
+test_EulerGamma ok
+test_Exp ok
+test_factorial ok
+test_Function ok
+test_Geometry ok
+test_GoldenRatio ok
+test_ImaginaryUnit ok
+test_Infinity ok
+test_Integer ok
+test_Integral ok
+test_Interval ok
+test_AccumBounds ok
+test_Lambda ok
+test_Limit ok
+test_list ok
+test_Matrix_str ok
+test_Mul ok
+test_NaN ok
+test_NegativeInfinity ok
+test_Order ok
+test_Permutation_Cycle ok
+test_Pi ok
+test_Poly ok
+test_PolyRing ok
+test_FracField ok
+test_PolyElement ok
+test_FracElement ok
+test_Pow ok
+test_sqrt ok
+test_Rational ok
+test_Float ok
+test_Relational ok
+test_CRootOf ok
+test_RootSum ok
+test_GroebnerBasis ok
+test_set ok
+test_SparseMatrix ok
+test_Sum ok
+test_Symbol ok
+test_tuple ok
+test_Quaternion_str_printer ok
+test_Quantity_str ok
+test_wild_str ok
+test_zeta ok
+test_issue_3101 ok
+test_issue_3103 ok
+test_issue_4021 ok
+test_sstrrepr ok
+test_infinity ok
+test_full_prec ok
+test_noncommutative ok
+test_empty_printer ok
+test_settings ok
+test_RandomDomain ok
+test_FiniteSet ok
+test_PrettyPoly ok
+test_categories ok
+test_Tr ok
+test_issue_6387 ok
+test_MatMul_MatAdd ok
+test_MatrixSlice ok
+test_true_false ok
+test_Equivalent ok
+test_Xor ok
+test_Complement ok
+test_SymmetricDifference ok
+test_UnevaluatedExpr ok
+test_MatrixElement_printing F
+test_MatrixSymbol_printing F                                              [FAIL]
+
+
+________________________________ xpassed tests _________________________________
+sympy/printing/pretty/tests/test_pretty.py: test_missing_in_2X_issue_9047
+
+________________________________________________________________________________
+_______ sympy/printing/pretty/tests/test_pretty.py:test_pretty_geometry ________
+  File "/testbed/sympy/printing/pretty/tests/test_pretty.py", line 5285, in test_pretty_geometry
+    e = Ray((1, 1), angle=4.02*pi)
+  File "/testbed/sympy/geometry/line.py", line 1275, in __new__
+    return Ray2D(p1, p2, **kwargs)
+  File "/testbed/sympy/geometry/line.py", line 2108, in __new__
+    p2 = p1 + Point(x, y)
+  File "/testbed/sympy/geometry/point.py", line 224, in __add__
+    coords = [simplify(a + b) for a, b in zip(s, o)]
+  File "/testbed/sympy/geometry/point.py", line 224, in <listcomp>
+    coords = [simplify(a + b) for a, b in zip(s, o)]
+  File "/testbed/sympy/simplify/simplify.py", line 600, in simplify
+    short = exptrigsimp(short)
+  File "/testbed/sympy/simplify/trigsimp.py", line 542, in exptrigsimp
+    newexpr = bottom_up(expr, exp_trig)
+  File "/testbed/sympy/simplify/simplify.py", line 1042, in bottom_up
+    args = tuple([bottom_up(a, F, atoms, nonbasic)
+  File "/testbed/sympy/simplify/simplify.py", line 1042, in <listcomp>
+    args = tuple([bottom_up(a, F, atoms, nonbasic)
+  File "/testbed/sympy/simplify/simplify.py", line 1046, in bottom_up
+    rv = F(rv)
+  File "/testbed/sympy/simplify/trigsimp.py", line 539, in exp_trig
+    choices.append(e.rewrite(exp))
+  File "/testbed/sympy/core/basic.py", line 1670, in rewrite
+    return self._eval_rewrite(None, rule, **hints)
+  File "/testbed/sympy/core/basic.py", line 1578, in _eval_rewrite
+    rewritten = getattr(self, rule)(*args)
+  File "/testbed/sympy/functions/elementary/trigonometric.py", line 1138, in _eval_rewrite_as_exp
+    neg_exp, pos_exp = exp(-arg*I), exp(arg*I)
+  File "/testbed/sympy/core/function.py", line 441, in __new__
+    result = super(Function, cls).__new__(cls, *args, **options)
+  File "/testbed/sympy/core/function.py", line 250, in __new__
+    evaluated = cls.eval(*args)
+  File "/testbed/sympy/functions/elementary/exponential.py", line 254, in eval
+    if ask(Q.integer(2*coeff)):
+  File "/testbed/sympy/assumptions/ask.py", line 1247, in ask
+    from sympy.assumptions.satask import satask
+  File "/testbed/sympy/assumptions/satask.py", line 9, in <module>
+    from sympy.assumptions.sathandlers import fact_registry
+  File "/testbed/sympy/assumptions/sathandlers.py", line 3, in <module>
+    from collections import MutableMapping, defaultdict
+  File "<frozen importlib._bootstrap>", line 1055, in _handle_fromlist
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+__________ sympy/printing/pretty/tests/test_pretty.py:test_issue_8292 __________
+  File "/testbed/sympy/printing/pretty/tests/test_pretty.py", line 5835, in test_issue_8292
+    e = sympify('((x+x**4)/(x-1))-(2*(x-1)**4/(x-1)**4)', evaluate=False)
+  File "/testbed/sympy/core/sympify.py", line 368, in sympify
+    expr = parse_expr(a, local_dict=locals, transformations=transformations, evaluate=evaluate)
+  File "/testbed/sympy/parsing/sympy_parser.py", line 948, in parse_expr
+    code = compile(evaluateFalse(code), '<string>', 'eval')
+ValueError: Name node can't be used with 'False' constant
+________________________________________________________________________________
+__________ sympy/printing/pretty/tests/test_pretty.py:test_issue_8344 __________
+  File "/testbed/sympy/printing/pretty/tests/test_pretty.py", line 5876, in test_issue_8344
+    e = sympify('2*x*y**2/1**2 + 1', evaluate=False)
+  File "/testbed/sympy/core/sympify.py", line 368, in sympify
+    expr = parse_expr(a, local_dict=locals, transformations=transformations, evaluate=evaluate)
+  File "/testbed/sympy/parsing/sympy_parser.py", line 948, in parse_expr
+    code = compile(evaluateFalse(code), '<string>', 'eval')
+ValueError: Name node can't be used with 'False' constant
+________________________________________________________________________________
+______________ sympy/printing/tests/test_latex.py:test_issue_8470 ______________
+  File "/testbed/sympy/printing/tests/test_latex.py", line 1652, in test_issue_8470
+    e = parse_expr("-B*A", evaluate=False)
+  File "/testbed/sympy/parsing/sympy_parser.py", line 948, in parse_expr
+    code = compile(evaluateFalse(code), '<string>', 'eval')
+ValueError: Name node can't be used with 'False' constant
+________________________________________________________________________________
+_____________ sympy/printing/tests/test_latex.py:test_issue_13559 ______________
+  File "/testbed/sympy/printing/tests/test_latex.py", line 1685, in test_issue_13559
+    expr = parse_expr('5/1', evaluate=False)
+  File "/testbed/sympy/parsing/sympy_parser.py", line 948, in parse_expr
+    code = compile(evaluateFalse(code), '<string>', 'eval')
+ValueError: Name node can't be used with 'False' constant
+
+________________________________________________________________________________
+____ sympy/printing/pretty/tests/test_pretty.py:test_MatrixElement_printing ____
+  File "/testbed/sympy/printing/pretty/tests/test_pretty.py", line 6088, in test_MatrixElement_printing
+    assert pretty(F)  == ascii_str1
+AssertionError
+________________________________________________________________________________
+____ sympy/printing/pretty/tests/test_pretty.py:test_MatrixSymbol_printing _____
+  File "/testbed/sympy/printing/pretty/tests/test_pretty.py", line 6099, in test_MatrixSymbol_printing
+    assert pretty(A - B) == "-B + A"
+AssertionError
+________________________________________________________________________________
+________ sympy/printing/tests/test_ccode.py:test_MatrixElement_printing ________
+  File "/testbed/sympy/printing/tests/test_ccode.py", line 758, in test_MatrixElement_printing
+    assert(ccode(F) == "(-B + A)[0]")
+AssertionError
+________________________________________________________________________________
+________ sympy/printing/tests/test_fcode.py:test_MatrixElement_printing ________
+  File "/testbed/sympy/printing/tests/test_fcode.py", line 759, in test_MatrixElement_printing
+    assert(fcode(F) == "      (-B + A)(1, 1)")
+AssertionError
+________________________________________________________________________________
+_______ sympy/printing/tests/test_jscode.py:test_MatrixElement_printing ________
+  File "/testbed/sympy/printing/tests/test_jscode.py", line 385, in test_MatrixElement_printing
+    assert(jscode(F) == "(-B + A)[0]")
+AssertionError
+________________________________________________________________________________
+________ sympy/printing/tests/test_julia.py:test_MatrixElement_printing ________
+  File "/testbed/sympy/printing/tests/test_julia.py", line 377, in test_MatrixElement_printing
+    assert(julia_code(F) == "(-B + A)[1,1]")
+AssertionError
+________________________________________________________________________________
+________________ sympy/printing/tests/test_latex.py:test_matAdd ________________
+  File "/testbed/sympy/printing/tests/test_latex.py", line 1197, in test_matAdd
+    assert l._print_MatAdd(C - 2*B) in ['-2 B + C', 'C -2 B']
+AssertionError
+________________________________________________________________________________
+________ sympy/printing/tests/test_latex.py:test_MatrixElement_printing ________
+  File "/testbed/sympy/printing/tests/test_latex.py", line 1713, in test_MatrixElement_printing
+    assert latex(F) == r"\left(-B + A\right)_{0, 0}"
+AssertionError
+________________________________________________________________________________
+________ sympy/printing/tests/test_latex.py:test_MatrixSymbol_printing _________
+  File "/testbed/sympy/printing/tests/test_latex.py", line 1722, in test_MatrixSymbol_printing
+    assert latex(-A) == r"-A"
+AssertionError
+________________________________________________________________________________
+_______ sympy/printing/tests/test_octave.py:test_MatrixElement_printing ________
+  File "/testbed/sympy/printing/tests/test_octave.py", line 397, in test_MatrixElement_printing
+    assert mcode(F) == "(-B + A)(1, 1)"
+AssertionError
+________________________________________________________________________________
+________ sympy/printing/tests/test_rcode.py:test_MatrixElement_printing ________
+  File "/testbed/sympy/printing/tests/test_rcode.py", line 491, in test_MatrixElement_printing
+    assert(rcode(F) == "(-B + A)[0]")
+AssertionError
+________________________________________________________________________________
+_________ sympy/printing/tests/test_str.py:test_MatrixElement_printing _________
+  File "/testbed/sympy/printing/tests/test_str.py", line 787, in test_MatrixElement_printing
+    assert str(F) == "(-B + A)[0, 0]"
+AssertionError
+________________________________________________________________________________
+_________ sympy/printing/tests/test_str.py:test_MatrixSymbol_printing __________
+  File "/testbed/sympy/printing/tests/test_str.py", line 794, in test_MatrixSymbol_printing
+    assert str(A - A*B - B) == "-B - A*B + A"
+AssertionError
+
+ tests finished: 496 passed, 13 failed, 5 expected to fail, 
+1 expected to fail but passed, 5 exceptions, in 28.49 seconds 
+DO *NOT* COMMIT!
++ git checkout 9986b38181cdd556a3f3411e553864f11912244e sympy/printing/pretty/tests/test_pretty.py sympy/printing/tests/test_ccode.py sympy/printing/tests/test_fcode.py sympy/printing/tests/test_jscode.py sympy/printing/tests/test_julia.py sympy/printing/tests/test_latex.py sympy/printing/tests/test_octave.py sympy/printing/tests/test_rcode.py sympy/printing/tests/test_str.py
+Updated 9 paths from 32dc0bcd64

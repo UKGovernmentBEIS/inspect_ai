@@ -1,0 +1,501 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/backends/postgresql/operations.py
+	modified:   django/db/models/functions/datetime.py
+	modified:   tests/postgres_tests/test_operations.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	run_test.py
+	test_timezone_operations.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit d89f976bddb49fb168334960acc8979c3de991fa
+Author: Eugene Morozov <jmv@emorozov.net>
+Date:   Tue Aug 24 23:29:55 2021 +0300
+
+    Fixed #33054 -- Made TestCase.captureOnCommitCallbacks() capture callbacks recursively.
+
+diff --git a/django/test/testcases.py b/django/test/testcases.py
+index b947d70a45..41d01b89b4 100644
+--- a/django/test/testcases.py
++++ b/django/test/testcases.py
+@@ -1282,11 +1282,18 @@ class TestCase(TransactionTestCase):
+         try:
+             yield callbacks
+         finally:
+-            run_on_commit = connections[using].run_on_commit[start_count:]
+-            callbacks[:] = [func for sids, func in run_on_commit]
+-            if execute:
+-                for callback in callbacks:
+-                    callback()
++            callback_count = len(connections[using].run_on_commit)
++            while True:
++                run_on_commit = connections[using].run_on_commit[start_count:]
++                callbacks[:] = [func for sids, func in run_on_commit]
++                if execute:
++                    for callback in callbacks:
++                        callback()
++
++                if callback_count == len(connections[using].run_on_commit):
++                    break
++                start_count = callback_count - 1
++                callback_count = len(connections[using].run_on_commit)
+ 
+ 
+ class CheckCondition:
+diff --git a/docs/releases/4.0.txt b/docs/releases/4.0.txt
+index 45743c4139..53b738c8ec 100644
+--- a/docs/releases/4.0.txt
++++ b/docs/releases/4.0.txt
+@@ -368,6 +368,9 @@ Tests
+ * The :option:`test --parallel` option now supports the value ``auto`` to run
+   one test process for each processor core.
+ 
++* :meth:`.TestCase.captureOnCommitCallbacks` now captures new callbacks added
++  while executing :func:`.transaction.on_commit` callbacks.
++
+ URLs
+ ~~~~
+ 
+diff --git a/docs/topics/testing/tools.txt b/docs/topics/testing/tools.txt
+index 8e4f077fad..846d428980 100644
+--- a/docs/topics/testing/tools.txt
++++ b/docs/topics/testing/tools.txt
+@@ -912,6 +912,11 @@ It also provides an additional method:
+                 self.assertEqual(mail.outbox[0].subject, 'Contact Form')
+                 self.assertEqual(mail.outbox[0].body, 'I like your site')
+ 
++    .. versionchanged:: 4.0
++
++        In older versions, new callbacks added while executing
++        :func:`.transaction.on_commit` callbacks were not captured.
++
+ .. _live-test-server:
+ 
+ ``LiveServerTestCase``
+diff --git a/tests/test_utils/tests.py b/tests/test_utils/tests.py
+index 44301aaa1b..82ec36ab38 100644
+--- a/tests/test_utils/tests.py
++++ b/tests/test_utils/tests.py
+@@ -1502,6 +1502,13 @@ class CaptureOnCommitCallbacksTests(TestCase):
+ 
+         self.assertEqual(callbacks, [])
+ 
++    def test_execute_recursive(self):
++        with self.captureOnCommitCallbacks(execute=True) as callbacks:
++            transaction.on_commit(self.enqueue_callback)
++
++        self.assertEqual(len(callbacks), 2)
++        self.assertIs(self.callback_called, True)
++
+ 
+ class DisallowedDatabaseQueriesTests(SimpleTestCase):
+     def test_disallowed_database_connections(self):
++ git diff d89f976bddb49fb168334960acc8979c3de991fa
+diff --git a/django/db/backends/postgresql/operations.py b/django/db/backends/postgresql/operations.py
+index 8d19872bea..850a599044 100644
+--- a/django/db/backends/postgresql/operations.py
++++ b/django/db/backends/postgresql/operations.py
+@@ -44,7 +44,11 @@ class DatabaseOperations(BaseDatabaseOperations):
+         return "DATE_TRUNC('%s', %s)" % (lookup_type, field_name)
+ 
+     def _prepare_tzname_delta(self, tzname):
+-        if '+' in tzname:
++        if tzname.startswith('Etc/GMT'):
++            # Convert 'Etc/GMT-10' to '+10' and 'Etc/GMT+10' to '-10'
++            offset = tzname.split('GMT', 1)[1]
++            return '+' + offset[1:] if offset.startswith('-') else '-' + offset[1:]
++        elif '+' in tzname:
+             return tzname.replace('+', '-')
+         elif '-' in tzname:
+             return tzname.replace('-', '+')
+diff --git a/django/db/models/functions/datetime.py b/django/db/models/functions/datetime.py
+index 20161bef38..8de23db881 100644
+--- a/django/db/models/functions/datetime.py
++++ b/django/db/models/functions/datetime.py
+@@ -25,6 +25,10 @@ class TimezoneMixin:
+                 tzname = timezone.get_current_timezone_name()
+             else:
+                 tzname = timezone._get_timezone_name(self.tzinfo)
++                if tzname.startswith('Etc/GMT'):
++                    # Convert 'Etc/GMT-10' to '+10' and 'Etc/GMT+10' to '-10'
++                    offset = tzname.split('GMT', 1)[1]
++                    tzname = '+' + offset[1:] if offset.startswith('-') else '-' + offset[1:]
+         return tzname
+ 
+ 
+diff --git a/tests/postgres_tests/test_operations.py b/tests/postgres_tests/test_operations.py
+index 1464f3177e..ed77232e1d 100644
+--- a/tests/postgres_tests/test_operations.py
++++ b/tests/postgres_tests/test_operations.py
+@@ -493,4 +493,14 @@ class ValidateConstraintTests(OperationTestBase):
+         name, args, kwargs = operation.deconstruct()
+         self.assertEqual(name, 'ValidateConstraint')
+         self.assertEqual(args, [])
+-        self.assertEqual(kwargs, {'model_name': 'Pony', 'name': constraint_name})
++class DatabaseOperationsTests(PostgreSQLTestCase):
++    def test_prepare_tzname_delta(self):
++        from django.db.backends.postgresql.operations import DatabaseOperations
++        ops = DatabaseOperations(connection=connection)
++
++        self.assertEqual(ops._prepare_tzname_delta('Etc/GMT-10'), '+10')
++        self.assertEqual(ops._prepare_tzname_delta('Etc/GMT+10'), '-10')
++        self.assertEqual(ops._prepare_tzname_delta('UTC+10'), 'UTC-10')
++        self.assertEqual(ops._prepare_tzname_delta('UTC-10'), 'UTC+10')
++        self.assertEqual(ops._prepare_tzname_delta('America/New_York'), 'America/New_York')
++
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.3.2 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0.dev20210830050622) (3.8.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0.dev20210830050622) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0.dev20210830050622) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from asgiref>=3.3.2->Django==4.0.dev20210830050622) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.0.dev20210830050622-0.editable-py3-none-any.whl size=26634 sha256=15ddea009d7f5874cc310ceaf6fa59f21d9c9bc4dfdd8cef156e9a6c6668ea58
+  Stored in directory: /tmp/pip-ephem-wheel-cache-l9c7rlcl/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.0.dev20210830050622
+    Uninstalling Django-4.0.dev20210830050622:
+      Successfully uninstalled Django-4.0.dev20210830050622
+Successfully installed Django-4.0.dev20210830050622
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout d89f976bddb49fb168334960acc8979c3de991fa tests/utils_tests/test_timezone.py
+Updated 0 paths from 0af9c6e51c
++ git apply -v -
+Checking patch tests/utils_tests/test_timezone.py...
+Applied patch tests/utils_tests/test_timezone.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 utils_tests.test_timezone
+test_activate_invalid_timezone (utils_tests.test_timezone.TimezoneTests) ... ok
+test_fixedoffset_negative_timedelta (utils_tests.test_timezone.TimezoneTests) ... ok
+test_fixedoffset_timedelta (utils_tests.test_timezone.TimezoneTests) ... ok
+test_get_default_timezone (utils_tests.test_timezone.TimezoneTests) ... ok
+test_get_default_timezone_utc (utils_tests.test_timezone.TimezoneTests) ... ok
+test_get_timezone_name (utils_tests.test_timezone.TimezoneTests)
+The _get_timezone_name() helper must return the offset for fixed offset ... test_is_aware (utils_tests.test_timezone.TimezoneTests) ... ok
+test_is_naive (utils_tests.test_timezone.TimezoneTests) ... ok
+test_localdate (utils_tests.test_timezone.TimezoneTests) ... ok
+test_make_aware (utils_tests.test_timezone.TimezoneTests) ... ok
+test_make_aware2 (utils_tests.test_timezone.TimezoneTests) ... ok
+test_make_aware_no_tz (utils_tests.test_timezone.TimezoneTests) ... ok
+test_make_aware_pytz_ambiguous (utils_tests.test_timezone.TimezoneTests) ... ok
+test_make_aware_pytz_non_existent (utils_tests.test_timezone.TimezoneTests) ... ok
+test_make_aware_zoneinfo_ambiguous (utils_tests.test_timezone.TimezoneTests) ... ok
+test_make_aware_zoneinfo_non_existent (utils_tests.test_timezone.TimezoneTests) ... ok
+test_make_naive (utils_tests.test_timezone.TimezoneTests) ... ok
+test_make_naive_no_tz (utils_tests.test_timezone.TimezoneTests) ... ok
+test_make_naive_pytz (utils_tests.test_timezone.TimezoneTests) ... ok
+test_make_naive_zoneinfo (utils_tests.test_timezone.TimezoneTests) ... ok
+test_now (utils_tests.test_timezone.TimezoneTests) ... ok
+test_override (utils_tests.test_timezone.TimezoneTests) ... ok
+test_override_decorator (utils_tests.test_timezone.TimezoneTests) ... ok
+test_override_fixed_offset (utils_tests.test_timezone.TimezoneTests) ... ok
+test_override_string_tz (utils_tests.test_timezone.TimezoneTests) ... ok
+
+======================================================================
+FAIL: test_get_timezone_name (utils_tests.test_timezone.TimezoneTests) (tz=<StaticTzInfo 'Etc/GMT-10'>, expected='+10')
+The _get_timezone_name() helper must return the offset for fixed offset
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/utils_tests/test_timezone.py", line 286, in test_get_timezone_name
+    self.assertEqual(timezone._get_timezone_name(tz), expected)
+AssertionError: 'Etc/GMT-10' != '+10'
+- Etc/GMT-10
++ +10
+
+
+======================================================================
+FAIL: test_get_timezone_name (utils_tests.test_timezone.TimezoneTests) (tz=backports.zoneinfo.ZoneInfo(key='Etc/GMT-10'), expected='+10')
+The _get_timezone_name() helper must return the offset for fixed offset
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/utils_tests/test_timezone.py", line 286, in test_get_timezone_name
+    self.assertEqual(timezone._get_timezone_name(tz), expected)
+AssertionError: 'Etc/GMT-10' != '+10'
+- Etc/GMT-10
++ +10
+
+
+----------------------------------------------------------------------
+Ran 25 tests in 0.023s
+
+FAILED (failures=2)
+Testing against Django installed in '/testbed/django'
+Importing application utils_tests
+Found 25 test(s).
+Skipping setup of unused database(s): default, other.
+System check identified no issues (0 silenced).
++ git checkout d89f976bddb49fb168334960acc8979c3de991fa tests/utils_tests/test_timezone.py
+Updated 1 path from 0af9c6e51c

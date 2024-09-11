@@ -1,0 +1,143 @@
+
+diff --git a/bug_reproduction.png b/bug_reproduction.png
+new file mode 100644
+index 0000000000..f20101618b
+Binary files /dev/null and b/bug_reproduction.png differ
+diff --git a/fix_summary.txt b/fix_summary.txt
+new file mode 100644
+index 0000000000..7dee5bb026
+--- /dev/null
++++ b/fix_summary.txt
+@@ -0,0 +1,22 @@
++Bug Fix: set_visible() not working for 3d projection
++
++Problem:
++The set_visible(False) method was not properly hiding all components of a 3D axes, particularly the patch (background).
++
++Solution:
++Modified the set_visible method in the Axes3D class (lib/mpl_toolkits/mplot3d/axes3d.py) to explicitly set the visibility of all components:
++- Patch (background)
++- X, Y, and Z axes
++- Collections
++- Texts
++
++This ensures that all parts of the 3D axes are properly hidden when set_visible(False) is called.
++
++Testing:
++1. Created a test script (reproduce_bug.py) that demonstrates the fix by creating two 3D subplots, one visible and one not visible.
++2. Added a new test case `test_axes3d_set_visible()` in `/matplotlib__matplotlib/lib/mpl_toolkits/tests/test_mplot3d.py` to verify the correct behavior of `set_visible()` for 3D axes.
++
++Next steps:
++1. Run the full test suite to ensure no regressions.
++2. If tests pass, commit changes and create a pull request.
++3. Update documentation if necessary.
+diff --git a/lib/mpl_toolkits/mplot3d/axes3d.py b/lib/mpl_toolkits/mplot3d/axes3d.py
+index 9db44b7994..1a456b836f 100644
+--- a/lib/mpl_toolkits/mplot3d/axes3d.py
++++ b/lib/mpl_toolkits/mplot3d/axes3d.py
+@@ -3231,6 +3231,24 @@ pivot='tail', normalize=False, **kwargs)
+ 
+     stem3D = stem
+ 
++    def set_visible(self, b):
++        """
++        Set the visibility of the Axes3D.
++
++        Parameters
++        ----------
++        b : bool
++            Whether the axes should be visible.
++        """
++        super().set_visible(b)
++        self.patch.set_visible(b)
++        self.xaxis.set_visible(b)
++        self.yaxis.set_visible(b)
++        self.zaxis.set_visible(b)
++        for collection in self.collections:
++            collection.set_visible(b)
++        for text in self.texts:
++            text.set_visible(b)
+ 
+ def get_test_data(delta=0.05):
+     """Return a tuple X, Y, Z with a test data set."""
+@@ -3245,4 +3263,3 @@ def get_test_data(delta=0.05):
+     X = X * 10
+     Y = Y * 10
+     Z = Z * 500
+-    return X, Y, Z
+diff --git a/lib/mpl_toolkits/tests/test_mplot3d.py b/lib/mpl_toolkits/tests/test_mplot3d.py
+index 966eb50b21..537682533d 100644
+--- a/lib/mpl_toolkits/tests/test_mplot3d.py
++++ b/lib/mpl_toolkits/tests/test_mplot3d.py
+@@ -1736,3 +1736,39 @@ def test_view_init_vertical_axis(
+         tickdir_expected = tickdirs_expected[i]
+         tickdir_actual = axis._get_tickdir()
+         np.testing.assert_array_equal(tickdir_expected, tickdir_actual)
++def test_axes3d_set_visible():
++    fig = plt.figure()
++    ax = fig.add_subplot(111, projection='3d')
++    
++    # Create a scatter plot
++    x = y = z = np.arange(10)
++    ax.scatter(x, y, z)
++    
++    # Test initial visibility
++    assert ax.get_visible() == True
++    assert ax.patch.get_visible() == True
++    assert ax.xaxis.get_visible() == True
++    assert ax.yaxis.get_visible() == True
++    assert ax.zaxis.get_visible() == True
++    
++    # Set visibility to False
++    ax.set_visible(False)
++    
++    # Test visibility after set_visible(False)
++    assert ax.get_visible() == False
++    assert ax.patch.get_visible() == False
++    assert ax.xaxis.get_visible() == False
++    assert ax.yaxis.get_visible() == False
++    assert ax.zaxis.get_visible() == False
++    
++    # Set visibility back to True
++    ax.set_visible(True)
++    
++    # Test visibility after set_visible(True)
++    assert ax.get_visible() == True
++    assert ax.patch.get_visible() == True
++    assert ax.xaxis.get_visible() == True
++    assert ax.yaxis.get_visible() == True
++    assert ax.zaxis.get_visible() == True
++
++    plt.close(fig)
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..5575f6bf6c
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,22 @@
++import matplotlib.pyplot as plt
++from mpl_toolkits.mplot3d import Axes3D
++
++fig = plt.figure(figsize=(12, 6))
++
++ax1 = fig.add_subplot(121, projection='3d')
++ax1.scatter(1, 1, 1)
++ax1.set_title('Visible')
++
++ax2 = fig.add_subplot(122, projection='3d')
++ax2.scatter(1, 1, 1, c='r')
++ax2.set_title('Not Visible')
++ax2.set_visible(False)
++
++print("Visibility status:")
++print(f"ax1 visible: {ax1.get_visible()}")
++print(f"ax2 visible: {ax2.get_visible()}")
++print(f"ax1 patch visible: {ax1.patch.get_visible()}")
++print(f"ax2 patch visible: {ax2.patch.get_visible()}")
++
++plt.savefig('visibility_test.png')
++print("Script completed successfully. Check visibility_test.png to see the result.")
+diff --git a/visibility_test.png b/visibility_test.png
+new file mode 100644
+index 0000000000..7e39461d88
+Binary files /dev/null and b/visibility_test.png differ

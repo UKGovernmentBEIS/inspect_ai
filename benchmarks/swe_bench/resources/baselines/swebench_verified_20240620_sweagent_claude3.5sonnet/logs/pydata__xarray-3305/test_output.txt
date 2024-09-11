@@ -1,0 +1,1639 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libarrow_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libarrow_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh
++++ '[' -n '' ']'
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh
++++ '[' -n /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh
++++ '[' -n '' ']'
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/gdal ']'
++++ export GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ export GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ '[' '!' -d /opt/miniconda3/envs/testbed/lib/gdalplugins ']'
++++ export CPL_ZIP_ENCODING=UTF-8
++++ CPL_ZIP_ENCODING=UTF-8
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/epsg_csv ']'
++++ '[' -d /opt/miniconda3/envs/testbed/Library/share/epsg_csv ']'
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libarrow_activate.sh
++++ _la_log 'Beginning libarrow activation.'
++++ '[' '' = 1 ']'
++++ _la_gdb_prefix=/opt/miniconda3/envs/testbed/share/gdb/auto-load
++++ '[' '!' -w /opt/miniconda3/envs/testbed/share/gdb/auto-load ']'
++++ _la_placeholder=replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX
++++ _la_symlink_dir=/opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib
++++ _la_orig_install_dir=/opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib
++++ _la_log '          _la_gdb_prefix: /opt/miniconda3/envs/testbed/share/gdb/auto-load'
++++ '[' '' = 1 ']'
++++ _la_log '         _la_placeholder: replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX'
++++ '[' '' = 1 ']'
++++ _la_log '         _la_symlink_dir: /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib'
++++ '[' '' = 1 ']'
++++ _la_log '    _la_orig_install_dir: /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib'
++++ '[' '' = 1 ']'
++++ _la_log '  content of that folder:'
++++ '[' '' = 1 ']'
+++++ ls -al /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib
+++++ sed 's/^/      /'
++++ _la_log '      total 4
+      drwxr-xr-x. 2 root root  41 Jul 24 16:04 .
+      drwxr-xr-x. 3 root root  17 Jul 24 16:04 ..
+      -rw-r--r--. 1 root root 971 Jul 24 16:04 libarrow.so.1700.0.0-gdb.py'
++++ '[' '' = 1 ']'
++++ for _la_target in "$_la_orig_install_dir/"*.py
++++ '[' '!' -e /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py ']'
+++++ basename /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py
++++ _la_symlink=/opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py
++++ _la_log '   _la_target: /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py'
++++ '[' '' = 1 ']'
++++ _la_log '  _la_symlink: /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py'
++++ '[' '' = 1 ']'
++++ '[' -L /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py ']'
+++++ readlink /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py
++++ '[' /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py = /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py ']'
++++ _la_log 'symlink $_la_symlink already exists and points to $_la_target, skipping.'
++++ '[' '' = 1 ']'
++++ continue
++++ _la_log 'Libarrow activation complete.'
++++ '[' '' = 1 ']'
++++ unset _la_gdb_prefix
++++ unset _la_log
++++ unset _la_orig_install_dir
++++ unset _la_placeholder
++++ unset _la_symlink
++++ unset _la_symlink_dir
++++ unset _la_target
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/proj ']'
++++ export PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ '[' -f /opt/miniconda3/envs/testbed/share/proj/copyright_and_licenses.csv ']'
++++ export PROJ_NETWORK=ON
++++ PROJ_NETWORK=ON
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/udunits ']'
++++ export UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++++ UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   xarray/core/dataset.py
+	modified:   xarray/core/variable.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce.py
+	reproduce_issue.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 69c7e01e5167a3137c285cb50d1978252bb8bcbf
+Author: Maximilian Roos <5635139+max-sixty@users.noreply.github.com>
+Date:   Mon Sep 9 15:17:33 2019 -0400
+
+    Compat and encoding deprecation to 0.14 (#3294)
+    
+    * push the removal of the compat and encoding arguments from Dataset/DataArray back to 0.14
+    
+    * require dim argument to concat
+    
+    * Update whats-new.rst
+
+diff --git a/doc/whats-new.rst b/doc/whats-new.rst
+index f5e0f9c4..d81986cb 100644
+--- a/doc/whats-new.rst
++++ b/doc/whats-new.rst
+@@ -48,8 +48,8 @@ Breaking changes
+   - Any user code that defines custom subclasses of xarray classes must now explicitly
+     define ``__slots__`` itself. Subclasses that don't add any attributes must state so
+     by defining ``__slots__ = ()`` right after the class header.
+-    Omitting ``__slots__`` will now cause a ``FutureWarning`` to be logged, and a hard
+-    crash in a later release.
++    Omitting ``__slots__`` will now cause a ``FutureWarning`` to be logged, and will raise an
++    error in a later release.
+ 
+   (:issue:`3250`) by `Guido Imperiale <https://github.com/crusaderky>`_.
+ - :py:meth:`~Dataset.to_dataset` requires ``name`` to be passed as a kwarg (previously ambiguous 
+diff --git a/xarray/core/dataarray.py b/xarray/core/dataarray.py
+index a3655e2c..807badde 100644
+--- a/xarray/core/dataarray.py
++++ b/xarray/core/dataarray.py
+@@ -315,7 +315,7 @@ class DataArray(AbstractArray, DataWithCoords):
+         if encoding is not None:
+             warnings.warn(
+                 "The `encoding` argument to `DataArray` is deprecated, and . "
+-                "will be removed in 0.13. "
++                "will be removed in 0.14. "
+                 "Instead, specify the encoding when writing to disk or "
+                 "set the `encoding` attribute directly.",
+                 FutureWarning,
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index 1476c1ba..d6f0da42 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -489,7 +489,7 @@ class Dataset(Mapping, ImplementsDatasetReduce, DataWithCoords):
+         if compat is not None:
+             warnings.warn(
+                 "The `compat` argument to Dataset is deprecated and will be "
+-                "removed in 0.13."
++                "removed in 0.14."
+                 "Instead, use `merge` to control how variables are combined",
+                 FutureWarning,
+                 stacklevel=2,
++ git diff 69c7e01e5167a3137c285cb50d1978252bb8bcbf
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index d6f0da42..f2362c5d 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -4768,7 +4768,8 @@ class Dataset(Mapping, ImplementsDatasetReduce, DataWithCoords):
+                             # the former is often more efficient
+                             reduce_dims = None
+                         variables[name] = var.quantile(
+-                            q, dim=reduce_dims, interpolation=interpolation
++                            q, dim=reduce_dims, interpolation=interpolation,
++                            keep_attrs=keep_attrs
+                         )
+ 
+             else:
+diff --git a/xarray/core/variable.py b/xarray/core/variable.py
+index 2e9906ce..972fc7cf 100644
+--- a/xarray/core/variable.py
++++ b/xarray/core/variable.py
+@@ -1592,7 +1592,7 @@ class Variable(
+         """
+         return self.broadcast_equals(other, equiv=duck_array_ops.array_notnull_equiv)
+ 
+-    def quantile(self, q, dim=None, interpolation="linear"):
++    def quantile(self, q, dim=None, interpolation="linear", keep_attrs=None):
+         """Compute the qth quantile of the data along the specified dimension.
+ 
+         Returns the qth quantiles(s) of the array elements.
+@@ -1615,6 +1615,10 @@ class Variable(
+                 * higher: ``j``.
+                 * nearest: ``i`` or ``j``, whichever is nearest.
+                 * midpoint: ``(i + j) / 2``.
++        keep_attrs : bool, optional
++            If True, the variable's attributes (`attrs`) will be copied from
++            the original object to the new one. If False, the new object will
++            be returned without attributes.
+ 
+         Returns
+         -------
+@@ -1658,7 +1662,12 @@ class Variable(
+         qs = np.nanpercentile(
+             self.data, q * 100.0, axis=axis, interpolation=interpolation
+         )
+-        return Variable(new_dims, qs)
++
++        if keep_attrs is None:
++            keep_attrs = _get_keep_attrs(default=False)
++        
++        attrs = self.attrs if keep_attrs else None
++        return Variable(new_dims, qs, attrs=attrs)
+ 
+     def rank(self, dim, pct=False):
+         """Ranks the data.
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/udunits2-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/proj4-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/geotiff-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/gdal-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmpy-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmf-deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval '. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/udunits2-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/proj4-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/geotiff-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/gdal-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmpy-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmf-deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/udunits2-deactivate.sh
+++++ unset UDUNITS2_XML_PATH
+++++ '[' -n '' ']'
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/proj4-deactivate.sh
+++++ unset PROJ_DATA
+++++ unset PROJ_NETWORK
+++++ '[' -n '' ']'
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh
+++++ test -n ''
+++++ unset XML_CATALOG_FILES
+++++ unset xml_catalog_files_libxml2
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh
+++++ export GSETTINGS_SCHEMA_DIR=
+++++ GSETTINGS_SCHEMA_DIR=
+++++ unset GSETTINGS_SCHEMA_DIR_CONDA_BACKUP
+++++ '[' -z ']'
+++++ unset GSETTINGS_SCHEMA_DIR
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/geotiff-deactivate.sh
+++++ unset GEOTIFF_CSV
+++++ '[' -n '' ']'
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/gdal-deactivate.sh
+++++ unset GDAL_DATA
+++++ '[' -n '' ']'
+++++ unset GDAL_DRIVER_PATH
+++++ '[' -n '' ']'
+++++ unset CPL_ZIP_ENCODING
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmpy-deactivate.sh
+++++ unset ESMFMKFILE
+++++ '[' -n /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
+++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++++ unset _CONDA_SET_ESMFMKFILE
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmf-deactivate.sh
+++++ unset ESMFMKFILE
+++++ '[' -n '' ']'
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libarrow_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libarrow_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh
++++ '[' -n '' ']'
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh
++++ '[' -n /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh
++++ '[' -n '' ']'
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/gdal ']'
++++ export GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ export GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ '[' '!' -d /opt/miniconda3/envs/testbed/lib/gdalplugins ']'
++++ export CPL_ZIP_ENCODING=UTF-8
++++ CPL_ZIP_ENCODING=UTF-8
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/epsg_csv ']'
++++ '[' -d /opt/miniconda3/envs/testbed/Library/share/epsg_csv ']'
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libarrow_activate.sh
++++ _la_log 'Beginning libarrow activation.'
++++ '[' '' = 1 ']'
++++ _la_gdb_prefix=/opt/miniconda3/envs/testbed/share/gdb/auto-load
++++ '[' '!' -w /opt/miniconda3/envs/testbed/share/gdb/auto-load ']'
++++ _la_placeholder=replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX
++++ _la_symlink_dir=/opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib
++++ _la_orig_install_dir=/opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib
++++ _la_log '          _la_gdb_prefix: /opt/miniconda3/envs/testbed/share/gdb/auto-load'
++++ '[' '' = 1 ']'
++++ _la_log '         _la_placeholder: replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX'
++++ '[' '' = 1 ']'
++++ _la_log '         _la_symlink_dir: /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib'
++++ '[' '' = 1 ']'
++++ _la_log '    _la_orig_install_dir: /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib'
++++ '[' '' = 1 ']'
++++ _la_log '  content of that folder:'
++++ '[' '' = 1 ']'
+++++ ls -al /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib
+++++ sed 's/^/      /'
++++ _la_log '      total 4
+      drwxr-xr-x. 2 root root  41 Jul 24 16:04 .
+      drwxr-xr-x. 3 root root  17 Jul 24 16:04 ..
+      -rw-r--r--. 1 root root 971 Jul 24 16:04 libarrow.so.1700.0.0-gdb.py'
++++ '[' '' = 1 ']'
++++ for _la_target in "$_la_orig_install_dir/"*.py
++++ '[' '!' -e /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py ']'
+++++ basename /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py
++++ _la_symlink=/opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py
++++ _la_log '   _la_target: /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py'
++++ '[' '' = 1 ']'
++++ _la_log '  _la_symlink: /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py'
++++ '[' '' = 1 ']'
++++ '[' -L /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py ']'
+++++ readlink /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py
++++ '[' /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py = /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py ']'
++++ _la_log 'symlink $_la_symlink already exists and points to $_la_target, skipping.'
++++ '[' '' = 1 ']'
++++ continue
++++ _la_log 'Libarrow activation complete.'
++++ '[' '' = 1 ']'
++++ unset _la_gdb_prefix
++++ unset _la_log
++++ unset _la_orig_install_dir
++++ unset _la_placeholder
++++ unset _la_symlink
++++ unset _la_symlink_dir
++++ unset _la_target
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/proj ']'
++++ export PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ '[' -f /opt/miniconda3/envs/testbed/share/proj/copyright_and_licenses.csv ']'
++++ export PROJ_NETWORK=ON
++++ PROJ_NETWORK=ON
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/udunits ']'
++++ export UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++++ UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: numpy>=1.12 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from xarray==0.12.3+88.g69c7e01e.dirty) (1.23.0)
+Requirement already satisfied: pandas>=0.19.2 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from xarray==0.12.3+88.g69c7e01e.dirty) (1.5.3)
+Requirement already satisfied: python-dateutil>=2.8.1 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from pandas>=0.19.2->xarray==0.12.3+88.g69c7e01e.dirty) (2.8.2)
+Requirement already satisfied: pytz>=2020.1 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from pandas>=0.19.2->xarray==0.12.3+88.g69c7e01e.dirty) (2023.3)
+Requirement already satisfied: six>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from python-dateutil>=2.8.1->pandas>=0.19.2->xarray==0.12.3+88.g69c7e01e.dirty) (1.16.0)
+Installing collected packages: xarray
+  Attempting uninstall: xarray
+    Found existing installation: xarray 0.12.3+88.g69c7e01e
+    Uninstalling xarray-0.12.3+88.g69c7e01e:
+      Successfully uninstalled xarray-0.12.3+88.g69c7e01e
+  Running setup.py develop for xarray
+Successfully installed xarray-0.12.3+88.g69c7e01e.dirty
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 69c7e01e5167a3137c285cb50d1978252bb8bcbf xarray/tests/test_dataarray.py
+Updated 0 paths from f0cc03a7
++ git apply -v -
+Checking patch xarray/tests/test_dataarray.py...
+Applied patch xarray/tests/test_dataarray.py cleanly.
++ pytest -rA xarray/tests/test_dataarray.py
+============================= test session starts ==============================
+platform linux -- Python 3.10.14, pytest-7.4.0, pluggy-1.5.0
+rootdir: /testbed
+configfile: setup.cfg
+plugins: hypothesis-6.108.4, cov-5.0.0, env-1.1.3, xdist-3.6.1
+collected 669 items
+
+xarray/tests/test_dataarray.py ......................................... [  6%]
+........................................................................ [ 16%]
+...........s.s.......................................................... [ 27%]
+....................XX.................................................. [ 38%]
+........................................................................ [ 49%]
+........................................................................ [ 59%]
+........................................................................ [ 70%]
+........................................................................ [ 81%]
+........................................................................ [ 92%]
+....................................................                     [100%]
+
+=============================== warnings summary ===============================
+xarray/core/dask_array_ops.py:12
+xarray/core/dask_array_ops.py:12
+  /testbed/xarray/core/dask_array_ops.py:12: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(dask.__version__) <= LooseVersion("0.18.2"):
+
+xarray/core/npcompat.py:136
+xarray/core/npcompat.py:136
+  /testbed/xarray/core/npcompat.py:136: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(np.__version__) >= LooseVersion("1.13"):
+
+xarray/core/dask_array_compat.py:45
+xarray/core/dask_array_compat.py:45
+  /testbed/xarray/core/dask_array_compat.py:45: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(dask_version) > LooseVersion("0.19.2"):
+
+xarray/plot/utils.py:18
+xarray/plot/utils.py:18
+  /testbed/xarray/plot/utils.py:18: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(nc_time_axis.__version__) < LooseVersion("1.2.0"):
+
+xarray/plot/plot.py:287
+  /testbed/xarray/plot/plot.py:287: SyntaxWarning: "is" with a literal. Did you mean "=="?
+    if args is ():
+
+xarray/core/pdcompat.py:46
+  /testbed/xarray/core/pdcompat.py:46: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(pd.__version__) < "0.25.0":
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/setuptools/_distutils/version.py:345: 3 warnings
+xarray/tests/test_dataarray.py: 17 warnings
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/setuptools/_distutils/version.py:345: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    other = LooseVersion(other)
+
+xarray/tests/__init__.py:60: 18 warnings
+xarray/tests/test_dataarray.py: 2 warnings
+  /testbed/xarray/tests/__init__.py:60: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    return version.LooseVersion(vstring)
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pydap/lib.py:5
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pydap/lib.py:5: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+    from pkg_resources import get_distribution
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap.responses')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2350
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2350
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2350
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2350: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(parent)
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap.handlers')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap.tests')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+xarray/tests/test_dataarray.py: 77 warnings
+  /testbed/xarray/core/formatting.py:147: DeprecationWarning: `np.float` is a deprecated alias for the builtin `float`. To silence this warning, use `float` by itself. Doing this will not modify any behavior and is safe. If you specifically wanted the numpy scalar type, use `np.float64` here.
+  Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    elif isinstance(x, (float, np.float)):
+
+xarray/tests/test_dataarray.py::TestDataArray::test_struct_array_dims
+xarray/tests/test_dataarray.py::TestDataArray::test_struct_array_dims
+xarray/tests/test_dataarray.py::TestDataArray::test_math_automatic_alignment
+xarray/tests/test_dataarray.py::TestDataArray::test_non_overlapping_dataarrays_return_empty_result
+xarray/tests/test_dataarray.py::TestDataArray::test_align
+  /testbed/xarray/core/alignment.py:170: FutureWarning: Index.__and__ operating as a set operation is deprecated, in the future this will be a logical operation matching Series.__and__.  Use index.intersection(other) instead.
+    index = joiner(matching_indexes)
+
+xarray/tests/test_dataarray.py: 34 warnings
+  /testbed/xarray/core/dataset.py:2972: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(pd.__version__) < LooseVersion("0.19.0"):
+
+xarray/tests/test_dataarray.py: 10 warnings
+  /testbed/xarray/core/dataset.py:3147: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(pd.__version__) >= "0.20":
+
+xarray/tests/test_dataarray.py: 14 warnings
+  /testbed/xarray/core/alignment.py:170: FutureWarning: Index.__or__ operating as a set operation is deprecated, in the future this will be a logical operation matching Series.__or__.  Use index.union(other) instead.
+    index = joiner(matching_indexes)
+
+xarray/tests/test_dataarray.py::TestDataArray::test_reindex_regressions
+  /testbed/xarray/tests/test_dataarray.py:1418: DeprecationWarning: `np.complex` is a deprecated alias for the builtin `complex`. To silence this warning, use `complex` by itself. Doing this will not modify any behavior and is safe. If you specifically wanted the numpy scalar type, use `np.complex128` here.
+  Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    x = np.array([1, 2, 3], dtype=np.complex)
+
+xarray/tests/test_dataarray.py::TestDataArray::test_stack_unstack
+  /testbed/xarray/tests/test_dataarray.py:1977: FutureWarning: pandas.Int64Index is deprecated and will be removed from pandas in a future version. Use pandas.Index with the appropriate dtype instead.
+    levels=[pd.Int64Index([]), pd.Int64Index([0])],
+
+xarray/tests/test_dataarray.py::TestDataArray::test_stack_unstack
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pandas/util/__init__.py:16: FutureWarning: pandas.util.testing is deprecated. Use the functions in the public API at pandas.testing instead.
+    import pandas.util.testing
+
+xarray/tests/test_dataarray.py::TestDataArray::test_drop_index_labels
+xarray/tests/test_dataarray.py::TestDataArray::test_drop_index_labels
+xarray/tests/test_dataarray.py::TestDataArray::test_drop_index_labels
+  /testbed/xarray/core/dataarray.py:1910: DeprecationWarning: dropping dimensions using list-like labels is deprecated; use dict-like arguments.
+    ds = self._to_temp_dataset().drop(labels, dim, errors=errors)
+
+xarray/tests/test_dataarray.py: 12 warnings
+  /testbed/xarray/core/variable.py:1662: DeprecationWarning: the `interpolation=` argument to nanpercentile was renamed to `method=`, which has additional options.
+  Users of the modes 'nearest', 'lower', 'higher', or 'midpoint' are encouraged to review the method they used. (Deprecated NumPy 1.22)
+    qs = np.nanpercentile(
+
+xarray/tests/test_dataarray.py::TestDataArray::test_groupby_apply_identity
+xarray/tests/test_dataarray.py::TestDataArray::test_groupby_apply_identity
+xarray/tests/test_dataarray.py::TestDataArray::test_groupby_apply_identity
+xarray/tests/test_dataarray.py::TestDataArray::test_groupby_apply_identity
+xarray/tests/test_dataarray.py::TestDataArray::test_groupby_apply_identity
+xarray/tests/test_dataarray.py::TestDataArray::test_groupby_apply_identity
+xarray/tests/test_dataarray.py::TestDataArray::test_groupby_apply_identity
+xarray/tests/test_dataarray.py::TestDataArray::test_groupby_apply_identity
+xarray/tests/test_dataarray.py::TestDataArray::test_groupby_warning
+  /testbed/xarray/core/groupby.py:184: FutureWarning: is_monotonic is deprecated and will be removed in a future version. Use is_monotonic_increasing instead.
+    return index.is_unique and index.is_monotonic
+
+xarray/tests/test_dataarray.py::TestDataArray::test_groupby_bins_sort
+  /testbed/xarray/tests/test_dataarray.py:2750: FutureWarning: is_monotonic is deprecated and will be removed in a future version. Use is_monotonic_increasing instead.
+    assert binned_mean.to_index().is_monotonic
+
+xarray/tests/test_dataarray.py: 41 warnings
+  /testbed/xarray/core/common.py:978: FutureWarning: 'base' in .resample() and in Grouper() is deprecated.
+  The new arguments that you should use are 'offset' or 'origin'.
+  
+  >>> df.resample(freq="3s", base=2)
+  
+  becomes:
+  
+  >>> df.resample(freq="3s", offset="2s")
+  
+    grouper = pd.Grouper(
+
+xarray/tests/test_dataarray.py: 40 warnings
+  /testbed/xarray/core/groupby.py:320: FutureWarning: is_monotonic is deprecated and will be removed in a future version. Use is_monotonic_increasing instead.
+    if not index.is_monotonic:
+
+xarray/tests/test_dataarray.py::TestDataArray::test_resample
+  /testbed/xarray/core/common.py:978: FutureWarning: 'loffset' in .resample() and in Grouper() is deprecated.
+  
+  >>> df.resample(freq="3s", loffset="8H")
+  
+  becomes:
+  
+  >>> from pandas.tseries.frequencies import to_offset
+  >>> df = df.resample(freq="3s").mean()
+  >>> df.index = df.index.to_timestamp() + to_offset("8H")
+  
+    grouper = pd.Grouper(
+
+xarray/tests/test_dataarray.py::TestDataArray::test_resample
+  /testbed/xarray/tests/test_dataarray.py:2764: FutureWarning: 'loffset' in .resample() and in Grouper() is deprecated.
+  
+  >>> df.resample(freq="3s", loffset="8H")
+  
+  becomes:
+  
+  >>> from pandas.tseries.frequencies import to_offset
+  >>> df = df.resample(freq="3s").mean()
+  >>> df.index = df.index.to_timestamp() + to_offset("8H")
+  
+    expected = DataArray(array.to_series().resample("24H", loffset="-12H").mean())
+
+xarray/tests/test_dataarray.py::TestDataArray::test_resample_drop_nondim_coords
+xarray/tests/test_dataarray.py::TestDataArray::test_upsample_interpolate
+xarray/tests/test_dataarray.py::TestDataArray::test_upsample_interpolate
+xarray/tests/test_dataarray.py::TestDataArray::test_upsample_interpolate_bug_2197
+xarray/tests/test_dataarray.py::TestDataArray::test_upsample_interpolate_regression_1605
+xarray/tests/test_dataarray.py::TestDataArray::test_upsample_interpolate_dask
+xarray/tests/test_dataarray.py::TestDataArray::test_upsample_interpolate_dask
+xarray/tests/test_dataarray.py::TestDataArray::test_upsample_interpolate_dask
+  /testbed/xarray/core/missing.py:449: FutureWarning: Passing method to DatetimeIndex.get_loc is deprecated and will raise in a future version. Use index.get_indexer([item], method=...) instead.
+    imin = index.get_loc(np.min(new_x.values), method="nearest")
+
+xarray/tests/test_dataarray.py::TestDataArray::test_resample_drop_nondim_coords
+xarray/tests/test_dataarray.py::TestDataArray::test_upsample_interpolate
+xarray/tests/test_dataarray.py::TestDataArray::test_upsample_interpolate
+xarray/tests/test_dataarray.py::TestDataArray::test_upsample_interpolate_bug_2197
+xarray/tests/test_dataarray.py::TestDataArray::test_upsample_interpolate_regression_1605
+xarray/tests/test_dataarray.py::TestDataArray::test_upsample_interpolate_dask
+xarray/tests/test_dataarray.py::TestDataArray::test_upsample_interpolate_dask
+xarray/tests/test_dataarray.py::TestDataArray::test_upsample_interpolate_dask
+  /testbed/xarray/core/missing.py:450: FutureWarning: Passing method to DatetimeIndex.get_loc is deprecated and will raise in a future version. Use index.get_indexer([item], method=...) instead.
+    imax = index.get_loc(np.max(new_x.values), method="nearest")
+
+xarray/tests/test_dataarray.py::TestDataArray::test_upsample
+  /testbed/xarray/tests/test_dataarray.py:2890: FutureWarning: pad is deprecated and will be removed in a future version. Use ffill instead.
+    expected = DataArray(array.to_series().resample("3H").pad())
+
+xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_empty_series
+  /testbed/xarray/tests/test_dataarray.py:3428: FutureWarning: The default dtype for empty Series will be 'object' instead of 'float64' in a future version. Specify a dtype explicitly to silence this warning.
+    expected = pd.Series([])
+
+xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_cdms2_classic
+xarray/tests/test_dataarray.py::TestIrisConversion::test_to_and_from_iris
+xarray/tests/test_dataarray.py::TestIrisConversion::test_to_and_from_iris
+xarray/tests/test_dataarray.py::TestIrisConversion::test_to_and_from_iris_dask
+xarray/tests/test_dataarray.py::TestIrisConversion::test_to_and_from_iris_dask
+  /testbed/xarray/coding/times.py:238: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(pd.__version__) < "0.25.0":
+
+xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_cdms2_sgrid
+xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_cdms2_sgrid
+xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_cdms2_sgrid
+xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_cdms2_sgrid
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/numpy/ma/core.py:7939: DeprecationWarning: elementwise comparison failed; this will raise an error in the future.
+    if not np.all(xinf == filled(np.isinf(y), False)):
+
+xarray/tests/test_dataarray.py: 1952 warnings
+  /testbed/xarray/core/rolling.py:76: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    LooseVersion(bottleneck.__version__) < LooseVersion("1.0")
+
+xarray/tests/test_dataarray.py: 386 warnings
+  /testbed/xarray/core/rolling.py:336: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    LooseVersion(np.__version__) < LooseVersion("1.13")
+
+xarray/tests/test_dataarray.py::test_raise_no_warning_for_nan_in_binary_ops
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/_pytest/python.py:194: PytestRemovedIn8Warning: Passing None has been deprecated.
+  See https://docs.pytest.org/en/latest/how-to/capture-warnings.html#additional-use-cases-of-warnings-in-tests for alternatives in common use cases.
+    result = testfunction(**testargs)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_repr
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_repr_multiindex
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_repr_multiindex_long
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_properties
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_data_property
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_indexes
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_get_index
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_get_index_size_zero
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_struct_array_dims
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_name
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_dims
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sizes
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_encoding
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_constructor
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_constructor_invalid
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_constructor_from_self_described
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_constructor_from_0d
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_constructor_dask_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_equals_and_identical
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_equals_failures
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_broadcast_equals
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_getitem
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_getitem_dict
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_getitem_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_getitem_dataarray
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_getitem_empty_index
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_setitem
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_setitem_fancy
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_setitem_dataarray
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_contains
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_attr_sources_multiindex
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pickle
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_chunk
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_isel
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_isel_types
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_isel_fancy
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sel
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sel_dataarray
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sel_invalid_slice
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sel_dataarray_datetime
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sel_float
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sel_no_index
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sel_method
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sel_drop
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_isel_drop
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_head
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_tail
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_thin
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_loc
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_loc_assign
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_loc_assign_dataarray
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_loc_single_boolean
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_selection_multiindex
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_selection_multiindex_remove_unused
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_virtual_default_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_virtual_time_components
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_coords_to_index
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_coord_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reset_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_assign_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_coords_alignment
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_set_coords_update_index
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_coords_replacement_alignment
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_coords_non_string
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_broadcast_like
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reindex_like
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reindex_like_no_index
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reindex_regressions
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reindex_method
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reindex_fill_value[fill_value0]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reindex_fill_value[2]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reindex_fill_value[2.0]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_rename
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_init_value
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_swap_dims
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_expand_dims_error
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_expand_dims
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_expand_dims_with_scalar_coordinate
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_expand_dims_with_greater_dim_size
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_set_index
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reset_index
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reorder_levels
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_dataset_getitem
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_array_interface
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_is_null
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_math
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_math_automatic_alignment
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_non_overlapping_dataarrays_return_empty_result
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_empty_dataarrays_return_empty_result
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_inplace_math_basics
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_inplace_math_automatic_alignment
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_math_name
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_math_with_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_index_math
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_dataset_math
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_stack_unstack
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_stack_unstack_decreasing_coordinate
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_unstack_pandas_consistency
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_stack_nonunique_consistency
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_unstacked_dataset_raises_value_error
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_transpose
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_squeeze
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_squeeze_drop
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_drop_coordinates
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_drop_index_labels
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_dropna
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_where
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_where_string
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_cumops
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reduce
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reduce_keepdims
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reduce_keepdims_bottleneck
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reduce_dtype
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reduce_out
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reduce_keep_attrs
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_assign_attrs
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_fillna
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_iter
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_properties
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_apply_identity
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_sum
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_warning
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_count
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_apply_center
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_apply_ndarray
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_apply_changes_metadata
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_math
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_math_not_aligned
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_restore_dim_order
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_restore_coord_dims
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_first_and_last
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_multidim
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_multidim_apply
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_bins
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_bins_empty
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_bins_multidim
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_groupby_bins_sort
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_resample
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_da_resample_func_args
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_resample_first
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_resample_bad_resample_dim
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_resample_drop_nondim_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_resample_keep_attrs
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_resample_skipna
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_upsample
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_upsample_nd
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_upsample_tolerance
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_upsample_interpolate
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_upsample_interpolate_bug_2197
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_upsample_interpolate_regression_1605
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_upsample_interpolate_dask
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_dtype
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_copy
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_override
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_override_error[darrays0]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_override_error[darrays1]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_exclude
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_indexes
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_without_indexes_exclude
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_mixed_indexes
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_without_indexes_errors
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_broadcast_arrays
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_broadcast_arrays_misaligned
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_broadcast_arrays_nocopy
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_broadcast_arrays_exclude
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_broadcast_coordinates
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_pandas
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_dataframe
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_pandas_name_matches_coordinate
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_series
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_from_series_sparse
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_empty_series
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_series_categorical_index
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_dict
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_dict_with_time_dim
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_dict_with_nan_nat
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_dict_with_numpy_attrs
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_masked_array
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_cdms2_classic
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_cdms2_sgrid
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_cdms2_ugrid
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_dataset_whole
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_dataset_split
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_dataset_retains_keys
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test__title_for_slice
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test__title_for_slice_truncate
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_dataarray_diff_n1
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_coordinate_diff
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_shift[2-int--5]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_shift[2-int-0]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_shift[2-int-1]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_shift[2-int-2]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_shift[fill_value1-float--5]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_shift[fill_value1-float-0]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_shift[fill_value1-float-1]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_shift[fill_value1-float-2]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_roll_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_roll_no_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_roll_coords_none
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_copy_with_data
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_real_and_imag
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_setattr_raises
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_full_like
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_dot
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_matmul
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_binary_op_join_setting
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_combine_first
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sortby
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_rank
+PASSED xarray/tests/test_dataarray.py::test_isin[repeating_ints]
+PASSED xarray/tests/test_dataarray.py::test_rolling_iter[1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_iter[2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_doc[1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_properties[1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-1-True-sum]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-1-True-mean]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-1-True-std]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-1-True-min]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-1-True-max]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-1-True-median]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-1-False-sum]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-1-False-mean]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-1-False-std]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-1-False-min]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-1-False-max]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-1-False-median]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-1-None-sum]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-1-None-mean]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-1-None-std]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-1-None-min]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-1-None-max]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-1-None-median]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-None-True-sum]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-None-True-mean]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-None-True-std]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-None-True-min]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-None-True-max]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-None-True-median]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-None-False-sum]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-None-False-mean]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-None-False-std]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-None-False-min]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-None-False-max]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-None-False-median]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-None-None-sum]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-None-None-mean]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-None-None-std]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-None-None-min]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-None-None-max]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_bottleneck[1-None-None-median]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[7-1-True-mean]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[7-1-True-count]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[7-1-False-mean]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[7-1-False-count]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[7-1-None-mean]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[7-1-None-count]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[7-None-True-mean]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[7-None-True-count]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[7-None-False-mean]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[7-None-False-count]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[7-None-None-mean]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[7-None-None-count]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[8-1-True-mean]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[8-1-True-count]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[8-1-False-mean]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[8-1-False-count]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[8-1-None-mean]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[8-1-None-count]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[8-None-True-mean]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[8-None-True-count]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[8-None-False-mean]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[8-None-False-count]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[8-None-None-mean]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask[8-None-None-count]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask_nochunk[True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_wrapped_dask_nochunk[None]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[1-None-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[1-None-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[1-1-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[1-1-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[1-2-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[1-2-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[1-3-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[1-3-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[2-None-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[2-None-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[2-1-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[2-1-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[2-2-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[2-2-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[2-3-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[2-3-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[3-None-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[3-None-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[3-1-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[3-1-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[3-2-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[3-2-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[3-3-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[3-3-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[4-None-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[4-None-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[4-1-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[4-1-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[4-2-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[4-2-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[4-3-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_pandas_compat[4-3-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_construct[1-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_construct[1-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_construct[2-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_construct[2-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_construct[3-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_construct[3-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_construct[4-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_construct[4-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-1-None-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-1-None-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-1-None-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-1-None-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-1-1-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-1-1-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-1-1-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-1-1-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-1-2-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-1-2-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-1-2-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-1-2-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-1-3-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-1-3-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-1-3-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-1-3-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-2-None-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-2-None-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-2-None-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-2-None-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-2-1-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-2-1-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-2-1-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-2-1-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-2-2-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-2-2-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-2-2-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-2-2-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-2-3-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-2-3-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-2-3-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-2-3-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-3-None-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-3-None-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-3-None-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-3-None-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-3-1-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-3-1-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-3-1-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-3-1-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-3-2-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-3-2-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-3-2-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-3-2-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-3-3-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-3-3-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-3-3-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-3-3-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-4-None-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-4-None-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-4-None-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-4-None-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-4-1-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-4-1-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-4-1-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-4-1-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-4-2-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-4-2-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-4-2-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-4-2-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-4-3-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-4-3-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-4-3-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[sum-4-3-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-1-None-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-1-None-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-1-None-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-1-None-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-1-1-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-1-1-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-1-1-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-1-1-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-1-2-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-1-2-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-1-2-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-1-2-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-1-3-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-1-3-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-1-3-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-1-3-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-2-None-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-2-None-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-2-None-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-2-None-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-2-1-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-2-1-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-2-1-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-2-1-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-2-2-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-2-2-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-2-2-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-2-2-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-2-3-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-2-3-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-2-3-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-2-3-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-3-None-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-3-None-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-3-None-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-3-None-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-3-1-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-3-1-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-3-1-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-3-1-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-3-2-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-3-2-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-3-2-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-3-2-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-3-3-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-3-3-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-3-3-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-3-3-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-4-None-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-4-None-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-4-None-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-4-None-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-4-1-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-4-1-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-4-1-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-4-1-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-4-2-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-4-2-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-4-2-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-4-2-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-4-3-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-4-3-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-4-3-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[mean-4-3-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-1-None-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-1-None-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-1-None-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-1-None-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-1-1-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-1-1-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-1-1-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-1-1-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-1-2-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-1-2-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-1-2-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-1-2-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-1-3-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-1-3-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-1-3-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-1-3-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-2-None-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-2-None-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-2-None-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-2-None-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-2-1-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-2-1-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-2-1-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-2-1-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-2-2-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-2-2-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-2-2-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-2-2-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-2-3-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-2-3-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-2-3-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-2-3-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-3-None-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-3-None-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-3-None-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-3-None-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-3-1-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-3-1-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-3-1-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-3-1-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-3-2-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-3-2-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-3-2-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-3-2-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-3-3-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-3-3-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-3-3-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-3-3-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-4-None-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-4-None-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-4-None-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-4-None-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-4-1-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-4-1-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-4-1-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-4-1-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-4-2-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-4-2-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-4-2-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-4-2-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-4-3-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-4-3-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-4-3-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[std-4-3-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-1-None-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-1-None-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-1-None-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-1-None-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-1-1-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-1-1-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-1-1-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-1-1-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-1-2-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-1-2-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-1-2-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-1-2-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-1-3-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-1-3-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-1-3-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-1-3-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-2-None-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-2-None-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-2-None-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-2-None-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-2-1-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-2-1-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-2-1-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-2-1-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-2-2-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-2-2-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-2-2-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-2-2-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-2-3-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-2-3-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-2-3-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-2-3-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-3-None-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-3-None-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-3-None-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-3-None-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-3-1-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-3-1-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-3-1-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-3-1-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-3-2-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-3-2-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-3-2-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-3-2-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-3-3-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-3-3-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-3-3-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-3-3-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-4-None-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-4-None-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-4-None-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-4-None-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-4-1-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-4-1-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-4-1-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-4-1-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-4-2-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-4-2-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-4-2-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-4-2-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-4-3-True-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-4-3-True-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-4-3-False-1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce[max-4-3-False-2]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-1-None-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-1-None-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-1-1-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-1-1-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-1-2-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-1-2-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-1-3-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-1-3-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-2-None-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-2-None-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-2-1-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-2-1-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-2-2-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-2-2-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-2-3-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-2-3-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-3-None-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-3-None-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-3-1-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-3-1-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-3-2-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-3-2-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-3-3-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-3-3-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-4-None-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-4-None-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-4-1-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-4-1-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-4-2-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-4-2-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-4-3-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[sum-4-3-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-1-None-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-1-None-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-1-1-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-1-1-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-1-2-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-1-2-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-1-3-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-1-3-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-2-None-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-2-None-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-2-1-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-2-1-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-2-2-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-2-2-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-2-3-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-2-3-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-3-None-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-3-None-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-3-1-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-3-1-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-3-2-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-3-2-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-3-3-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-3-3-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-4-None-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-4-None-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-4-1-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-4-1-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-4-2-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-4-2-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-4-3-True]
+PASSED xarray/tests/test_dataarray.py::test_rolling_reduce_nonnumeric[max-4-3-False]
+PASSED xarray/tests/test_dataarray.py::test_rolling_count_correct
+PASSED xarray/tests/test_dataarray.py::test_raise_no_warning_for_nan_in_binary_ops
+PASSED xarray/tests/test_dataarray.py::test_name_in_masking
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_to_and_from_iris
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_to_and_from_iris_dask
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_da_name_from_cube[var_name-height-Height-var_name-attrs0]
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_da_name_from_cube[None-height-Height-height-attrs1]
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_da_name_from_cube[None-None-Height-Height-attrs2]
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_da_name_from_cube[None-None-None-None-attrs3]
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_da_coord_name_from_cube[var_name-height-Height-var_name-attrs0]
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_da_coord_name_from_cube[None-height-Height-height-attrs1]
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_da_coord_name_from_cube[None-None-Height-Height-attrs2]
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_da_coord_name_from_cube[None-None-None-unknown-attrs3]
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_prevent_duplicate_coord_names
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_fallback_to_iris_AuxCoord[coord_values0]
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_fallback_to_iris_AuxCoord[coord_values1]
+PASSED xarray/tests/test_dataarray.py::test_rolling_exp[1-span-5-time]
+PASSED xarray/tests/test_dataarray.py::test_rolling_exp[1-span-5-x]
+PASSED xarray/tests/test_dataarray.py::test_rolling_exp[1-alpha-0.5-time]
+PASSED xarray/tests/test_dataarray.py::test_rolling_exp[1-alpha-0.5-x]
+PASSED xarray/tests/test_dataarray.py::test_rolling_exp[1-com-0.5-time]
+PASSED xarray/tests/test_dataarray.py::test_rolling_exp[1-com-0.5-x]
+PASSED xarray/tests/test_dataarray.py::test_rolling_exp[1-halflife-5-time]
+PASSED xarray/tests/test_dataarray.py::test_rolling_exp[1-halflife-5-x]
+PASSED xarray/tests/test_dataarray.py::test_no_dict
+PASSED xarray/tests/test_dataarray.py::test_subclass_slots
+SKIPPED [1] xarray/tests/test_dataarray.py:2473: not to forget the behavior change
+SKIPPED [1] xarray/tests/test_dataarray.py:2509: needs to be fixed for shortcut=False, keep_attrs=False
+XPASS xarray/tests/test_dataarray.py::TestDataArray::test_copy_coords[True-expected_orig0] 
+XPASS xarray/tests/test_dataarray.py::TestDataArray::test_copy_coords[False-expected_orig1] 
+========== 665 passed, 2 skipped, 2 xpassed, 2675 warnings in 14.14s ===========
++ git checkout 69c7e01e5167a3137c285cb50d1978252bb8bcbf xarray/tests/test_dataarray.py
+Updated 1 path from f0cc03a7

@@ -1,0 +1,32 @@
+{
+    "pytest-dev__pytest-5809": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "testing/test_pastebin.py::TestPaste::test_create_new_paste"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "testing/test_pastebin.py::TestPasteCapture::test_failed",
+                    "testing/test_pastebin.py::TestPasteCapture::test_all",
+                    "testing/test_pastebin.py::TestPasteCapture::test_non_ascii_paste_text"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

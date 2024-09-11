@@ -1,0 +1,561 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/contrib/admindocs/utils.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test_replace_named_groups.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 05457817647368be4b019314fcc655445a5b4c0c
+Author: yukihira1992 <hirayama@cancerscan.jp>
+Date:   Thu Aug 29 01:17:07 2019 +0900
+
+    Fixed #30736 -- Added Storage.get_alternative_name() to allow customization.
+
+diff --git a/django/core/files/storage.py b/django/core/files/storage.py
+index cbdab1de47..4c27fce605 100644
+--- a/django/core/files/storage.py
++++ b/django/core/files/storage.py
+@@ -60,6 +60,14 @@ class Storage:
+         """
+         return get_valid_filename(name)
+ 
++    def get_alternative_name(self, file_root, file_ext):
++        """
++        Return an alternative filename, by adding an underscore and a random 7
++        character alphanumeric string (before the file extension, if one
++        exists) to the filename.
++        """
++        return '%s_%s%s' % (file_root, get_random_string(7), file_ext)
++
+     def get_available_name(self, name, max_length=None):
+         """
+         Return a filename that's free on the target storage system and
+@@ -67,14 +75,13 @@ class Storage:
+         """
+         dir_name, file_name = os.path.split(name)
+         file_root, file_ext = os.path.splitext(file_name)
+-        # If the filename already exists, add an underscore and a random 7
+-        # character alphanumeric string (before the file extension, if one
+-        # exists) to the filename until the generated filename doesn't exist.
++        # If the filename already exists, generate an alternative filename
++        # until it doesn't exist.
+         # Truncate original name if required, so the new filename does not
+         # exceed the max_length.
+         while self.exists(name) or (max_length and len(name) > max_length):
+             # file_ext includes the dot.
+-            name = os.path.join(dir_name, "%s_%s%s" % (file_root, get_random_string(7), file_ext))
++            name = os.path.join(dir_name, self.get_alternative_name(file_root, file_ext))
+             if max_length is None:
+                 continue
+             # Truncate file_root if max_length exceeded.
+@@ -88,7 +95,7 @@ class Storage:
+                         'Please make sure that the corresponding file field '
+                         'allows sufficient "max_length".' % name
+                     )
+-                name = os.path.join(dir_name, "%s_%s%s" % (file_root, get_random_string(7), file_ext))
++                name = os.path.join(dir_name, self.get_alternative_name(file_root, file_ext))
+         return name
+ 
+     def generate_filename(self, filename):
+diff --git a/docs/howto/custom-file-storage.txt b/docs/howto/custom-file-storage.txt
+index 0ad094da79..d9e18a6003 100644
+--- a/docs/howto/custom-file-storage.txt
++++ b/docs/howto/custom-file-storage.txt
+@@ -97,6 +97,12 @@ non-standard characters are converted to safe filenames.
+ The code provided on ``Storage`` retains only alpha-numeric characters, periods
+ and underscores from the original filename, removing everything else.
+ 
++.. method:: get_alternative_name(file_root, file_ext)
++
++Returns an alternative filename based on the ``file_root`` and ``file_ext``
++parameters. By default, an underscore plus a random 7 character alphanumeric
++string is appended to the filename before the extension.
++
+ .. method:: get_available_name(name, max_length=None)
+ 
+ Returns a filename that is available in the storage mechanism, possibly taking
+@@ -108,5 +114,5 @@ The length of the filename will not exceed ``max_length``, if provided. If a
+ free unique filename cannot be found, a :exc:`SuspiciousFileOperation
+ <django.core.exceptions.SuspiciousOperation>` exception is raised.
+ 
+-If a file with ``name`` already exists, an underscore plus a random 7 character
+-alphanumeric string is appended to the filename before the extension.
++If a file with ``name`` already exists, ``get_alternative_name()`` is called to
++obtain an alternative name.
+diff --git a/docs/ref/files/storage.txt b/docs/ref/files/storage.txt
+index 2a82402fac..0724a0cda1 100644
+--- a/docs/ref/files/storage.txt
++++ b/docs/ref/files/storage.txt
+@@ -105,6 +105,12 @@ The ``Storage`` class
+         If :setting:`USE_TZ` is ``True``, returns an aware ``datetime``,
+         otherwise returns a naive ``datetime`` in the local timezone.
+ 
++    .. method:: get_alternative_name(file_root, file_ext)
++
++        Returns an alternative filename based on the ``file_root`` and
++        ``file_ext`` parameters, an underscore plus a random 7 character
++        alphanumeric string is appended to the filename before the extension.
++
+     .. method:: get_available_name(name, max_length=None)
+ 
+         Returns a filename based on the ``name`` parameter that's free and
+@@ -116,9 +122,8 @@ The ``Storage`` class
+         :exc:`SuspiciousFileOperation
+         <django.core.exceptions.SuspiciousOperation>` exception will be raised.
+ 
+-        If a file with ``name`` already exists, an underscore plus a random
+-        7 character alphanumeric string is appended to the filename before
+-        the extension.
++        If a file with ``name`` already exists, :meth:`get_alternative_name` is
++        called to obtain an alternative name.
+ 
+     .. method:: get_created_time(name)
+ 
+diff --git a/docs/releases/3.0.txt b/docs/releases/3.0.txt
+index 7a9adb3b39..910d3a2592 100644
+--- a/docs/releases/3.0.txt
++++ b/docs/releases/3.0.txt
+@@ -227,7 +227,9 @@ Email
+ File Storage
+ ~~~~~~~~~~~~
+ 
+-* ...
++* The new :meth:`.Storage.get_alternative_name` method allows customizing the
++  algorithm for generating filenames if a file with the uploaded name already
++  exists.
+ 
+ File Uploads
+ ~~~~~~~~~~~~
++ git diff 05457817647368be4b019314fcc655445a5b4c0c
+diff --git a/django/contrib/admindocs/utils.py b/django/contrib/admindocs/utils.py
+index 1ce4594501..ef062a638e 100644
+--- a/django/contrib/admindocs/utils.py
++++ b/django/contrib/admindocs/utils.py
+@@ -167,12 +167,6 @@ def replace_named_groups(pattern):
+         # Handle nested parentheses, e.g. '^(?P<a>(x|y))/b'.
+         unmatched_open_brackets, prev_char = 1, None
+         for idx, val in enumerate(pattern[end:]):
+-            # If brackets are balanced, the end of the string for the current
+-            # named capture group pattern has been reached.
+-            if unmatched_open_brackets == 0:
+-                group_pattern_and_name.append((pattern[start:end + idx], group_name))
+-                break
+-
+             # Check for unescaped `(` and `)`. They mark the start and end of a
+             # nested group.
+             if val == '(' and prev_char != '\\':
+@@ -181,8 +175,17 @@ def replace_named_groups(pattern):
+                 unmatched_open_brackets -= 1
+             prev_char = val
+ 
++            # If brackets are balanced, the end of the string for the current
++            # named capture group pattern has been reached.
++            if unmatched_open_brackets == 0:
++                group_pattern_and_name.append((pattern[start:end + idx + 1], group_name))
++                break
++        else:
++            # If we've reached the end of the pattern, add the group
++            group_pattern_and_name.append((pattern[start:], group_name))
++
+     # Replace the string for named capture groups with their group names.
+-    for group_pattern, group_name in group_pattern_and_name:
++    for group_pattern, group_name in reversed(group_pattern_and_name):
+         pattern = pattern.replace(group_pattern, group_name)
+     return pattern
+ 
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0) (2024.1)
+Requirement already satisfied: sqlparse in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0) (0.4.4)
+Requirement already satisfied: asgiref in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0) (3.4.1)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref->Django==3.0) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.0
+    Uninstalling Django-3.0:
+      Successfully uninstalled Django-3.0
+  Running setup.py develop for Django
+Successfully installed Django-3.0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 05457817647368be4b019314fcc655445a5b4c0c tests/admin_docs/test_views.py
+Updated 0 paths from 91ca38fb0b
++ git apply -v -
+Checking patch tests/admin_docs/test_views.py...
+Applied patch tests/admin_docs/test_views.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 admin_docs.test_views
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+test_bookmarklets (admin_docs.test_views.AdminDocViewTests) ... ok
+test_index (admin_docs.test_views.AdminDocViewTests) ... ok
+test_missing_docutils (admin_docs.test_views.AdminDocViewTests) ... ok
+test_model_index (admin_docs.test_views.AdminDocViewTests) ... ok
+test_namespaced_view_detail (admin_docs.test_views.AdminDocViewTests) ... ok
+test_no_sites_framework (admin_docs.test_views.AdminDocViewTests) ... ok
+test_template_detail (admin_docs.test_views.AdminDocViewTests) ... ok
+test_templatefilter_index (admin_docs.test_views.AdminDocViewTests) ... ok
+test_templatetag_index (admin_docs.test_views.AdminDocViewTests) ... ok
+test_view_detail (admin_docs.test_views.AdminDocViewTests) ... ok
+test_view_detail_as_method (admin_docs.test_views.AdminDocViewTests) ... ok
+test_view_detail_illegal_import (admin_docs.test_views.AdminDocViewTests) ... ok
+test_view_index (admin_docs.test_views.AdminDocViewTests) ... ok
+test_view_index_with_method (admin_docs.test_views.AdminDocViewTests) ... ok
+test_bookmarklets (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_index (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_missing_docutils (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_model_index (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_namespaced_view_detail (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_no_sites_framework (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_template_detail (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_templatefilter_index (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_templatetag_index (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_view_detail (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_view_detail_as_method (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_view_detail_illegal_import (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_view_index (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_view_index_with_method (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_app_not_found (admin_docs.test_views.TestModelDetailView) ... ok
+test_descriptions_render_correctly (admin_docs.test_views.TestModelDetailView) ... ok
+test_instance_of_property_methods_are_displayed (admin_docs.test_views.TestModelDetailView)
+Model properties are displayed as fields. ... ok
+test_method_data_types (admin_docs.test_views.TestModelDetailView) ... ok
+test_method_excludes (admin_docs.test_views.TestModelDetailView) ... ok
+test_methods_with_arguments (admin_docs.test_views.TestModelDetailView) ... ok
+test_methods_with_arguments_display_arguments (admin_docs.test_views.TestModelDetailView) ... ok
+test_methods_with_arguments_display_arguments_default_value (admin_docs.test_views.TestModelDetailView) ... ok
+test_methods_with_multiple_arguments_display_arguments (admin_docs.test_views.TestModelDetailView) ... ok
+test_model_detail_title (admin_docs.test_views.TestModelDetailView) ... ok
+test_model_docstring_renders_correctly (admin_docs.test_views.TestModelDetailView) ... ok
+test_model_not_found (admin_docs.test_views.TestModelDetailView) ... ok
+test_model_with_many_to_one (admin_docs.test_views.TestModelDetailView) ... ok
+test_model_with_no_backward_relations_render_only_relevant_fields (admin_docs.test_views.TestModelDetailView) ... ok
+test_simplify_regex (admin_docs.test_views.AdminDocViewFunctionsTests) ... test_builtin_fields (admin_docs.test_views.TestFieldType) ... ok
+test_custom_fields (admin_docs.test_views.TestFieldType) ... ok
+test_field_name (admin_docs.test_views.TestFieldType) ... Testing against Django installed in '/testbed/django'
+Importing application admin_docs
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: admin_docs, auth, contenttypes, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table admin_docs_company
+    Creating table admin_docs_group
+    Creating table admin_docs_family
+    Creating table admin_docs_person
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+ok
+
+======================================================================
+FAIL: test_simplify_regex (admin_docs.test_views.AdminDocViewFunctionsTests) (pattern='^(?P<a>\\w+)/b/(\\w+)')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/admin_docs/test_views.py", line 364, in test_simplify_regex
+    self.assertEqual(simplify_regex(pattern), output)
+AssertionError: '/<a>/b/(\\w+)' != '/<a>/b/<var>'
+- /<a>/b/(\w+)
++ /<a>/b/<var>
+
+
+======================================================================
+FAIL: test_simplify_regex (admin_docs.test_views.AdminDocViewFunctionsTests) (pattern='^(?P<a>\\w+)/b/((x|y)\\w+)')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/admin_docs/test_views.py", line 364, in test_simplify_regex
+    self.assertEqual(simplify_regex(pattern), output)
+AssertionError: '/<a>/b/(<var>\\w+)' != '/<a>/b/<var>'
+- /<a>/b/(<var>\w+)
+?        -     ----
++ /<a>/b/<var>
+
+
+----------------------------------------------------------------------
+Ran 46 tests in 5.358s
+
+FAILED (failures=2)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout 05457817647368be4b019314fcc655445a5b4c0c tests/admin_docs/test_views.py
+Updated 1 path from 91ca38fb0b

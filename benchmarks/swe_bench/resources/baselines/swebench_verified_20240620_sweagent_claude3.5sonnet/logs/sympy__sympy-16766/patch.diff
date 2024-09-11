@@ -1,0 +1,47 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..ac0a55fee2
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,7 @@
++from sympy import IndexedBase, pycode
++p = IndexedBase("p")
++
++result = pycode(p[0])
++print(f"Result of pycode(p[0]): {result}")
++
++print("Script completed successfully, no errors.")
+diff --git a/sympy/printing/pycode.py b/sympy/printing/pycode.py
+index a3f0310735..aeb52e1b4d 100644
+--- a/sympy/printing/pycode.py
++++ b/sympy/printing/pycode.py
+@@ -1,16 +1,10 @@
+-"""
+-Python code printers
+-
+-This module contains python code printers for plain python as well as NumPy & SciPy enabled code.
+-"""
+-
+-
+ from collections import defaultdict
+ from itertools import chain
+ from sympy.core import S
+ from .precedence import precedence
+ from .codeprinter import CodePrinter
+ 
++
+ _kw_py2and3 = {
+     'and', 'as', 'assert', 'break', 'class', 'continue', 'def', 'del', 'elif',
+     'else', 'except', 'finally', 'for', 'from', 'global', 'if', 'import', 'in',
+@@ -357,6 +351,10 @@ def _print_Not(self, expr):
+         PREC = precedence(expr)
+         return self._operators['not'] + self.parenthesize(expr.args[0], PREC)
+ 
++    def _print_Indexed(self, expr):
++        base, *index = expr.args
++        return "{}[{}]".format(str(base), ", ".join([self._print(ind) for ind in index]))
++
+ 
+ for k in PythonCodePrinter._kf:
+     setattr(PythonCodePrinter, '_print_%s' % k, _print_known_func)

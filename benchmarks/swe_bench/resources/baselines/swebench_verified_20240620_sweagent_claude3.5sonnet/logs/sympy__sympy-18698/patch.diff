@@ -1,0 +1,27 @@
+
+diff --git a/reproduce_sqf_issue.py b/reproduce_sqf_issue.py
+new file mode 100644
+index 0000000000..f42390ff4e
+--- /dev/null
++++ b/reproduce_sqf_issue.py
+@@ -0,0 +1,20 @@
++from sympy import symbols, sqf_list
++
++x = symbols('x')
++
++# Test case 1
++expr1 = (x**2 + 1) * (x - 1)**2 * (x - 2)**3 * (x - 3)**3
++result1 = sqf_list(expr1)
++print("Test case 1:")
++print(f"Input: {expr1}")
++print(f"Output: {result1}")
++print()
++
++# Test case 2
++expr2 = x**5 - 2*x**4 - 2*x**3 + 4*x**2 + x - 2
++result2 = sqf_list(expr2)
++print("Test case 2:")
++print(f"Input: {expr2}")
++print(f"Output: {result2}")
++
++print("\nScript completed successfully, no errors.")

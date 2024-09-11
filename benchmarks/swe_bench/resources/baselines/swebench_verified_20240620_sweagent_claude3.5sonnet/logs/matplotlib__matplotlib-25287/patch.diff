@@ -1,0 +1,48 @@
+
+diff --git a/bug_reproduction.png b/bug_reproduction.png
+new file mode 100644
+index 0000000000..0c91499e1c
+Binary files /dev/null and b/bug_reproduction.png differ
+diff --git a/lib/matplotlib/axis.py b/lib/matplotlib/axis.py
+index c0e706e2b3..ee17a1678c 100644
+--- a/lib/matplotlib/axis.py
++++ b/lib/matplotlib/axis.py
+@@ -2255,7 +2255,7 @@ class XAxis(Axis):
+             transform=mtransforms.blended_transform_factory(
+                 self.axes.transAxes, mtransforms.IdentityTransform()),
+             fontsize=mpl.rcParams['xtick.labelsize'],
+-            color=mpl.rcParams['xtick.color'],
++            color=mpl.rcParams['xtick.color'] if mpl.rcParams['xtick.labelcolor'] == 'inherit' else mpl.rcParams['xtick.labelcolor'],
+         )
+         self.offset_text_position = 'bottom'
+ 
+@@ -2515,7 +2515,7 @@ class YAxis(Axis):
+             transform=mtransforms.blended_transform_factory(
+                 self.axes.transAxes, mtransforms.IdentityTransform()),
+             fontsize=mpl.rcParams['ytick.labelsize'],
+-            color=mpl.rcParams['ytick.color'],
++            color=mpl.rcParams['ytick.color'] if mpl.rcParams['ytick.labelcolor'] == 'inherit' else mpl.rcParams['ytick.labelcolor'],
+         )
+         self.offset_text_position = 'left'
+ 
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..3cf09261ec
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,15 @@
++import matplotlib.pyplot as plt
++
++plt.rcParams.update({'ytick.labelcolor': 'red'})
++fig = plt.figure()
++ax = fig.add_subplot(1,1,1)
++ax.plot([1.01e9,1.02e9,1.03e9])
++
++# Check if the y-axis label color is set correctly
++if ax.yaxis.offsetText.get_color() == 'red':
++    print("Y-axis label color (including exponent) is correctly set to red.")
++else:
++    print(f"Error: Y-axis label color is {ax.yaxis.offsetText.get_color()}, expected 'red'.")
++
++plt.savefig('bug_reproduction.png')
++print("Script completed successfully, figure saved as bug_reproduction.png")

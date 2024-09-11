@@ -1,0 +1,86 @@
+
+diff --git a/src/_pytest/capture.py b/src/_pytest/capture.py
+index 3f9c60fb9..7399bed16 100644
+--- a/src/_pytest/capture.py
++++ b/src/_pytest/capture.py
+@@ -190,15 +190,23 @@ class EncodedFile(io.TextIOWrapper):
+         return self.buffer.mode.replace("b", "")
+ 
+ 
++class PreserveCRBuffer(io.BytesIO):
++    def __init__(self):
++        super().__init__()
++
++    def write(self, b):
++        return super().write(b.replace(b'\r\n', b'\n').replace(b'\n', b'\r\n'))
++
+ class CaptureIO(io.TextIOWrapper):
+     def __init__(self) -> None:
+         super().__init__(io.BytesIO(), encoding="UTF-8", newline="", write_through=True)
+ 
+     def getvalue(self) -> str:
+         assert isinstance(self.buffer, io.BytesIO)
+-        return self.buffer.getvalue().decode("UTF-8")
+-
++        return self.buffer.getvalue().decode(self.encoding).replace('\n', '\r')
+ 
++    def write(self, s: str) -> int:
++        return super().write(s.replace('\r\n', '\n').replace('\n', '\r\n'))
+ class TeeCaptureIO(CaptureIO):
+     def __init__(self, other: TextIO) -> None:
+         self._other = other
+@@ -335,11 +343,14 @@ class SysCapture(SysCaptureBinary):
+     EMPTY_BUFFER = ""  # type: ignore[assignment]
+ 
+     def snap(self):
+-        res = self.tmpfile.getvalue()
+-        self.tmpfile.seek(0)
+-        self.tmpfile.truncate()
++        res = super().snap()
++        if isinstance(res, bytes):
++            decoded = res.decode(getattr(self.tmpfile, 'encoding', 'utf-8'))
++            final = decoded.replace('\n', '\r')
++            return final
+         return res
+ 
++
+     def writeorg(self, data):
+         self._assert_state("writeorg", ("started", "suspended"))
+         self._old.write(data)
+@@ -387,7 +398,7 @@ class FDCaptureBinary:
+                 # TODO: Remove type ignore, fixed in next mypy release.
+                 TemporaryFile(buffering=0),  # type: ignore[arg-type]
+                 encoding="utf-8",
+-                errors="replace",
++                errors="strict",
+                 write_through=True,
+             )
+             if targetfd in patchsysdict:
+@@ -566,6 +577,8 @@ class MultiCapture:
+             err = self.err.snap()
+         else:
+             err = ""
++        out = out.replace('\n', '\r') if isinstance(out, str) else out
++        err = err.replace('\n', '\r') if isinstance(err, str) else err
+         return CaptureResult(out, err)
+ 
+ 
+diff --git a/test_capfd.py b/test_capfd.py
+new file mode 100644
+index 000000000..54186366c
+--- /dev/null
++++ b/test_capfd.py
+@@ -0,0 +1,13 @@
++import sys
++from _pytest.capture import CaptureFixture
++
++def test_cafd_includes_carriage_return(capfd: CaptureFixture):
++    print(f"Type of capfd: {type(capfd)}")
++    print(f"Type of capfd._capture: {type(capfd._capture)}")
++    sys.stdout.write('Greetings from DOS\r')
++    sys.stdout.flush()  # Ensure the output is flushed
++    out, err = capfd.readouterr()
++    print(f"Captured output (repr): {repr(out)}")
++    assert out.endswith('\r')
++
++print("Script completed successfully, no errors.")

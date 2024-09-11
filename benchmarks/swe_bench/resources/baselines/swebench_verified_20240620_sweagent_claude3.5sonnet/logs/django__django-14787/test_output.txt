@@ -1,0 +1,646 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/utils/decorators.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 004b4620f6f4ad87261e149898940f2dcd5757ef
+Author: Shreya Bamne <shreya.bamne@gmail.com>
+Date:   Tue Aug 3 15:20:49 2021 +0100
+
+    Fixed #32987 -- Added system check for template tag modules with the same name.
+    
+    Co-authored-by: Daniel Fairhead <daniel@dev.ngo>
+
+diff --git a/AUTHORS b/AUTHORS
+index 55e6579840..01adc8575a 100644
+--- a/AUTHORS
++++ b/AUTHORS
+@@ -223,6 +223,7 @@ answer newbie questions, and generally made Django that much better:
+     Daniel Alves Barbosa de Oliveira Vaz <danielvaz@gmail.com>
+     Daniel Duan <DaNmarner@gmail.com>
+     Daniele Procida <daniele@vurt.org>
++    Daniel Fairhead <danthedeckie@gmail.com>
+     Daniel Greenfeld
+     dAniel hAhler
+     Daniel Jilg <daniel@breakthesystem.org>
+@@ -860,6 +861,7 @@ answer newbie questions, and generally made Django that much better:
+     Shai Berger <shai@platonix.com>
+     Shannon -jj Behrens <https://www.jjinux.com/>
+     Shawn Milochik <shawn@milochik.com>
++    Shreya Bamne <shreya.bamne@gmail.com>
+     Silvan Spross <silvan.spross@gmail.com>
+     Simeon Visser <http://simeonvisser.com>
+     Simon Blanchard
+diff --git a/django/core/checks/templates.py b/django/core/checks/templates.py
+index 8c4b7c172b..14325bd3e0 100644
+--- a/django/core/checks/templates.py
++++ b/django/core/checks/templates.py
+@@ -1,6 +1,8 @@
+ import copy
++from collections import defaultdict
+ 
+ from django.conf import settings
++from django.template.backends.django import get_template_tag_modules
+ 
+ from . import Error, Tags, register
+ 
+@@ -13,6 +15,10 @@ E002 = Error(
+     "'string_if_invalid' in TEMPLATES OPTIONS must be a string but got: {} ({}).",
+     id="templates.E002",
+ )
++E003 = Error(
++    '{} is used for multiple template tag modules: {}',
++    id='templates.E003',
++)
+ 
+ 
+ @register(Tags.templates)
+@@ -33,3 +39,29 @@ def check_string_if_invalid_is_string(app_configs, **kwargs):
+             error.msg = error.msg.format(string_if_invalid, type(string_if_invalid).__name__)
+             errors.append(error)
+     return errors
++
++
++@register(Tags.templates)
++def check_for_template_tags_with_the_same_name(app_configs, **kwargs):
++    errors = []
++    libraries = defaultdict(list)
++
++    for conf in settings.TEMPLATES:
++        custom_libraries = conf.get('OPTIONS', {}).get('libraries', {})
++        for module_name, module_path in custom_libraries.items():
++            libraries[module_name].append(module_path)
++
++    for module_name, module_path in get_template_tag_modules():
++        libraries[module_name].append(module_path)
++
++    for library_name, items in libraries.items():
++        if len(items) > 1:
++            errors.append(Error(
++                E003.msg.format(
++                    repr(library_name),
++                    ', '.join(repr(item) for item in items),
++                ),
++                id=E003.id,
++            ))
++
++    return errors
+diff --git a/docs/ref/checks.txt b/docs/ref/checks.txt
+index 727d16b772..6c95b9376d 100644
+--- a/docs/ref/checks.txt
++++ b/docs/ref/checks.txt
+@@ -541,6 +541,8 @@ configured:
+ * **templates.E002**: ``string_if_invalid`` in :setting:`TEMPLATES`
+   :setting:`OPTIONS <TEMPLATES-OPTIONS>` must be a string but got: ``{value}``
+   (``{type}``).
++* **templates.E003**:``<name>`` is used for multiple template tag modules:
++  ``<module list>``.
+ 
+ Translation
+ -----------
+diff --git a/tests/check_framework/template_test_apps/__init__.py b/tests/check_framework/template_test_apps/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/tests/check_framework/template_test_apps/different_tags_app/__init__.py b/tests/check_framework/template_test_apps/different_tags_app/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/tests/check_framework/template_test_apps/different_tags_app/apps.py b/tests/check_framework/template_test_apps/different_tags_app/apps.py
+new file mode 100644
+index 0000000000..90d54b3d50
+--- /dev/null
++++ b/tests/check_framework/template_test_apps/different_tags_app/apps.py
+@@ -0,0 +1,5 @@
++from django.apps import AppConfig
++
++
++class DifferentTagsAppAppConfig(AppConfig):
++    name = 'check_framework.template_test_apps.different_tags_app'
+diff --git a/tests/check_framework/template_test_apps/different_tags_app/templatetags/__init__.py b/tests/check_framework/template_test_apps/different_tags_app/templatetags/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/tests/check_framework/template_test_apps/different_tags_app/templatetags/different_tags.py b/tests/check_framework/template_test_apps/different_tags_app/templatetags/different_tags.py
+new file mode 100644
+index 0000000000..9bec93d8e5
+--- /dev/null
++++ b/tests/check_framework/template_test_apps/different_tags_app/templatetags/different_tags.py
+@@ -0,0 +1,3 @@
++from django.template import Library
++
++register = Library()
+diff --git a/tests/check_framework/template_test_apps/same_tags_app_1/__init__.py b/tests/check_framework/template_test_apps/same_tags_app_1/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/tests/check_framework/template_test_apps/same_tags_app_1/apps.py b/tests/check_framework/template_test_apps/same_tags_app_1/apps.py
+new file mode 100644
+index 0000000000..44149177a0
+--- /dev/null
++++ b/tests/check_framework/template_test_apps/same_tags_app_1/apps.py
+@@ -0,0 +1,5 @@
++from django.apps import AppConfig
++
++
++class SameTagsApp1AppConfig(AppConfig):
++    name = 'check_framework.template_test_apps.same_tags_app_1'
+diff --git a/tests/check_framework/template_test_apps/same_tags_app_1/templatetags/__init__.py b/tests/check_framework/template_test_apps/same_tags_app_1/templatetags/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/tests/check_framework/template_test_apps/same_tags_app_1/templatetags/same_tags.py b/tests/check_framework/template_test_apps/same_tags_app_1/templatetags/same_tags.py
+new file mode 100644
+index 0000000000..9bec93d8e5
+--- /dev/null
++++ b/tests/check_framework/template_test_apps/same_tags_app_1/templatetags/same_tags.py
+@@ -0,0 +1,3 @@
++from django.template import Library
++
++register = Library()
+diff --git a/tests/check_framework/template_test_apps/same_tags_app_2/__init__.py b/tests/check_framework/template_test_apps/same_tags_app_2/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/tests/check_framework/template_test_apps/same_tags_app_2/apps.py b/tests/check_framework/template_test_apps/same_tags_app_2/apps.py
+new file mode 100644
+index 0000000000..d90c800d1f
+--- /dev/null
++++ b/tests/check_framework/template_test_apps/same_tags_app_2/apps.py
+@@ -0,0 +1,5 @@
++from django.apps import AppConfig
++
++
++class SameTagsApp2AppConfig(AppConfig):
++    name = 'check_framework.template_test_apps.same_tags_app_2'
+diff --git a/tests/check_framework/template_test_apps/same_tags_app_2/templatetags/__init__.py b/tests/check_framework/template_test_apps/same_tags_app_2/templatetags/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/tests/check_framework/template_test_apps/same_tags_app_2/templatetags/same_tags.py b/tests/check_framework/template_test_apps/same_tags_app_2/templatetags/same_tags.py
+new file mode 100644
+index 0000000000..9bec93d8e5
+--- /dev/null
++++ b/tests/check_framework/template_test_apps/same_tags_app_2/templatetags/same_tags.py
+@@ -0,0 +1,3 @@
++from django.template import Library
++
++register = Library()
+diff --git a/tests/check_framework/test_templates.py b/tests/check_framework/test_templates.py
+index 955c863822..88c0479436 100644
+--- a/tests/check_framework/test_templates.py
++++ b/tests/check_framework/test_templates.py
+@@ -1,8 +1,9 @@
+ from copy import copy, deepcopy
+ 
++from django.core.checks import Error
+ from django.core.checks.templates import (
+-    E001, E002, check_setting_app_dirs_loaders,
+-    check_string_if_invalid_is_string,
++    E001, E002, E003, check_for_template_tags_with_the_same_name,
++    check_setting_app_dirs_loaders, check_string_if_invalid_is_string,
+ )
+ from django.test import SimpleTestCase
+ from django.test.utils import override_settings
+@@ -87,3 +88,85 @@ class CheckTemplateStringIfInvalidTest(SimpleTestCase):
+         del TEMPLATES[1]['OPTIONS']['string_if_invalid']
+         with self.settings(TEMPLATES=TEMPLATES):
+             self.assertEqual(check_string_if_invalid_is_string(None), [self.error1])
++
++
++class CheckTemplateTagLibrariesWithSameName(SimpleTestCase):
++    @classmethod
++    def setUpClass(cls):
++        super().setUpClass()
++        cls.error_same_tags = Error(
++            E003.msg.format(
++                "'same_tags'",
++                "'check_framework.template_test_apps.same_tags_app_1."
++                "templatetags.same_tags', "
++                "'check_framework.template_test_apps.same_tags_app_2."
++                "templatetags.same_tags'",
++            ),
++            id=E003.id,
++        )
++
++    @staticmethod
++    def get_settings(module_name, module_path):
++        return {
++            'BACKEND': 'django.template.backends.django.DjangoTemplates',
++            'OPTIONS': {
++                'libraries': {
++                    module_name: f'check_framework.template_test_apps.{module_path}',
++                },
++            },
++        }
++
++    @override_settings(INSTALLED_APPS=[
++        'check_framework.template_test_apps.same_tags_app_1',
++        'check_framework.template_test_apps.same_tags_app_2',
++    ])
++    def test_template_tags_with_same_name(self):
++        self.assertEqual(
++            check_for_template_tags_with_the_same_name(None),
++            [self.error_same_tags],
++        )
++
++    def test_template_tags_with_same_library_name(self):
++        with self.settings(TEMPLATES=[
++            self.get_settings('same_tags', 'same_tags_app_1.templatetags.same_tags'),
++            self.get_settings('same_tags', 'same_tags_app_2.templatetags.same_tags'),
++        ]):
++            self.assertEqual(
++                check_for_template_tags_with_the_same_name(None),
++                [self.error_same_tags],
++            )
++
++    @override_settings(INSTALLED_APPS=[
++        'check_framework.template_test_apps.same_tags_app_1'
++    ])
++    def test_template_tags_with_same_library_name_and_module_name(self):
++        with self.settings(TEMPLATES=[
++            self.get_settings(
++                'same_tags',
++                'different_tags_app.templatetags.different_tags',
++            ),
++        ]):
++            self.assertEqual(check_for_template_tags_with_the_same_name(None), [Error(
++                E003.msg.format(
++                    "'same_tags'",
++                    "'check_framework.template_test_apps.different_tags_app."
++                    "templatetags.different_tags', "
++                    "'check_framework.template_test_apps.same_tags_app_1."
++                    "templatetags.same_tags'",
++                ),
++                id=E003.id,
++            )])
++
++    def test_template_tags_with_different_library_name(self):
++        with self.settings(TEMPLATES=[
++            self.get_settings('same_tags', 'same_tags_app_1.templatetags.same_tags'),
++            self.get_settings('not_same_tags', 'same_tags_app_2.templatetags.same_tags'),
++        ]):
++            self.assertEqual(check_for_template_tags_with_the_same_name(None), [])
++
++    @override_settings(INSTALLED_APPS=[
++        'check_framework.template_test_apps.same_tags_app_1',
++        'check_framework.template_test_apps.different_tags_app',
++    ])
++    def test_template_tags_with_different_name(self):
++        self.assertEqual(check_for_template_tags_with_the_same_name(None), [])
++ git diff 004b4620f6f4ad87261e149898940f2dcd5757ef
+diff --git a/django/utils/decorators.py b/django/utils/decorators.py
+index 5c9a5d01c7..7cfca05604 100644
+--- a/django/utils/decorators.py
++++ b/django/utils/decorators.py
+@@ -38,6 +38,7 @@ def _multi_decorate(decorators, method):
+         # 'func'. Also, wrap method.__get__() in a function because new
+         # attributes can't be set on bound method objects, only on functions.
+         bound_method = partial(method.__get__(self, type(self)))
++        bound_method.__name__ = method.__name__  # Preserve the original method name
+         for dec in decorators:
+             bound_method = dec(bound_method)
+         return bound_method(*args, **kwargs)
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.3.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20211020091547) (3.8.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20211020091547) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from asgiref>=3.3.2->Django==4.1.dev20211020091547) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.1.dev20211020091547-0.editable-py3-none-any.whl size=26776 sha256=f32d049499a78cdfaa8b626cf0c86bf5143fa9a1b7e79305a9d05b0685fa75c2
+  Stored in directory: /tmp/pip-ephem-wheel-cache-51723rkm/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.1.dev20211020091547
+    Uninstalling Django-4.1.dev20211020091547:
+      Successfully uninstalled Django-4.1.dev20211020091547
+Successfully installed Django-4.1.dev20211020091547
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 004b4620f6f4ad87261e149898940f2dcd5757ef tests/decorators/tests.py
+Updated 0 paths from 233f505d74
++ git apply -v -
+Checking patch tests/decorators/tests.py...
+Applied patch tests/decorators/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 decorators.tests
+test_cache_control_decorator_http_request (decorators.tests.CacheControlDecoratorTest) ... ok
+test_argumented (decorators.tests.MethodDecoratorTests) ... ok
+test_bad_iterable (decorators.tests.MethodDecoratorTests) ... ok
+test_class_decoration (decorators.tests.MethodDecoratorTests)
+@method_decorator can be used to decorate a class and its methods. ... ok
+test_descriptors (decorators.tests.MethodDecoratorTests) ... ok
+test_invalid_method_name_to_decorate (decorators.tests.MethodDecoratorTests)
+@method_decorator on a nonexistent method raises an error. ... ok
+test_invalid_non_callable_attribute_decoration (decorators.tests.MethodDecoratorTests)
+@method_decorator on a non-callable attribute raises an error. ... ok
+test_new_attribute (decorators.tests.MethodDecoratorTests)
+A decorator that sets a new attribute on the method. ... ok
+test_preserve_attributes (decorators.tests.MethodDecoratorTests) ... ok
+test_preserve_signature (decorators.tests.MethodDecoratorTests) ... ok
+test_tuple_of_decorators (decorators.tests.MethodDecoratorTests)
+@method_decorator can accept a tuple of decorators. ... ok
+test_wrapper_assignments (decorators.tests.MethodDecoratorTests)
+@method_decorator preserves wrapper assignments. ... FAIL
+test_never_cache_decorator (decorators.tests.NeverCacheDecoratorTest) ... ok
+test_never_cache_decorator_http_request (decorators.tests.NeverCacheDecoratorTest) ... ok
+test_attributes (decorators.tests.DecoratorsTest)
+Built-in decorators set certain attributes of the wrapped function. ... ok
+test_cache_page (decorators.tests.DecoratorsTest) ... ok
+test_require_safe_accepts_only_safe_methods (decorators.tests.DecoratorsTest)
+Test for the require_safe decorator. ... ok
+test_user_passes_test_composition (decorators.tests.DecoratorsTest)
+The user_passes_test decorator can be applied multiple times (#9474). ... ok
+test_deny_decorator (decorators.tests.XFrameOptionsDecoratorsTests)
+Ensures @xframe_options_deny properly sets the X-Frame-Options header. ... ok
+test_exempt_decorator (decorators.tests.XFrameOptionsDecoratorsTests)
+Ensures @xframe_options_exempt properly instructs the ... ok
+test_sameorigin_decorator (decorators.tests.XFrameOptionsDecoratorsTests)
+Ensures @xframe_options_sameorigin properly sets the X-Frame-Options ... ok
+
+======================================================================
+FAIL: test_wrapper_assignments (decorators.tests.MethodDecoratorTests)
+@method_decorator preserves wrapper assignments.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/decorators/tests.py", line 449, in test_wrapper_assignments
+    self.assertIsNotNone(func_module)
+AssertionError: unexpectedly None
+
+----------------------------------------------------------------------
+Ran 21 tests in 0.008s
+
+FAILED (failures=1)
+Testing against Django installed in '/testbed/django'
+Importing application decorators
+Found 21 test(s).
+Skipping setup of unused database(s): default, other.
+System check identified no issues (0 silenced).
++ git checkout 004b4620f6f4ad87261e149898940f2dcd5757ef tests/decorators/tests.py
+Updated 1 path from 233f505d74

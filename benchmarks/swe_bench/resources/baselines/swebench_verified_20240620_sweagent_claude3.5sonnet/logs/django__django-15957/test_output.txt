@@ -1,0 +1,1450 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	issue_summary.md
+	migrations/
+	test_app.py
+
+nothing added to commit but untracked files present (use "git add" to track)
++ git show
+commit f387d024fc75569d2a4a338bfda76cc2f328f627
+Author: Simon Charette <charette.s@gmail.com>
+Date:   Wed Aug 10 08:22:01 2022 -0400
+
+    Refs #28333 -- Added partial support for filtering against window functions.
+    
+    Adds support for joint predicates against window annotations through
+    subquery wrapping while maintaining errors for disjointed filter
+    attempts.
+    
+    The "qualify" wording was used to refer to predicates against window
+    annotations as it's the name of a specialized Snowflake extension to
+    SQL that is to window functions what HAVING is to aggregates.
+    
+    While not complete the implementation should cover most of the common
+    use cases for filtering against window functions without requiring
+    the complex subquery pushdown and predicate re-aliasing machinery to
+    deal with disjointed predicates against columns, aggregates, and window
+    functions.
+    
+    A complete disjointed filtering implementation should likely be
+    deferred until proper QUALIFY support lands or the ORM gains a proper
+    subquery pushdown interface.
+
+diff --git a/django/db/backends/mysql/compiler.py b/django/db/backends/mysql/compiler.py
+index a8ab03a55e..bd2715fb43 100644
+--- a/django/db/backends/mysql/compiler.py
++++ b/django/db/backends/mysql/compiler.py
+@@ -28,10 +28,13 @@ class SQLDeleteCompiler(compiler.SQLDeleteCompiler, SQLCompiler):
+         # the SQLDeleteCompiler's default implementation when multiple tables
+         # are involved since MySQL/MariaDB will generate a more efficient query
+         # plan than when using a subquery.
+-        where, having = self.query.where.split_having()
+-        if self.single_alias or having:
+-            # DELETE FROM cannot be used when filtering against aggregates
+-            # since it doesn't allow for GROUP BY and HAVING clauses.
++        where, having, qualify = self.query.where.split_having_qualify(
++            must_group_by=self.query.group_by is not None
++        )
++        if self.single_alias or having or qualify:
++            # DELETE FROM cannot be used when filtering against aggregates or
++            # window functions as it doesn't allow for GROUP BY/HAVING clauses
++            # and the subquery wrapping (necessary to emulate QUALIFY).
+             return super().as_sql()
+         result = [
+             "DELETE %s FROM"
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index 7d21285118..58e945dd44 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -836,6 +836,7 @@ class ResolvedOuterRef(F):
+     """
+ 
+     contains_aggregate = False
++    contains_over_clause = False
+ 
+     def as_sql(self, *args, **kwargs):
+         raise ValueError(
+@@ -1210,6 +1211,12 @@ class OrderByList(Func):
+             return "", ()
+         return super().as_sql(*args, **kwargs)
+ 
++    def get_group_by_cols(self):
++        group_by_cols = []
++        for order_by in self.get_source_expressions():
++            group_by_cols.extend(order_by.get_group_by_cols())
++        return group_by_cols
++
+ 
+ @deconstructible(path="django.db.models.ExpressionWrapper")
+ class ExpressionWrapper(SQLiteNumericMixin, Expression):
+@@ -1631,7 +1638,6 @@ class Window(SQLiteNumericMixin, Expression):
+     # be introduced in the query as a result is not desired.
+     contains_aggregate = False
+     contains_over_clause = True
+-    filterable = False
+ 
+     def __init__(
+         self,
+@@ -1733,7 +1739,12 @@ class Window(SQLiteNumericMixin, Expression):
+         return "<%s: %s>" % (self.__class__.__name__, self)
+ 
+     def get_group_by_cols(self, alias=None):
+-        return []
++        group_by_cols = []
++        if self.partition_by:
++            group_by_cols.extend(self.partition_by.get_group_by_cols())
++        if self.order_by is not None:
++            group_by_cols.extend(self.order_by.get_group_by_cols())
++        return group_by_cols
+ 
+ 
+ class WindowFrame(Expression):
+diff --git a/django/db/models/fields/related_lookups.py b/django/db/models/fields/related_lookups.py
+index 17a8622ff9..1a845a1f7f 100644
+--- a/django/db/models/fields/related_lookups.py
++++ b/django/db/models/fields/related_lookups.py
+@@ -14,6 +14,7 @@ from django.utils.deprecation import RemovedInDjango50Warning
+ 
+ class MultiColSource:
+     contains_aggregate = False
++    contains_over_clause = False
+ 
+     def __init__(self, alias, targets, sources, field):
+         self.targets, self.sources, self.field, self.alias = (
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index 1c0ab2d212..858142913b 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -9,6 +9,7 @@ from django.db import DatabaseError, NotSupportedError
+ from django.db.models.constants import LOOKUP_SEP
+ from django.db.models.expressions import F, OrderBy, RawSQL, Ref, Value
+ from django.db.models.functions import Cast, Random
++from django.db.models.lookups import Lookup
+ from django.db.models.query_utils import select_related_descend
+ from django.db.models.sql.constants import (
+     CURSOR,
+@@ -73,7 +74,9 @@ class SQLCompiler:
+         """
+         self.setup_query(with_col_aliases=with_col_aliases)
+         order_by = self.get_order_by()
+-        self.where, self.having = self.query.where.split_having()
++        self.where, self.having, self.qualify = self.query.where.split_having_qualify(
++            must_group_by=self.query.group_by is not None
++        )
+         extra_select = self.get_extra_select(order_by, self.select)
+         self.has_extra_select = bool(extra_select)
+         group_by = self.get_group_by(self.select + extra_select, order_by)
+@@ -584,6 +587,74 @@ class SQLCompiler:
+             params.extend(part)
+         return result, params
+ 
++    def get_qualify_sql(self):
++        where_parts = []
++        if self.where:
++            where_parts.append(self.where)
++        if self.having:
++            where_parts.append(self.having)
++        inner_query = self.query.clone()
++        inner_query.subquery = True
++        inner_query.where = inner_query.where.__class__(where_parts)
++        # Augment the inner query with any window function references that
++        # might have been masked via values() and alias(). If any masked
++        # aliases are added they'll be masked again to avoid fetching
++        # the data in the `if qual_aliases` branch below.
++        select = {
++            expr: alias for expr, _, alias in self.get_select(with_col_aliases=True)[0]
++        }
++        qual_aliases = set()
++        replacements = {}
++        expressions = list(self.qualify.leaves())
++        while expressions:
++            expr = expressions.pop()
++            if select_alias := (select.get(expr) or replacements.get(expr)):
++                replacements[expr] = select_alias
++            elif isinstance(expr, Lookup):
++                expressions.extend(expr.get_source_expressions())
++            else:
++                num_qual_alias = len(qual_aliases)
++                select_alias = f"qual{num_qual_alias}"
++                qual_aliases.add(select_alias)
++                inner_query.add_annotation(expr, select_alias)
++                replacements[expr] = select_alias
++        self.qualify = self.qualify.replace_expressions(
++            {expr: Ref(alias, expr) for expr, alias in replacements.items()}
++        )
++        inner_query_compiler = inner_query.get_compiler(
++            self.using, elide_empty=self.elide_empty
++        )
++        inner_sql, inner_params = inner_query_compiler.as_sql(
++            # The limits must be applied to the outer query to avoid pruning
++            # results too eagerly.
++            with_limits=False,
++            # Force unique aliasing of selected columns to avoid collisions
++            # and make rhs predicates referencing easier.
++            with_col_aliases=True,
++        )
++        qualify_sql, qualify_params = self.compile(self.qualify)
++        result = [
++            "SELECT * FROM (",
++            inner_sql,
++            ")",
++            self.connection.ops.quote_name("qualify"),
++            "WHERE",
++            qualify_sql,
++        ]
++        if qual_aliases:
++            # If some select aliases were unmasked for filtering purposes they
++            # must be masked back.
++            cols = [self.connection.ops.quote_name(alias) for alias in select.values()]
++            result = [
++                "SELECT",
++                ", ".join(cols),
++                "FROM (",
++                *result,
++                ")",
++                self.connection.ops.quote_name("qualify_mask"),
++            ]
++        return result, list(inner_params) + qualify_params
++
+     def as_sql(self, with_limits=True, with_col_aliases=False):
+         """
+         Create the SQL for this query. Return the SQL string and list of
+@@ -614,6 +685,9 @@ class SQLCompiler:
+                 result, params = self.get_combinator_sql(
+                     combinator, self.query.combinator_all
+                 )
++            elif self.qualify:
++                result, params = self.get_qualify_sql()
++                order_by = None
+             else:
+                 distinct_fields, distinct_params = self.get_distinct()
+                 # This must come after 'select', 'ordering', and 'distinct'
+diff --git a/django/db/models/sql/where.py b/django/db/models/sql/where.py
+index 42a4b054a5..e2af46a309 100644
+--- a/django/db/models/sql/where.py
++++ b/django/db/models/sql/where.py
+@@ -35,48 +35,81 @@ class WhereNode(tree.Node):
+     resolved = False
+     conditional = True
+ 
+-    def split_having(self, negated=False):
++    def split_having_qualify(self, negated=False, must_group_by=False):
+         """
+-        Return two possibly None nodes: one for those parts of self that
+-        should be included in the WHERE clause and one for those parts of
+-        self that must be included in the HAVING clause.
++        Return three possibly None nodes: one for those parts of self that
++        should be included in the WHERE clause, one for those parts of self
++        that must be included in the HAVING clause, and one for those parts
++        that refer to window functions.
+         """
+-        if not self.contains_aggregate:
+-            return self, None
++        if not self.contains_aggregate and not self.contains_over_clause:
++            return self, None, None
+         in_negated = negated ^ self.negated
+-        # If the effective connector is OR or XOR and this node contains an
+-        # aggregate, then we need to push the whole branch to HAVING clause.
+-        may_need_split = (
++        # Whether or not children must be connected in the same filtering
++        # clause (WHERE > HAVING > QUALIFY) to maintain logical semantic.
++        must_remain_connected = (
+             (in_negated and self.connector == AND)
+             or (not in_negated and self.connector == OR)
+             or self.connector == XOR
+         )
+-        if may_need_split and self.contains_aggregate:
+-            return None, self
++        if (
++            must_remain_connected
++            and self.contains_aggregate
++            and not self.contains_over_clause
++        ):
++            # It's must cheaper to short-circuit and stash everything in the
++            # HAVING clause than split children if possible.
++            return None, self, None
+         where_parts = []
+         having_parts = []
++        qualify_parts = []
+         for c in self.children:
+-            if hasattr(c, "split_having"):
+-                where_part, having_part = c.split_having(in_negated)
++            if hasattr(c, "split_having_qualify"):
++                where_part, having_part, qualify_part = c.split_having_qualify(
++                    in_negated, must_group_by
++                )
+                 if where_part is not None:
+                     where_parts.append(where_part)
+                 if having_part is not None:
+                     having_parts.append(having_part)
++                if qualify_part is not None:
++                    qualify_parts.append(qualify_part)
++            elif c.contains_over_clause:
++                qualify_parts.append(c)
+             elif c.contains_aggregate:
+                 having_parts.append(c)
+             else:
+                 where_parts.append(c)
++        if must_remain_connected and qualify_parts:
++            # Disjunctive heterogeneous predicates can be pushed down to
++            # qualify as long as no conditional aggregation is involved.
++            if not where_parts or (where_parts and not must_group_by):
++                return None, None, self
++            elif where_parts:
++                # In theory this should only be enforced when dealing with
++                # where_parts containing predicates against multi-valued
++                # relationships that could affect aggregation results but this
++                # is complex to infer properly.
++                raise NotImplementedError(
++                    "Heterogeneous disjunctive predicates against window functions are "
++                    "not implemented when performing conditional aggregation."
++                )
++        where_node = (
++            self.create(where_parts, self.connector, self.negated)
++            if where_parts
++            else None
++        )
+         having_node = (
+             self.create(having_parts, self.connector, self.negated)
+             if having_parts
+             else None
+         )
+-        where_node = (
+-            self.create(where_parts, self.connector, self.negated)
+-            if where_parts
++        qualify_node = (
++            self.create(qualify_parts, self.connector, self.negated)
++            if qualify_parts
+             else None
+         )
+-        return where_node, having_node
++        return where_node, having_node, qualify_node
+ 
+     def as_sql(self, compiler, connection):
+         """
+@@ -183,6 +216,14 @@ class WhereNode(tree.Node):
+         clone.relabel_aliases(change_map)
+         return clone
+ 
++    def replace_expressions(self, replacements):
++        if replacement := replacements.get(self):
++            return replacement
++        clone = self.create(connector=self.connector, negated=self.negated)
++        for child in self.children:
++            clone.children.append(child.replace_expressions(replacements))
++        return clone
++
+     @classmethod
+     def _contains_aggregate(cls, obj):
+         if isinstance(obj, tree.Node):
+@@ -231,6 +272,10 @@ class WhereNode(tree.Node):
+ 
+         return BooleanField()
+ 
++    @property
++    def _output_field_or_none(self):
++        return self.output_field
++
+     def select_format(self, compiler, sql, params):
+         # Wrap filters with a CASE WHEN expression if a database backend
+         # (e.g. Oracle) doesn't support boolean expression in SELECT or GROUP
+@@ -245,19 +290,28 @@ class WhereNode(tree.Node):
+     def get_lookup(self, lookup):
+         return self.output_field.get_lookup(lookup)
+ 
++    def leaves(self):
++        for child in self.children:
++            if isinstance(child, WhereNode):
++                yield from child.leaves()
++            else:
++                yield child
++
+ 
+ class NothingNode:
+     """A node that matches nothing."""
+ 
+     contains_aggregate = False
++    contains_over_clause = False
+ 
+     def as_sql(self, compiler=None, connection=None):
+         raise EmptyResultSet
+ 
+ 
+ class ExtraWhere:
+-    # The contents are a black box - assume no aggregates are used.
++    # The contents are a black box - assume no aggregates or windows are used.
+     contains_aggregate = False
++    contains_over_clause = False
+ 
+     def __init__(self, sqls, params):
+         self.sqls = sqls
+@@ -269,9 +323,10 @@ class ExtraWhere:
+ 
+ 
+ class SubqueryConstraint:
+-    # Even if aggregates would be used in a subquery, the outer query isn't
+-    # interested about those.
++    # Even if aggregates or windows would be used in a subquery,
++    # the outer query isn't interested about those.
+     contains_aggregate = False
++    contains_over_clause = False
+ 
+     def __init__(self, alias, columns, targets, query_object):
+         self.alias = alias
+diff --git a/docs/ref/models/expressions.txt b/docs/ref/models/expressions.txt
+index 25edd1f3e8..95f093e2a3 100644
+--- a/docs/ref/models/expressions.txt
++++ b/docs/ref/models/expressions.txt
+@@ -741,12 +741,6 @@ instead they are part of the selected columns.
+ 
+ .. class:: Window(expression, partition_by=None, order_by=None, frame=None, output_field=None)
+ 
+-    .. attribute:: filterable
+-
+-        Defaults to ``False``. The SQL standard disallows referencing window
+-        functions in the ``WHERE`` clause and Django raises an exception when
+-        constructing a ``QuerySet`` that would do that.
+-
+     .. attribute:: template
+ 
+         Defaults to ``%(expression)s OVER (%(window)s)'``. If only the
+@@ -819,6 +813,31 @@ to reduce repetition::
+     >>>     ),
+     >>> )
+ 
++Filtering against window functions is supported as long as lookups are not
++disjunctive (not using ``OR`` or ``XOR`` as a connector) and against a queryset
++performing aggregation.
++
++For example, a query that relies on aggregation and has an ``OR``-ed filter
++against a window function and a field is not supported. Applying combined
++predicates post-aggregation could cause rows that would normally be excluded
++from groups to be included::
++
++    >>> qs = Movie.objects.annotate(
++    >>>     category_rank=Window(
++    >>>         Rank(), partition_by='category', order_by='-rating'
++    >>>     ),
++    >>>     scenes_count=Count('actors'),
++    >>> ).filter(
++    >>>     Q(category_rank__lte=3) | Q(title__contains='Batman')
++    >>> )
++    >>> list(qs)
++    NotImplementedError: Heterogeneous disjunctive predicates against window functions
++    are not implemented when performing conditional aggregation.
++
++.. versionchanged:: 4.2
++
++    Support for filtering against window functions was added.
++
+ Among Django's built-in database backends, MySQL 8.0.2+, PostgreSQL, and Oracle
+ support window expressions. Support for different window expression features
+ varies among the different databases. For example, the options in
+diff --git a/docs/releases/4.2.txt b/docs/releases/4.2.txt
+index cb64750009..ed00ee1350 100644
+--- a/docs/releases/4.2.txt
++++ b/docs/releases/4.2.txt
+@@ -189,7 +189,9 @@ Migrations
+ Models
+ ~~~~~~
+ 
+-* ...
++* ``QuerySet`` now extensively supports filtering against
++  :ref:`window-functions` with the exception of disjunctive filter lookups
++  against window functions when performing aggregation.
+ 
+ Requests and Responses
+ ~~~~~~~~~~~~~~~~~~~~~~
+diff --git a/tests/expressions_window/models.py b/tests/expressions_window/models.py
+index 631e876e15..cf324ea8f6 100644
+--- a/tests/expressions_window/models.py
++++ b/tests/expressions_window/models.py
+@@ -17,6 +17,13 @@ class Employee(models.Model):
+     bonus = models.DecimalField(decimal_places=2, max_digits=15, null=True)
+ 
+ 
++class PastEmployeeDepartment(models.Model):
++    employee = models.ForeignKey(
++        Employee, related_name="past_departments", on_delete=models.CASCADE
++    )
++    department = models.CharField(max_length=40, blank=False, null=False)
++
++
+ class Detail(models.Model):
+     value = models.JSONField()
+ 
+diff --git a/tests/expressions_window/tests.py b/tests/expressions_window/tests.py
+index 15f8a4d6b2..a71a3f947d 100644
+--- a/tests/expressions_window/tests.py
++++ b/tests/expressions_window/tests.py
+@@ -6,10 +6,9 @@ from django.core.exceptions import FieldError
+ from django.db import NotSupportedError, connection
+ from django.db.models import (
+     Avg,
+-    BooleanField,
+     Case,
++    Count,
+     F,
+-    Func,
+     IntegerField,
+     Max,
+     Min,
+@@ -41,15 +40,17 @@ from django.db.models.functions import (
+     RowNumber,
+     Upper,
+ )
++from django.db.models.lookups import Exact
+ from django.test import SimpleTestCase, TestCase, skipUnlessDBFeature
+ 
+-from .models import Detail, Employee
++from .models import Classification, Detail, Employee, PastEmployeeDepartment
+ 
+ 
+ @skipUnlessDBFeature("supports_over_clause")
+ class WindowFunctionTests(TestCase):
+     @classmethod
+     def setUpTestData(cls):
++        classification = Classification.objects.create()
+         Employee.objects.bulk_create(
+             [
+                 Employee(
+@@ -59,6 +60,7 @@ class WindowFunctionTests(TestCase):
+                     hire_date=e[3],
+                     age=e[4],
+                     bonus=Decimal(e[1]) / 400,
++                    classification=classification,
+                 )
+                 for e in [
+                     ("Jones", 45000, "Accounting", datetime.datetime(2005, 11, 1), 20),
+@@ -82,6 +84,13 @@ class WindowFunctionTests(TestCase):
+                 ]
+             ]
+         )
++        employees = list(Employee.objects.order_by("pk"))
++        PastEmployeeDepartment.objects.bulk_create(
++            [
++                PastEmployeeDepartment(employee=employees[6], department="Sales"),
++                PastEmployeeDepartment(employee=employees[10], department="IT"),
++            ]
++        )
+ 
+     def test_dense_rank(self):
+         tests = [
+@@ -902,6 +911,263 @@ class WindowFunctionTests(TestCase):
+         )
+         self.assertEqual(qs.count(), 12)
+ 
++    def test_filter(self):
++        qs = Employee.objects.annotate(
++            department_salary_rank=Window(
++                Rank(), partition_by="department", order_by="-salary"
++            ),
++            department_avg_age_diff=(
++                Window(Avg("age"), partition_by="department") - F("age")
++            ),
++        ).order_by("department", "name")
++        # Direct window reference.
++        self.assertQuerysetEqual(
++            qs.filter(department_salary_rank=1),
++            ["Adams", "Wilkinson", "Miller", "Johnson", "Smith"],
++            lambda employee: employee.name,
++        )
++        # Through a combined expression containing a window.
++        self.assertQuerysetEqual(
++            qs.filter(department_avg_age_diff__gt=0),
++            ["Jenson", "Jones", "Williams", "Miller", "Smith"],
++            lambda employee: employee.name,
++        )
++        # Intersection of multiple windows.
++        self.assertQuerysetEqual(
++            qs.filter(department_salary_rank=1, department_avg_age_diff__gt=0),
++            ["Miller"],
++            lambda employee: employee.name,
++        )
++        # Union of multiple windows.
++        self.assertQuerysetEqual(
++            qs.filter(Q(department_salary_rank=1) | Q(department_avg_age_diff__gt=0)),
++            [
++                "Adams",
++                "Jenson",
++                "Jones",
++                "Williams",
++                "Wilkinson",
++                "Miller",
++                "Johnson",
++                "Smith",
++                "Smith",
++            ],
++            lambda employee: employee.name,
++        )
++
++    def test_filter_conditional_annotation(self):
++        qs = (
++            Employee.objects.annotate(
++                rank=Window(Rank(), partition_by="department", order_by="-salary"),
++                case_first_rank=Case(
++                    When(rank=1, then=True),
++                    default=False,
++                ),
++                q_first_rank=Q(rank=1),
++            )
++            .order_by("name")
++            .values_list("name", flat=True)
++        )
++        for annotation in ["case_first_rank", "q_first_rank"]:
++            with self.subTest(annotation=annotation):
++                self.assertSequenceEqual(
++                    qs.filter(**{annotation: True}),
++                    ["Adams", "Johnson", "Miller", "Smith", "Wilkinson"],
++                )
++
++    def test_filter_conditional_expression(self):
++        qs = (
++            Employee.objects.filter(
++                Exact(Window(Rank(), partition_by="department", order_by="-salary"), 1)
++            )
++            .order_by("name")
++            .values_list("name", flat=True)
++        )
++        self.assertSequenceEqual(
++            qs, ["Adams", "Johnson", "Miller", "Smith", "Wilkinson"]
++        )
++
++    def test_filter_column_ref_rhs(self):
++        qs = (
++            Employee.objects.annotate(
++                max_dept_salary=Window(Max("salary"), partition_by="department")
++            )
++            .filter(max_dept_salary=F("salary"))
++            .order_by("name")
++            .values_list("name", flat=True)
++        )
++        self.assertSequenceEqual(
++            qs, ["Adams", "Johnson", "Miller", "Smith", "Wilkinson"]
++        )
++
++    def test_filter_values(self):
++        qs = (
++            Employee.objects.annotate(
++                department_salary_rank=Window(
++                    Rank(), partition_by="department", order_by="-salary"
++                ),
++            )
++            .order_by("department", "name")
++            .values_list(Upper("name"), flat=True)
++        )
++        self.assertSequenceEqual(
++            qs.filter(department_salary_rank=1),
++            ["ADAMS", "WILKINSON", "MILLER", "JOHNSON", "SMITH"],
++        )
++
++    def test_filter_alias(self):
++        qs = Employee.objects.alias(
++            department_avg_age_diff=(
++                Window(Avg("age"), partition_by="department") - F("age")
++            ),
++        ).order_by("department", "name")
++        self.assertQuerysetEqual(
++            qs.filter(department_avg_age_diff__gt=0),
++            ["Jenson", "Jones", "Williams", "Miller", "Smith"],
++            lambda employee: employee.name,
++        )
++
++    def test_filter_select_related(self):
++        qs = (
++            Employee.objects.alias(
++                department_avg_age_diff=(
++                    Window(Avg("age"), partition_by="department") - F("age")
++                ),
++            )
++            .select_related("classification")
++            .filter(department_avg_age_diff__gt=0)
++            .order_by("department", "name")
++        )
++        self.assertQuerysetEqual(
++            qs,
++            ["Jenson", "Jones", "Williams", "Miller", "Smith"],
++            lambda employee: employee.name,
++        )
++        with self.assertNumQueries(0):
++            qs[0].classification
++
++    def test_exclude(self):
++        qs = Employee.objects.annotate(
++            department_salary_rank=Window(
++                Rank(), partition_by="department", order_by="-salary"
++            ),
++            department_avg_age_diff=(
++                Window(Avg("age"), partition_by="department") - F("age")
++            ),
++        ).order_by("department", "name")
++        # Direct window reference.
++        self.assertQuerysetEqual(
++            qs.exclude(department_salary_rank__gt=1),
++            ["Adams", "Wilkinson", "Miller", "Johnson", "Smith"],
++            lambda employee: employee.name,
++        )
++        # Through a combined expression containing a window.
++        self.assertQuerysetEqual(
++            qs.exclude(department_avg_age_diff__lte=0),
++            ["Jenson", "Jones", "Williams", "Miller", "Smith"],
++            lambda employee: employee.name,
++        )
++        # Union of multiple windows.
++        self.assertQuerysetEqual(
++            qs.exclude(
++                Q(department_salary_rank__gt=1) | Q(department_avg_age_diff__lte=0)
++            ),
++            ["Miller"],
++            lambda employee: employee.name,
++        )
++        # Intersection of multiple windows.
++        self.assertQuerysetEqual(
++            qs.exclude(department_salary_rank__gt=1, department_avg_age_diff__lte=0),
++            [
++                "Adams",
++                "Jenson",
++                "Jones",
++                "Williams",
++                "Wilkinson",
++                "Miller",
++                "Johnson",
++                "Smith",
++                "Smith",
++            ],
++            lambda employee: employee.name,
++        )
++
++    def test_heterogeneous_filter(self):
++        qs = (
++            Employee.objects.annotate(
++                department_salary_rank=Window(
++                    Rank(), partition_by="department", order_by="-salary"
++                ),
++            )
++            .order_by("name")
++            .values_list("name", flat=True)
++        )
++        # Heterogeneous filter between window function and aggregates pushes
++        # the WHERE clause to the QUALIFY outer query.
++        self.assertSequenceEqual(
++            qs.filter(
++                department_salary_rank=1, department__in=["Accounting", "Management"]
++            ),
++            ["Adams", "Miller"],
++        )
++        self.assertSequenceEqual(
++            qs.filter(
++                Q(department_salary_rank=1)
++                | Q(department__in=["Accounting", "Management"])
++            ),
++            [
++                "Adams",
++                "Jenson",
++                "Johnson",
++                "Johnson",
++                "Jones",
++                "Miller",
++                "Smith",
++                "Wilkinson",
++                "Williams",
++            ],
++        )
++        # Heterogeneous filter between window function and aggregates pushes
++        # the HAVING clause to the QUALIFY outer query.
++        qs = qs.annotate(past_department_count=Count("past_departments"))
++        self.assertSequenceEqual(
++            qs.filter(department_salary_rank=1, past_department_count__gte=1),
++            ["Johnson", "Miller"],
++        )
++        self.assertSequenceEqual(
++            qs.filter(Q(department_salary_rank=1) | Q(past_department_count__gte=1)),
++            ["Adams", "Johnson", "Miller", "Smith", "Wilkinson"],
++        )
++
++    def test_limited_filter(self):
++        """
++        A query filtering against a window function have its limit applied
++        after window filtering takes place.
++        """
++        self.assertQuerysetEqual(
++            Employee.objects.annotate(
++                department_salary_rank=Window(
++                    Rank(), partition_by="department", order_by="-salary"
++                )
++            )
++            .filter(department_salary_rank=1)
++            .order_by("department")[0:3],
++            ["Adams", "Wilkinson", "Miller"],
++            lambda employee: employee.name,
++        )
++
++    def test_filter_count(self):
++        self.assertEqual(
++            Employee.objects.annotate(
++                department_salary_rank=Window(
++                    Rank(), partition_by="department", order_by="-salary"
++                )
++            )
++            .filter(department_salary_rank=1)
++            .count(),
++            5,
++        )
++
+     @skipUnlessDBFeature("supports_frame_range_fixed_distance")
+     def test_range_n_preceding_and_following(self):
+         qs = Employee.objects.annotate(
+@@ -1071,6 +1337,7 @@ class WindowFunctionTests(TestCase):
+                 ),
+                 year=ExtractYear("hire_date"),
+             )
++            .filter(sum__gte=45000)
+             .values("year", "sum")
+             .distinct("year")
+             .order_by("year")
+@@ -1081,7 +1348,6 @@ class WindowFunctionTests(TestCase):
+             {"year": 2008, "sum": 45000},
+             {"year": 2009, "sum": 128000},
+             {"year": 2011, "sum": 60000},
+-            {"year": 2012, "sum": 40000},
+             {"year": 2013, "sum": 84000},
+         ]
+         for idx, val in zip(range(len(results)), results):
+@@ -1348,34 +1614,18 @@ class NonQueryWindowTests(SimpleTestCase):
+             frame.window_frame_start_end(None, None, None)
+ 
+     def test_invalid_filter(self):
+-        msg = "Window is disallowed in the filter clause"
+-        qs = Employee.objects.annotate(dense_rank=Window(expression=DenseRank()))
+-        with self.assertRaisesMessage(NotSupportedError, msg):
+-            qs.filter(dense_rank__gte=1)
+-        with self.assertRaisesMessage(NotSupportedError, msg):
+-            qs.annotate(inc_rank=F("dense_rank") + Value(1)).filter(inc_rank__gte=1)
+-        with self.assertRaisesMessage(NotSupportedError, msg):
+-            qs.filter(id=F("dense_rank"))
+-        with self.assertRaisesMessage(NotSupportedError, msg):
+-            qs.filter(id=Func("dense_rank", 2, function="div"))
+-        with self.assertRaisesMessage(NotSupportedError, msg):
+-            qs.annotate(total=Sum("dense_rank", filter=Q(name="Jones"))).filter(total=1)
+-
+-    def test_conditional_annotation(self):
++        msg = (
++            "Heterogeneous disjunctive predicates against window functions are not "
++            "implemented when performing conditional aggregation."
++        )
+         qs = Employee.objects.annotate(
+-            dense_rank=Window(expression=DenseRank()),
+-        ).annotate(
+-            equal=Case(
+-                When(id=F("dense_rank"), then=Value(True)),
+-                default=Value(False),
+-                output_field=BooleanField(),
+-            ),
++            window=Window(Rank()),
++            past_dept_cnt=Count("past_departments"),
+         )
+-        # The SQL standard disallows referencing window functions in the WHERE
+-        # clause.
+-        msg = "Window is disallowed in the filter clause"
+-        with self.assertRaisesMessage(NotSupportedError, msg):
+-            qs.filter(equal=True)
++        with self.assertRaisesMessage(NotImplementedError, msg):
++            list(qs.filter(Q(window=1) | Q(department="Accounting")))
++        with self.assertRaisesMessage(NotImplementedError, msg):
++            list(qs.exclude(window=1, department="Accounting"))
+ 
+     def test_invalid_order_by(self):
+         msg = (
++ git diff f387d024fc75569d2a4a338bfda76cc2f328f627
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.5.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.2.dev20220815062626) (3.8.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.2.dev20220815062626) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from asgiref>=3.5.2->Django==4.2.dev20220815062626) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.2.dev20220815062626-0.editable-py3-none-any.whl size=27174 sha256=873ee5a6999c59a5f21f2b510bddd2c4e6f446dae1b906796ca39a092d7b4372
+  Stored in directory: /tmp/pip-ephem-wheel-cache-nkkuqq_q/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.2.dev20220815062626
+    Uninstalling Django-4.2.dev20220815062626:
+      Successfully uninstalled Django-4.2.dev20220815062626
+Successfully installed Django-4.2.dev20220815062626
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout f387d024fc75569d2a4a338bfda76cc2f328f627 tests/prefetch_related/tests.py
+Updated 0 paths from 61994be69d
++ git apply -v -
+Checking patch tests/prefetch_related/tests.py...
+Applied patch tests/prefetch_related/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 prefetch_related.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application prefetch_related
+Found 93 test(s).
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, prefetch_related, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table prefetch_related_author
+    Creating table prefetch_related_authorwithage
+    Creating table prefetch_related_favoriteauthors
+    Creating table prefetch_related_authoraddress
+    Creating table prefetch_related_book
+    Creating table prefetch_related_bookwithyear
+    Creating table prefetch_related_bio
+    Creating table prefetch_related_reader
+    Creating table prefetch_related_bookreview
+    Creating table prefetch_related_qualification
+    Creating table prefetch_related_teacher
+    Creating table prefetch_related_department
+    Creating table prefetch_related_taggeditem
+    Creating table prefetch_related_article
+    Creating table prefetch_related_bookmark
+    Creating table prefetch_related_comment
+    Creating table prefetch_related_house
+    Creating table prefetch_related_room
+    Creating table prefetch_related_person
+    Creating table prefetch_related_employee
+    Creating table prefetch_related_lessonentry
+    Creating table prefetch_related_wordentry
+    Creating table prefetch_related_author2
+    Creating table prefetch_related_pet
+    Creating table prefetch_related_flea
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+Creating test database for alias 'other' ('file:memorydb_other?mode=memory&cache=shared')...
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, prefetch_related, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table prefetch_related_author
+    Creating table prefetch_related_authorwithage
+    Creating table prefetch_related_favoriteauthors
+    Creating table prefetch_related_authoraddress
+    Creating table prefetch_related_book
+    Creating table prefetch_related_bookwithyear
+    Creating table prefetch_related_bio
+    Creating table prefetch_related_reader
+    Creating table prefetch_related_bookreview
+    Creating table prefetch_related_qualification
+    Creating table prefetch_related_teacher
+    Creating table prefetch_related_department
+    Creating table prefetch_related_taggeditem
+    Creating table prefetch_related_article
+    Creating table prefetch_related_bookmark
+    Creating table prefetch_related_comment
+    Creating table prefetch_related_house
+    Creating table prefetch_related_room
+    Creating table prefetch_related_person
+    Creating table prefetch_related_employee
+    Creating table prefetch_related_lessonentry
+    Creating table prefetch_related_wordentry
+    Creating table prefetch_related_author2
+    Creating table prefetch_related_pet
+    Creating table prefetch_related_flea
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+test_ambiguous (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_custom_qs (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_filter_deferred (prefetch_related.tests.CustomPrefetchTests)
+Related filtering of prefetched querysets is deferred until necessary. ... ok
+test_generic_rel (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_m2m (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_m2m_through_fk (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_m2m_through_gfk (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_nested_prefetch_related_are_not_overwritten (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_nested_prefetch_related_with_duplicate_prefetcher (prefetch_related.tests.CustomPrefetchTests)
+Nested prefetches whose name clashes with descriptor names ... ok
+test_o2m_through_m2m (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_raw_queryset (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_reverse_m2m (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_to_attr_cached_property (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_to_attr_doesnt_cache_through_attr_as_list (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_traverse_multiple_items_property (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_traverse_qs (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_traverse_single_item_property (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_values_queryset (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_m2m_then_m2m (prefetch_related.tests.DefaultManagerTests) ... ok
+test_add_clears_prefetched_objects (prefetch_related.tests.DirectPrefetchedObjectCacheReuseTests) ... ok
+test_detect_is_fetched (prefetch_related.tests.DirectPrefetchedObjectCacheReuseTests)
+Nested prefetch_related() shouldn't trigger duplicate queries for the same ... ok
+test_detect_is_fetched_with_to_attr (prefetch_related.tests.DirectPrefetchedObjectCacheReuseTests) ... ok
+test_prefetch_reverse_foreign_key (prefetch_related.tests.DirectPrefetchedObjectCacheReuseTests) ... ok
+test_remove_clears_prefetched_objects (prefetch_related.tests.DirectPrefetchedObjectCacheReuseTests) ... ok
+test_foreignkey (prefetch_related.tests.ForeignKeyToFieldTest) ... ok
+test_m2m (prefetch_related.tests.ForeignKeyToFieldTest) ... ok
+test_m2m_manager_reused (prefetch_related.tests.ForeignKeyToFieldTest) ... ok
+test_charfield_GFK (prefetch_related.tests.GenericRelationTests) ... ok
+test_custom_queryset (prefetch_related.tests.GenericRelationTests) ... ok
+test_deleted_GFK (prefetch_related.tests.GenericRelationTests) ... ok
+test_generic_relation (prefetch_related.tests.GenericRelationTests) ... ok
+test_nullable_GFK (prefetch_related.tests.GenericRelationTests) ... ok
+test_prefetch_GFK (prefetch_related.tests.GenericRelationTests) ... ok
+test_prefetch_GFK_fk_pk (prefetch_related.tests.GenericRelationTests) ... ok
+test_prefetch_GFK_nonint_pk (prefetch_related.tests.GenericRelationTests) ... ok
+test_prefetch_GFK_uuid_pk (prefetch_related.tests.GenericRelationTests) ... ok
+test_traverse_GFK (prefetch_related.tests.GenericRelationTests)
+A 'content_object' can be traversed with prefetch_related() and ... ok
+test_order (prefetch_related.tests.LookupOrderingTest) ... ok
+test_using_is_honored_custom_qs (prefetch_related.tests.MultiDbTests) ... ok
+test_using_is_honored_fkey (prefetch_related.tests.MultiDbTests) ... ok
+test_using_is_honored_inheritance (prefetch_related.tests.MultiDbTests) ... ok
+test_using_is_honored_m2m (prefetch_related.tests.MultiDbTests) ... ok
+test_child_link_prefetch (prefetch_related.tests.MultiTableInheritanceTest) ... ok
+test_foreignkey (prefetch_related.tests.MultiTableInheritanceTest) ... ok
+test_foreignkey_to_inherited (prefetch_related.tests.MultiTableInheritanceTest) ... ok
+test_m2m_to_inheriting_model (prefetch_related.tests.MultiTableInheritanceTest) ... ok
+test_parent_link_prefetch (prefetch_related.tests.MultiTableInheritanceTest) ... ok
+test_nested_prefetch_is_not_overwritten_by_related_object (prefetch_related.tests.NestedPrefetchTests)
+The prefetched relationship is used rather than populating the reverse ... ok
+test_in_bulk (prefetch_related.tests.NullableTest)
+In-bulk does correctly prefetch objects by not using .iterator() ... ok
+test_prefetch_nullable (prefetch_related.tests.NullableTest) ... ok
+test_traverse_nullable (prefetch_related.tests.NullableTest) ... ok
+test_foreignkey_reverse (prefetch_related.tests.PrefetchLimitTests) ... ERROR
+test_m2m_forward (prefetch_related.tests.PrefetchLimitTests) ... ERROR
+test_m2m_reverse (prefetch_related.tests.PrefetchLimitTests) ... ERROR
+test_reverse_ordering (prefetch_related.tests.PrefetchLimitTests) ... ERROR
+test_attribute_error (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_bool (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_clear (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_count (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_exists (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_filter_deferred (prefetch_related.tests.PrefetchRelatedTests)
+Related filtering of prefetched querysets is deferred on m2m and ... ok
+test_foreign_key_then_m2m (prefetch_related.tests.PrefetchRelatedTests)
+A m2m relation can be followed after a relation like ForeignKey that ... ok
+test_foreignkey_forward (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_foreignkey_reverse (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_forward_m2m_to_attr_conflict (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_get (prefetch_related.tests.PrefetchRelatedTests)
+Objects retrieved with .get() get the prefetch behavior. ... ok
+test_in_and_prefetch_related (prefetch_related.tests.PrefetchRelatedTests)
+Regression test for #20242 - QuerySet "in" didn't work the first time ... ok
+test_invalid_final_lookup (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_len (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_m2m_forward (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_m2m_prefetching_iterator_with_chunks (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_m2m_prefetching_iterator_without_chunks (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_m2m_prefetching_iterator_without_chunks_warning (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_m2m_reverse (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_m2m_then_m2m (prefetch_related.tests.PrefetchRelatedTests)
+A m2m can be followed through another m2m. ... ok
+test_m2m_then_m2m_object_ids (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_m2m_then_reverse_fk_object_ids (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_m2m_then_reverse_one_to_one_object_ids (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_named_values_list (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_onetoone_reverse_no_match (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_onetoone_reverse_with_to_field_pk (prefetch_related.tests.PrefetchRelatedTests)
+A model (Bio) with a OneToOneField primary key (author) that references ... ok
+test_overriding_prefetch (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_prefetch_eq (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_reverse_m2m_to_attr_conflict (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_reverse_one_to_one_then_m2m (prefetch_related.tests.PrefetchRelatedTests)
+A m2m relation can be followed after going through the select_related ... ok
+test_survives_clone (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_basic (prefetch_related.tests.RawQuerySetTests) ... ok
+test_clear (prefetch_related.tests.RawQuerySetTests) ... ok
+test_prefetch_before_raw (prefetch_related.tests.RawQuerySetTests) ... ok
+test_retrieves_results_from_prefetched_objects_cache (prefetch_related.tests.ReadPrefetchedObjectsCacheTests)
+When intermediary results are prefetched without a destination ... ok
+test_bug (prefetch_related.tests.Ticket19607Tests) ... ok
+test_bug (prefetch_related.tests.Ticket21410Tests) ... ok
+test_bug (prefetch_related.tests.Ticket21760Tests) ... ok
+
+======================================================================
+ERROR: test_foreignkey_reverse (prefetch_related.tests.PrefetchLimitTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/prefetch_related/tests.py", line 1943, in test_foreignkey_reverse
+    books = list(
+  File "/testbed/django/db/models/query.py", line 394, in __iter__
+    self._fetch_all()
+  File "/testbed/django/db/models/query.py", line 1878, in _fetch_all
+    self._prefetch_related_objects()
+  File "/testbed/django/db/models/query.py", line 1267, in _prefetch_related_objects
+    prefetch_related_objects(self._result_cache, *self._prefetch_related_lookups)
+  File "/testbed/django/db/models/query.py", line 2316, in prefetch_related_objects
+    obj_list, additional_lookups = prefetch_one_level(
+  File "/testbed/django/db/models/query.py", line 2458, in prefetch_one_level
+    ) = prefetcher.get_prefetch_queryset(instances, lookup.get_current_queryset(level))
+  File "/testbed/django/db/models/fields/related_descriptors.py", line 722, in get_prefetch_queryset
+    queryset = queryset.filter(**query)
+  File "/testbed/django/db/models/query.py", line 1430, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1442, in _filter_or_exclude
+    raise TypeError("Cannot filter a query once a slice has been taken.")
+TypeError: Cannot filter a query once a slice has been taken.
+
+======================================================================
+ERROR: test_m2m_forward (prefetch_related.tests.PrefetchLimitTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/prefetch_related/tests.py", line 1917, in test_m2m_forward
+    books = list(
+  File "/testbed/django/db/models/query.py", line 394, in __iter__
+    self._fetch_all()
+  File "/testbed/django/db/models/query.py", line 1878, in _fetch_all
+    self._prefetch_related_objects()
+  File "/testbed/django/db/models/query.py", line 1267, in _prefetch_related_objects
+    prefetch_related_objects(self._result_cache, *self._prefetch_related_lookups)
+  File "/testbed/django/db/models/query.py", line 2316, in prefetch_related_objects
+    obj_list, additional_lookups = prefetch_one_level(
+  File "/testbed/django/db/models/query.py", line 2458, in prefetch_one_level
+    ) = prefetcher.get_prefetch_queryset(instances, lookup.get_current_queryset(level))
+  File "/testbed/django/db/models/fields/related_descriptors.py", line 1055, in get_prefetch_queryset
+    queryset = queryset._next_is_sticky().filter(**query)
+  File "/testbed/django/db/models/query.py", line 1430, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1442, in _filter_or_exclude
+    raise TypeError("Cannot filter a query once a slice has been taken.")
+TypeError: Cannot filter a query once a slice has been taken.
+
+======================================================================
+ERROR: test_m2m_reverse (prefetch_related.tests.PrefetchLimitTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/prefetch_related/tests.py", line 1930, in test_m2m_reverse
+    authors = list(
+  File "/testbed/django/db/models/query.py", line 394, in __iter__
+    self._fetch_all()
+  File "/testbed/django/db/models/query.py", line 1878, in _fetch_all
+    self._prefetch_related_objects()
+  File "/testbed/django/db/models/query.py", line 1267, in _prefetch_related_objects
+    prefetch_related_objects(self._result_cache, *self._prefetch_related_lookups)
+  File "/testbed/django/db/models/query.py", line 2316, in prefetch_related_objects
+    obj_list, additional_lookups = prefetch_one_level(
+  File "/testbed/django/db/models/query.py", line 2458, in prefetch_one_level
+    ) = prefetcher.get_prefetch_queryset(instances, lookup.get_current_queryset(level))
+  File "/testbed/django/db/models/fields/related_descriptors.py", line 1055, in get_prefetch_queryset
+    queryset = queryset._next_is_sticky().filter(**query)
+  File "/testbed/django/db/models/query.py", line 1430, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1442, in _filter_or_exclude
+    raise TypeError("Cannot filter a query once a slice has been taken.")
+TypeError: Cannot filter a query once a slice has been taken.
+
+======================================================================
+ERROR: test_reverse_ordering (prefetch_related.tests.PrefetchLimitTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/prefetch_related/tests.py", line 1966, in test_reverse_ordering
+    books = list(
+  File "/testbed/django/db/models/query.py", line 394, in __iter__
+    self._fetch_all()
+  File "/testbed/django/db/models/query.py", line 1878, in _fetch_all
+    self._prefetch_related_objects()
+  File "/testbed/django/db/models/query.py", line 1267, in _prefetch_related_objects
+    prefetch_related_objects(self._result_cache, *self._prefetch_related_lookups)
+  File "/testbed/django/db/models/query.py", line 2316, in prefetch_related_objects
+    obj_list, additional_lookups = prefetch_one_level(
+  File "/testbed/django/db/models/query.py", line 2458, in prefetch_one_level
+    ) = prefetcher.get_prefetch_queryset(instances, lookup.get_current_queryset(level))
+  File "/testbed/django/db/models/fields/related_descriptors.py", line 1055, in get_prefetch_queryset
+    queryset = queryset._next_is_sticky().filter(**query)
+  File "/testbed/django/db/models/query.py", line 1430, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1442, in _filter_or_exclude
+    raise TypeError("Cannot filter a query once a slice has been taken.")
+TypeError: Cannot filter a query once a slice has been taken.
+
+----------------------------------------------------------------------
+Ran 93 tests in 0.663s
+
+FAILED (errors=4)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Destroying test database for alias 'other' ('file:memorydb_other?mode=memory&cache=shared')...
++ git checkout f387d024fc75569d2a4a338bfda76cc2f328f627 tests/prefetch_related/tests.py
+Updated 1 path from 61994be69d

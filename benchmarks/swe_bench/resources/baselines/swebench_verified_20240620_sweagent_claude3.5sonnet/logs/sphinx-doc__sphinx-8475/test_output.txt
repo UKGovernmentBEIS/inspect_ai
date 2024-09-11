@@ -1,0 +1,1004 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sphinx/builders/linkcheck.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	setup.py.orig
+	tox.ini.orig
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 3ea1ec84cc610f7a9f4f6b354e264565254923ff
+Merge: 24a329eeb a57ce4047
+Author: Takeshi KOMIYA <i.tkomiya@gmail.com>
+Date:   Sun Nov 22 16:02:11 2020 +0900
+
+    Merge pull request #8463 from tk0miya/refactor_getannotations
+    
+    refactor: Move _getannotations() to sphinx.util.inspect
+
++ git diff 3ea1ec84cc610f7a9f4f6b354e264565254923ff
+diff --git a/sphinx/builders/linkcheck.py b/sphinx/builders/linkcheck.py
+index 1dc0337c3..572368b06 100644
+--- a/sphinx/builders/linkcheck.py
++++ b/sphinx/builders/linkcheck.py
+@@ -20,7 +20,7 @@ from urllib.parse import unquote, urlparse
+ 
+ from docutils import nodes
+ from docutils.nodes import Node
+-from requests.exceptions import HTTPError
++from requests.exceptions import HTTPError, TooManyRedirects
+ 
+ from sphinx.application import Sphinx
+ from sphinx.builders import Builder
+@@ -172,9 +172,9 @@ class CheckExternalLinksBuilder(Builder):
+                                                  config=self.app.config, auth=auth_info,
+                                                  **kwargs)
+                         response.raise_for_status()
+-                    except HTTPError:
++                    except (HTTPError, requests.TooManyRedirects):
+                         # retry with GET request if that fails, some servers
+-                        # don't like HEAD requests.
++                        # don't like HEAD requests or have too many redirects.
+                         response = requests.get(req_url, stream=True, config=self.app.config,
+                                                 auth=auth_info, **kwargs)
+                         response.raise_for_status()
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e '.[test]'
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: sphinxcontrib-applehelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (1.0.4)
+Requirement already satisfied: sphinxcontrib-devhelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (1.0.2)
+Requirement already satisfied: sphinxcontrib-jsmath in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (1.0.1)
+Requirement already satisfied: sphinxcontrib-htmlhelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (2.0.1)
+Requirement already satisfied: sphinxcontrib-serializinghtml in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (1.1.5)
+Requirement already satisfied: sphinxcontrib-qthelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (1.0.3)
+Requirement already satisfied: Jinja2>=2.3 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (2.11.3)
+Requirement already satisfied: Pygments>=2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (2.18.0)
+Requirement already satisfied: docutils>=0.12 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (0.21.2)
+Requirement already satisfied: snowballstemmer>=1.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (2.2.0)
+Requirement already satisfied: babel>=1.3 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (2.15.0)
+Requirement already satisfied: alabaster<0.8,>=0.7 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (0.7.11)
+Requirement already satisfied: imagesize in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (1.4.1)
+Requirement already satisfied: requests>=2.5.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (2.32.3)
+Requirement already satisfied: setuptools in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (69.5.1)
+Requirement already satisfied: packaging in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (24.1)
+Requirement already satisfied: pytest in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (8.3.2)
+Requirement already satisfied: pytest-cov in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (5.0.0)
+Requirement already satisfied: html5lib in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (1.1)
+Requirement already satisfied: typed_ast in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (1.5.5)
+Requirement already satisfied: cython in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.4.0.dev20240725) (3.0.10)
+Requirement already satisfied: MarkupSafe>=0.23 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Jinja2>=2.3->Sphinx==3.4.0.dev20240725) (2.0.1)
+Requirement already satisfied: charset-normalizer<4,>=2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.4.0.dev20240725) (3.3.2)
+Requirement already satisfied: idna<4,>=2.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.4.0.dev20240725) (3.7)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.4.0.dev20240725) (2.2.2)
+Requirement already satisfied: certifi>=2017.4.17 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.4.0.dev20240725) (2024.7.4)
+Requirement already satisfied: six>=1.9 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from html5lib->Sphinx==3.4.0.dev20240725) (1.16.0)
+Requirement already satisfied: webencodings in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from html5lib->Sphinx==3.4.0.dev20240725) (0.5.1)
+Requirement already satisfied: iniconfig in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.4.0.dev20240725) (2.0.0)
+Requirement already satisfied: pluggy<2,>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.4.0.dev20240725) (1.5.0)
+Requirement already satisfied: exceptiongroup>=1.0.0rc8 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.4.0.dev20240725) (1.2.2)
+Requirement already satisfied: tomli>=1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.4.0.dev20240725) (2.0.1)
+Requirement already satisfied: coverage>=5.2.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from coverage[toml]>=5.2.1->pytest-cov->Sphinx==3.4.0.dev20240725) (7.6.0)
+Installing collected packages: Sphinx
+  Attempting uninstall: Sphinx
+    Found existing installation: Sphinx 3.4.0.dev20240725
+    Uninstalling Sphinx-3.4.0.dev20240725:
+      Successfully uninstalled Sphinx-3.4.0.dev20240725
+  Running setup.py develop for Sphinx
+Successfully installed Sphinx-3.4.0.dev20240725
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 3ea1ec84cc610f7a9f4f6b354e264565254923ff tests/test_build_linkcheck.py
+Updated 0 paths from 3532e3bb4
++ git apply -v -
+Checking patch tests/test_build_linkcheck.py...
+Applied patch tests/test_build_linkcheck.py cleanly.
++ tox --current-env -epy39 -v -- tests/test_build_linkcheck.py
+py39: commands[0]> python -X dev -m pytest --durations 25 tests/test_build_linkcheck.py
+[1m============================= test session starts ==============================[0m
+platform linux -- Python 3.9.19, pytest-8.3.2, pluggy-1.5.0
+cachedir: .tox/py39/.pytest_cache
+libraries: Sphinx-3.4.0+/3ea1ec84c, docutils-0.21.2
+base tempdir: /tmp/pytest-of-root/pytest-0
+rootdir: /testbed
+configfile: setup.cfg
+plugins: cov-5.0.0
+collected 18 items
+
+tests/test_build_linkcheck.py [31mF[0m[31mF[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[31mF[0m[31mF[0m[31mF[0m[32m.[0m[32m.[0m[32m.[0m[31mF[0m[31mF[0m[31m                         [100%][0m
+
+=================================== FAILURES ===================================
+[31m[1m________________________________ test_defaults _________________________________[0m
+
+app = <SphinxTestApp buildername='linkcheck'>
+
+    [0m[37m@pytest[39;49;00m.mark.sphinx([33m'[39;49;00m[33mlinkcheck[39;49;00m[33m'[39;49;00m, testroot=[33m'[39;49;00m[33mlinkcheck[39;49;00m[33m'[39;49;00m, freshenv=[94mTrue[39;49;00m)[90m[39;49;00m
+    [94mdef[39;49;00m [92mtest_defaults[39;49;00m(app):[90m[39;49;00m
+        app.builder.build_all()[90m[39;49;00m
+    [90m[39;49;00m
+        [94massert[39;49;00m (app.outdir / [33m'[39;49;00m[33moutput.txt[39;49;00m[33m'[39;49;00m).exists()[90m[39;49;00m
+        content = (app.outdir / [33m'[39;49;00m[33moutput.txt[39;49;00m[33m'[39;49;00m).read_text()[90m[39;49;00m
+    [90m[39;49;00m
+        [96mprint[39;49;00m(content)[90m[39;49;00m
+        [90m# looking for '#top' and '#does-not-exist' not found should fail[39;49;00m[90m[39;49;00m
+        [94massert[39;49;00m [33m"[39;49;00m[33mAnchor [39;49;00m[33m'[39;49;00m[33mtop[39;49;00m[33m'[39;49;00m[33m not found[39;49;00m[33m"[39;49;00m [95min[39;49;00m content[90m[39;49;00m
+        [94massert[39;49;00m [33m"[39;49;00m[33mAnchor [39;49;00m[33m'[39;49;00m[33mdoes-not-exist[39;49;00m[33m'[39;49;00m[33m not found[39;49;00m[33m"[39;49;00m [95min[39;49;00m content[90m[39;49;00m
+        [90m# looking for non-existent URL should fail[39;49;00m[90m[39;49;00m
+>       [94massert[39;49;00m [33m"[39;49;00m[33m Max retries exceeded with url: /doesnotexist[39;49;00m[33m"[39;49;00m [95min[39;49;00m content[90m[39;49;00m
+[1m[31mE       assert ' Max retries exceeded with url: /doesnotexist' in "links.txt:13: [broken] https://localhost:7777/doesnotexist: module 'sphinx.util.requests' has no attribute 'TooManyRe...links.txt:12: [broken] http://www.sphinx-doc.org/en/1.7/intro.html#does-not-exist: Anchor 'does-not-exist' not found\n"[0m
+
+[1m[31mtests/test_build_linkcheck.py[0m:33: AssertionError
+----------------------------- Captured stdout call -----------------------------
+links.txt:13: [broken] https://localhost:7777/doesnotexist: module 'sphinx.util.requests' has no attribute 'TooManyRedirects'
+links.txt:15: [broken] path/to/notfound: 
+links.txt:11: [broken] https://www.google.com/#top: Anchor 'top' not found
+links.txt:17: [broken] https://www.google.com/image.png: module 'sphinx.util.requests' has no attribute 'TooManyRedirects'
+links.txt:18: [broken] https://www.google.com/image2.png: module 'sphinx.util.requests' has no attribute 'TooManyRedirects'
+links.txt:12: [broken] http://www.sphinx-doc.org/en/1.7/intro.html#does-not-exist: Anchor 'does-not-exist' not found
+
+--------------------------- Captured stdout teardown ---------------------------
+# testroot: root
+# builder: linkcheck
+# srcdir: /tmp/pytest-of-root/pytest-0/linkcheck
+# outdir: /tmp/pytest-of-root/pytest-0/linkcheck/_build/linkcheck
+# status: 
+[01mRunning Sphinx v3.4.0+/3ea1ec84c[39;49;00m
+[01mbuilding [linkcheck]: [39;49;00mall source files
+[01mupdating environment: [39;49;00m[new config] 1 added, 0 changed, 0 removed
+[01mreading sources... [39;49;00m[100%] [35mlinks[39;49;00m                                                
+[01mlooking for now-outdated files... [39;49;00mnone found
+[01mpickling environment... [39;49;00mdone
+[01mchecking consistency... [39;49;00mdone
+[01mpreparing documents... [39;49;00mdone
+[01mwriting output... [39;49;00m[100%] [32mlinks[39;49;00m                                                 
+(line   10) [32mok        [39;49;00mhttps://www.google.com#!bar
+(line   13) [91mbroken    [39;49;00mhttps://localhost:7777/doesnotexist[91m - module 'sphinx.util.requests' has no attribute 'TooManyRedirects'[39;49;00m
+(line   14) [32mok        [39;49;00mconf.py
+(line   15) [91mbroken    [39;49;00mpath/to/notfound[91m - [39;49;00m
+(line    9) [32mok        [39;49;00mhttps://www.google.com/#!bar
+(line   11) [91mbroken    [39;49;00mhttps://www.google.com/#top[91m - Anchor 'top' not found[39;49;00m
+(line    3) [32mok        [39;49;00mhttps://www.w3.org/TR/2006/REC-xml-names-20060816/#defaulting
+(line   17) [91mbroken    [39;49;00mhttps://www.google.com/image.png[91m - module 'sphinx.util.requests' has no attribute 'TooManyRedirects'[39;49;00m
+(line   18) [91mbroken    [39;49;00mhttps://www.google.com/image2.png[91m - module 'sphinx.util.requests' has no attribute 'TooManyRedirects'[39;49;00m
+(line   12) [91mbroken    [39;49;00mhttp://www.sphinx-doc.org/en/1.7/intro.html#does-not-exist[91m - Anchor 'does-not-exist' not found[39;49;00m
+
+
+# warning: 
+[91mWARNING: while setting up extension sphinx.addnodes: node class 'meta' is already registered, its visitors will be overridden[39;49;00m
+[91m/tmp/pytest-of-root/pytest-0/linkcheck/links.txt:9: WARNING: Duplicate explicit target name: "example bar invalid".[39;49;00m
+[91m/tmp/pytest-of-root/pytest-0/linkcheck/links.txt:9: WARNING: Duplicate explicit target name: "example bar invalid".[39;49;00m
+[31m/tmp/pytest-of-root/pytest-0/linkcheck/links.txt:5: WARNING: Unknown target name: "http://www.sphinx-doc.org/en/1.4.8/tutorial.html#install-sphinx".[39;49;00m
+
+[31m[1m______________________________ test_defaults_json ______________________________[0m
+
+app = <SphinxTestApp buildername='linkcheck'>
+
+    [0m[37m@pytest[39;49;00m.mark.sphinx([33m'[39;49;00m[33mlinkcheck[39;49;00m[33m'[39;49;00m, testroot=[33m'[39;49;00m[33mlinkcheck[39;49;00m[33m'[39;49;00m, freshenv=[94mTrue[39;49;00m)[90m[39;49;00m
+    [94mdef[39;49;00m [92mtest_defaults_json[39;49;00m(app):[90m[39;49;00m
+        app.builder.build_all()[90m[39;49;00m
+    [90m[39;49;00m
+        [94massert[39;49;00m (app.outdir / [33m'[39;49;00m[33moutput.json[39;49;00m[33m'[39;49;00m).exists()[90m[39;49;00m
+        content = (app.outdir / [33m'[39;49;00m[33moutput.json[39;49;00m[33m'[39;49;00m).read_text()[90m[39;49;00m
+        [96mprint[39;49;00m(content)[90m[39;49;00m
+    [90m[39;49;00m
+        rows = [json.loads(x) [94mfor[39;49;00m x [95min[39;49;00m content.splitlines()][90m[39;49;00m
+        row = rows[[94m0[39;49;00m][90m[39;49;00m
+        [94mfor[39;49;00m attr [95min[39;49;00m [[33m"[39;49;00m[33mfilename[39;49;00m[33m"[39;49;00m, [33m"[39;49;00m[33mlineno[39;49;00m[33m"[39;49;00m, [33m"[39;49;00m[33mstatus[39;49;00m[33m"[39;49;00m, [33m"[39;49;00m[33mcode[39;49;00m[33m"[39;49;00m, [33m"[39;49;00m[33muri[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                     [33m"[39;49;00m[33minfo[39;49;00m[33m"[39;49;00m]:[90m[39;49;00m
+            [94massert[39;49;00m attr [95min[39;49;00m row[90m[39;49;00m
+    [90m[39;49;00m
+        [94massert[39;49;00m [96mlen[39;49;00m(content.splitlines()) == [94m10[39;49;00m[90m[39;49;00m
+        [94massert[39;49;00m [96mlen[39;49;00m(rows) == [94m10[39;49;00m[90m[39;49;00m
+        [90m# the output order of the rows is not stable[39;49;00m[90m[39;49;00m
+        [90m# due to possible variance in network latency[39;49;00m[90m[39;49;00m
+        rowsby = {row[[33m"[39;49;00m[33muri[39;49;00m[33m"[39;49;00m]: row [94mfor[39;49;00m row [95min[39;49;00m rows}[90m[39;49;00m
+        [94massert[39;49;00m rowsby[[33m"[39;49;00m[33mhttps://www.google.com#!bar[39;49;00m[33m"[39;49;00m] == {[90m[39;49;00m
+            [33m'[39;49;00m[33mfilename[39;49;00m[33m'[39;49;00m: [33m'[39;49;00m[33mlinks.txt[39;49;00m[33m'[39;49;00m,[90m[39;49;00m
+            [33m'[39;49;00m[33mlineno[39;49;00m[33m'[39;49;00m: [94m10[39;49;00m,[90m[39;49;00m
+            [33m'[39;49;00m[33mstatus[39;49;00m[33m'[39;49;00m: [33m'[39;49;00m[33mworking[39;49;00m[33m'[39;49;00m,[90m[39;49;00m
+            [33m'[39;49;00m[33mcode[39;49;00m[33m'[39;49;00m: [94m0[39;49;00m,[90m[39;49;00m
+            [33m'[39;49;00m[33muri[39;49;00m[33m'[39;49;00m: [33m'[39;49;00m[33mhttps://www.google.com#!bar[39;49;00m[33m'[39;49;00m,[90m[39;49;00m
+            [33m'[39;49;00m[33minfo[39;49;00m[33m'[39;49;00m: [33m'[39;49;00m[33m'[39;49;00m[90m[39;49;00m
+        }[90m[39;49;00m
+        [90m# looking for non-existent URL should fail[39;49;00m[90m[39;49;00m
+        dnerow = rowsby[[33m'[39;49;00m[33mhttps://localhost:7777/doesnotexist[39;49;00m[33m'[39;49;00m][90m[39;49;00m
+        [94massert[39;49;00m dnerow[[33m'[39;49;00m[33mfilename[39;49;00m[33m'[39;49;00m] == [33m'[39;49;00m[33mlinks.txt[39;49;00m[33m'[39;49;00m[90m[39;49;00m
+        [94massert[39;49;00m dnerow[[33m'[39;49;00m[33mlineno[39;49;00m[33m'[39;49;00m] == [94m13[39;49;00m[90m[39;49;00m
+        [94massert[39;49;00m dnerow[[33m'[39;49;00m[33mstatus[39;49;00m[33m'[39;49;00m] == [33m'[39;49;00m[33mbroken[39;49;00m[33m'[39;49;00m[90m[39;49;00m
+        [94massert[39;49;00m dnerow[[33m'[39;49;00m[33mcode[39;49;00m[33m'[39;49;00m] == [94m0[39;49;00m[90m[39;49;00m
+        [94massert[39;49;00m dnerow[[33m'[39;49;00m[33muri[39;49;00m[33m'[39;49;00m] == [33m'[39;49;00m[33mhttps://localhost:7777/doesnotexist[39;49;00m[33m'[39;49;00m[90m[39;49;00m
+>       [94massert[39;49;00m rowsby[[33m'[39;49;00m[33mhttps://www.google.com/image2.png[39;49;00m[33m'[39;49;00m] == {[90m[39;49;00m
+            [33m'[39;49;00m[33mfilename[39;49;00m[33m'[39;49;00m: [33m'[39;49;00m[33mlinks.txt[39;49;00m[33m'[39;49;00m,[90m[39;49;00m
+            [33m'[39;49;00m[33mlineno[39;49;00m[33m'[39;49;00m: [94m18[39;49;00m,[90m[39;49;00m
+            [33m'[39;49;00m[33mstatus[39;49;00m[33m'[39;49;00m: [33m'[39;49;00m[33mbroken[39;49;00m[33m'[39;49;00m,[90m[39;49;00m
+            [33m'[39;49;00m[33mcode[39;49;00m[33m'[39;49;00m: [94m0[39;49;00m,[90m[39;49;00m
+            [33m'[39;49;00m[33muri[39;49;00m[33m'[39;49;00m: [33m'[39;49;00m[33mhttps://www.google.com/image2.png[39;49;00m[33m'[39;49;00m,[90m[39;49;00m
+            [33m'[39;49;00m[33minfo[39;49;00m[33m'[39;49;00m: [33m'[39;49;00m[33m404 Client Error: Not Found for url: https://www.google.com/image2.png[39;49;00m[33m'[39;49;00m[90m[39;49;00m
+        }[90m[39;49;00m
+[1m[31mE       assert {'code': 0, '...eno': 18, ...} == {'code': 0, '...eno': 18, ...}[0m
+[1m[31mE         [0m
+[1m[31mE         Omitting 5 identical items, use -vv to show[0m
+[1m[31mE         Differing items:[0m
+[1m[31mE         [0m{[33m'[39;49;00m[33minfo[39;49;00m[33m'[39;49;00m: [33m"[39;49;00m[33mmodule [39;49;00m[33m'[39;49;00m[33msphinx.util.requests[39;49;00m[33m'[39;49;00m[33m has no attribute [39;49;00m[33m'[39;49;00m[33mTooManyRedirects[39;49;00m[33m'[39;49;00m[33m"[39;49;00m}[90m[39;49;00m != [0m{[33m'[39;49;00m[33minfo[39;49;00m[33m'[39;49;00m: [33m'[39;49;00m[33m404 Client Error: Not Found for url: https://www.google.com/image2.png[39;49;00m[33m'[39;49;00m}[90m[39;49;00m[0m
+[1m[31mE         Use -v to get more diff[0m
+
+[1m[31mtests/test_build_linkcheck.py[0m:76: AssertionError
+----------------------------- Captured stdout call -----------------------------
+{"filename": "links.txt", "lineno": 9, "status": "working", "code": 0, "uri": "https://www.google.com/#!bar", "info": ""}
+{"filename": "links.txt", "lineno": 10, "status": "working", "code": 0, "uri": "https://www.google.com#!bar", "info": ""}
+{"filename": "links.txt", "lineno": 14, "status": "working", "code": 0, "uri": "conf.py", "info": ""}
+{"filename": "links.txt", "lineno": 15, "status": "broken", "code": 0, "uri": "path/to/notfound", "info": ""}
+{"filename": "links.txt", "lineno": 13, "status": "broken", "code": 0, "uri": "https://localhost:7777/doesnotexist", "info": "module 'sphinx.util.requests' has no attribute 'TooManyRedirects'"}
+{"filename": "links.txt", "lineno": 3, "status": "working", "code": 0, "uri": "https://www.w3.org/TR/2006/REC-xml-names-20060816/#defaulting", "info": ""}
+{"filename": "links.txt", "lineno": 11, "status": "broken", "code": 0, "uri": "https://www.google.com/#top", "info": "Anchor 'top' not found"}
+{"filename": "links.txt", "lineno": 17, "status": "broken", "code": 0, "uri": "https://www.google.com/image.png", "info": "module 'sphinx.util.requests' has no attribute 'TooManyRedirects'"}
+{"filename": "links.txt", "lineno": 18, "status": "broken", "code": 0, "uri": "https://www.google.com/image2.png", "info": "module 'sphinx.util.requests' has no attribute 'TooManyRedirects'"}
+{"filename": "links.txt", "lineno": 12, "status": "broken", "code": 0, "uri": "http://www.sphinx-doc.org/en/1.7/intro.html#does-not-exist", "info": "Anchor 'does-not-exist' not found"}
+
+--------------------------- Captured stdout teardown ---------------------------
+# testroot: root
+# builder: linkcheck
+# srcdir: /tmp/pytest-of-root/pytest-0/linkcheck
+# outdir: /tmp/pytest-of-root/pytest-0/linkcheck/_build/linkcheck
+# status: 
+[01mRunning Sphinx v3.4.0+/3ea1ec84c[39;49;00m
+[01mbuilding [linkcheck]: [39;49;00mall source files
+[01mupdating environment: [39;49;00m[new config] 1 added, 0 changed, 0 removed
+[01mreading sources... [39;49;00m[100%] [35mlinks[39;49;00m                                                
+[01mlooking for now-outdated files... [39;49;00mnone found
+[01mpickling environment... [39;49;00mdone
+[01mchecking consistency... [39;49;00mdone
+[01mpreparing documents... [39;49;00mdone
+[01mwriting output... [39;49;00m[100%] [32mlinks[39;49;00m                                                 
+(line    9) [32mok        [39;49;00mhttps://www.google.com/#!bar
+(line   10) [32mok        [39;49;00mhttps://www.google.com#!bar
+(line   14) [32mok        [39;49;00mconf.py
+(line   15) [91mbroken    [39;49;00mpath/to/notfound[91m - [39;49;00m
+(line   13) [91mbroken    [39;49;00mhttps://localhost:7777/doesnotexist[91m - module 'sphinx.util.requests' has no attribute 'TooManyRedirects'[39;49;00m
+(line    3) [32mok        [39;49;00mhttps://www.w3.org/TR/2006/REC-xml-names-20060816/#defaulting
+(line   11) [91mbroken    [39;49;00mhttps://www.google.com/#top[91m - Anchor 'top' not found[39;49;00m
+(line   17) [91mbroken    [39;49;00mhttps://www.google.com/image.png[91m - module 'sphinx.util.requests' has no attribute 'TooManyRedirects'[39;49;00m
+(line   18) [91mbroken    [39;49;00mhttps://www.google.com/image2.png[91m - module 'sphinx.util.requests' has no attribute 'TooManyRedirects'[39;49;00m
+(line   12) [91mbroken    [39;49;00mhttp://www.sphinx-doc.org/en/1.7/intro.html#does-not-exist[91m - Anchor 'does-not-exist' not found[39;49;00m
+
+
+# warning: 
+[91mWARNING: while setting up extension sphinx.addnodes: node class 'meta' is already registered, its visitors will be overridden[39;49;00m
+[91m/tmp/pytest-of-root/pytest-0/linkcheck/links.txt:9: WARNING: Duplicate explicit target name: "example bar invalid".[39;49;00m
+[91m/tmp/pytest-of-root/pytest-0/linkcheck/links.txt:9: WARNING: Duplicate explicit target name: "example bar invalid".[39;49;00m
+[31m/tmp/pytest-of-root/pytest-0/linkcheck/links.txt:5: WARNING: Unknown target name: "http://www.sphinx-doc.org/en/1.4.8/tutorial.html#install-sphinx".[39;49;00m
+
+[31m[1m________________________ test_follows_redirects_on_GET _________________________[0m
+
+app = <SphinxTestApp buildername='linkcheck'>
+capsys = <_pytest.capture.CaptureFixture object at 0x7f377acf02d0>
+
+    [0m[37m@pytest[39;49;00m.mark.sphinx([33m'[39;49;00m[33mlinkcheck[39;49;00m[33m'[39;49;00m, testroot=[33m'[39;49;00m[33mlinkcheck-localserver[39;49;00m[33m'[39;49;00m, freshenv=[94mTrue[39;49;00m)[90m[39;49;00m
+    [94mdef[39;49;00m [92mtest_follows_redirects_on_GET[39;49;00m(app, capsys):[90m[39;49;00m
+        [94mwith[39;49;00m http_server(make_redirect_handler(support_head=[94mFalse[39;49;00m)):[90m[39;49;00m
+            app.builder.build_all()[90m[39;49;00m
+        stdout, stderr = capsys.readouterr()[90m[39;49;00m
+        content = (app.outdir / [33m'[39;49;00m[33moutput.txt[39;49;00m[33m'[39;49;00m).read_text()[90m[39;49;00m
+>       [94massert[39;49;00m content == ([90m[39;49;00m
+            [33m"[39;49;00m[33mindex.rst:1: [redirected with Found] [39;49;00m[33m"[39;49;00m[90m[39;49;00m
+            [33m"[39;49;00m[33mhttp://localhost:7777/ to http://localhost:7777/?redirected=1[39;49;00m[33m\n[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        )[90m[39;49;00m
+[1m[31mE       assert "index.rst:1:...yRedirects'\n" == 'index.rst:1:...edirected=1\n'[0m
+[1m[31mE         [0m
+[1m[31mE         - index.rst:1: [redirected with Found] http://localhost:7777/ to http://localhost:7777/?redirected=1[0m
+[1m[31mE         + index.rst:1: [broken] http://localhost:7777/: module 'sphinx.util.requests' has no attribute 'TooManyRedirects'[0m
+
+[1m[31mtests/test_build_linkcheck.py[0m:264: AssertionError
+--------------------------- Captured stdout teardown ---------------------------
+# testroot: root
+# builder: linkcheck
+# srcdir: /tmp/pytest-of-root/pytest-0/linkcheck-localserver
+# outdir: /tmp/pytest-of-root/pytest-0/linkcheck-localserver/_build/linkcheck
+# status: 
+[01mRunning Sphinx v3.4.0+/3ea1ec84c[39;49;00m
+[01mbuilding [linkcheck]: [39;49;00mall source files
+[01mupdating environment: [39;49;00m[new config] 1 added, 0 changed, 0 removed
+[01mreading sources... [39;49;00m[100%] [35mindex[39;49;00m                                                
+[01mlooking for now-outdated files... [39;49;00mnone found
+[01mpickling environment... [39;49;00mdone
+[01mchecking consistency... [39;49;00mdone
+[01mpreparing documents... [39;49;00mdone
+[01mwriting output... [39;49;00m[100%] [32mindex[39;49;00m                                                 
+(line    1) [91mbroken    [39;49;00mhttp://localhost:7777/[91m - module 'sphinx.util.requests' has no attribute 'TooManyRedirects'[39;49;00m
+
+
+# warning: 
+[91mWARNING: while setting up extension sphinx.addnodes: node class 'meta' is already registered, its visitors will be overridden[39;49;00m
+
+[31m[1m_______________________________ test_invalid_ssl _______________________________[0m
+
+app = <SphinxTestApp buildername='linkcheck'>
+
+    [0m[37m@pytest[39;49;00m.mark.sphinx([33m'[39;49;00m[33mlinkcheck[39;49;00m[33m'[39;49;00m, testroot=[33m'[39;49;00m[33mlinkcheck-localserver-https[39;49;00m[33m'[39;49;00m, freshenv=[94mTrue[39;49;00m)[90m[39;49;00m
+    [94mdef[39;49;00m [92mtest_invalid_ssl[39;49;00m(app):[90m[39;49;00m
+        [90m# Link indicates SSL should be used (https) but the server does not handle it.[39;49;00m[90m[39;49;00m
+        [94mwith[39;49;00m http_server(OKHandler):[90m[39;49;00m
+            app.builder.build_all()[90m[39;49;00m
+    [90m[39;49;00m
+        [94mwith[39;49;00m [96mopen[39;49;00m(app.outdir / [33m'[39;49;00m[33moutput.json[39;49;00m[33m'[39;49;00m) [94mas[39;49;00m fp:[90m[39;49;00m
+            content = json.load(fp)[90m[39;49;00m
+        [94massert[39;49;00m content[[33m"[39;49;00m[33mstatus[39;49;00m[33m"[39;49;00m] == [33m"[39;49;00m[33mbroken[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        [94massert[39;49;00m content[[33m"[39;49;00m[33mfilename[39;49;00m[33m"[39;49;00m] == [33m"[39;49;00m[33mindex.rst[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        [94massert[39;49;00m content[[33m"[39;49;00m[33mlineno[39;49;00m[33m"[39;49;00m] == [94m1[39;49;00m[90m[39;49;00m
+        [94massert[39;49;00m content[[33m"[39;49;00m[33muri[39;49;00m[33m"[39;49;00m] == [33m"[39;49;00m[33mhttps://localhost:7777/[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+>       [94massert[39;49;00m [33m"[39;49;00m[33mSSLError[39;49;00m[33m"[39;49;00m [95min[39;49;00m content[[33m"[39;49;00m[33minfo[39;49;00m[33m"[39;49;00m][90m[39;49;00m
+[1m[31mE       assert 'SSLError' in "module 'sphinx.util.requests' has no attribute 'TooManyRedirects'"[0m
+
+[1m[31mtests/test_build_linkcheck.py[0m:299: AssertionError
+----------------------------- Captured stderr call -----------------------------
+127.0.0.1 - - [25/Jul/2024 11:27:30] code 400, message Bad request version ("\\x00>\\x13\\x02\\x13\\x03\\x13\\x01À,À0\\x00\\x9fÌ©Ì¨ÌªÀ+À/\\x00\\x9eÀ$À(\\x00kÀ#À'\\x00gÀ")
+127.0.0.1 - - [25/Jul/2024 11:27:30] "\x16\x03\x01\x02\x00\x01\x00\x01ü\x03\x03\x83VÙæ²\x05\x81æ\x94tb:ÅÞD\x85\x1c\x08Øa´^\x98gã4â¥Æeé\x86 Ç\x88\x09tØÀ÷»«ýÈ\x0dº\x0d\x08æ\x89¯|ê\x15ÔÉ¬\x8b\x93\x991ÔíÅ\x1f\x00>\x13\x02\x13\x03\x13\x01À,À0\x00\x9fÌ©Ì¨ÌªÀ+À/\x00\x9eÀ$À(\x00kÀ#À'\x00gÀ" 400 -
+--------------------------- Captured stdout teardown ---------------------------
+# testroot: root
+# builder: linkcheck
+# srcdir: /tmp/pytest-of-root/pytest-0/linkcheck-localserver-https
+# outdir: /tmp/pytest-of-root/pytest-0/linkcheck-localserver-https/_build/linkcheck
+# status: 
+[01mRunning Sphinx v3.4.0+/3ea1ec84c[39;49;00m
+[01mbuilding [linkcheck]: [39;49;00mall source files
+[01mupdating environment: [39;49;00m[new config] 1 added, 0 changed, 0 removed
+[01mreading sources... [39;49;00m[100%] [35mindex[39;49;00m                                                
+[01mlooking for now-outdated files... [39;49;00mnone found
+[01mpickling environment... [39;49;00mdone
+[01mchecking consistency... [39;49;00mdone
+[01mpreparing documents... [39;49;00mdone
+[01mwriting output... [39;49;00m[100%] [32mindex[39;49;00m                                                 
+(line    1) [91mbroken    [39;49;00mhttps://localhost:7777/[91m - module 'sphinx.util.requests' has no attribute 'TooManyRedirects'[39;49;00m
+
+
+# warning: 
+[91mWARNING: while setting up extension sphinx.addnodes: node class 'meta' is already registered, its visitors will be overridden[39;49;00m
+
+[31m[1m_______________________ test_connect_to_selfsigned_fails _______________________[0m
+
+app = <SphinxTestApp buildername='linkcheck'>
+
+    [0m[37m@pytest[39;49;00m.mark.sphinx([33m'[39;49;00m[33mlinkcheck[39;49;00m[33m'[39;49;00m, testroot=[33m'[39;49;00m[33mlinkcheck-localserver-https[39;49;00m[33m'[39;49;00m, freshenv=[94mTrue[39;49;00m)[90m[39;49;00m
+    [94mdef[39;49;00m [92mtest_connect_to_selfsigned_fails[39;49;00m(app):[90m[39;49;00m
+        [94mwith[39;49;00m https_server(OKHandler):[90m[39;49;00m
+            app.builder.build_all()[90m[39;49;00m
+    [90m[39;49;00m
+        [94mwith[39;49;00m [96mopen[39;49;00m(app.outdir / [33m'[39;49;00m[33moutput.json[39;49;00m[33m'[39;49;00m) [94mas[39;49;00m fp:[90m[39;49;00m
+            content = json.load(fp)[90m[39;49;00m
+        [94massert[39;49;00m content[[33m"[39;49;00m[33mstatus[39;49;00m[33m"[39;49;00m] == [33m"[39;49;00m[33mbroken[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        [94massert[39;49;00m content[[33m"[39;49;00m[33mfilename[39;49;00m[33m"[39;49;00m] == [33m"[39;49;00m[33mindex.rst[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        [94massert[39;49;00m content[[33m"[39;49;00m[33mlineno[39;49;00m[33m"[39;49;00m] == [94m1[39;49;00m[90m[39;49;00m
+        [94massert[39;49;00m content[[33m"[39;49;00m[33muri[39;49;00m[33m"[39;49;00m] == [33m"[39;49;00m[33mhttps://localhost:7777/[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+>       [94massert[39;49;00m [33m"[39;49;00m[33m[SSL: CERTIFICATE_VERIFY_FAILED][39;49;00m[33m"[39;49;00m [95min[39;49;00m content[[33m"[39;49;00m[33minfo[39;49;00m[33m"[39;49;00m][90m[39;49;00m
+[1m[31mE       assert '[SSL: CERTIFICATE_VERIFY_FAILED]' in "module 'sphinx.util.requests' has no attribute 'TooManyRedirects'"[0m
+
+[1m[31mtests/test_build_linkcheck.py[0m:313: AssertionError
+--------------------------- Captured stdout teardown ---------------------------
+# testroot: root
+# builder: linkcheck
+# srcdir: /tmp/pytest-of-root/pytest-0/linkcheck-localserver-https
+# outdir: /tmp/pytest-of-root/pytest-0/linkcheck-localserver-https/_build/linkcheck
+# status: 
+[01mRunning Sphinx v3.4.0+/3ea1ec84c[39;49;00m
+[01mbuilding [linkcheck]: [39;49;00mall source files
+[01mupdating environment: [39;49;00m[new config] 1 added, 0 changed, 0 removed
+[01mreading sources... [39;49;00m[100%] [35mindex[39;49;00m                                                
+[01mlooking for now-outdated files... [39;49;00mnone found
+[01mpickling environment... [39;49;00mdone
+[01mchecking consistency... [39;49;00mdone
+[01mpreparing documents... [39;49;00mdone
+[01mwriting output... [39;49;00m[100%] [32mindex[39;49;00m                                                 
+(line    1) [91mbroken    [39;49;00mhttps://localhost:7777/[91m - module 'sphinx.util.requests' has no attribute 'TooManyRedirects'[39;49;00m
+
+
+# warning: 
+[91mWARNING: while setting up extension sphinx.addnodes: node class 'meta' is already registered, its visitors will be overridden[39;49;00m
+
+[31m[1m_______________ test_connect_to_selfsigned_nonexistent_cert_file _______________[0m
+
+app = <SphinxTestApp buildername='linkcheck'>
+
+    [0m[37m@pytest[39;49;00m.mark.sphinx([33m'[39;49;00m[33mlinkcheck[39;49;00m[33m'[39;49;00m, testroot=[33m'[39;49;00m[33mlinkcheck-localserver-https[39;49;00m[33m'[39;49;00m, freshenv=[94mTrue[39;49;00m)[90m[39;49;00m
+    [94mdef[39;49;00m [92mtest_connect_to_selfsigned_nonexistent_cert_file[39;49;00m(app):[90m[39;49;00m
+        app.config.tls_cacerts = [33m"[39;49;00m[33mdoes/not/exist[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        [94mwith[39;49;00m https_server(OKHandler):[90m[39;49;00m
+            app.builder.build_all()[90m[39;49;00m
+    [90m[39;49;00m
+        [94mwith[39;49;00m [96mopen[39;49;00m(app.outdir / [33m'[39;49;00m[33moutput.json[39;49;00m[33m'[39;49;00m) [94mas[39;49;00m fp:[90m[39;49;00m
+            content = json.load(fp)[90m[39;49;00m
+>       [94massert[39;49;00m content == {[90m[39;49;00m
+            [33m"[39;49;00m[33mcode[39;49;00m[33m"[39;49;00m: [94m0[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33mstatus[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mbroken[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33mfilename[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mindex.rst[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33mlineno[39;49;00m[33m"[39;49;00m: [94m1[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33muri[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mhttps://localhost:7777/[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33minfo[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mCould not find a suitable TLS CA certificate bundle, invalid path: does/not/exist[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+        }[90m[39;49;00m
+[1m[31mE       assert {'code': 0, '...neno': 1, ...} == {'code': 0, '...neno': 1, ...}[0m
+[1m[31mE         [0m
+[1m[31mE         Omitting 5 identical items, use -vv to show[0m
+[1m[31mE         Differing items:[0m
+[1m[31mE         [0m{[33m'[39;49;00m[33minfo[39;49;00m[33m'[39;49;00m: [33m"[39;49;00m[33mmodule [39;49;00m[33m'[39;49;00m[33msphinx.util.requests[39;49;00m[33m'[39;49;00m[33m has no attribute [39;49;00m[33m'[39;49;00m[33mTooManyRedirects[39;49;00m[33m'[39;49;00m[33m"[39;49;00m}[90m[39;49;00m != [0m{[33m'[39;49;00m[33minfo[39;49;00m[33m'[39;49;00m: [33m'[39;49;00m[33mCould not find a suitable TLS CA certificate bundle, invalid path: does/not/exist[39;49;00m[33m'[39;49;00m}[90m[39;49;00m[0m
+[1m[31mE         Use -v to get more diff[0m
+
+[1m[31mtests/test_build_linkcheck.py[0m:377: AssertionError
+--------------------------- Captured stdout teardown ---------------------------
+# testroot: root
+# builder: linkcheck
+# srcdir: /tmp/pytest-of-root/pytest-0/linkcheck-localserver-https
+# outdir: /tmp/pytest-of-root/pytest-0/linkcheck-localserver-https/_build/linkcheck
+# status: 
+[01mRunning Sphinx v3.4.0+/3ea1ec84c[39;49;00m
+[01mbuilding [linkcheck]: [39;49;00mall source files
+[01mupdating environment: [39;49;00m[new config] 1 added, 0 changed, 0 removed
+[01mreading sources... [39;49;00m[100%] [35mindex[39;49;00m                                                
+[01mlooking for now-outdated files... [39;49;00mnone found
+[01mpickling environment... [39;49;00mdone
+[01mchecking consistency... [39;49;00mdone
+[01mpreparing documents... [39;49;00mdone
+[01mwriting output... [39;49;00m[100%] [32mindex[39;49;00m                                                 
+(line    1) [91mbroken    [39;49;00mhttps://localhost:7777/[91m - module 'sphinx.util.requests' has no attribute 'TooManyRedirects'[39;49;00m
+
+
+# warning: 
+[91mWARNING: while setting up extension sphinx.addnodes: node class 'meta' is already registered, its visitors will be overridden[39;49;00m
+
+[31m[1m________________________ test_TooManyRedirects_on_HEAD _________________________[0m
+
+app = <SphinxTestApp buildername='linkcheck'>
+
+    [0m[37m@pytest[39;49;00m.mark.sphinx([33m'[39;49;00m[33mlinkcheck[39;49;00m[33m'[39;49;00m, testroot=[33m'[39;49;00m[33mlinkcheck-localserver[39;49;00m[33m'[39;49;00m, freshenv=[94mTrue[39;49;00m)[90m[39;49;00m
+    [94mdef[39;49;00m [92mtest_TooManyRedirects_on_HEAD[39;49;00m(app):[90m[39;49;00m
+        [94mclass[39;49;00m [04m[92mInfiniteRedirectOnHeadHandler[39;49;00m(http.server.BaseHTTPRequestHandler):[90m[39;49;00m
+            [94mdef[39;49;00m [92mdo_HEAD[39;49;00m([96mself[39;49;00m):[90m[39;49;00m
+                [96mself[39;49;00m.send_response([94m302[39;49;00m, [33m"[39;49;00m[33mFound[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+                [96mself[39;49;00m.send_header([33m"[39;49;00m[33mLocation[39;49;00m[33m"[39;49;00m, [33m"[39;49;00m[33mhttp://localhost:7777/[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+                [96mself[39;49;00m.end_headers()[90m[39;49;00m
+    [90m[39;49;00m
+            [94mdef[39;49;00m [92mdo_GET[39;49;00m([96mself[39;49;00m):[90m[39;49;00m
+                [96mself[39;49;00m.send_response([94m200[39;49;00m, [33m"[39;49;00m[33mOK[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+                [96mself[39;49;00m.end_headers()[90m[39;49;00m
+                [96mself[39;49;00m.wfile.write([33mb[39;49;00m[33m"[39;49;00m[33mok[39;49;00m[33m\n[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+    [90m[39;49;00m
+        [94mwith[39;49;00m http_server(InfiniteRedirectOnHeadHandler):[90m[39;49;00m
+            app.builder.build_all()[90m[39;49;00m
+    [90m[39;49;00m
+        [94mwith[39;49;00m [96mopen[39;49;00m(app.outdir / [33m'[39;49;00m[33moutput.json[39;49;00m[33m'[39;49;00m) [94mas[39;49;00m fp:[90m[39;49;00m
+            content = json.load(fp)[90m[39;49;00m
+>       [94massert[39;49;00m content == {[90m[39;49;00m
+            [33m"[39;49;00m[33mcode[39;49;00m[33m"[39;49;00m: [94m0[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33mstatus[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mworking[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33mfilename[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mindex.rst[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33mlineno[39;49;00m[33m"[39;49;00m: [94m1[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33muri[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33mhttp://localhost:7777/[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            [33m"[39;49;00m[33minfo[39;49;00m[33m"[39;49;00m: [33m"[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+        }[90m[39;49;00m
+[1m[31mE       assert {'code': 0, '...neno': 1, ...} == {'code': 0, '...neno': 1, ...}[0m
+[1m[31mE         [0m
+[1m[31mE         Omitting 4 identical items, use -vv to show[0m
+[1m[31mE         Differing items:[0m
+[1m[31mE         [0m{[33m'[39;49;00m[33minfo[39;49;00m[33m'[39;49;00m: [33m"[39;49;00m[33mmodule [39;49;00m[33m'[39;49;00m[33msphinx.util.requests[39;49;00m[33m'[39;49;00m[33m has no attribute [39;49;00m[33m'[39;49;00m[33mTooManyRedirects[39;49;00m[33m'[39;49;00m[33m"[39;49;00m}[90m[39;49;00m != [0m{[33m'[39;49;00m[33minfo[39;49;00m[33m'[39;49;00m: [33m'[39;49;00m[33m'[39;49;00m}[90m[39;49;00m[0m
+[1m[31mE         [0m{[33m'[39;49;00m[33mstatus[39;49;00m[33m'[39;49;00m: [33m'[39;49;00m[33mbroken[39;...[0m
+[1m[31mE         [0m
+[1m[31mE         ...Full output truncated (2 lines hidden), use '-vv' to show[0m
+
+[1m[31mtests/test_build_linkcheck.py[0m:405: AssertionError
+----------------------------- Captured stderr call -----------------------------
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:30] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:31] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:31] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:31] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:31] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:31] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:31] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:31] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:31] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:31] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:31] "HEAD / HTTP/1.1" 302 -
+127.0.0.1 - - [25/Jul/2024 11:27:31] "HEAD / HTTP/1.1" 302 -
+--------------------------- Captured stdout teardown ---------------------------
+# testroot: root
+# builder: linkcheck
+# srcdir: /tmp/pytest-of-root/pytest-0/linkcheck-localserver
+# outdir: /tmp/pytest-of-root/pytest-0/linkcheck-localserver/_build/linkcheck
+# status: 
+[01mRunning Sphinx v3.4.0+/3ea1ec84c[39;49;00m
+[01mbuilding [linkcheck]: [39;49;00mall source files
+[01mupdating environment: [39;49;00m[new config] 1 added, 0 changed, 0 removed
+[01mreading sources... [39;49;00m[100%] [35mindex[39;49;00m                                                
+[01mlooking for now-outdated files... [39;49;00mnone found
+[01mpickling environment... [39;49;00mdone
+[01mchecking consistency... [39;49;00mdone
+[01mpreparing documents... [39;49;00mdone
+[01mwriting output... [39;49;00m[100%] [32mindex[39;49;00m                                                 
+(line    1) [91mbroken    [39;49;00mhttp://localhost:7777/[91m - module 'sphinx.util.requests' has no attribute 'TooManyRedirects'[39;49;00m
+
+
+# warning: 
+[91mWARNING: while setting up extension sphinx.addnodes: node class 'meta' is already registered, its visitors will be overridden[39;49;00m
+
+[33m=============================== warnings summary ===============================[0m
+sphinx/util/docutils.py:45
+  /testbed/sphinx/util/docutils.py:45: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    __version_info__ = tuple(LooseVersion(docutils.__version__).version)
+
+sphinx/registry.py:22
+  /testbed/sphinx/registry.py:22: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+    from pkg_resources import iter_entry_points
+
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('sphinxcontrib')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+sphinx/directives/patches.py:14
+  /testbed/sphinx/directives/patches.py:14: DeprecationWarning: The `docutils.parsers.rst.directive.html` module will be removed in Docutils 2.0. Since Docutils 0.18, the "Meta" node is defined in `docutils.parsers.rst.directives.misc`.
+    from docutils.parsers.rst.directives import html, images, tables
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/transforms/__init__.py:210: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse():  # type: Node
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/transforms/i18n.py:95: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.translatable):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/transforms/__init__.py:110: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for ref in self.document.traverse(nodes.substitution_reference):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/transforms/__init__.py:131: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.target):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/transforms/__init__.py:150: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.block_quote):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/transforms/__init__.py:175: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.Element):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/transforms/__init__.py:222: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.index):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/transforms/__init__.py:189: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.section):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/transforms/__init__.py:279: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.doctest_block):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/domains/citation.py:116: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.citation):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/domains/citation.py:135: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.citation_reference):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/builders/latex/transforms.py:36: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(matcher):  # type: nodes.Element
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/transforms/__init__.py:291: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(matcher):  # type: Element
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/util/compat.py:44: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.index):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/domains/index.py:51: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in document.traverse(addnodes.index):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/domains/math.py:84: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    self.data['has_equations'][docname] = any(document.traverse(math_node))
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/environment/collectors/asset.py:46: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in doctree.traverse(nodes.image):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/environment/collectors/asset.py:127: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in doctree.traverse(addnodes.download_reference):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/environment/collectors/title.py:46: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in doctree.traverse(nodes.section):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/transforms/__init__.py:301: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.system_message):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/transforms/__init__.py:390: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.manpage):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/transforms/i18n.py:488: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for inline in self.document.traverse(matcher):  # type: nodes.inline
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/domains/c.py:3495: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(AliasNode):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/domains/cpp.py:7062: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(AliasNode):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/transforms/post_transforms/__init__.py:69: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.pending_xref):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/util/nodes.py:598: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in document.traverse(addnodes.only):
+
+tests/test_build_linkcheck.py: 36 warnings
+  /testbed/sphinx/transforms/post_transforms/images.py:33: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.image):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/transforms/post_transforms/__init__.py:216: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.desc_sig_element):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/builders/latex/transforms.py:48: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.substitution_definition):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/builders/latex/transforms.py:606: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.title):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/transforms/post_transforms/code.py:43: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.highlightlang):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/transforms/post_transforms/code.py:95: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for lbnode in self.document.traverse(nodes.literal_block):  # type: nodes.literal_block
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/transforms/post_transforms/code.py:99: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for dbnode in self.document.traverse(nodes.doctest_block):  # type: nodes.doctest_block
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/environment/__init__.py:540: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for toctreenode in doctree.traverse(addnodes.toctree):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/builders/linkcheck.py:323: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for refnode in doctree.traverse(nodes.reference):
+
+tests/test_build_linkcheck.py: 18 warnings
+  /testbed/sphinx/builders/linkcheck.py:332: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for imgnode in doctree.traverse(nodes.image):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================= slowest 25 durations =============================
+0.73s setup    tests/test_build_linkcheck.py::test_defaults
+0.41s call     tests/test_build_linkcheck.py::test_defaults_json
+0.41s call     tests/test_build_linkcheck.py::test_defaults
+0.23s call     tests/test_build_linkcheck.py::test_TooManyRedirects_on_HEAD
+0.16s call     tests/test_build_linkcheck.py::test_anchors_ignored
+0.09s call     tests/test_build_linkcheck.py::test_connect_to_selfsigned_with_tls_verify_false
+0.06s setup    tests/test_build_linkcheck.py::test_follows_redirects_on_GET
+0.04s call     tests/test_build_linkcheck.py::test_linkcheck_request_headers
+0.04s setup    tests/test_build_linkcheck.py::test_linkcheck_request_headers
+0.04s call     tests/test_build_linkcheck.py::test_connect_to_selfsigned_with_tls_cacerts
+0.04s call     tests/test_build_linkcheck.py::test_follows_redirects_on_GET
+0.04s setup    tests/test_build_linkcheck.py::test_auth_header_no_match
+0.04s call     tests/test_build_linkcheck.py::test_connect_to_selfsigned_with_requests_env_var
+0.03s setup    tests/test_build_linkcheck.py::test_TooManyRedirects_on_HEAD
+0.03s call     tests/test_build_linkcheck.py::test_raises_for_invalid_status
+0.03s call     tests/test_build_linkcheck.py::test_auth_header_uses_first_match
+0.03s call     tests/test_build_linkcheck.py::test_connect_to_selfsigned_fails
+0.03s call     tests/test_build_linkcheck.py::test_auth_header_no_match
+0.03s setup    tests/test_build_linkcheck.py::test_connect_to_selfsigned_nonexistent_cert_file
+0.03s setup    tests/test_build_linkcheck.py::test_connect_to_selfsigned_with_requests_env_var
+0.03s setup    tests/test_build_linkcheck.py::test_follows_redirects_on_HEAD
+0.03s setup    tests/test_build_linkcheck.py::test_raises_for_invalid_status
+0.03s setup    tests/test_build_linkcheck.py::test_anchors_ignored
+0.03s call     tests/test_build_linkcheck.py::test_follows_redirects_on_HEAD
+0.03s setup    tests/test_build_linkcheck.py::test_connect_to_selfsigned_with_tls_cacerts
+[36m[1m=========================== short test summary info ============================[0m
+[31mFAILED[0m tests/test_build_linkcheck.py::[1mtest_defaults[0m - assert ' Max retries exceeded with url: /doesnotexist' in "links.txt:13: [b...
+[31mFAILED[0m tests/test_build_linkcheck.py::[1mtest_defaults_json[0m - assert {'code': 0, '...eno': 18, ...} == {'code': 0, '...eno': 18, ...}
+[31mFAILED[0m tests/test_build_linkcheck.py::[1mtest_follows_redirects_on_GET[0m - assert "index.rst:1:...yRedirects'\n" == 'index.rst:1:...edirected=1\n'
+[31mFAILED[0m tests/test_build_linkcheck.py::[1mtest_invalid_ssl[0m - assert 'SSLError' in "module 'sphinx.util.requests' has no attribute 'TooMa...
+[31mFAILED[0m tests/test_build_linkcheck.py::[1mtest_connect_to_selfsigned_fails[0m - assert '[SSL: CERTIFICATE_VERIFY_FAILED]' in "module 'sphinx.util.requests'...
+[31mFAILED[0m tests/test_build_linkcheck.py::[1mtest_connect_to_selfsigned_nonexistent_cert_file[0m - assert {'code': 0, '...neno': 1, ...} == {'code': 0, '...neno': 1, ...}
+[31mFAILED[0m tests/test_build_linkcheck.py::[1mtest_TooManyRedirects_on_HEAD[0m - assert {'code': 0, '...neno': 1, ...} == {'code': 0, '...neno': 1, ...}
+[31m================== [31m[1m7 failed[0m, [32m11 passed[0m, [33m673 warnings[0m[31m in 3.71s[0m[31m ==================[0m
+py39: exit 1 (5.07 seconds) /testbed> python -X dev -m pytest --durations 25 tests/test_build_linkcheck.py pid=107
+  py39: FAIL code 1 (5.10=setup[0.03]+cmd[5.07] seconds)
+  evaluation failed :( (5.32 seconds)
++ git checkout 3ea1ec84cc610f7a9f4f6b354e264565254923ff tests/test_build_linkcheck.py
+Updated 1 path from 3532e3bb4

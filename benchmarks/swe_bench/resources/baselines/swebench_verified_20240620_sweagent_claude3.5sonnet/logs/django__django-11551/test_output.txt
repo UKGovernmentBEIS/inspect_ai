@@ -1,0 +1,668 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/contrib/admin/checks.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 7991111af12056ec9a856f35935d273526338c1f
+Author: Mariusz Felisiak <felisiak.mariusz@gmail.com>
+Date:   Wed Jul 10 10:33:36 2019 +0200
+
+    Fixed #30621 -- Fixed crash of __contains lookup for Date/DateTimeRangeField when the right hand side is the same type.
+    
+    Thanks Tilman Koschnick for the report and initial patch.
+    Thanks Carlton Gibson the review.
+    
+    Regression in 6b048b364ca1e0e56a0d3815bf2be33ac9998355.
+
+diff --git a/django/contrib/postgres/fields/ranges.py b/django/contrib/postgres/fields/ranges.py
+index 74ba4eb230..0e8a347d5f 100644
+--- a/django/contrib/postgres/fields/ranges.py
++++ b/django/contrib/postgres/fields/ranges.py
+@@ -170,7 +170,12 @@ class DateTimeRangeContains(models.Lookup):
+         params = lhs_params + rhs_params
+         # Cast the rhs if needed.
+         cast_sql = ''
+-        if isinstance(self.rhs, models.Expression) and self.rhs._output_field_or_none:
++        if (
++            isinstance(self.rhs, models.Expression) and
++            self.rhs._output_field_or_none and
++            # Skip cast if rhs has a matching range type.
++            not isinstance(self.rhs._output_field_or_none, self.lhs.output_field.__class__)
++        ):
+             cast_internal_type = self.lhs.output_field.base_field.get_internal_type()
+             cast_sql = '::{}'.format(connection.data_types.get(cast_internal_type))
+         return '%s @> %s%s' % (lhs, rhs, cast_sql), params
+diff --git a/docs/releases/2.2.4.txt b/docs/releases/2.2.4.txt
+index a1a849680d..0ad92f4ab1 100644
+--- a/docs/releases/2.2.4.txt
++++ b/docs/releases/2.2.4.txt
+@@ -12,3 +12,9 @@ Bugfixes
+ * Fixed a regression in Django 2.2 when ordering a ``QuerySet.union()``,
+   ``intersection()``, or ``difference()`` by a field type present more than
+   once results in the wrong ordering being used (:ticket:`30628`).
++
++* Fixed a migration crash on PostgreSQL when adding a check constraint
++  with a ``contains`` lookup on
++  :class:`~django.contrib.postgres.fields.DateRangeField` or
++  :class:`~django.contrib.postgres.fields.DateTimeRangeField`, if the right
++  hand side of an expression is the same type (:ticket:`30621`).
+diff --git a/tests/postgres_tests/migrations/0002_create_test_models.py b/tests/postgres_tests/migrations/0002_create_test_models.py
+index dc941de139..b9f9cee6bf 100644
+--- a/tests/postgres_tests/migrations/0002_create_test_models.py
++++ b/tests/postgres_tests/migrations/0002_create_test_models.py
+@@ -211,7 +211,9 @@ class Migration(migrations.Migration):
+                 ('bigints', BigIntegerRangeField(null=True, blank=True)),
+                 ('decimals', DecimalRangeField(null=True, blank=True)),
+                 ('timestamps', DateTimeRangeField(null=True, blank=True)),
++                ('timestamps_inner', DateTimeRangeField(null=True, blank=True)),
+                 ('dates', DateRangeField(null=True, blank=True)),
++                ('dates_inner', DateRangeField(null=True, blank=True)),
+             ],
+             options={
+                 'required_db_vendor': 'postgresql'
+diff --git a/tests/postgres_tests/models.py b/tests/postgres_tests/models.py
+index 2bb6e6fcdf..3d170a9a1a 100644
+--- a/tests/postgres_tests/models.py
++++ b/tests/postgres_tests/models.py
+@@ -135,7 +135,9 @@ class RangesModel(PostgreSQLModel):
+     bigints = BigIntegerRangeField(blank=True, null=True)
+     decimals = DecimalRangeField(blank=True, null=True)
+     timestamps = DateTimeRangeField(blank=True, null=True)
++    timestamps_inner = DateTimeRangeField(blank=True, null=True)
+     dates = DateRangeField(blank=True, null=True)
++    dates_inner = DateRangeField(blank=True, null=True)
+ 
+ 
+ class RangeLookupsModel(PostgreSQLModel):
+diff --git a/tests/postgres_tests/test_constraints.py b/tests/postgres_tests/test_constraints.py
+index 0e09a1c546..2fc6ee5322 100644
+--- a/tests/postgres_tests/test_constraints.py
++++ b/tests/postgres_tests/test_constraints.py
+@@ -1,5 +1,7 @@
++import datetime
++
+ from django.db import connection, transaction
+-from django.db.models import Q
++from django.db.models import F, Q
+ from django.db.models.constraints import CheckConstraint
+ from django.db.utils import IntegrityError
+ 
+@@ -33,3 +35,51 @@ class SchemaTests(PostgreSQLTestCase):
+         with self.assertRaises(IntegrityError), transaction.atomic():
+             RangesModel.objects.create(ints=(20, 50))
+         RangesModel.objects.create(ints=(10, 30))
++
++    def test_check_constraint_daterange_contains(self):
++        constraint_name = 'dates_contains'
++        self.assertNotIn(constraint_name, self.get_constraints(RangesModel._meta.db_table))
++        constraint = CheckConstraint(
++            check=Q(dates__contains=F('dates_inner')),
++            name=constraint_name,
++        )
++        with connection.schema_editor() as editor:
++            editor.add_constraint(RangesModel, constraint)
++        with connection.cursor() as cursor:
++            constraints = connection.introspection.get_constraints(cursor, RangesModel._meta.db_table)
++        self.assertIn(constraint_name, constraints)
++        date_1 = datetime.date(2016, 1, 1)
++        date_2 = datetime.date(2016, 1, 4)
++        with self.assertRaises(IntegrityError), transaction.atomic():
++            RangesModel.objects.create(
++                dates=(date_1, date_2),
++                dates_inner=(date_1, date_2.replace(day=5)),
++            )
++        RangesModel.objects.create(
++            dates=(date_1, date_2),
++            dates_inner=(date_1, date_2),
++        )
++
++    def test_check_constraint_datetimerange_contains(self):
++        constraint_name = 'timestamps_contains'
++        self.assertNotIn(constraint_name, self.get_constraints(RangesModel._meta.db_table))
++        constraint = CheckConstraint(
++            check=Q(timestamps__contains=F('timestamps_inner')),
++            name=constraint_name,
++        )
++        with connection.schema_editor() as editor:
++            editor.add_constraint(RangesModel, constraint)
++        with connection.cursor() as cursor:
++            constraints = connection.introspection.get_constraints(cursor, RangesModel._meta.db_table)
++        self.assertIn(constraint_name, constraints)
++        datetime_1 = datetime.datetime(2016, 1, 1)
++        datetime_2 = datetime.datetime(2016, 1, 2, 12)
++        with self.assertRaises(IntegrityError), transaction.atomic():
++            RangesModel.objects.create(
++                timestamps=(datetime_1, datetime_2),
++                timestamps_inner=(datetime_1, datetime_2.replace(hour=13)),
++            )
++        RangesModel.objects.create(
++            timestamps=(datetime_1, datetime_2),
++            timestamps_inner=(datetime_1, datetime_2),
++        )
+diff --git a/tests/postgres_tests/test_ranges.py b/tests/postgres_tests/test_ranges.py
+index ae834b6ff0..89f32ee77c 100644
+--- a/tests/postgres_tests/test_ranges.py
++++ b/tests/postgres_tests/test_ranges.py
+@@ -115,11 +115,15 @@ class TestRangeContainsLookup(PostgreSQLTestCase):
+         ]
+         cls.obj = RangesModel.objects.create(
+             dates=(cls.dates[0], cls.dates[3]),
++            dates_inner=(cls.dates[1], cls.dates[2]),
+             timestamps=(cls.timestamps[0], cls.timestamps[3]),
++            timestamps_inner=(cls.timestamps[1], cls.timestamps[2]),
+         )
+         cls.aware_obj = RangesModel.objects.create(
+             dates=(cls.dates[0], cls.dates[3]),
++            dates_inner=(cls.dates[1], cls.dates[2]),
+             timestamps=(cls.aware_timestamps[0], cls.aware_timestamps[3]),
++            timestamps_inner=(cls.timestamps[1], cls.timestamps[2]),
+         )
+         # Objects that don't match any queries.
+         for i in range(3, 4):
+@@ -140,6 +144,7 @@ class TestRangeContainsLookup(PostgreSQLTestCase):
+             (self.aware_timestamps[1], self.aware_timestamps[2]),
+             Value(self.dates[0], output_field=DateTimeField()),
+             Func(F('dates'), function='lower', output_field=DateTimeField()),
++            F('timestamps_inner'),
+         )
+         for filter_arg in filter_args:
+             with self.subTest(filter_arg=filter_arg):
+@@ -154,6 +159,7 @@ class TestRangeContainsLookup(PostgreSQLTestCase):
+             (self.dates[1], self.dates[2]),
+             Value(self.dates[0], output_field=DateField()),
+             Func(F('timestamps'), function='lower', output_field=DateField()),
++            F('dates_inner'),
+         )
+         for filter_arg in filter_args:
+             with self.subTest(filter_arg=filter_arg):
+@@ -361,7 +367,9 @@ class TestSerialization(PostgreSQLSimpleTestCase):
+         '\\"bounds\\": \\"[)\\"}", "decimals": "{\\"empty\\": true}", '
+         '"bigints": null, "timestamps": "{\\"upper\\": \\"2014-02-02T12:12:12+00:00\\", '
+         '\\"lower\\": \\"2014-01-01T00:00:00+00:00\\", \\"bounds\\": \\"[)\\"}", '
+-        '"dates": "{\\"upper\\": \\"2014-02-02\\", \\"lower\\": \\"2014-01-01\\", \\"bounds\\": \\"[)\\"}" }, '
++        '"timestamps_inner": null, '
++        '"dates": "{\\"upper\\": \\"2014-02-02\\", \\"lower\\": \\"2014-01-01\\", \\"bounds\\": \\"[)\\"}", '
++        '"dates_inner": null }, '
+         '"model": "postgres_tests.rangesmodel", "pk": null}]'
+     )
+ 
++ git diff 7991111af12056ec9a856f35935d273526338c1f
+diff --git a/django/contrib/admin/checks.py b/django/contrib/admin/checks.py
+index f82c20c2f1..9fd77b5d41 100644
+--- a/django/contrib/admin/checks.py
++++ b/django/contrib/admin/checks.py
+@@ -720,33 +720,33 @@ class ModelAdminChecks(BaseModelAdminChecks):
+             return []
+         elif hasattr(obj, item):
+             return []
+-        elif hasattr(obj.model, item):
++        else:
+             try:
+                 field = obj.model._meta.get_field(item)
+             except FieldDoesNotExist:
+-                return []
+-            else:
+-                if isinstance(field, models.ManyToManyField):
++                try:
++                    field = getattr(obj.model, item)
++                except AttributeError:
+                     return [
+                         checks.Error(
+-                            "The value of '%s' must not be a ManyToManyField." % label,
++                            "The value of '%s' refers to '%s', which is not a callable, "
++                            "an attribute of '%s', or an attribute or method on '%s.%s'." % (
++                                label, item, obj.__class__.__name__,
++                                obj.model._meta.app_label, obj.model._meta.object_name,
++                            ),
+                             obj=obj.__class__,
+-                            id='admin.E109',
++                            id='admin.E108',
+                         )
+                     ]
+-                return []
+-        else:
+-            return [
+-                checks.Error(
+-                    "The value of '%s' refers to '%s', which is not a callable, "
+-                    "an attribute of '%s', or an attribute or method on '%s.%s'." % (
+-                        label, item, obj.__class__.__name__,
+-                        obj.model._meta.app_label, obj.model._meta.object_name,
+-                    ),
+-                    obj=obj.__class__,
+-                    id='admin.E108',
+-                )
+-            ]
++            if isinstance(field, models.ManyToManyField):
++                return [
++                    checks.Error(
++                        "The value of '%s' must not be a ManyToManyField." % label,
++                        obj=obj.__class__,
++                        id='admin.E109',
++                    )
++                ]
++            return []
+ 
+     def _check_list_display_links(self, obj):
+         """ Check that list_display_links is a unique subset of list_display.
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0.dev20190710083336) (2024.1)
+Requirement already satisfied: sqlparse in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0.dev20190710083336) (0.4.4)
+Requirement already satisfied: asgiref in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0.dev20190710083336) (3.4.1)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref->Django==3.0.dev20190710083336) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.0.dev20190710083336
+    Uninstalling Django-3.0.dev20190710083336:
+      Successfully uninstalled Django-3.0.dev20190710083336
+  Running setup.py develop for Django
+Successfully installed Django-3.0.dev20190710083336
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 7991111af12056ec9a856f35935d273526338c1f tests/modeladmin/test_checks.py
+Updated 0 paths from 4067b5171a
++ git apply -v -
+Checking patch tests/modeladmin/test_checks.py...
+Applied patch tests/modeladmin/test_checks.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 modeladmin.test_checks
+test_actions_not_unique (modeladmin.test_checks.ActionsCheckTests) ... ok
+test_actions_unique (modeladmin.test_checks.ActionsCheckTests) ... ok
+test_custom_permissions_require_matching_has_method (modeladmin.test_checks.ActionsCheckTests) ... ok
+test_autocomplete_e036 (modeladmin.test_checks.AutocompleteFieldsTests) ... ok
+test_autocomplete_e037 (modeladmin.test_checks.AutocompleteFieldsTests) ... ok
+test_autocomplete_e039 (modeladmin.test_checks.AutocompleteFieldsTests) ... ok
+test_autocomplete_e040 (modeladmin.test_checks.AutocompleteFieldsTests) ... ok
+test_autocomplete_e38 (modeladmin.test_checks.AutocompleteFieldsTests) ... ok
+test_autocomplete_is_onetoone (modeladmin.test_checks.AutocompleteFieldsTests) ... ok
+test_autocomplete_is_valid (modeladmin.test_checks.AutocompleteFieldsTests) ... ok
+test_invalid_field_type (modeladmin.test_checks.DateHierarchyCheckTests) ... ok
+test_missing_field (modeladmin.test_checks.DateHierarchyCheckTests) ... ok
+test_related_invalid_field_type (modeladmin.test_checks.DateHierarchyCheckTests) ... ok
+test_related_valid_case (modeladmin.test_checks.DateHierarchyCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.DateHierarchyCheckTests) ... ok
+test_not_integer (modeladmin.test_checks.ExtraCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.ExtraCheckTests) ... ok
+test_duplicate_fields_in_fields (modeladmin.test_checks.FieldsCheckTests) ... ok
+test_inline (modeladmin.test_checks.FieldsCheckTests) ... ok
+test_duplicate_fields (modeladmin.test_checks.FieldsetsCheckTests) ... ok
+test_duplicate_fields_in_fieldsets (modeladmin.test_checks.FieldsetsCheckTests) ... ok
+test_fieldsets_with_custom_form_validation (modeladmin.test_checks.FieldsetsCheckTests) ... ok
+test_item_not_a_pair (modeladmin.test_checks.FieldsetsCheckTests) ... ok
+test_missing_fields_key (modeladmin.test_checks.FieldsetsCheckTests) ... ok
+test_non_iterable_item (modeladmin.test_checks.FieldsetsCheckTests) ... ok
+test_not_iterable (modeladmin.test_checks.FieldsetsCheckTests) ... ok
+test_second_element_of_item_not_a_dict (modeladmin.test_checks.FieldsetsCheckTests) ... ok
+test_specified_both_fields_and_fieldsets (modeladmin.test_checks.FieldsetsCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.FieldsetsCheckTests) ... ok
+test_invalid_field_type (modeladmin.test_checks.FilterHorizontalCheckTests) ... ok
+test_missing_field (modeladmin.test_checks.FilterHorizontalCheckTests) ... ok
+test_not_iterable (modeladmin.test_checks.FilterHorizontalCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.FilterHorizontalCheckTests) ... ok
+test_invalid_field_type (modeladmin.test_checks.FilterVerticalCheckTests) ... ok
+test_missing_field (modeladmin.test_checks.FilterVerticalCheckTests) ... ok
+test_not_iterable (modeladmin.test_checks.FilterVerticalCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.FilterVerticalCheckTests) ... ok
+test_missing_field (modeladmin.test_checks.FkNameCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.FkNameCheckTests) ... ok
+test_fieldsets_with_custom_form_validation (modeladmin.test_checks.FormCheckTests) ... ok
+test_invalid_type (modeladmin.test_checks.FormCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.FormCheckTests) ... ok
+test_inline_without_formset_class (modeladmin.test_checks.FormsetCheckTests) ... ok
+test_invalid_type (modeladmin.test_checks.FormsetCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.FormsetCheckTests) ... ok
+test_invalid_callable (modeladmin.test_checks.InlinesCheckTests) ... ok
+test_invalid_model (modeladmin.test_checks.InlinesCheckTests) ... ok
+test_invalid_model_type (modeladmin.test_checks.InlinesCheckTests) ... ok
+test_missing_model_field (modeladmin.test_checks.InlinesCheckTests) ... ok
+test_not_correct_inline_field (modeladmin.test_checks.InlinesCheckTests) ... ok
+test_not_iterable (modeladmin.test_checks.InlinesCheckTests) ... ok
+test_not_model_admin (modeladmin.test_checks.InlinesCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.InlinesCheckTests) ... ok
+test_both_list_editable_and_list_display_links (modeladmin.test_checks.ListDisplayEditableTests) ... ok
+test_list_display_first_item_in_list_editable (modeladmin.test_checks.ListDisplayEditableTests) ... ok
+test_list_display_first_item_in_list_editable_no_list_display_links (modeladmin.test_checks.ListDisplayEditableTests) ... ok
+test_list_display_first_item_same_as_list_editable_first_item (modeladmin.test_checks.ListDisplayEditableTests) ... ok
+test_list_display_first_item_same_as_list_editable_no_list_display_links (modeladmin.test_checks.ListDisplayEditableTests) ... ok
+test_list_display_links_is_none (modeladmin.test_checks.ListDisplayEditableTests) ... ok
+test_None_is_valid_case (modeladmin.test_checks.ListDisplayLinksCheckTests) ... ok
+test_list_display_link_checked_for_list_tuple_if_get_list_display_overridden (modeladmin.test_checks.ListDisplayLinksCheckTests) ... ok
+test_list_display_links_check_skipped_if_get_list_display_overridden (modeladmin.test_checks.ListDisplayLinksCheckTests) ... ok
+test_missing_field (modeladmin.test_checks.ListDisplayLinksCheckTests) ... ok
+test_missing_in_list_display (modeladmin.test_checks.ListDisplayLinksCheckTests) ... ok
+test_not_iterable (modeladmin.test_checks.ListDisplayLinksCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.ListDisplayLinksCheckTests) ... ok
+test_invalid_field_type (modeladmin.test_checks.ListDisplayTests) ... ok
+test_missing_field (modeladmin.test_checks.ListDisplayTests) ... ok
+test_not_iterable (modeladmin.test_checks.ListDisplayTests) ... ok
+test_valid_case (modeladmin.test_checks.ListDisplayTests) ... ok
+test_valid_field_accessible_via_instance (modeladmin.test_checks.ListDisplayTests) ... ok
+test_callable (modeladmin.test_checks.ListFilterTests) ... ok
+test_list_filter_is_func (modeladmin.test_checks.ListFilterTests) ... ok
+test_list_filter_validation (modeladmin.test_checks.ListFilterTests) ... ok
+test_missing_field (modeladmin.test_checks.ListFilterTests) ... ok
+test_not_associated_with_field_name (modeladmin.test_checks.ListFilterTests) ... ok
+test_not_callable (modeladmin.test_checks.ListFilterTests) ... ok
+test_not_filter (modeladmin.test_checks.ListFilterTests) ... ok
+test_not_filter_again (modeladmin.test_checks.ListFilterTests) ... ok
+test_not_filter_again_again (modeladmin.test_checks.ListFilterTests) ... ok
+test_not_list_filter_class (modeladmin.test_checks.ListFilterTests) ... ok
+test_valid_case (modeladmin.test_checks.ListFilterTests) ... ok
+test_not_integer (modeladmin.test_checks.ListMaxShowAllCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.ListMaxShowAllCheckTests) ... ok
+test_not_integer (modeladmin.test_checks.ListPerPageCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.ListPerPageCheckTests) ... ok
+test_invalid_type (modeladmin.test_checks.ListSelectRelatedCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.ListSelectRelatedCheckTests) ... ok
+test_not_integer (modeladmin.test_checks.MaxNumCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.MaxNumCheckTests) ... ok
+test_not_integer (modeladmin.test_checks.MinNumCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.MinNumCheckTests) ... ok
+test_invalid_expression (modeladmin.test_checks.OrderingCheckTests) ... ok
+test_not_iterable (modeladmin.test_checks.OrderingCheckTests) ... ok
+test_random_marker_not_alone (modeladmin.test_checks.OrderingCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.OrderingCheckTests) ... ok
+test_valid_complex_case (modeladmin.test_checks.OrderingCheckTests) ... ok
+test_valid_expression (modeladmin.test_checks.OrderingCheckTests) ... ok
+test_valid_random_marker_case (modeladmin.test_checks.OrderingCheckTests) ... ok
+test_invalid_field_type (modeladmin.test_checks.PrepopulatedFieldsCheckTests) ... ok
+test_missing_field (modeladmin.test_checks.PrepopulatedFieldsCheckTests) ... ok
+test_missing_field_again (modeladmin.test_checks.PrepopulatedFieldsCheckTests) ... ok
+test_not_dictionary (modeladmin.test_checks.PrepopulatedFieldsCheckTests) ... ok
+test_not_list_or_tuple (modeladmin.test_checks.PrepopulatedFieldsCheckTests) ... ok
+test_one_to_one_field (modeladmin.test_checks.PrepopulatedFieldsCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.PrepopulatedFieldsCheckTests) ... ok
+test_invalid_field_type (modeladmin.test_checks.RadioFieldsCheckTests) ... ok
+test_invalid_value (modeladmin.test_checks.RadioFieldsCheckTests) ... ok
+test_missing_field (modeladmin.test_checks.RadioFieldsCheckTests) ... ok
+test_not_dictionary (modeladmin.test_checks.RadioFieldsCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.RadioFieldsCheckTests) ... ok
+test_invalid_field_type (modeladmin.test_checks.RawIdCheckTests) ... ok
+test_missing_field (modeladmin.test_checks.RawIdCheckTests) ... ok
+test_not_iterable (modeladmin.test_checks.RawIdCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.RawIdCheckTests) ... ok
+test_not_boolean (modeladmin.test_checks.SaveAsCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.SaveAsCheckTests) ... ok
+test_not_boolean (modeladmin.test_checks.SaveOnTopCheckTests) ... ok
+test_valid_case (modeladmin.test_checks.SaveOnTopCheckTests) ... ok
+test_not_iterable (modeladmin.test_checks.SearchFieldsCheckTests) ... Testing against Django installed in '/testbed/django'
+Importing application modeladmin
+Skipping setup of unused database(s): default, other.
+System check identified no issues (0 silenced).
+ok
+
+----------------------------------------------------------------------
+Ran 120 tests in 0.073s
+
+OK
++ git checkout 7991111af12056ec9a856f35935d273526338c1f tests/modeladmin/test_checks.py
+Updated 1 path from 4067b5171a

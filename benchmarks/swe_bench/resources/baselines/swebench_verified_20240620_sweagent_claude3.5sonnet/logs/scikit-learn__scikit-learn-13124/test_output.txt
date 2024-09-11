@@ -1,0 +1,616 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sklearn/model_selection/_split.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_stratified_kfold_issue.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 9f0b959a8c9195d1b6e203f08b698e052b426ca9
+Author: Hanmin Qin <qinhanmin2005@sina.com>
+Date:   Fri Feb 8 20:47:50 2019 +0800
+
+    DOC Formatting issue in calibration_curve
+
+diff --git a/sklearn/calibration.py b/sklearn/calibration.py
+index 6a760c21d..f84cbb328 100644
+--- a/sklearn/calibration.py
++++ b/sklearn/calibration.py
+@@ -523,9 +523,9 @@ def calibration_curve(y_true, y_prob, normalize=False, n_bins=5,
+                       strategy='uniform'):
+     """Compute true and predicted probabilities for a calibration curve.
+ 
+-     The method assumes the inputs come from a binary classifier.
++    The method assumes the inputs come from a binary classifier.
+ 
+-     Calibration curves may also be referred to as reliability diagrams.
++    Calibration curves may also be referred to as reliability diagrams.
+ 
+     Read more in the :ref:`User Guide <calibration>`.
+ 
++ git diff 9f0b959a8c9195d1b6e203f08b698e052b426ca9
+diff --git a/sklearn/model_selection/_split.py b/sklearn/model_selection/_split.py
+index 24394f869..8c862f569 100644
+--- a/sklearn/model_selection/_split.py
++++ b/sklearn/model_selection/_split.py
+@@ -18,7 +18,6 @@ from abc import ABCMeta, abstractmethod
+ from inspect import signature
+ 
+ import numpy as np
+-
+ from ..utils import indexable, check_random_state, safe_indexing
+ from ..utils.validation import _num_samples, column_or_1d
+ from ..utils.validation import check_array
+@@ -575,15 +574,16 @@ class StratifiedKFold(_BaseKFold):
+         .. versionchanged:: 0.20
+             ``n_splits`` default value will change from 3 to 5 in v0.22.
+ 
+-    shuffle : boolean, optional
+-        Whether to shuffle each stratification of the data before splitting
+-        into batches.
++    shuffle : boolean, optional, default=False
++        Whether to shuffle the samples within each class before splitting
++        into batches. Note that the samples from each class are always
++        stratified and split among the folds, regardless of the shuffle parameter.
+ 
+     random_state : int, RandomState instance or None, optional, default=None
+-        If int, random_state is the seed used by the random number generator;
+-        If RandomState instance, random_state is the random number generator;
+-        If None, the random number generator is the RandomState instance used
+-        by `np.random`. Used when ``shuffle`` == True.
++        When shuffle is True, random_state affects the ordering of the
++        indices, which controls the randomness of each fold for each class.
++        Otherwise, leave random_state as None.
++        Pass an int for reproducible output across multiple function calls.
+ 
+     Examples
+     --------
+@@ -620,7 +620,7 @@ class StratifiedKFold(_BaseKFold):
+         super().__init__(n_splits, shuffle, random_state)
+ 
+     def _make_test_folds(self, X, y=None):
+-        rng = self.random_state
++        rng = check_random_state(self.random_state)
+         y = np.asarray(y)
+         type_of_target_y = type_of_target(y)
+         allowed_target_types = ('binary', 'multiclass')
+@@ -641,40 +641,30 @@ class StratifiedKFold(_BaseKFold):
+         if self.n_splits > min_groups:
+             warnings.warn(("The least populated class in y has only %d"
+                            " members, which is too few. The minimum"
+-                           " number of members in any class cannot"
++                           " number of groups for any class cannot"
+                            " be less than n_splits=%d."
+                            % (min_groups, self.n_splits)), Warning)
+ 
+-        # pre-assign each sample to a test fold index using individual KFold
+-        # splitting strategies for each class so as to respect the balance of
+-        # classes
+-        # NOTE: Passing the data corresponding to ith class say X[y==class_i]
+-        # will break when the data is not 100% stratifiable for all classes.
+-        # So we pass np.zeroes(max(c, n_splits)) as data to the KFold
+-        per_cls_cvs = [
+-            KFold(self.n_splits, shuffle=self.shuffle,
+-                  random_state=rng).split(np.zeros(max(count, self.n_splits)))
+-            for count in y_counts]
+-
++        # Distribute samples from each class into folds
+         test_folds = np.zeros(n_samples, dtype=np.int)
+-        for test_fold_indices, per_cls_splits in enumerate(zip(*per_cls_cvs)):
+-            for cls, (_, test_split) in zip(unique_y, per_cls_splits):
+-                cls_test_folds = test_folds[y == cls]
+-                # the test split can be too big because we used
+-                # KFold(...).split(X[:max(c, n_splits)]) when data is not 100%
+-                # stratifiable for all the classes
+-                # (we use a warning instead of raising an exception)
+-                # If this is the case, let's trim it:
+-                test_split = test_split[test_split < len(cls_test_folds)]
+-                cls_test_folds[test_split] = test_fold_indices
+-                test_folds[y == cls] = cls_test_folds
++        for class_label in unique_y:
++            class_indices = np.where(y == class_label)[0]
++            if self.shuffle:
++                rng.shuffle(class_indices)
++            fold_sizes = np.full(self.n_splits, class_indices.size // self.n_splits, dtype=np.int)
++            fold_sizes[:class_indices.size % self.n_splits] += 1
++            current = 0
++            for fold_index, fold_size in enumerate(fold_sizes):
++                start, stop = current, current + fold_size
++                test_folds[class_indices[start:stop]] = fold_index
++                current = stop
+ 
+         return test_folds
+ 
+-    def _iter_test_masks(self, X, y=None, groups=None):
++    def _iter_test_indices(self, X, y=None, groups=None):
+         test_folds = self._make_test_folds(X, y)
+-        for i in range(self.n_splits):
+-            yield test_folds == i
++        for f in range(self.n_splits):
++            yield np.where(test_folds == f)[0]
+ 
+     def split(self, X, y, groups=None):
+         """Generate indices to split data into training and test set.
+@@ -685,10 +675,6 @@ class StratifiedKFold(_BaseKFold):
+             Training data, where n_samples is the number of samples
+             and n_features is the number of features.
+ 
+-            Note that providing ``y`` is sufficient to generate the splits and
+-            hence ``np.zeros(n_samples)`` may be used as a placeholder for
+-            ``X`` instead of actual training data.
+-
+         y : array-like, shape (n_samples,)
+             The target variable for supervised learning problems.
+             Stratification is done based on the y labels.
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -v --no-use-pep517 --no-build-isolation -e .
+Using pip 21.2.2 from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/pip (python 3.6)
+Obtaining file:///testbed
+    Running command python setup.py egg_info
+    running egg_info
+    creating /tmp/pip-pip-egg-info-xh61ldfl/scikit_learn.egg-info
+    writing /tmp/pip-pip-egg-info-xh61ldfl/scikit_learn.egg-info/PKG-INFO
+    writing dependency_links to /tmp/pip-pip-egg-info-xh61ldfl/scikit_learn.egg-info/dependency_links.txt
+    writing requirements to /tmp/pip-pip-egg-info-xh61ldfl/scikit_learn.egg-info/requires.txt
+    writing top-level names to /tmp/pip-pip-egg-info-xh61ldfl/scikit_learn.egg-info/top_level.txt
+    writing manifest file '/tmp/pip-pip-egg-info-xh61ldfl/scikit_learn.egg-info/SOURCES.txt'
+    reading manifest file '/tmp/pip-pip-egg-info-xh61ldfl/scikit_learn.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    adding license file 'COPYING'
+    writing manifest file '/tmp/pip-pip-egg-info-xh61ldfl/scikit_learn.egg-info/SOURCES.txt'
+    Partial import of sklearn during the build process.
+Requirement already satisfied: numpy>=1.11.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from scikit-learn==0.21.dev0) (1.19.2)
+Requirement already satisfied: scipy>=0.17.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from scikit-learn==0.21.dev0) (1.5.2)
+Installing collected packages: scikit-learn
+  Attempting uninstall: scikit-learn
+    Found existing installation: scikit-learn 0.21.dev0
+    Uninstalling scikit-learn-0.21.dev0:
+      Removing file or directory /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/scikit-learn.egg-link
+      Removing pth entries from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/easy-install.pth:
+      Removing entry: /testbed
+      Successfully uninstalled scikit-learn-0.21.dev0
+  Running setup.py develop for scikit-learn
+    Running command /opt/miniconda3/envs/testbed/bin/python -c 'import io, os, sys, setuptools, tokenize; sys.argv[0] = '"'"'/testbed/setup.py'"'"'; __file__='"'"'/testbed/setup.py'"'"';f = getattr(tokenize, '"'"'open'"'"', open)(__file__) if os.path.exists(__file__) else io.StringIO('"'"'from setuptools import setup; setup()'"'"');code = f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' develop --no-deps
+    blas_opt_info:
+    blas_mkl_info:
+    customize UnixCCompiler
+      libraries mkl_rt not found in ['/opt/miniconda3/envs/testbed/lib', '/usr/local/lib', '/usr/lib64', '/usr/lib', '/usr/lib/x86_64-linux-gnu']
+      NOT AVAILABLE
+
+    blis_info:
+      libraries blis not found in ['/opt/miniconda3/envs/testbed/lib', '/usr/local/lib', '/usr/lib64', '/usr/lib', '/usr/lib/x86_64-linux-gnu']
+      NOT AVAILABLE
+
+    openblas_info:
+    C compiler: gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC
+
+    creating /tmp/tmprefgfhtr/tmp
+    creating /tmp/tmprefgfhtr/tmp/tmprefgfhtr
+    compile options: '-c'
+    gcc: /tmp/tmprefgfhtr/source.c
+    gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ /tmp/tmprefgfhtr/tmp/tmprefgfhtr/source.o -L/opt/miniconda3/envs/testbed/lib -lopenblas -o /tmp/tmprefgfhtr/a.out
+      FOUND:
+        libraries = ['openblas', 'openblas']
+        library_dirs = ['/opt/miniconda3/envs/testbed/lib']
+        language = c
+        define_macros = [('HAVE_CBLAS', None)]
+
+      FOUND:
+        libraries = ['openblas', 'openblas']
+        library_dirs = ['/opt/miniconda3/envs/testbed/lib']
+        language = c
+        define_macros = [('HAVE_CBLAS', None)]
+
+    running develop
+    running build_scripts
+    running egg_info
+    running build_src
+    build_src
+    building library "libsvm-skl" sources
+    building extension "sklearn.__check_build._check_build" sources
+    building extension "sklearn.preprocessing._csr_polynomial_expansion" sources
+    building extension "sklearn.cluster._dbscan_inner" sources
+    building extension "sklearn.cluster._hierarchical" sources
+    building extension "sklearn.cluster._k_means_elkan" sources
+    building extension "sklearn.cluster._k_means" sources
+    building extension "sklearn.datasets._svmlight_format" sources
+    building extension "sklearn.decomposition._online_lda" sources
+    building extension "sklearn.decomposition.cdnmf_fast" sources
+    building extension "sklearn.ensemble._gradient_boosting" sources
+    building extension "sklearn.feature_extraction._hashing" sources
+    building extension "sklearn.manifold._utils" sources
+    building extension "sklearn.manifold._barnes_hut_tsne" sources
+    building extension "sklearn.metrics.cluster.expected_mutual_info_fast" sources
+    building extension "sklearn.metrics.pairwise_fast" sources
+    building extension "sklearn.neighbors.ball_tree" sources
+    building extension "sklearn.neighbors.kd_tree" sources
+    building extension "sklearn.neighbors.dist_metrics" sources
+    building extension "sklearn.neighbors.typedefs" sources
+    building extension "sklearn.neighbors.quad_tree" sources
+    building extension "sklearn.tree._tree" sources
+    building extension "sklearn.tree._splitter" sources
+    building extension "sklearn.tree._criterion" sources
+    building extension "sklearn.tree._utils" sources
+    building extension "sklearn.svm.libsvm" sources
+    building extension "sklearn.svm.liblinear" sources
+    building extension "sklearn.svm.libsvm_sparse" sources
+    building extension "sklearn._isotonic" sources
+    building extension "sklearn.linear_model.cd_fast" sources
+    building extension "sklearn.linear_model.sgd_fast" sources
+    building extension "sklearn.linear_model.sag_fast" sources
+    building extension "sklearn.utils.sparsefuncs_fast" sources
+    building extension "sklearn.utils._cython_blas" sources
+    building extension "sklearn.utils.arrayfuncs" sources
+    building extension "sklearn.utils.murmurhash" sources
+    building extension "sklearn.utils.lgamma" sources
+    building extension "sklearn.utils.graph_shortest_path" sources
+    building extension "sklearn.utils.fast_dict" sources
+    building extension "sklearn.utils.seq_dataset" sources
+    building extension "sklearn.utils.weight_vector" sources
+    building extension "sklearn.utils._random" sources
+    building extension "sklearn.utils._logistic_sigmoid" sources
+    building data_files sources
+    build_src: building npy-pkg config files
+    writing scikit_learn.egg-info/PKG-INFO
+    writing dependency_links to scikit_learn.egg-info/dependency_links.txt
+    writing requirements to scikit_learn.egg-info/requires.txt
+    writing top-level names to scikit_learn.egg-info/top_level.txt
+    reading manifest file 'scikit_learn.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    adding license file 'COPYING'
+    writing manifest file 'scikit_learn.egg-info/SOURCES.txt'
+    running build_ext
+    customize UnixCCompiler
+    customize UnixCCompiler using build_clib
+    customize UnixCCompiler
+    customize UnixCCompiler using build_ext_subclass
+    resetting extension 'sklearn.svm.liblinear' language from 'c' to 'c++'.
+    customize UnixCCompiler
+    customize UnixCCompiler using build_ext_subclass
+    Creating /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/scikit-learn.egg-link (link to .)
+    Adding scikit-learn 0.21.dev0 to easy-install.pth file
+
+    Installed /testbed
+    Partial import of sklearn during the build process.
+Successfully installed scikit-learn-0.21.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 9f0b959a8c9195d1b6e203f08b698e052b426ca9 sklearn/model_selection/tests/test_split.py
+Updated 0 paths from 72e1da048
++ git apply -v -
+Checking patch sklearn/model_selection/tests/test_split.py...
+Applied patch sklearn/model_selection/tests/test_split.py cleanly.
++ pytest -rA sklearn/model_selection/tests/test_split.py
+============================= test session starts ==============================
+platform linux -- Python 3.6.13, pytest-6.2.4, py-1.11.0, pluggy-0.13.1
+rootdir: /testbed, configfile: setup.cfg
+collected 61 items
+
+sklearn/model_selection/tests/test_split.py ............................ [ 45%]
+.................................                                        [100%]
+
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED sklearn/model_selection/tests/test_split.py::test_cross_validator_with_default_params
+PASSED sklearn/model_selection/tests/test_split.py::test_2d_y
+PASSED sklearn/model_selection/tests/test_split.py::test_kfold_valueerrors
+PASSED sklearn/model_selection/tests/test_split.py::test_kfold_indices
+PASSED sklearn/model_selection/tests/test_split.py::test_kfold_no_shuffle
+PASSED sklearn/model_selection/tests/test_split.py::test_stratified_kfold_no_shuffle
+PASSED sklearn/model_selection/tests/test_split.py::test_stratified_kfold_ratios
+PASSED sklearn/model_selection/tests/test_split.py::test_kfold_balance
+PASSED sklearn/model_selection/tests/test_split.py::test_stratifiedkfold_balance
+PASSED sklearn/model_selection/tests/test_split.py::test_shuffle_kfold
+PASSED sklearn/model_selection/tests/test_split.py::test_shuffle_kfold_stratifiedkfold_reproducibility
+PASSED sklearn/model_selection/tests/test_split.py::test_shuffle_stratifiedkfold
+PASSED sklearn/model_selection/tests/test_split.py::test_kfold_can_detect_dependent_samples_on_digits
+PASSED sklearn/model_selection/tests/test_split.py::test_shuffle_split
+PASSED sklearn/model_selection/tests/test_split.py::test_stratified_shuffle_split_init
+PASSED sklearn/model_selection/tests/test_split.py::test_stratified_shuffle_split_respects_test_size
+PASSED sklearn/model_selection/tests/test_split.py::test_stratified_shuffle_split_iter
+PASSED sklearn/model_selection/tests/test_split.py::test_stratified_shuffle_split_even
+PASSED sklearn/model_selection/tests/test_split.py::test_stratified_shuffle_split_overlap_train_test_bug
+PASSED sklearn/model_selection/tests/test_split.py::test_stratified_shuffle_split_multilabel
+PASSED sklearn/model_selection/tests/test_split.py::test_stratified_shuffle_split_multilabel_many_labels
+PASSED sklearn/model_selection/tests/test_split.py::test_predefinedsplit_with_kfold_split
+PASSED sklearn/model_selection/tests/test_split.py::test_group_shuffle_split
+PASSED sklearn/model_selection/tests/test_split.py::test_leave_one_p_group_out
+PASSED sklearn/model_selection/tests/test_split.py::test_leave_group_out_changing_groups
+PASSED sklearn/model_selection/tests/test_split.py::test_leave_one_p_group_out_error_on_fewer_number_of_groups
+PASSED sklearn/model_selection/tests/test_split.py::test_repeated_cv_value_errors
+PASSED sklearn/model_selection/tests/test_split.py::test_repeated_kfold_determinstic_split
+PASSED sklearn/model_selection/tests/test_split.py::test_get_n_splits_for_repeated_kfold
+PASSED sklearn/model_selection/tests/test_split.py::test_get_n_splits_for_repeated_stratified_kfold
+PASSED sklearn/model_selection/tests/test_split.py::test_repeated_stratified_kfold_determinstic_split
+PASSED sklearn/model_selection/tests/test_split.py::test_train_test_split_errors
+PASSED sklearn/model_selection/tests/test_split.py::test_train_test_split_invalid_sizes1[1.2-0.8]
+PASSED sklearn/model_selection/tests/test_split.py::test_train_test_split_invalid_sizes1[1.0-0.8]
+PASSED sklearn/model_selection/tests/test_split.py::test_train_test_split_invalid_sizes1[0.0-0.8]
+PASSED sklearn/model_selection/tests/test_split.py::test_train_test_split_invalid_sizes1[-0.2-0.8]
+PASSED sklearn/model_selection/tests/test_split.py::test_train_test_split_invalid_sizes1[0.8-1.2]
+PASSED sklearn/model_selection/tests/test_split.py::test_train_test_split_invalid_sizes1[0.8-1.0]
+PASSED sklearn/model_selection/tests/test_split.py::test_train_test_split_invalid_sizes1[0.8-0.0]
+PASSED sklearn/model_selection/tests/test_split.py::test_train_test_split_invalid_sizes1[0.8--0.2]
+PASSED sklearn/model_selection/tests/test_split.py::test_train_test_split_invalid_sizes2[-10-0.8]
+PASSED sklearn/model_selection/tests/test_split.py::test_train_test_split_invalid_sizes2[0-0.8]
+PASSED sklearn/model_selection/tests/test_split.py::test_train_test_split_invalid_sizes2[11-0.8]
+PASSED sklearn/model_selection/tests/test_split.py::test_train_test_split_invalid_sizes2[0.8--10]
+PASSED sklearn/model_selection/tests/test_split.py::test_train_test_split_invalid_sizes2[0.8-0]
+PASSED sklearn/model_selection/tests/test_split.py::test_train_test_split_invalid_sizes2[0.8-11]
+PASSED sklearn/model_selection/tests/test_split.py::test_train_test_split
+PASSED sklearn/model_selection/tests/test_split.py::test_shufflesplit_errors
+PASSED sklearn/model_selection/tests/test_split.py::test_shufflesplit_reproducible
+PASSED sklearn/model_selection/tests/test_split.py::test_stratifiedshufflesplit_list_input
+PASSED sklearn/model_selection/tests/test_split.py::test_train_test_split_allow_nans
+PASSED sklearn/model_selection/tests/test_split.py::test_check_cv
+PASSED sklearn/model_selection/tests/test_split.py::test_cv_iterable_wrapper
+PASSED sklearn/model_selection/tests/test_split.py::test_group_kfold
+PASSED sklearn/model_selection/tests/test_split.py::test_time_series_cv
+PASSED sklearn/model_selection/tests/test_split.py::test_time_series_max_train_size
+PASSED sklearn/model_selection/tests/test_split.py::test_nested_cv
+PASSED sklearn/model_selection/tests/test_split.py::test_train_test_default_warning
+PASSED sklearn/model_selection/tests/test_split.py::test_nsplit_default_warn
+PASSED sklearn/model_selection/tests/test_split.py::test_check_cv_default_warn
+PASSED sklearn/model_selection/tests/test_split.py::test_build_repr
+======================= 61 passed, 674 warnings in 5.92s =======================
++ git checkout 9f0b959a8c9195d1b6e203f08b698e052b426ca9 sklearn/model_selection/tests/test_split.py
+Updated 1 path from 72e1da048

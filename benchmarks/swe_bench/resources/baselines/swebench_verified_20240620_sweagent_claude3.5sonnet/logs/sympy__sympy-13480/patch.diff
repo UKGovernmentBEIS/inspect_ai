@@ -1,0 +1,38 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..0b0629d854
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,18 @@
++from sympy import *
++
++x = Symbol('x')
++e = coth(log(tan(x)))
++
++problematic_values = [2, 3, 5, 6, 8, 9, 11, 12, 13, 15, 18]
++
++for value in problematic_values:
++    try:
++        result = e.subs(x, value)
++        print(f"x = {value}: {result}")
++    except NameError as error:
++        if str(error) == "name 'cotm' is not defined":
++            print(f"NameError occurred for x = {value}: {error}")
++        else:
++            raise
++
++print("Script completed.")
+diff --git a/sympy/functions/elementary/hyperbolic.py b/sympy/functions/elementary/hyperbolic.py
+index 2a4555d919..5fbb73c786 100644
+--- a/sympy/functions/elementary/hyperbolic.py
++++ b/sympy/functions/elementary/hyperbolic.py
+@@ -587,7 +587,7 @@ def eval(cls, arg):
+                 x, m = _peeloff_ipi(arg)
+                 if m:
+                     cothm = coth(m)
+-                    if cotm is S.ComplexInfinity:
++                    if cothm is S.ComplexInfinity:
+                         return coth(x)
+                     else: # cothm == 0
+                         return tanh(x)

@@ -1,0 +1,96 @@
+
+diff --git a/setup.py b/setup.py
+index 2b4504101..d865b8b37 100644
+--- a/setup.py
++++ b/setup.py
+@@ -15,22 +15,22 @@ if sys.version_info < (3, 6):
+     sys.exit(1)
+ 
+ install_requires = [
+-    'sphinxcontrib-applehelp',
+-    'sphinxcontrib-devhelp',
++    'sphinxcontrib-applehelp<=1.0.7',
++    'sphinxcontrib-devhelp<=1.0.5',
+     'sphinxcontrib-jsmath',
+-    'sphinxcontrib-htmlhelp>=2.0.0',
+-    'sphinxcontrib-serializinghtml>=1.1.5',
+-    'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'sphinxcontrib-htmlhelp>=2.0.0,<=2.0.4',
++    'sphinxcontrib-serializinghtml>=1.1.5,<=1.1.9',
++    'sphinxcontrib-qthelp<=1.0.6',
++    'Jinja2<3.0',
+     'Pygments>=2.0',
+     'docutils>=0.14,<0.18',
+     'snowballstemmer>=1.1',
+     'babel>=1.3',
+-    'alabaster>=0.7,<0.8',
++    'alabaster>=0.7,<0.7.12',
+     'imagesize',
+     'requests>=2.5.0',
+     'setuptools',
+-    'packaging',
++    'packaging', 'markupsafe<=2.0.1',
+ ]
+ 
+ extras_require = {
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index a255c0691..1b6ddde44 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -16,7 +16,6 @@ from inspect import Parameter, Signature
+ from types import ModuleType
+ from typing import (TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Optional, Sequence,
+                     Set, Tuple, Type, TypeVar, Union)
+-
+ from docutils.statemachine import StringList
+ 
+ import sphinx
+@@ -26,7 +25,8 @@ from sphinx.deprecation import RemovedInSphinx50Warning, RemovedInSphinx60Warnin
+ from sphinx.environment import BuildEnvironment
+ from sphinx.ext.autodoc.importer import (get_class_members, get_object_members, import_module,
+                                          import_object)
+-from sphinx.ext.autodoc.mock import ismock, mock, undecorate
++from sphinx.ext.autodoc.mock import mock, undecorate
++from sphinx.util.inspect import ismock
+ from sphinx.locale import _, __
+ from sphinx.pycode import ModuleAnalyzer, PycodeError
+ from sphinx.util import inspect, logging
+@@ -1573,6 +1573,10 @@ class ClassDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # type:
+         if sig is None:
+             return None
+ 
++        from sphinx.util.inspect import ismock
++        if ismock(self.object):
++            return None
++
+         return stringify_signature(sig, show_return_annotation=False, **kwargs)
+ 
+     def format_signature(self, **kwargs: Any) -> str:
+diff --git a/sphinx/util/inspect.py b/sphinx/util/inspect.py
+index b767b8adc..7676d4623 100644
+--- a/sphinx/util/inspect.py
++++ b/sphinx/util/inspect.py
+@@ -304,6 +304,9 @@ def is_cython_function_or_method(obj: Any) -> bool:
+     except AttributeError:
+         return False
+ 
++def ismock(obj: Any) -> bool:
++    """Check if the object is a mock object."""
++    return hasattr(obj, '__sphinx_mock__')
+ 
+ def isattributedescriptor(obj: Any) -> bool:
+     """Check if the object is an attribute like descriptor."""
+diff --git a/tox.ini b/tox.ini
+index b6a67fd85..483f2df92 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

@@ -1,0 +1,50 @@
+
+diff --git a/sympy/printing/latex.py b/sympy/printing/latex.py
+index ad4d7d9613..90c1f8757b 100644
+--- a/sympy/printing/latex.py
++++ b/sympy/printing/latex.py
+@@ -156,11 +156,13 @@ def __init__(self, settings=None):
+             "times": r" \times "
+         }
+ 
+-        self._settings['mul_symbol_latex'] = \
+-            mul_symbol_table[self._settings['mul_symbol']]
++        if self._settings['mul_symbol'] in mul_symbol_table:
++            self._settings['mul_symbol_latex'] = mul_symbol_table[self._settings['mul_symbol']]
++        else:
++            self._settings['mul_symbol_latex'] = r" " + self._settings['mul_symbol'] + r" "
+ 
+         self._settings['mul_symbol_latex_numbers'] = \
+-            mul_symbol_table[self._settings['mul_symbol'] or 'dot']
++            mul_symbol_table[self._settings['mul_symbol']] if self._settings['mul_symbol'] in mul_symbol_table else r" " + self._settings['mul_symbol'] + r" "
+ 
+         self._delim_dict = {'(': ')', '[': ']'}
+ 
+diff --git a/test_latex_mul_symbol.py b/test_latex_mul_symbol.py
+new file mode 100644
+index 0000000000..0f5af7c9c0
+--- /dev/null
++++ b/test_latex_mul_symbol.py
+@@ -0,0 +1,22 @@
++from sympy import symbols, latex
++from sympy.printing.latex import LatexPrinter
++
++def test_custom_mul_symbol():
++    x, y = symbols('x y')
++    expr = 3*x**2*y
++
++    # Test default behavior
++    assert latex(expr) == r'3 x^{2} y'
++
++    # Test predefined symbols
++    assert latex(expr, mul_symbol='dot') == r'3 \cdot x^{2} \cdot y'
++    assert latex(expr, mul_symbol='times') == r'3 \times x^{2} \times y'
++
++    # Test custom symbol
++    custom_result = latex(expr, mul_symbol=r'\,')
++    print(f"Custom symbol result: {custom_result}")
++    assert custom_result == r'3 \, x^{2} \, y'
++    print("All tests passed!")
++
++if __name__ == '__main__':
++    test_custom_mul_symbol()

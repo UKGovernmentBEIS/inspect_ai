@@ -1,0 +1,60 @@
+
+diff --git a/bug_reproduction.png b/bug_reproduction.png
+new file mode 100644
+index 0000000000..9b28d7e742
+Binary files /dev/null and b/bug_reproduction.png differ
+diff --git a/bug_reproduction_fixed.png b/bug_reproduction_fixed.png
+new file mode 100644
+index 0000000000..97119fe1ee
+Binary files /dev/null and b/bug_reproduction_fixed.png differ
+diff --git a/bug_reproduction_original.png b/bug_reproduction_original.png
+new file mode 100644
+index 0000000000..02f1bf5e83
+Binary files /dev/null and b/bug_reproduction_original.png differ
+diff --git a/lib/matplotlib/colorbar.py b/lib/matplotlib/colorbar.py
+index c59b0ac815..dee1aca422 100644
+--- a/lib/matplotlib/colorbar.py
++++ b/lib/matplotlib/colorbar.py
+@@ -652,7 +652,7 @@ class Colorbar:
+                 if len(self._y) >= self.n_rasterize:
+                     self.solids.set_rasterized(True)
+         self.dividers.set_segments(
+-            np.dstack([X, Y])[1:-1] if self.drawedges else [])
++            np.dstack([X, Y]) if self.drawedges else [])
+ 
+     def _add_solids_patches(self, X, Y, C, mappable):
+         hatches = mappable.hatches * len(C)  # Have enough hatches.
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..1afbdf55f7
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,28 @@
++import matplotlib as mpl
++import numpy as np
++import matplotlib.pyplot as plt  
++from matplotlib.colors import from_levels_and_colors
++
++my_cmap = mpl.cm.viridis
++bounds = np.arange(10)
++nb_colors = len(bounds) + 1
++colors = my_cmap(np.linspace(100, 255, nb_colors).astype(int))
++my_cmap, my_norm = from_levels_and_colors(bounds, colors, extend='both')
++
++# Original (buggy) version
++plt.figure(figsize=(5, 1))
++ax1 = plt.subplot(111)
++cbar1 = mpl.colorbar.ColorbarBase(ax1, cmap=my_cmap, norm=my_norm, orientation='horizontal', drawedges=True)
++plt.title('Original (Buggy)')
++plt.subplots_adjust(left=0.05, bottom=0.4, right=0.95, top=0.9)
++plt.savefig('bug_reproduction_original.png')
++
++# Fixed version
++plt.figure(figsize=(5, 1))
++ax2 = plt.subplot(111)
++cbar2 = mpl.colorbar.ColorbarBase(ax2, cmap=my_cmap, norm=my_norm, orientation='horizontal', drawedges=True)
++plt.title('Fixed')
++plt.subplots_adjust(left=0.05, bottom=0.4, right=0.95, top=0.9)
++plt.savefig('bug_reproduction_fixed.png')
++
++print("Script completed successfully, images saved as bug_reproduction_original.png and bug_reproduction_fixed.png")

@@ -1,0 +1,67 @@
+
+diff --git a/lib/matplotlib/axes/_base.py b/lib/matplotlib/axes/_base.py
+index 90b0bf117e..35e3d16374 100644
+--- a/lib/matplotlib/axes/_base.py
++++ b/lib/matplotlib/axes/_base.py
+@@ -1289,6 +1289,10 @@ class _AxesBase(martist.Artist):
+         for spine in self.spines.values():
+             spine.clear()
+ 
++        # Remove artists from the axes' collections
++        for artist in list(self._children):
++            artist.remove()
++
+         self.ignore_existing_data_limits = True
+         self.callbacks = cbook.CallbackRegistry(
+             signals=["xlim_changed", "ylim_changed", "zlim_changed"])
+diff --git a/lib/matplotlib/figure.py b/lib/matplotlib/figure.py
+index 6c18ba1a64..b1d7b53780 100644
+--- a/lib/matplotlib/figure.py
++++ b/lib/matplotlib/figure.py
+@@ -946,6 +946,18 @@ default: %(va)s
+         self.subfigs = []
+ 
+         for ax in tuple(self.axes):  # Iterate over the copy.
++            # Remove artists from the axes' collections
++            for artist in ax.get_children():
++                if artist in self.artists:
++                    self.artists.remove(artist)
++                if artist in self.lines:
++                    self.lines.remove(artist)
++                if artist in self.patches:
++                    self.patches.remove(artist)
++                if artist in self.texts:
++                    self.texts.remove(artist)
++                if artist in self.images:
++                    self.images.remove(artist)
+             ax.clear()
+             self.delaxes(ax)  # Remove ax from self._axstack.
+ 
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..ceb7b6f750
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,22 @@
++import matplotlib.pyplot as plt
++
++# Test case 1: Removing an artist
++f1, a1 = plt.subplots()
++l1, = a1.plot([1, 2])
++l1.remove()
++print("After remove():", l1.axes)
++
++# Test case 2: Clearing the axes
++f2, a2 = plt.subplots()
++l2, = a2.plot([1, 2])
++a2.cla()
++print("After cla():", l2.axes)
++
++# Test case 3: Clearing the figure
++f3, a3 = plt.subplots()
++l3, = a3.plot([1, 2])
++plt.clf()
++print("After clf():", l3.axes)
++print("After clf():", l3.figure)
++
++print("Script completed successfully.")

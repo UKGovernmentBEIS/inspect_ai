@@ -1,0 +1,688 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/migrations/operations/models.py
+	modified:   tests/migrations/test_operations.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit bb64b99b78a579cb2f6178011a4cf9366e634438
+Author: Nick Pope <nick.pope@flightdataservices.com>
+Date:   Mon Dec 14 10:42:22 2020 +0000
+
+    Fixed #29867 -- Added support for storing None value in caches.
+    
+    Many of the cache operations make use of the default argument to the
+    .get() operation to determine whether the key was found in the cache.
+    The default value of the default argument is None, so this results in
+    these operations assuming that None is not stored in the cache when it
+    actually is. Adding a sentinel object solves this issue.
+    
+    Unfortunately the unmaintained python-memcached library does not support
+    a default argument to .get(), so the previous behavior is preserved for
+    the deprecated MemcachedCache backend.
+
+diff --git a/django/core/cache/backends/base.py b/django/core/cache/backends/base.py
+index 22b8397cac..1e2c7c9509 100644
+--- a/django/core/cache/backends/base.py
++++ b/django/core/cache/backends/base.py
+@@ -52,6 +52,8 @@ def get_key_func(key_func):
+ 
+ 
+ class BaseCache:
++    _missing_key = object()
++
+     def __init__(self, params):
+         timeout = params.get('timeout', params.get('TIMEOUT', 300))
+         if timeout is not None:
+@@ -151,8 +153,8 @@ class BaseCache:
+         """
+         d = {}
+         for k in keys:
+-            val = self.get(k, version=version)
+-            if val is not None:
++            val = self.get(k, self._missing_key, version=version)
++            if val is not self._missing_key:
+                 d[k] = val
+         return d
+ 
+@@ -165,31 +167,29 @@ class BaseCache:
+ 
+         Return the value of the key stored or retrieved.
+         """
+-        val = self.get(key, version=version)
+-        if val is None:
++        val = self.get(key, self._missing_key, version=version)
++        if val is self._missing_key:
+             if callable(default):
+                 default = default()
+-            if default is not None:
+-                self.add(key, default, timeout=timeout, version=version)
+-                # Fetch the value again to avoid a race condition if another
+-                # caller added a value between the first get() and the add()
+-                # above.
+-                return self.get(key, default, version=version)
++            self.add(key, default, timeout=timeout, version=version)
++            # Fetch the value again to avoid a race condition if another caller
++            # added a value between the first get() and the add() above.
++            return self.get(key, default, version=version)
+         return val
+ 
+     def has_key(self, key, version=None):
+         """
+         Return True if the key is in the cache and has not expired.
+         """
+-        return self.get(key, version=version) is not None
++        return self.get(key, self._missing_key, version=version) is not self._missing_key
+ 
+     def incr(self, key, delta=1, version=None):
+         """
+         Add delta to value in the cache. If the key does not exist, raise a
+         ValueError exception.
+         """
+-        value = self.get(key, version=version)
+-        if value is None:
++        value = self.get(key, self._missing_key, version=version)
++        if value is self._missing_key:
+             raise ValueError("Key '%s' not found" % key)
+         new_value = value + delta
+         self.set(key, new_value, version=version)
+@@ -257,8 +257,8 @@ class BaseCache:
+         if version is None:
+             version = self.version
+ 
+-        value = self.get(key, version=version)
+-        if value is None:
++        value = self.get(key, self._missing_key, version=version)
++        if value is self._missing_key:
+             raise ValueError("Key '%s' not found" % key)
+ 
+         self.set(key, value, version=version + delta)
+diff --git a/django/core/cache/backends/memcached.py b/django/core/cache/backends/memcached.py
+index 9a717359b8..112dbdd1ff 100644
+--- a/django/core/cache/backends/memcached.py
++++ b/django/core/cache/backends/memcached.py
+@@ -165,6 +165,11 @@ class BaseMemcachedCache(BaseCache):
+ 
+ class MemcachedCache(BaseMemcachedCache):
+     "An implementation of a cache binding using python-memcached"
++
++    # python-memcached doesn't support default values in get().
++    # https://github.com/linsomniac/python-memcached/issues/159
++    _missing_key = None
++
+     def __init__(self, server, params):
+         warnings.warn(
+             'MemcachedCache is deprecated in favor of PyMemcacheCache and '
+diff --git a/docs/releases/3.2.txt b/docs/releases/3.2.txt
+index 5b1969698c..8cd77ffad0 100644
+--- a/docs/releases/3.2.txt
++++ b/docs/releases/3.2.txt
+@@ -681,6 +681,14 @@ Miscellaneous
+   ``UserChangeForm.clean_password()`` is no longer required to return the
+   initial value.
+ 
++* The ``cache.get_many()``, ``get_or_set()``, ``has_key()``, ``incr()``,
++  ``decr()``, ``incr_version()``, and ``decr_version()`` cache operations now
++  correctly handle ``None`` stored in the cache, in the same way as any other
++  value, instead of behaving as though the key didn't exist.
++
++  Due to a ``python-memcached`` limitation, the previous behavior is kept for
++  the deprecated ``MemcachedCache`` backend.
++
+ .. _deprecated-features-3.2:
+ 
+ Features deprecated in 3.2
+diff --git a/tests/cache/tests.py b/tests/cache/tests.py
+index 2853ada233..9d79e6e758 100644
+--- a/tests/cache/tests.py
++++ b/tests/cache/tests.py
+@@ -278,6 +278,14 @@ class BaseCacheTests:
+     # A common set of tests to apply to all cache backends
+     factory = RequestFactory()
+ 
++    # RemovedInDjango41Warning: python-memcached doesn't support .get() with
++    # default.
++    supports_get_with_default = True
++
++    # Some clients raise custom exceptions when .incr() or .decr() are called
++    # with a non-integer value.
++    incr_decr_type_error = TypeError
++
+     def tearDown(self):
+         cache.clear()
+ 
+@@ -320,6 +328,8 @@ class BaseCacheTests:
+         self.assertEqual(cache.get_many(['a', 'c', 'd']), {'a': 'a', 'c': 'c', 'd': 'd'})
+         self.assertEqual(cache.get_many(['a', 'b', 'e']), {'a': 'a', 'b': 'b'})
+         self.assertEqual(cache.get_many(iter(['a', 'b', 'e'])), {'a': 'a', 'b': 'b'})
++        cache.set_many({'x': None, 'y': 1})
++        self.assertEqual(cache.get_many(['x', 'y']), {'x': None, 'y': 1})
+ 
+     def test_delete(self):
+         # Cache keys can be deleted
+@@ -339,12 +349,22 @@ class BaseCacheTests:
+         self.assertIs(cache.has_key("goodbye1"), False)
+         cache.set("no_expiry", "here", None)
+         self.assertIs(cache.has_key("no_expiry"), True)
++        cache.set('null', None)
++        self.assertIs(
++            cache.has_key('null'),
++            True if self.supports_get_with_default else False,
++        )
+ 
+     def test_in(self):
+         # The in operator can be used to inspect cache contents
+         cache.set("hello2", "goodbye2")
+         self.assertIn("hello2", cache)
+         self.assertNotIn("goodbye2", cache)
++        cache.set('null', None)
++        if self.supports_get_with_default:
++            self.assertIn('null', cache)
++        else:
++            self.assertNotIn('null', cache)
+ 
+     def test_incr(self):
+         # Cache values can be incremented
+@@ -356,6 +376,9 @@ class BaseCacheTests:
+         self.assertEqual(cache.incr('answer', -10), 42)
+         with self.assertRaises(ValueError):
+             cache.incr('does_not_exist')
++        cache.set('null', None)
++        with self.assertRaises(self.incr_decr_type_error):
++            cache.incr('null')
+ 
+     def test_decr(self):
+         # Cache values can be decremented
+@@ -367,6 +390,9 @@ class BaseCacheTests:
+         self.assertEqual(cache.decr('answer', -10), 42)
+         with self.assertRaises(ValueError):
+             cache.decr('does_not_exist')
++        cache.set('null', None)
++        with self.assertRaises(self.incr_decr_type_error):
++            cache.decr('null')
+ 
+     def test_close(self):
+         self.assertTrue(hasattr(cache, 'close'))
+@@ -914,6 +940,13 @@ class BaseCacheTests:
+         with self.assertRaises(ValueError):
+             cache.incr_version('does_not_exist')
+ 
++        cache.set('null', None)
++        if self.supports_get_with_default:
++            self.assertEqual(cache.incr_version('null'), 2)
++        else:
++            with self.assertRaises(self.incr_decr_type_error):
++                cache.incr_version('null')
++
+     def test_decr_version(self):
+         cache.set('answer', 42, version=2)
+         self.assertIsNone(cache.get('answer'))
+@@ -938,6 +971,13 @@ class BaseCacheTests:
+         with self.assertRaises(ValueError):
+             cache.decr_version('does_not_exist', version=2)
+ 
++        cache.set('null', None, version=2)
++        if self.supports_get_with_default:
++            self.assertEqual(cache.decr_version('null', version=2), 1)
++        else:
++            with self.assertRaises(self.incr_decr_type_error):
++                cache.decr_version('null', version=2)
++
+     def test_custom_key_func(self):
+         # Two caches with different key functions aren't visible to each other
+         cache.set('answer1', 42)
+@@ -995,6 +1035,11 @@ class BaseCacheTests:
+         self.assertEqual(cache.get_or_set('projector', 42), 42)
+         self.assertEqual(cache.get('projector'), 42)
+         self.assertIsNone(cache.get_or_set('null', None))
++        if self.supports_get_with_default:
++            # Previous get_or_set() stores None in the cache.
++            self.assertIsNone(cache.get('null', 'default'))
++        else:
++            self.assertEqual(cache.get('null', 'default'), 'default')
+ 
+     def test_get_or_set_callable(self):
+         def my_callable():
+@@ -1003,10 +1048,12 @@ class BaseCacheTests:
+         self.assertEqual(cache.get_or_set('mykey', my_callable), 'value')
+         self.assertEqual(cache.get_or_set('mykey', my_callable()), 'value')
+ 
+-    def test_get_or_set_callable_returning_none(self):
+-        self.assertIsNone(cache.get_or_set('mykey', lambda: None))
+-        # Previous get_or_set() doesn't store None in the cache.
+-        self.assertEqual(cache.get('mykey', 'default'), 'default')
++        self.assertIsNone(cache.get_or_set('null', lambda: None))
++        if self.supports_get_with_default:
++            # Previous get_or_set() stores None in the cache.
++            self.assertIsNone(cache.get('null', 'default'))
++        else:
++            self.assertEqual(cache.get('null', 'default'), 'default')
+ 
+     def test_get_or_set_version(self):
+         msg = "get_or_set() missing 1 required positional argument: 'default'"
+@@ -1399,6 +1446,8 @@ MemcachedCache_params = configured_caches.get('django.core.cache.backends.memcac
+ ))
+ class MemcachedCacheTests(BaseMemcachedTests, TestCase):
+     base_params = MemcachedCache_params
++    supports_get_with_default = False
++    incr_decr_type_error = ValueError
+ 
+     def test_memcached_uses_highest_pickle_version(self):
+         # Regression test for #19810
+@@ -1459,6 +1508,10 @@ class PyLibMCCacheTests(BaseMemcachedTests, TestCase):
+     # libmemcached manages its own connections.
+     should_disconnect_on_close = False
+ 
++    @property
++    def incr_decr_type_error(self):
++        return cache._lib.ClientError
++
+     @override_settings(CACHES=caches_setting_for_tests(
+         base=PyLibMCCache_params,
+         exclude=memcached_excluded_caches,
+@@ -1497,6 +1550,10 @@ class PyLibMCCacheTests(BaseMemcachedTests, TestCase):
+ class PyMemcacheCacheTests(BaseMemcachedTests, TestCase):
+     base_params = PyMemcacheCache_params
+ 
++    @property
++    def incr_decr_type_error(self):
++        return cache._lib.exceptions.MemcacheClientError
++
+     def test_pymemcache_highest_pickle_version(self):
+         self.assertEqual(
+             cache._cache.default_kwargs['serde']._serialize_func.keywords['pickle_version'],
++ git diff bb64b99b78a579cb2f6178011a4cf9366e634438
+diff --git a/django/db/migrations/operations/models.py b/django/db/migrations/operations/models.py
+index dddf7c679c..d368da937b 100644
+--- a/django/db/migrations/operations/models.py
++++ b/django/db/migrations/operations/models.py
+@@ -137,11 +137,16 @@ class CreateModel(ModelOperation):
+                 ),
+             ]
+         elif isinstance(operation, AlterModelOptions) and self.name_lower == operation.name_lower:
++            new_options = self.options.copy()
++            for key in list(new_options.keys()):
++                if key not in operation.options:
++                    del new_options[key]
++            new_options.update(operation.options)
+             return [
+                 CreateModel(
+                     self.name,
+                     fields=self.fields,
+-                    options={**self.options, **operation.options},
++                    options=new_options,
+                     bases=self.bases,
+                     managers=self.managers,
+                 ),
+diff --git a/tests/migrations/test_operations.py b/tests/migrations/test_operations.py
+index 38ad6a2d18..5943b050e9 100644
+--- a/tests/migrations/test_operations.py
++++ b/tests/migrations/test_operations.py
+@@ -3427,7 +3427,31 @@ class SwappableOperationTests(OperationTestBase):
+         with connection.schema_editor() as editor:
+             operation.database_forwards('test_rminigsw', editor, project_state, new_state)
+             operation.database_backwards('test_rminigsw', editor, new_state, project_state)
+-
++    def test_create_model_with_altered_options(self):
++        """
++        Tests that CreateModel operation correctly handles AlterModelOptions.
++        """
++        project_state = ProjectState()
++        
++        # Create the model
++        create_operation = migrations.CreateModel(
++            "Pony",
++            [("id", models.AutoField(primary_key=True))],
++            options={"verbose_name": "Pony"}
++        )
++        new_state = project_state.clone()
++        create_operation.state_forwards("test_crmoalo", new_state)
++        
++        # Now alter the options
++        alter_operation = migrations.AlterModelOptions("Pony", {})
++        
++        # Test the reduction
++        reduced_operation = create_operation.reduce(alter_operation, "test_crmoalo")
++        self.assertEqual(len(reduced_operation), 1)
++        self.assertIsInstance(reduced_operation[0], migrations.CreateModel)
++        self.assertEqual(reduced_operation[0].options, {})
++
++    
+ 
+ class TestCreateModel(SimpleTestCase):
+ 
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: asgiref>=3.2.10 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (3.4.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (0.4.4)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref>=3.2.10->Django==3.2) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.2
+    Uninstalling Django-3.2:
+      Successfully uninstalled Django-3.2
+  Running setup.py develop for Django
+Successfully installed Django-3.2
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout bb64b99b78a579cb2f6178011a4cf9366e634438 tests/migrations/test_optimizer.py
+Updated 0 paths from 7c20092227
++ git apply -v -
+Checking patch tests/migrations/test_optimizer.py...
+Applied patch tests/migrations/test_optimizer.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 migrations.test_optimizer
+Testing against Django installed in '/testbed/django'
+Importing application migrations
+Skipping setup of unused database(s): default, other.
+System check identified no issues (0 silenced).
+test_add_field_alter_field (migrations.test_optimizer.OptimizerTests) ... ok
+test_add_field_delete_field (migrations.test_optimizer.OptimizerTests) ... ok
+test_add_field_rename_field (migrations.test_optimizer.OptimizerTests) ... ok
+test_alter_alter_index_model (migrations.test_optimizer.OptimizerTests) ... ok
+test_alter_alter_owrt_model (migrations.test_optimizer.OptimizerTests) ... ok
+test_alter_alter_table_model (migrations.test_optimizer.OptimizerTests) ... ok
+test_alter_alter_unique_model (migrations.test_optimizer.OptimizerTests) ... ok
+test_alter_field_delete_field (migrations.test_optimizer.OptimizerTests) ... ok
+test_alter_field_rename_field (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_alter_index_delete_model (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_alter_index_field (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_alter_model_options (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_alter_owrt_delete_model (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_alter_owrt_field (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_alter_unique_delete_model (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_alter_unique_field (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_delete_model (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_model_add_field (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_model_add_field_not_through_m2m_through (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_model_alter_field (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_model_and_remove_model_options (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_model_no_reordering_for_unrelated_fk (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_model_no_reordering_of_inherited_model (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_model_remove_field (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_model_rename_field (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_model_reordering (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_model_reordering_circular_fk (migrations.test_optimizer.OptimizerTests) ... ok
+test_create_rename_model (migrations.test_optimizer.OptimizerTests) ... ok
+test_none_app_label (migrations.test_optimizer.OptimizerTests) ... ok
+test_optimize_elidable_operation (migrations.test_optimizer.OptimizerTests) ... ok
+test_optimize_through_create (migrations.test_optimizer.OptimizerTests) ... ok
+test_optimize_through_fields (migrations.test_optimizer.OptimizerTests) ... ok
+test_rename_model_self (migrations.test_optimizer.OptimizerTests) ... ok
+test_single (migrations.test_optimizer.OptimizerTests) ... ok
+
+----------------------------------------------------------------------
+Ran 34 tests in 0.066s
+
+OK
++ git checkout bb64b99b78a579cb2f6178011a4cf9366e634438 tests/migrations/test_optimizer.py
+Updated 1 path from 7c20092227

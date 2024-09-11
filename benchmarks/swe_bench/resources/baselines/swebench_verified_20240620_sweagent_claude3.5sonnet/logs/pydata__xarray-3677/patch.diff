@@ -1,0 +1,52 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 00000000..cfd4120f
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,17 @@
++import xarray as xr
++
++ds = xr.Dataset({'a': 0})
++da = xr.DataArray(1, name='b')
++
++print("Merging with xr.merge():")
++expected = xr.merge([ds, da])
++print("xr.merge() successful")
++
++print("\nMerging with ds.merge():")
++try:
++    actual = ds.merge(da)
++    print("ds.merge() successful")
++except Exception as e:
++    print(f"Error: {type(e).__name__} - {str(e)}")
++
++print("\nScript completed successfully.")
+diff --git a/xarray/core/merge.py b/xarray/core/merge.py
+index 10c7804d..1c9e2b4c 100644
+--- a/xarray/core/merge.py
++++ b/xarray/core/merge.py
+@@ -797,17 +797,17 @@ def merge(
+ 
+ def dataset_merge_method(
+     dataset: "Dataset",
+-    other: "CoercibleMapping",
++    other: Union["CoercibleMapping", "DataArray"],
+     overwrite_vars: Union[Hashable, Iterable[Hashable]],
+     compat: str,
+     join: str,
+     fill_value: Any,
+ ) -> _MergeResult:
+-    """Guts of the Dataset.merge method.
+-    """
+-    # we are locked into supporting overwrite_vars for the Dataset.merge
+-    # method due for backwards compatibility
+-    # TODO: consider deprecating it?
++    """Guts of the Dataset.merge method."""
++    from .dataarray import DataArray
++
++    if isinstance(other, DataArray):
++        other = other.to_dataset()
+ 
+     if isinstance(overwrite_vars, Iterable) and not isinstance(overwrite_vars, str):
+         overwrite_vars = set(overwrite_vars)

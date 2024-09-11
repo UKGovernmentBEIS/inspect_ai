@@ -1,0 +1,35 @@
+
+diff --git a/src/_pytest/python.py b/src/_pytest/python.py
+index b8b365ad3..5f2af31e2 100644
+--- a/src/_pytest/python.py
++++ b/src/_pytest/python.py
+@@ -286,7 +286,7 @@ class PyobjMixin(PyobjContext):
+             parts.append(name)
+         parts.reverse()
+         s = ".".join(parts)
+-        return s.replace(".[", "[")
++        return s
+ 
+     def reportinfo(self):
+         # XXX caching?
+diff --git a/testing/test_headline_issue.py b/testing/test_headline_issue.py
+new file mode 100644
+index 000000000..6ed2e89cf
+--- /dev/null
++++ b/testing/test_headline_issue.py
+@@ -0,0 +1,15 @@
++import pytest
++
++def test_headline_with_brackets(testdir):
++    testdir.makepyfile("""
++        import pytest
++        @pytest.mark.parametrize("a", ["..["])
++        def test_boo(a):
++            assert 0
++    """)
++    result = testdir.runpytest()
++    result.stdout.fnmatch_lines([
++        "*test_boo[..[]*",
++    ])
++    assert "test_boo[.[" not in result.stdout.str()
++

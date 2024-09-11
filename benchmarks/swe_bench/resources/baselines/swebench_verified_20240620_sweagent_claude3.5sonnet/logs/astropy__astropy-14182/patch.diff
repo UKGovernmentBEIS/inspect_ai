@@ -1,0 +1,26 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..ce638120a
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,19 @@
++from astropy.table import QTable
++import astropy.units as u
++import sys
++
++tbl = QTable({'wave': [350,950]*u.nm, 'response': [0.7, 1.2]*u.count})
++
++print("RST format without header_rows:")
++tbl.write(sys.stdout, format="ascii.rst")
++
++print("\nFixed width format with header_rows:")
++tbl.write(sys.stdout, format="ascii.fixed_width", header_rows=["name", "unit"])
++
++print("\nRST format with header_rows (should raise an error):")
++try:
++    tbl.write(sys.stdout, format="ascii.rst", header_rows=["name", "unit"])
++except TypeError as e:
++    print(f"TypeError: {str(e)}")
++
++print("\nScript completed successfully.")

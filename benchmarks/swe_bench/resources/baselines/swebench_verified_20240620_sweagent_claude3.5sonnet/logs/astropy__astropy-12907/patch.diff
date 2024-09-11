@@ -1,0 +1,68 @@
+
+diff --git a/reproduce_separability_issue.py b/reproduce_separability_issue.py
+new file mode 100644
+index 000000000..d12ea27d1
+--- /dev/null
++++ b/reproduce_separability_issue.py
+@@ -0,0 +1,61 @@
++import numpy as np
++
++class Model:
++    def __init__(self, n_inputs, n_outputs):
++        self.n_inputs = n_inputs
++        self.n_outputs = n_outputs
++
++class CompoundModel(Model):
++    def __init__(self, op, left, right):
++        self.op = op
++        self.left = left
++        self.right = right
++        self.n_inputs = left.n_inputs + right.n_inputs
++        self.n_outputs = left.n_outputs + right.n_outputs
++
++class Linear1D(Model):
++    def __init__(self, slope):
++        super().__init__(n_inputs=1, n_outputs=1)
++        self.slope = slope
++
++class Pix2Sky_TAN(Model):
++    def __init__(self):
++        super().__init__(n_inputs=2, n_outputs=2)
++
++def separability_matrix(model):
++    if isinstance(model, CompoundModel):
++        left_matrix = separability_matrix(model.left)
++        right_matrix = separability_matrix(model.right)
++        
++        if model.op == '&':
++            left_cols = left_matrix.shape[1]
++            right_cols = right_matrix.shape[1]
++            total_cols = left_cols + right_cols
++            result = np.zeros((model.n_outputs, total_cols), dtype=bool)
++            result[:left_matrix.shape[0], :left_cols] = left_matrix
++            result[left_matrix.shape[0]:, left_cols:] = right_matrix
++            
++            # Handle nested CompoundModels
++            if isinstance(model.right, CompoundModel):
++                result[left_matrix.shape[0]:, :left_cols] = True
++            
++            return result
++    else:
++        return np.ones((model.n_outputs, model.n_inputs), dtype=bool)
++
++# Test case 1
++cm = CompoundModel('&', Linear1D(10), Linear1D(5))
++print("Test case 1:")
++print(separability_matrix(cm))
++
++# Test case 2
++complex_model = CompoundModel('&', Pix2Sky_TAN(), CompoundModel('&', Linear1D(10), Linear1D(5)))
++print("\nTest case 2:")
++print(separability_matrix(complex_model))
++
++# Test case 3 (the problematic case)
++nested_model = CompoundModel('&', Pix2Sky_TAN(), cm)
++print("\nTest case 3 (nested model):")
++print(separability_matrix(nested_model))
++
++print("\nScript completed successfully, no errors.")

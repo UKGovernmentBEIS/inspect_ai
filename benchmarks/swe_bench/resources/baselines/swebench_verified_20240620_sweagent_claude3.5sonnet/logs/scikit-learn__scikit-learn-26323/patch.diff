@@ -1,0 +1,51 @@
+
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 000000000..1566e988a
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,22 @@
++import pandas as pd
++from sklearn.compose import make_column_selector, make_column_transformer
++from sklearn.feature_selection import VarianceThreshold
++
++df = pd.DataFrame({"a": [True, False, True], "b": [1, 2, 3]})
++out1 = make_column_transformer(
++    (VarianceThreshold(), make_column_selector(dtype_include=bool)),
++    remainder=VarianceThreshold(),
++    verbose_feature_names_out=False,
++).set_output(transform="pandas").fit_transform(df)
++print("Output 1:")
++print(out1)
++
++out2 = make_column_transformer(
++    (VarianceThreshold(), make_column_selector(dtype_include=bool)),
++    (VarianceThreshold(), make_column_selector(dtype_exclude=bool)),
++    verbose_feature_names_out=False,
++).set_output(transform="pandas").fit_transform(df)
++print("\nOutput 2:")
++print(out2)
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sklearn/compose/_column_transformer.py b/sklearn/compose/_column_transformer.py
+index 4eddd12b1..95a6989d3 100644
+--- a/sklearn/compose/_column_transformer.py
++++ b/sklearn/compose/_column_transformer.py
+@@ -851,8 +851,16 @@ class ColumnTransformer(TransformerMixin, _BaseComposition):
+         else:
+             Xs = [f.toarray() if sparse.issparse(f) else f for f in Xs]
+             config = _get_output_config("transform", self)
+-            if config["dense"] == "pandas" and all(hasattr(X, "iloc") for X in Xs):
++            
++            # Apply the output configuration to each transformer's output
++            if config["dense"] == "pandas":
+                 pd = check_pandas_support("transform")
++                Xs = [
++                    pd.DataFrame(X) if not hasattr(X, "iloc") else X
++                    for X in Xs
++                ]
++            
++            if all(hasattr(X, "iloc") for X in Xs):
+                 output = pd.concat(Xs, axis=1)
+ 
+                 output_samples = output.shape[0]

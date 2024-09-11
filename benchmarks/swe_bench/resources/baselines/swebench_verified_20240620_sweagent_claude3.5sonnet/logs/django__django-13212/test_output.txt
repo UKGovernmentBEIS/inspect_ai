@@ -1,0 +1,682 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/core/validators.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	settings.py
+	test_validators.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit f4e93919e4608cfc50849a1f764fd856e0917401
+Author: Mariusz Felisiak <felisiak.mariusz@gmail.com>
+Date:   Mon Jul 27 06:39:02 2020 +0200
+
+    Fixed #31815 -- Fixed schema value encoding on PostgreSQL.
+
+diff --git a/django/db/backends/postgresql/schema.py b/django/db/backends/postgresql/schema.py
+index 7687c37fe7..e77915b3b1 100644
+--- a/django/db/backends/postgresql/schema.py
++++ b/django/db/backends/postgresql/schema.py
+@@ -38,8 +38,11 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
+     def quote_value(self, value):
+         if isinstance(value, str):
+             value = value.replace('%', '%%')
++        adapted = psycopg2.extensions.adapt(value)
++        if hasattr(adapted, 'encoding'):
++            adapted.encoding = 'utf8'
+         # getquoted() returns a quoted bytestring of the adapted value.
+-        return psycopg2.extensions.adapt(value).getquoted().decode()
++        return adapted.getquoted().decode()
+ 
+     def _field_indexes_sql(self, model, field):
+         output = super()._field_indexes_sql(model, field)
+diff --git a/tests/constraints/models.py b/tests/constraints/models.py
+index 1460673a18..f8a4ebe675 100644
+--- a/tests/constraints/models.py
++++ b/tests/constraints/models.py
+@@ -4,6 +4,7 @@ from django.db import models
+ class Product(models.Model):
+     price = models.IntegerField(null=True)
+     discounted_price = models.IntegerField(null=True)
++    unit = models.CharField(max_length=15, null=True)
+ 
+     class Meta:
+         required_db_features = {
+@@ -31,6 +32,13 @@ class Product(models.Model):
+                 ),
+                 name='%(app_label)s_price_neq_500_wrap',
+             ),
++            models.CheckConstraint(
++                check=models.Q(
++                    models.Q(unit__isnull=True) |
++                    models.Q(unit__in=['μg/mL', 'ng/mL'])
++                ),
++                name='unicode_unit_list',
++            ),
+         ]
+ 
+ 
+diff --git a/tests/constraints/tests.py b/tests/constraints/tests.py
+index d9e91bdf49..2796a0f30b 100644
+--- a/tests/constraints/tests.py
++++ b/tests/constraints/tests.py
+@@ -88,6 +88,12 @@ class CheckConstraintTests(TestCase):
+         with self.assertRaises(IntegrityError):
+             Product.objects.create(price=10, discounted_price=20)
+ 
++    @skipUnlessDBFeature('supports_table_check_constraints')
++    def test_database_constraint_unicode(self):
++        Product.objects.create(price=10, discounted_price=5, unit='μg/mL')
++        with self.assertRaises(IntegrityError):
++            Product.objects.create(price=10, discounted_price=7, unit='l')
++
+     @skipUnlessDBFeature('supports_table_check_constraints')
+     def test_database_constraint_expression(self):
+         Product.objects.create(price=999, discounted_price=5)
++ git diff f4e93919e4608cfc50849a1f764fd856e0917401
+diff --git a/django/core/validators.py b/django/core/validators.py
+index 84b4f31ec7..ad0d062d1e 100644
+--- a/django/core/validators.py
++++ b/django/core/validators.py
+@@ -19,7 +19,7 @@ EMPTY_VALUES = (None, '', [], (), {})
+ @deconstructible
+ class RegexValidator:
+     regex = ''
+-    message = _('Enter a valid value.')
++    message = _('Enter a valid value. "%(value)s" is invalid.')
+     code = 'invalid'
+     inverse_match = False
+     flags = 0
+@@ -48,7 +48,7 @@ class RegexValidator:
+         regex_matches = self.regex.search(str(value))
+         invalid_input = regex_matches if self.inverse_match else not regex_matches
+         if invalid_input:
+-            raise ValidationError(self.message, code=self.code)
++            raise ValidationError(self.message, code=self.code, params={'value': value})
+ 
+     def __eq__(self, other):
+         return (
+@@ -90,7 +90,7 @@ class URLValidator(RegexValidator):
+         r'(?::\d{2,5})?'  # port
+         r'(?:[/?#][^\s]*)?'  # resource path
+         r'\Z', re.IGNORECASE)
+-    message = _('Enter a valid URL.')
++    message = _('Enter a valid URL. "%(value)s" is not a valid URL.')
+     schemes = ['http', 'https', 'ftp', 'ftps']
+ 
+     def __init__(self, schemes=None, **kwargs):
+@@ -272,14 +272,16 @@ def validate_ipv4_address(value):
+     try:
+         ipaddress.IPv4Address(value)
+     except ValueError:
+-        raise ValidationError(_('Enter a valid IPv4 address.'), code='invalid')
++        raise ValidationError(_('Enter a valid IPv4 address. "%(value)s" is not a valid IPv4 address.'), 
++                              code='invalid', params={'value': value})
+ 
+ 
+ def validate_ipv6_address(value):
+     if not is_valid_ipv6_address(value):
+-        raise ValidationError(_('Enter a valid IPv6 address.'), code='invalid')
+-
+-
++        raise ValidationError(
++            _('Enter a valid IPv6 address. "%(value)s" is not a valid IPv6 address.'),
++            code='invalid', params={'value': value}
++        )
+ def validate_ipv46_address(value):
+     try:
+         validate_ipv4_address(value)
+@@ -287,13 +289,14 @@ def validate_ipv46_address(value):
+         try:
+             validate_ipv6_address(value)
+         except ValidationError:
+-            raise ValidationError(_('Enter a valid IPv4 or IPv6 address.'), code='invalid')
++            raise ValidationError(_('Enter a valid IPv4 or IPv6 address. "%(value)s" is not a valid IP address.'), 
++                                  code='invalid', params={'value': value})
+ 
+ 
+ ip_address_validator_map = {
+-    'both': ([validate_ipv46_address], _('Enter a valid IPv4 or IPv6 address.')),
+-    'ipv4': ([validate_ipv4_address], _('Enter a valid IPv4 address.')),
+-    'ipv6': ([validate_ipv6_address], _('Enter a valid IPv6 address.')),
++    'both': ([validate_ipv46_address], _('Enter a valid IPv4 or IPv6 address. "%(value)s" is not a valid IP address.')),
++    'ipv4': ([validate_ipv4_address], _('Enter a valid IPv4 address. "%(value)s" is not a valid IPv4 address.')),
++    'ipv6': ([validate_ipv6_address], _('Enter a valid IPv6 address. "%(value)s" is not a valid IPv6 address.')),
+ }
+ 
+ 
+@@ -327,7 +330,7 @@ validate_comma_separated_integer_list = int_list_validator(
+ 
+ @deconstructible
+ class BaseValidator:
+-    message = _('Ensure this value is %(limit_value)s (it is %(show_value)s).')
++    message = _('Ensure this value is %(limit_value)s (it is %(show_value)s). "%(value)s" is invalid.')
+     code = 'limit_value'
+ 
+     def __init__(self, limit_value, message=None):
+@@ -360,7 +363,7 @@ class BaseValidator:
+ 
+ @deconstructible
+ class MaxValueValidator(BaseValidator):
+-    message = _('Ensure this value is less than or equal to %(limit_value)s.')
++    message = _('Ensure this value is less than or equal to %(limit_value)s. "%(value)s" is invalid.')
+     code = 'max_value'
+ 
+     def compare(self, a, b):
+@@ -369,7 +372,7 @@ class MaxValueValidator(BaseValidator):
+ 
+ @deconstructible
+ class MinValueValidator(BaseValidator):
+-    message = _('Ensure this value is greater than or equal to %(limit_value)s.')
++    message = _('Ensure this value is greater than or equal to %(limit_value)s. "%(value)s" is invalid.')
+     code = 'min_value'
+ 
+     def compare(self, a, b):
+@@ -379,8 +382,8 @@ class MinValueValidator(BaseValidator):
+ @deconstructible
+ class MinLengthValidator(BaseValidator):
+     message = ngettext_lazy(
+-        'Ensure this value has at least %(limit_value)d character (it has %(show_value)d).',
+-        'Ensure this value has at least %(limit_value)d characters (it has %(show_value)d).',
++        'Ensure this value has at least %(limit_value)d character (it has %(show_value)d). "%(value)s" is invalid.',
++        'Ensure this value has at least %(limit_value)d characters (it has %(show_value)d). "%(value)s" is invalid.',
+         'limit_value')
+     code = 'min_length'
+ 
+@@ -394,8 +397,8 @@ class MinLengthValidator(BaseValidator):
+ @deconstructible
+ class MaxLengthValidator(BaseValidator):
+     message = ngettext_lazy(
+-        'Ensure this value has at most %(limit_value)d character (it has %(show_value)d).',
+-        'Ensure this value has at most %(limit_value)d characters (it has %(show_value)d).',
++        'Ensure this value has at most %(limit_value)d character (it has %(show_value)d). "%(value)s" is invalid.',
++        'Ensure this value has at most %(limit_value)d characters (it has %(show_value)d). "%(value)s" is invalid.',
+         'limit_value')
+     code = 'max_length'
+ 
+@@ -413,20 +416,20 @@ class DecimalValidator:
+     expected, otherwise raise ValidationError.
+     """
+     messages = {
+-        'invalid': _('Enter a number.'),
++        'invalid': _('Enter a number. "%(value)s" is invalid.'),
+         'max_digits': ngettext_lazy(
+-            'Ensure that there are no more than %(max)s digit in total.',
+-            'Ensure that there are no more than %(max)s digits in total.',
++            'Ensure that there are no more than %(max)s digit in total. "%(value)s" is invalid.',
++            'Ensure that there are no more than %(max)s digits in total. "%(value)s" is invalid.',
+             'max'
+         ),
+         'max_decimal_places': ngettext_lazy(
+-            'Ensure that there are no more than %(max)s decimal place.',
+-            'Ensure that there are no more than %(max)s decimal places.',
++            'Ensure that there are no more than %(max)s decimal place. "%(value)s" is invalid.',
++            'Ensure that there are no more than %(max)s decimal places. "%(value)s" is invalid.',
+             'max'
+         ),
+         'max_whole_digits': ngettext_lazy(
+-            'Ensure that there are no more than %(max)s digit before the decimal point.',
+-            'Ensure that there are no more than %(max)s digits before the decimal point.',
++            'Ensure that there are no more than %(max)s digit before the decimal point. "%(value)s" is invalid.',
++            'Ensure that there are no more than %(max)s digits before the decimal point. "%(value)s" is invalid.',
+             'max'
+         ),
+     }
+@@ -438,7 +441,7 @@ class DecimalValidator:
+     def __call__(self, value):
+         digit_tuple, exponent = value.as_tuple()[1:]
+         if exponent in {'F', 'n', 'N'}:
+-            raise ValidationError(self.messages['invalid'])
++            raise ValidationError(self.messages['invalid'], params={'value': value})
+         if exponent >= 0:
+             # A positive exponent adds that many trailing zeros.
+             digits = len(digit_tuple) + exponent
+@@ -460,20 +463,20 @@ class DecimalValidator:
+             raise ValidationError(
+                 self.messages['max_digits'],
+                 code='max_digits',
+-                params={'max': self.max_digits},
++                params={'max': self.max_digits, 'value': value},
+             )
+         if self.decimal_places is not None and decimals > self.decimal_places:
+             raise ValidationError(
+                 self.messages['max_decimal_places'],
+                 code='max_decimal_places',
+-                params={'max': self.decimal_places},
++                params={'max': self.decimal_places, 'value': value},
+             )
+         if (self.max_digits is not None and self.decimal_places is not None and
+                 whole_digits > (self.max_digits - self.decimal_places)):
+             raise ValidationError(
+                 self.messages['max_whole_digits'],
+                 code='max_whole_digits',
+-                params={'max': (self.max_digits - self.decimal_places)},
++                params={'max': (self.max_digits - self.decimal_places), 'value': value},
+             )
+ 
+     def __eq__(self, other):
+@@ -487,14 +490,13 @@ class DecimalValidator:
+ @deconstructible
+ class FileExtensionValidator:
+     message = _(
+-        'File extension “%(extension)s” is not allowed. '
+-        'Allowed extensions are: %(allowed_extensions)s.'
++        'File extension "%(extension)s" is not allowed. '
++        'Allowed extensions are: %(allowed_extensions)s. '
++        '"%(value)s" is invalid.'
+     )
+     code = 'invalid_extension'
+ 
+     def __init__(self, allowed_extensions=None, message=None, code=None):
+-        if allowed_extensions is not None:
+-            allowed_extensions = [allowed_extension.lower() for allowed_extension in allowed_extensions]
+         self.allowed_extensions = allowed_extensions
+         if message is not None:
+             self.message = message
+@@ -509,7 +511,8 @@ class FileExtensionValidator:
+                 code=self.code,
+                 params={
+                     'extension': extension,
+-                    'allowed_extensions': ', '.join(self.allowed_extensions)
++                    'allowed_extensions': ', '.join(self.allowed_extensions),
++                    'value': value,
+                 }
+             )
+ 
+@@ -539,7 +542,7 @@ def validate_image_file_extension(value):
+ @deconstructible
+ class ProhibitNullCharactersValidator:
+     """Validate that the string doesn't contain the null character."""
+-    message = _('Null characters are not allowed.')
++    message = _('Null characters are not allowed. "%(value)s" is invalid.')
+     code = 'null_characters_not_allowed'
+ 
+     def __init__(self, message=None, code=None):
+@@ -550,7 +553,7 @@ class ProhibitNullCharactersValidator:
+ 
+     def __call__(self, value):
+         if '\x00' in str(value):
+-            raise ValidationError(self.message, code=self.code)
++            raise ValidationError(self.message, code=self.code, params={'value': value})
+ 
+     def __eq__(self, other):
+         return (
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: asgiref>=3.2.10 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (3.4.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (0.4.4)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref>=3.2.10->Django==3.2) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.2
+    Uninstalling Django-3.2:
+      Successfully uninstalled Django-3.2
+  Running setup.py develop for Django
+Successfully installed Django-3.2
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout f4e93919e4608cfc50849a1f764fd856e0917401 tests/forms_tests/tests/test_validators.py
+Updated 0 paths from d80c18ab73
++ git apply -v -
+Checking patch tests/forms_tests/tests/test_validators.py...
+Applied patch tests/forms_tests/tests/test_validators.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 forms_tests.tests.test_validators
+test_all_errors_get_reported (forms_tests.tests.test_validators.TestFieldWithValidators) ... ok
+test_field_validators_can_be_any_iterable (forms_tests.tests.test_validators.TestFieldWithValidators) ... ok
+test_value_placeholder_with_char_field (forms_tests.tests.test_validators.ValidatorCustomMessageTests) ... test_value_placeholder_with_decimal_field (forms_tests.tests.test_validators.ValidatorCustomMessageTests) ... test_value_placeholder_with_file_field (forms_tests.tests.test_validators.ValidatorCustomMessageTests) ... ok
+test_value_placeholder_with_integer_field (forms_tests.tests.test_validators.ValidatorCustomMessageTests) ... test_value_placeholder_with_null_character (forms_tests.tests.test_validators.ValidatorCustomMessageTests) ... ok
+
+======================================================================
+FAIL: test_value_placeholder_with_char_field (forms_tests.tests.test_validators.ValidatorCustomMessageTests) [EmailValidator] (value='a')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/forms_tests/tests/test_validators.py", line 109, in test_value_placeholder_with_char_field
+    self.assertEqual(form.errors, {'field': [value]})
+AssertionError: {'field': ['%(value)s']} != {'field': ['a']}
+
+======================================================================
+FAIL: test_value_placeholder_with_char_field (forms_tests.tests.test_validators.ValidatorCustomMessageTests) [EmailValidator] (value='a@b\n.com')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/forms_tests/tests/test_validators.py", line 109, in test_value_placeholder_with_char_field
+    self.assertEqual(form.errors, {'field': [value]})
+AssertionError: {'field': ['%(value)s']} != {'field': ['a@b\n.com']}
+
+======================================================================
+FAIL: test_value_placeholder_with_char_field (forms_tests.tests.test_validators.ValidatorCustomMessageTests) [EmailValidator] (value='a\n@b.com')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/forms_tests/tests/test_validators.py", line 109, in test_value_placeholder_with_char_field
+    self.assertEqual(form.errors, {'field': [value]})
+AssertionError: {'field': ['%(value)s']} != {'field': ['a\n@b.com']}
+
+======================================================================
+FAIL: test_value_placeholder_with_char_field (forms_tests.tests.test_validators.ValidatorCustomMessageTests) [URLValidator] (value='no_scheme')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/forms_tests/tests/test_validators.py", line 109, in test_value_placeholder_with_char_field
+    self.assertEqual(form.errors, {'field': [value]})
+AssertionError: {'field': ['%(value)s']} != {'field': ['no_scheme']}
+
+======================================================================
+FAIL: test_value_placeholder_with_char_field (forms_tests.tests.test_validators.ValidatorCustomMessageTests) [URLValidator] (value='http://test[.com')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/forms_tests/tests/test_validators.py", line 109, in test_value_placeholder_with_char_field
+    self.assertEqual(form.errors, {'field': [value]})
+AssertionError: {'field': ['%(value)s']} != {'field': ['http://test[.com']}
+
+======================================================================
+FAIL: test_value_placeholder_with_char_field (forms_tests.tests.test_validators.ValidatorCustomMessageTests) [URLValidator] (value='http://[::1:2::3]/')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/forms_tests/tests/test_validators.py", line 109, in test_value_placeholder_with_char_field
+    self.assertEqual(form.errors, {'field': [value]})
+AssertionError: {'field': ['%(value)s']} != {'field': ['http://[::1:2::3]/']}
+
+======================================================================
+FAIL: test_value_placeholder_with_char_field (forms_tests.tests.test_validators.ValidatorCustomMessageTests) [URLValidator] (value='http://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/forms_tests/tests/test_validators.py", line 109, in test_value_placeholder_with_char_field
+    self.assertEqual(form.errors, {'field': [value]})
+AssertionError: {'field': ['%(value)s']} != {'field': ['http://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa[287 chars]aa']}
+
+======================================================================
+FAIL: test_value_placeholder_with_decimal_field (forms_tests.tests.test_validators.ValidatorCustomMessageTests) (value='NaN')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/forms_tests/tests/test_validators.py", line 157, in test_value_placeholder_with_decimal_field
+    self.assertEqual(form.errors, {'field': [value]})
+AssertionError: {'field': ['%(value)s']} != {'field': ['NaN']}
+
+======================================================================
+FAIL: test_value_placeholder_with_integer_field (forms_tests.tests.test_validators.ValidatorCustomMessageTests) [URLValidator] (value='1')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/forms_tests/tests/test_validators.py", line 137, in test_value_placeholder_with_integer_field
+    self.assertEqual(form.errors, {'field': [str(value)]})
+AssertionError: {'field': ['%(value)s']} != {'field': ['1']}
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.275s
+
+FAILED (failures=9)
+Testing against Django installed in '/testbed/django'
+Importing application forms_tests
+Skipping setup of unused database(s): default, other.
+System check identified no issues (0 silenced).
++ git checkout f4e93919e4608cfc50849a1f764fd856e0917401 tests/forms_tests/tests/test_validators.py
+Updated 1 path from d80c18ab73

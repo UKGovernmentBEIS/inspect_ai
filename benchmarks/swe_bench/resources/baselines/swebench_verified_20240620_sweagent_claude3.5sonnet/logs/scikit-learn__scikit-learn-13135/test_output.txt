@@ -1,0 +1,862 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sklearn/preprocessing/_discretization.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_issue.py
+	sklearn/preprocessing/tests/test_discretization_kmeans.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit a061ada48efccf0845acae17009553e01764452b
+Author: Giuseppe Vettigli <giuseppe.vettigli@hivehome.com>
+Date:   Mon Feb 11 23:23:48 2019 +0000
+
+    FEA Print Decision Trees in ASCII format (#9424)
+
+diff --git a/doc/modules/classes.rst b/doc/modules/classes.rst
+index 75f355fc8..88201ba8f 100644
+--- a/doc/modules/classes.rst
++++ b/doc/modules/classes.rst
+@@ -1399,6 +1399,7 @@ Low-level methods
+ 
+    tree.export_graphviz
+    tree.plot_tree
++   tree.export_text
+ 
+ 
+ .. _utils_ref:
+diff --git a/doc/modules/tree.rst b/doc/modules/tree.rst
+index 45b71d13b..70ab013f3 100644
+--- a/doc/modules/tree.rst
++++ b/doc/modules/tree.rst
+@@ -182,6 +182,29 @@ render these plots inline automatically::
+    :align: center
+    :scale: 75
+ 
++Alternatively, the tree can also be exported in textual format with the
++function :func:`export_text`. This method doesn't require the installation
++of external libraries and is more compact:
++
++    >>> from sklearn.datasets import load_iris
++    >>> from sklearn.tree import DecisionTreeClassifier
++    >>> from sklearn.tree.export import export_text
++    >>> iris = load_iris()
++    >>> X = iris['data']
++    >>> y = iris['target']
++    >>> decision_tree = DecisionTreeClassifier(random_state=0, max_depth=2)
++    >>> decision_tree = decision_tree.fit(X, y)
++    >>> r = export_text(decision_tree, feature_names=iris['feature_names'])
++    >>> print(r)
++    |--- petal width (cm) <= 0.80
++    |   |--- class: 0
++    |--- petal width (cm) >  0.80
++    |   |--- petal width (cm) <= 1.75
++    |   |   |--- class: 1
++    |   |--- petal width (cm) >  1.75
++    |   |   |--- class: 2
++    <BLANKLINE>
++
+ .. topic:: Examples:
+ 
+  * :ref:`sphx_glr_auto_examples_tree_plot_iris_dtc.py`
+diff --git a/doc/whats_new/v0.21.rst b/doc/whats_new/v0.21.rst
+index 7bc4389e5..3bbd9f318 100644
+--- a/doc/whats_new/v0.21.rst
++++ b/doc/whats_new/v0.21.rst
+@@ -260,6 +260,10 @@ Support for Python 3.4 and below has been officially dropped.
+   :func:`tree.plot_tree` without relying on the ``dot`` library,
+   removing a hard-to-install dependency. :issue:`8508` by `Andreas Müller`_.
+ 
++- |Feature| Decision Trees can now be exported in a human readable
++  textual format using :func:`tree.export.export_text`.
++  :issue:`6261` by `Giuseppe Vettigli <JustGlowing>`.
++
+ - |Feature| ``get_n_leaves()`` and ``get_depth()`` have been added to
+   :class:`tree.BaseDecisionTree` and consequently all estimators based
+   on it, including :class:`tree.DecisionTreeClassifier`,
+diff --git a/sklearn/tree/__init__.py b/sklearn/tree/__init__.py
+index b3abe30d0..e91540bed 100644
+--- a/sklearn/tree/__init__.py
++++ b/sklearn/tree/__init__.py
+@@ -7,8 +7,8 @@ from .tree import DecisionTreeClassifier
+ from .tree import DecisionTreeRegressor
+ from .tree import ExtraTreeClassifier
+ from .tree import ExtraTreeRegressor
+-from .export import export_graphviz, plot_tree
++from .export import export_graphviz, plot_tree, export_text
+ 
+ __all__ = ["DecisionTreeClassifier", "DecisionTreeRegressor",
+            "ExtraTreeClassifier", "ExtraTreeRegressor", "export_graphviz",
+-           "plot_tree"]
++           "plot_tree",  "export_text"]
+diff --git a/sklearn/tree/export.py b/sklearn/tree/export.py
+index d0c336a1c..02aa68b8a 100644
+--- a/sklearn/tree/export.py
++++ b/sklearn/tree/export.py
+@@ -9,6 +9,7 @@ This module defines export functions for decision trees.
+ #          Satrajit Gosh <satrajit.ghosh@gmail.com>
+ #          Trevor Stephens <trev.stephens@gmail.com>
+ #          Li Li <aiki.nogard@gmail.com>
++#          Giuseppe Vettigli <vettigli@gmail.com>
+ # License: BSD 3 clause
+ import warnings
+ from io import StringIO
+@@ -22,6 +23,7 @@ from ..utils.validation import check_is_fitted
+ from . import _criterion
+ from . import _tree
+ from ._reingold_tilford import buchheim, Tree
++from . import DecisionTreeClassifier
+ 
+ 
+ def _color_brew(n):
+@@ -778,3 +780,178 @@ def export_graphviz(decision_tree, out_file=None, max_depth=None,
+     finally:
+         if own_file:
+             out_file.close()
++
++
++def _compute_depth(tree, node):
++    """
++    Returns the depth of the subtree rooted in node.
++    """
++    def compute_depth_(current_node, current_depth,
++                       children_left, children_right, depths):
++        depths += [current_depth]
++        left = children_left[current_node]
++        right = children_right[current_node]
++        if left != -1 and right != -1:
++            compute_depth_(left, current_depth+1,
++                           children_left, children_right, depths)
++            compute_depth_(right, current_depth+1,
++                           children_left, children_right, depths)
++
++    depths = []
++    compute_depth_(node, 1, tree.children_left, tree.children_right, depths)
++    return max(depths)
++
++
++def export_text(decision_tree, feature_names=None, max_depth=10,
++                spacing=3, decimals=2, show_weights=False):
++    """Build a text report showing the rules of a decision tree.
++
++    Note that backwards compatibility may not be supported.
++
++    Parameters
++    ----------
++    decision_tree : object
++        The decision tree estimator to be exported.
++        It can be an instance of
++        DecisionTreeClassifier or DecisionTreeRegressor.
++
++    feature_names : list, optional (default=None)
++        A list of length n_features containing the feature names.
++        If None generic names will be used ("feature_0", "feature_1", ...).
++
++    max_depth : int, optional (default=10)
++        Only the first max_depth levels of the tree are exported.
++        Truncated branches will be marked with "...".
++
++    spacing : int, optional (default=3)
++        Number of spaces between edges. The higher it is, the wider the result.
++
++    decimals : int, optional (default=2)
++        Number of decimal digits to display.
++
++    show_weights : bool, optional (default=False)
++        If true the classification weights will be exported on each leaf.
++        The classification weights are the number of samples each class.
++
++    Returns
++    -------
++    report : string
++        Text summary of all the rules in the decision tree.
++
++    Examples
++    -------
++
++    >>> from sklearn.datasets import load_iris
++    >>> from sklearn.tree import DecisionTreeClassifier
++    >>> from sklearn.tree.export import export_text
++    >>> iris = load_iris()
++    >>> X = iris['data']
++    >>> y = iris['target']
++    >>> decision_tree = DecisionTreeClassifier(random_state=0, max_depth=2)
++    >>> decision_tree = decision_tree.fit(X, y)
++    >>> r = export_text(decision_tree, feature_names=iris['feature_names'])
++    >>> print(r)
++    |--- petal width (cm) <= 0.80
++    |   |--- class: 0
++    |--- petal width (cm) >  0.80
++    |   |--- petal width (cm) <= 1.75
++    |   |   |--- class: 1
++    |   |--- petal width (cm) >  1.75
++    |   |   |--- class: 2
++    ...
++    """
++    check_is_fitted(decision_tree, 'tree_')
++    tree_ = decision_tree.tree_
++    class_names = decision_tree.classes_
++    right_child_fmt = "{} {} <= {}\n"
++    left_child_fmt = "{} {} >  {}\n"
++    truncation_fmt = "{} {}\n"
++
++    if max_depth < 0:
++        raise ValueError("max_depth bust be >= 0, given %d" % max_depth)
++
++    if (feature_names is not None and
++            len(feature_names) != tree_.n_features):
++        raise ValueError("feature_names must contain "
++                         "%d elements, got %d" % (tree_.n_features,
++                                                  len(feature_names)))
++
++    if spacing <= 0:
++        raise ValueError("spacing must be > 0, given %d" % spacing)
++
++    if decimals < 0:
++        raise ValueError("decimals must be >= 0, given %d" % decimals)
++
++    if isinstance(decision_tree, DecisionTreeClassifier):
++        value_fmt = "{}{} weights: {}\n"
++        if not show_weights:
++            value_fmt = "{}{}{}\n"
++    else:
++        value_fmt = "{}{} value: {}\n"
++
++    if feature_names:
++        feature_names_ = [feature_names[i] for i in tree_.feature]
++    else:
++        feature_names_ = ["feature_{}".format(i) for i in tree_.feature]
++
++    export_text.report = ""
++
++    def _add_leaf(value, class_name, indent):
++        val = ''
++        is_classification = isinstance(decision_tree,
++                                       DecisionTreeClassifier)
++        if show_weights or not is_classification:
++            val = ["{1:.{0}f}, ".format(decimals, v) for v in value]
++            val = '['+''.join(val)[:-2]+']'
++        if is_classification:
++            val += ' class: ' + str(class_name)
++        export_text.report += value_fmt.format(indent, '', val)
++
++    def print_tree_recurse(node, depth):
++        indent = ("|" + (" " * spacing)) * depth
++        indent = indent[:-spacing] + "-" * spacing
++
++        value = None
++        if tree_.n_outputs == 1:
++            value = tree_.value[node][0]
++        else:
++            value = tree_.value[node].T[0]
++        class_name = np.argmax(value)
++
++        if (tree_.n_classes[0] != 1 and
++                tree_.n_outputs == 1):
++            class_name = class_names[class_name]
++
++        if depth <= max_depth+1:
++            info_fmt = ""
++            info_fmt_left = info_fmt
++            info_fmt_right = info_fmt
++
++            if tree_.feature[node] != _tree.TREE_UNDEFINED:
++                name = feature_names_[node]
++                threshold = tree_.threshold[node]
++                threshold = "{1:.{0}f}".format(decimals, threshold)
++                export_text.report += right_child_fmt.format(indent,
++                                                             name,
++                                                             threshold)
++                export_text.report += info_fmt_left
++                print_tree_recurse(tree_.children_left[node], depth+1)
++
++                export_text.report += left_child_fmt.format(indent,
++                                                            name,
++                                                            threshold)
++                export_text.report += info_fmt_right
++                print_tree_recurse(tree_.children_right[node], depth+1)
++            else:  # leaf
++                _add_leaf(value, class_name, indent)
++        else:
++            subtree_depth = _compute_depth(tree_, node)
++            if subtree_depth == 1:
++                _add_leaf(value, class_name, indent)
++            else:
++                trunc_report = 'truncated branch of depth %d' % subtree_depth
++                export_text.report += truncation_fmt.format(indent,
++                                                            trunc_report)
++
++    print_tree_recurse(0, 1)
++    return export_text.report
+diff --git a/sklearn/tree/tests/test_export.py b/sklearn/tree/tests/test_export.py
+index 6c765675f..65b0a201b 100644
+--- a/sklearn/tree/tests/test_export.py
++++ b/sklearn/tree/tests/test_export.py
+@@ -4,13 +4,14 @@ Testing for export functions of decision trees (sklearn.tree.export).
+ import pytest
+ 
+ from re import finditer, search
++from textwrap import dedent
+ 
+ from numpy.random import RandomState
+ 
+ from sklearn.base import is_classifier
+ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+ from sklearn.ensemble import GradientBoostingClassifier
+-from sklearn.tree import export_graphviz, plot_tree
++from sklearn.tree import export_graphviz, plot_tree, export_text
+ from io import StringIO
+ from sklearn.utils.testing import (assert_in, assert_equal, assert_raises,
+                                    assert_less_equal, assert_raises_regex,
+@@ -311,6 +312,93 @@ def test_precision():
+                              precision + 1)
+ 
+ 
++def test_export_text_errors():
++    clf = DecisionTreeClassifier(max_depth=2, random_state=0)
++    clf.fit(X, y)
++
++    assert_raise_message(ValueError,
++                         "max_depth bust be >= 0, given -1",
++                         export_text, clf, max_depth=-1)
++    assert_raise_message(ValueError,
++                         "feature_names must contain 2 elements, got 1",
++                         export_text, clf, feature_names=['a'])
++    assert_raise_message(ValueError,
++                         "decimals must be >= 0, given -1",
++                         export_text, clf, decimals=-1)
++    assert_raise_message(ValueError,
++                         "spacing must be > 0, given 0",
++                         export_text, clf, spacing=0)
++
++
++def test_export_text():
++    clf = DecisionTreeClassifier(max_depth=2, random_state=0)
++    clf.fit(X, y)
++
++    expected_report = dedent("""
++    |--- feature_1 <= 0.00
++    |   |--- class: -1
++    |--- feature_1 >  0.00
++    |   |--- class: 1
++    """).lstrip()
++
++    assert export_text(clf) == expected_report
++    # testing that leaves at level 1 are not truncated
++    assert export_text(clf, max_depth=0) == expected_report
++    # testing that the rest of the tree is truncated
++    assert export_text(clf, max_depth=10) == expected_report
++
++    expected_report = dedent("""
++    |--- b <= 0.00
++    |   |--- class: -1
++    |--- b >  0.00
++    |   |--- class: 1
++    """).lstrip()
++    assert export_text(clf, feature_names=['a', 'b']) == expected_report
++
++    expected_report = dedent("""
++    |--- feature_1 <= 0.00
++    |   |--- weights: [3.00, 0.00] class: -1
++    |--- feature_1 >  0.00
++    |   |--- weights: [0.00, 3.00] class: 1
++    """).lstrip()
++    assert export_text(clf, show_weights=True) == expected_report
++
++    expected_report = dedent("""
++    |- feature_1 <= 0.00
++    | |- class: -1
++    |- feature_1 >  0.00
++    | |- class: 1
++    """).lstrip()
++    assert export_text(clf, spacing=1) == expected_report
++
++    X_l = [[-2, -1], [-1, -1], [-1, -2], [1, 1], [1, 2], [2, 1], [-1, 1]]
++    y_l = [-1, -1, -1, 1, 1, 1, 2]
++    clf = DecisionTreeClassifier(max_depth=4, random_state=0)
++    clf.fit(X_l, y_l)
++    expected_report = dedent("""
++    |--- feature_1 <= 0.00
++    |   |--- class: -1
++    |--- feature_1 >  0.00
++    |   |--- truncated branch of depth 2
++    """).lstrip()
++    assert export_text(clf, max_depth=0) == expected_report
++
++    X_mo = [[-2, -1], [-1, -1], [-1, -2], [1, 1], [1, 2], [2, 1]]
++    y_mo = [[-1, -1], [-1, -1], [-1, -1], [1, 1], [1, 1], [1, 1]]
++
++    reg = DecisionTreeRegressor(max_depth=2, random_state=0)
++    reg.fit(X_mo, y_mo)
++
++    expected_report = dedent("""
++    |--- feature_1 <= 0.0
++    |   |--- value: [-1.0, -1.0]
++    |--- feature_1 >  0.0
++    |   |--- value: [1.0, 1.0]
++    """).lstrip()
++    assert export_text(reg, decimals=1) == expected_report
++    assert export_text(reg, decimals=1, show_weights=True) == expected_report
++
++
+ def test_plot_tree():
+     # mostly smoke tests
+     pytest.importorskip("matplotlib.pyplot")
++ git diff a061ada48efccf0845acae17009553e01764452b
+diff --git a/sklearn/preprocessing/_discretization.py b/sklearn/preprocessing/_discretization.py
+index dd969c12b..e58a18ced 100644
+--- a/sklearn/preprocessing/_discretization.py
++++ b/sklearn/preprocessing/_discretization.py
+@@ -172,6 +172,7 @@ class KBinsDiscretizer(BaseEstimator, TransformerMixin):
+                 # 1D k-means procedure
+                 km = KMeans(n_clusters=n_bins[jj], init=init, n_init=1)
+                 centers = km.fit(column[:, None]).cluster_centers_[:, 0]
++                centers.sort()  # Ensure centers are sorted
+                 bin_edges[jj] = (centers[1:] + centers[:-1]) * 0.5
+                 bin_edges[jj] = np.r_[col_min, bin_edges[jj], col_max]
+ 
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -v --no-use-pep517 --no-build-isolation -e .
+Using pip 21.2.2 from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/pip (python 3.6)
+Obtaining file:///testbed
+    Running command python setup.py egg_info
+    running egg_info
+    creating /tmp/pip-pip-egg-info-3zxt1qg3/scikit_learn.egg-info
+    writing /tmp/pip-pip-egg-info-3zxt1qg3/scikit_learn.egg-info/PKG-INFO
+    writing dependency_links to /tmp/pip-pip-egg-info-3zxt1qg3/scikit_learn.egg-info/dependency_links.txt
+    writing requirements to /tmp/pip-pip-egg-info-3zxt1qg3/scikit_learn.egg-info/requires.txt
+    writing top-level names to /tmp/pip-pip-egg-info-3zxt1qg3/scikit_learn.egg-info/top_level.txt
+    writing manifest file '/tmp/pip-pip-egg-info-3zxt1qg3/scikit_learn.egg-info/SOURCES.txt'
+    reading manifest file '/tmp/pip-pip-egg-info-3zxt1qg3/scikit_learn.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    adding license file 'COPYING'
+    writing manifest file '/tmp/pip-pip-egg-info-3zxt1qg3/scikit_learn.egg-info/SOURCES.txt'
+    Partial import of sklearn during the build process.
+Requirement already satisfied: numpy>=1.11.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from scikit-learn==0.21.dev0) (1.19.2)
+Requirement already satisfied: scipy>=0.17.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from scikit-learn==0.21.dev0) (1.5.2)
+Installing collected packages: scikit-learn
+  Attempting uninstall: scikit-learn
+    Found existing installation: scikit-learn 0.21.dev0
+    Uninstalling scikit-learn-0.21.dev0:
+      Removing file or directory /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/scikit-learn.egg-link
+      Removing pth entries from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/easy-install.pth:
+      Removing entry: /testbed
+      Successfully uninstalled scikit-learn-0.21.dev0
+  Running setup.py develop for scikit-learn
+    Running command /opt/miniconda3/envs/testbed/bin/python -c 'import io, os, sys, setuptools, tokenize; sys.argv[0] = '"'"'/testbed/setup.py'"'"'; __file__='"'"'/testbed/setup.py'"'"';f = getattr(tokenize, '"'"'open'"'"', open)(__file__) if os.path.exists(__file__) else io.StringIO('"'"'from setuptools import setup; setup()'"'"');code = f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' develop --no-deps
+    blas_opt_info:
+    blas_mkl_info:
+    customize UnixCCompiler
+      libraries mkl_rt not found in ['/opt/miniconda3/envs/testbed/lib', '/usr/local/lib', '/usr/lib64', '/usr/lib', '/usr/lib/x86_64-linux-gnu']
+      NOT AVAILABLE
+
+    blis_info:
+      libraries blis not found in ['/opt/miniconda3/envs/testbed/lib', '/usr/local/lib', '/usr/lib64', '/usr/lib', '/usr/lib/x86_64-linux-gnu']
+      NOT AVAILABLE
+
+    openblas_info:
+    C compiler: gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC
+
+    creating /tmp/tmpnegg9vup/tmp
+    creating /tmp/tmpnegg9vup/tmp/tmpnegg9vup
+    compile options: '-c'
+    gcc: /tmp/tmpnegg9vup/source.c
+    gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ /tmp/tmpnegg9vup/tmp/tmpnegg9vup/source.o -L/opt/miniconda3/envs/testbed/lib -lopenblas -o /tmp/tmpnegg9vup/a.out
+      FOUND:
+        libraries = ['openblas', 'openblas']
+        library_dirs = ['/opt/miniconda3/envs/testbed/lib']
+        language = c
+        define_macros = [('HAVE_CBLAS', None)]
+
+      FOUND:
+        libraries = ['openblas', 'openblas']
+        library_dirs = ['/opt/miniconda3/envs/testbed/lib']
+        language = c
+        define_macros = [('HAVE_CBLAS', None)]
+
+    running develop
+    running build_scripts
+    running egg_info
+    running build_src
+    build_src
+    building library "libsvm-skl" sources
+    building extension "sklearn.__check_build._check_build" sources
+    building extension "sklearn.preprocessing._csr_polynomial_expansion" sources
+    building extension "sklearn.cluster._dbscan_inner" sources
+    building extension "sklearn.cluster._hierarchical" sources
+    building extension "sklearn.cluster._k_means_elkan" sources
+    building extension "sklearn.cluster._k_means" sources
+    building extension "sklearn.datasets._svmlight_format" sources
+    building extension "sklearn.decomposition._online_lda" sources
+    building extension "sklearn.decomposition.cdnmf_fast" sources
+    building extension "sklearn.ensemble._gradient_boosting" sources
+    building extension "sklearn.feature_extraction._hashing" sources
+    building extension "sklearn.manifold._utils" sources
+    building extension "sklearn.manifold._barnes_hut_tsne" sources
+    building extension "sklearn.metrics.cluster.expected_mutual_info_fast" sources
+    building extension "sklearn.metrics.pairwise_fast" sources
+    building extension "sklearn.neighbors.ball_tree" sources
+    building extension "sklearn.neighbors.kd_tree" sources
+    building extension "sklearn.neighbors.dist_metrics" sources
+    building extension "sklearn.neighbors.typedefs" sources
+    building extension "sklearn.neighbors.quad_tree" sources
+    building extension "sklearn.tree._tree" sources
+    building extension "sklearn.tree._splitter" sources
+    building extension "sklearn.tree._criterion" sources
+    building extension "sklearn.tree._utils" sources
+    building extension "sklearn.svm.libsvm" sources
+    building extension "sklearn.svm.liblinear" sources
+    building extension "sklearn.svm.libsvm_sparse" sources
+    building extension "sklearn._isotonic" sources
+    building extension "sklearn.linear_model.cd_fast" sources
+    building extension "sklearn.linear_model.sgd_fast" sources
+    building extension "sklearn.linear_model.sag_fast" sources
+    building extension "sklearn.utils.sparsefuncs_fast" sources
+    building extension "sklearn.utils._cython_blas" sources
+    building extension "sklearn.utils.arrayfuncs" sources
+    building extension "sklearn.utils.murmurhash" sources
+    building extension "sklearn.utils.lgamma" sources
+    building extension "sklearn.utils.graph_shortest_path" sources
+    building extension "sklearn.utils.fast_dict" sources
+    building extension "sklearn.utils.seq_dataset" sources
+    building extension "sklearn.utils.weight_vector" sources
+    building extension "sklearn.utils._random" sources
+    building extension "sklearn.utils._logistic_sigmoid" sources
+    building data_files sources
+    build_src: building npy-pkg config files
+    writing scikit_learn.egg-info/PKG-INFO
+    writing dependency_links to scikit_learn.egg-info/dependency_links.txt
+    writing requirements to scikit_learn.egg-info/requires.txt
+    writing top-level names to scikit_learn.egg-info/top_level.txt
+    reading manifest file 'scikit_learn.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    adding license file 'COPYING'
+    writing manifest file 'scikit_learn.egg-info/SOURCES.txt'
+    running build_ext
+    customize UnixCCompiler
+    customize UnixCCompiler using build_clib
+    customize UnixCCompiler
+    customize UnixCCompiler using build_ext_subclass
+    resetting extension 'sklearn.svm.liblinear' language from 'c' to 'c++'.
+    customize UnixCCompiler
+    customize UnixCCompiler using build_ext_subclass
+    Creating /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/scikit-learn.egg-link (link to .)
+    Adding scikit-learn 0.21.dev0 to easy-install.pth file
+
+    Installed /testbed
+    Partial import of sklearn during the build process.
+Successfully installed scikit-learn-0.21.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout a061ada48efccf0845acae17009553e01764452b sklearn/preprocessing/tests/test_discretization.py
+Updated 0 paths from 3d54b70bd
++ git apply -v -
+Checking patch sklearn/preprocessing/tests/test_discretization.py...
+Applied patch sklearn/preprocessing/tests/test_discretization.py cleanly.
++ pytest -rA sklearn/preprocessing/tests/test_discretization.py
+============================= test session starts ==============================
+platform linux -- Python 3.6.13, pytest-6.2.4, py-1.11.0, pluggy-0.13.1
+rootdir: /testbed, configfile: setup.cfg
+collected 34 items
+
+sklearn/preprocessing/tests/test_discretization.py ..................... [ 61%]
+.............                                                            [100%]
+
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_fit_transform[uniform-expected0]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_fit_transform[kmeans-expected1]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_fit_transform[quantile-expected2]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_valid_n_bins
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_invalid_n_bins
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_invalid_n_bins_array
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_fit_transform_n_bins_array[uniform-expected0]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_fit_transform_n_bins_array[kmeans-expected1]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_fit_transform_n_bins_array[quantile-expected2]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_invalid_n_features
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_same_min_max[uniform]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_same_min_max[kmeans]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_same_min_max[quantile]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_transform_1d_behavior
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_numeric_stability
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_invalid_encode_option
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_encode_options
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_invalid_strategy_option
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_nonuniform_strategies[uniform-expected_2bins0-expected_3bins0-expected_5bins0]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_nonuniform_strategies[kmeans-expected_2bins1-expected_3bins1-expected_5bins1]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_nonuniform_strategies[quantile-expected_2bins2-expected_3bins2-expected_5bins2]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_inverse_transform[ordinal-uniform]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_inverse_transform[ordinal-kmeans]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_inverse_transform[ordinal-quantile]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_inverse_transform[onehot-uniform]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_inverse_transform[onehot-kmeans]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_inverse_transform[onehot-quantile]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_inverse_transform[onehot-dense-uniform]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_inverse_transform[onehot-dense-kmeans]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_inverse_transform[onehot-dense-quantile]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_transform_outside_fit_range[uniform]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_transform_outside_fit_range[kmeans]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_transform_outside_fit_range[quantile]
+PASSED sklearn/preprocessing/tests/test_discretization.py::test_overwrite
+============================== 34 passed in 1.78s ==============================
++ git checkout a061ada48efccf0845acae17009553e01764452b sklearn/preprocessing/tests/test_discretization.py
+Updated 1 path from 3d54b70bd

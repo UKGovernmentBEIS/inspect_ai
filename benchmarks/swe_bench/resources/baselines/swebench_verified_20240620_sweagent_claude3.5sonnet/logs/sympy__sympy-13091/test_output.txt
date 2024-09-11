@@ -1,0 +1,2485 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sympy/core/basic.py
+	modified:   sympy/sets/fancysets.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	commit_message.txt
+	run_tests.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit d1320814eda6549996190618a21eaf212cfd4d1e
+Merge: e0f487cd00 c45c14b40d
+Author: Francesco Bonazzi <franz.bonazzi@gmail.com>
+Date:   Fri Aug 4 16:47:26 2017 -0400
+
+    Merge pull request #13090 from Upabjojr/diffgeom_atomicexpr
+    
+    Diffgeom atomicexpr
+
++ git diff d1320814eda6549996190618a21eaf212cfd4d1e
+diff --git a/sympy/core/basic.py b/sympy/core/basic.py
+index db4e971848..dd5341306c 100644
+--- a/sympy/core/basic.py
++++ b/sympy/core/basic.py
+@@ -304,6 +304,8 @@ def __eq__(self, other):
+         if self is other:
+             return True
+ 
++        if not isinstance(other, Basic):
++            return False
+         if type(self) is not type(other):
+             # issue 6100 a**1.0 == a like a**2.0 == a**2
+             if isinstance(self, Pow) and self.exp == 1:
+@@ -313,7 +315,7 @@ def __eq__(self, other):
+             try:
+                 other = _sympify(other)
+             except SympifyError:
+-                return False    # sympy != other
++                return False
+ 
+             if type(self) != type(other):
+                 return False
+diff --git a/sympy/sets/fancysets.py b/sympy/sets/fancysets.py
+index 4a61f1f42c..bf52681bea 100644
+--- a/sympy/sets/fancysets.py
++++ b/sympy/sets/fancysets.py
+@@ -1149,10 +1149,11 @@ def __new__(cls, sets, polar=False):
+ 
+         x, y, r, theta = symbols('x, y, r, theta', cls=Dummy)
+         I = S.ImaginaryUnit
+-        polar = sympify(polar)
++        # Don't use sympify for polar to keep it as a Python boolean
++        assert isinstance(polar, bool), "polar must be a Python boolean"
+ 
+         # Rectangular Form
+-        if polar == False:
++        if polar is False:
+             if all(_a.is_FiniteSet for _a in sets.args) and (len(sets.args) == 2):
+ 
+                 # ** ProductSet of FiniteSets in the Complex Plane. **
+@@ -1480,7 +1481,7 @@ def _union(self, other):
+ class Complexes(with_metaclass(Singleton, ComplexRegion)):
+ 
+     def __new__(cls):
+-        return ComplexRegion.__new__(cls, S.Reals*S.Reals)
++        return ComplexRegion.__new__(cls, S.Reals*S.Reals, polar=False)
+ 
+     def __eq__(self, other):
+         return other == ComplexRegion(S.Reals*S.Reals)
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: mpmath>=0.19 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from sympy==1.1.2.dev0) (1.3.0)
+Installing collected packages: sympy
+  Attempting uninstall: sympy
+    Found existing installation: sympy 1.1.2.dev0
+    Uninstalling sympy-1.1.2.dev0:
+      Successfully uninstalled sympy-1.1.2.dev0
+  Running setup.py develop for sympy
+Successfully installed sympy-1.1.2.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout d1320814eda6549996190618a21eaf212cfd4d1e sympy/core/tests/test_basic.py sympy/core/tests/test_numbers.py
+Updated 0 paths from 5f10f1fc2e
++ git apply -v -
+Checking patch sympy/core/tests/test_basic.py...
+Checking patch sympy/core/tests/test_numbers.py...
+Applied patch sympy/core/tests/test_basic.py cleanly.
+Applied patch sympy/core/tests/test_numbers.py cleanly.
++ PYTHONWARNINGS=ignore::UserWarning,ignore::SyntaxWarning
++ bin/test -C --verbose sympy/core/tests/test_basic.py sympy/core/tests/test_numbers.py
+/testbed/sympy/core/basic.py:3: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Mapping, defaultdict
+/testbed/sympy/plotting/plot.py:28: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Callable
+/testbed/sympy/core/basic.py:3: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Mapping, defaultdict
+/testbed/sympy/plotting/plot.py:28: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Callable
+============================= test process starts ==============================
+executable:         /opt/miniconda3/envs/testbed/bin/python  (3.9.19-final-0) [CPython]
+architecture:       64-bit
+cache:              no
+ground types:       python 
+random seed:        43096319
+hash randomization: on (PYTHONHASHSEED=582691797)
+
+sympy/core/tests/test_basic.py[16] 
+test_structure ok
+test_equality F
+test_matches_basic ok
+test_has ok
+test_subs ok
+test_atoms ok
+test_free_symbols_empty ok
+test_doit ok
+test_S ok
+test_xreplace ok
+test_Singleton ok
+test_preorder_traversal ok
+test_sorted_args ok
+test_call ok
+test_rewrite ok
+test_literal_evalf_is_number_is_zero_is_comparable ok                     [FAIL]
+
+sympy/core/tests/test_numbers.py[82] 
+test_integers_cache ok
+test_seterr ok
+test_mod ok
+test_divmod ok
+test_igcd ok
+test_igcd_lehmer ok
+test_igcd2 ok
+test_ilcm ok
+test_igcdex ok
+test_Integer_new ok
+test_Rational_new ok
+test_Number_new ok
+test_Rational_cmp ok
+test_Float ok
+test_float_mpf ok
+test_Float_RealElement ok
+test_Float_default_to_highprec_from_str ok
+test_Float_eval ok
+test_Float_issue_2107 ok
+test_Infinity ok
+test_Infinity_2 ok
+test_Mul_Infinity_Zero ok
+test_Div_By_Zero ok
+test_Infinity_inequations F
+test_NaN ok
+test_special_numbers ok
+test_powers ok
+test_integer_nthroot_overflow ok
+test_isqrt ok
+test_powers_Integer ok
+test_powers_Rational ok
+test_powers_Float ok
+test_abs1 ok
+test_accept_int ok
+test_dont_accept_str ok
+test_int ok
+test_long ok
+test_real_bug ok
+test_bug_sqrt ok
+test_pi_Pi ok
+test_no_len ok
+test_issue_3321 ok
+test_issue_3692 ok
+test_issue_3423 ok
+test_issue_3449 ok
+test_Integer_factors ok
+test_Rational_factors ok
+test_issue_4107 ok
+test_IntegerInteger ok
+test_Rational_gcd_lcm_cofactors ok
+test_Float_gcd_lcm_cofactors ok
+test_issue_4611 ok
+test_conversion_to_mpmath ok
+test_relational ok
+test_Integer_as_index ok
+test_Rational_int ok
+test_zoo ok
+test_issue_4122 ok
+test_GoldenRatio_expand ok
+test_as_content_primitive ok
+test_hashing_sympy_integers ok
+test_issue_4172 ok
+test_mpmath_issues f
+test_Catalan_EulerGamma_prec ok
+test_Float_eq ok
+test_int_NumberSymbols ok
+test_issue_6640 ok
+test_issue_6349 ok
+test_mpf_norm ok
+test_latex ok
+test_issue_7742 ok
+test_simplify_AlgebraicNumber E
+test_Float_idempotence ok
+test_comp ok
+test_issue_9491 ok
+test_issue_10063 ok
+test_issue_10020 ok
+test_invert_numbers ok
+test_mod_inverse ok
+test_golden_ratio_rewrite_as_sqrt ok
+test_comparisons_with_unknown_type F
+test_NumberSymbol_comparison F                                            [FAIL]
+
+
+________________________________________________________________________________
+________ sympy/core/tests/test_numbers.py:test_simplify_AlgebraicNumber ________
+  File "/testbed/sympy/core/tests/test_numbers.py", line 1573, in test_simplify_AlgebraicNumber
+    e = 3**(S(1)/6)*(3 + (135 + 78*sqrt(3))**(S(2)/3))/(45 + 26*sqrt(3))**(S(1)/3)
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 160, in __div__
+    return Mul(self, Pow(other, S.NegativeOne))
+  File "/testbed/sympy/core/operations.py", line 41, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 182, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1096, in _eval_is_zero
+    z = a.is_zero
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 302, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 555, in _eval_is_odd
+    l = [f for f in self.args if not (f.is_even is True)]
+  File "/testbed/sympy/core/add.py", line 555, in <listcomp>
+    l = [f for f in self.args if not (f.is_even is True)]
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 302, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 302, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 302, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/assumptions.py", line 247, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 290, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 551, in _eval_is_prime
+    return self.doit().is_prime
+  File "/testbed/sympy/core/basic.py", line 1545, in doit
+    terms = [term.doit(**hints) if isinstance(term, Basic) else term
+  File "/testbed/sympy/core/basic.py", line 1545, in <listcomp>
+    terms = [term.doit(**hints) if isinstance(term, Basic) else term
+  File "/testbed/sympy/core/basic.py", line 1545, in doit
+    terms = [term.doit(**hints) if isinstance(term, Basic) else term
+  File "/testbed/sympy/core/basic.py", line 1545, in <listcomp>
+    terms = [term.doit(**hints) if isinstance(term, Basic) else term
+  File "/testbed/sympy/core/basic.py", line 1547, in doit
+    return self.func(*terms)
+  File "/testbed/sympy/core/operations.py", line 41, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 557, in flatten
+    c_part.extend([Pow(b, e) for e, b in pnew.items()])
+  File "/testbed/sympy/core/mul.py", line 557, in <listcomp>
+    c_part.extend([Pow(b, e) for e, b in pnew.items()])
+  File "/testbed/sympy/core/power.py", line 207, in __new__
+    if S.NaN in (b, e):  # XXX S.NaN**x -> S.NaN under assumption that x != 0
+  File "/testbed/sympy/core/numbers.py", line 2112, in __eq__
+    return Rational.__eq__(self, other)
+  File "/testbed/sympy/core/numbers.py", line 1720, in __eq__
+    other = _sympify(other)
+  File "/testbed/sympy/core/sympify.py", line 387, in _sympify
+    return sympify(a, strict=True)
+  File "/testbed/sympy/core/sympify.py", line 244, in sympify
+    if a in sympy_classes:
+  File "/testbed/sympy/core/numbers.py", line 3217, in __hash__
+    return super(NaN, self).__hash__()
+  File "/testbed/sympy/core/numbers.py", line 727, in __hash__
+    return super(Number, self).__hash__()
+RecursionError: maximum recursion depth exceeded while calling a Python object
+
+________________________________________________________________________________
+_________________ sympy/core/tests/test_basic.py:test_equality _________________
+  File "/testbed/sympy/core/tests/test_basic.py", line 73, in test_equality
+    assert b == bar
+AssertionError
+________________________________________________________________________________
+__________ sympy/core/tests/test_numbers.py:test_Infinity_inequations __________
+  File "/testbed/sympy/core/tests/test_numbers.py", line 816, in test_Infinity_inequations
+    assert (oo < -oo) == False and (oo <= -oo) == False
+AssertionError
+________________________________________________________________________________
+_____ sympy/core/tests/test_numbers.py:test_comparisons_with_unknown_type ______
+  File "/testbed/sympy/core/tests/test_numbers.py", line 1702, in test_comparisons_with_unknown_type
+    assert n == bar
+AssertionError
+________________________________________________________________________________
+________ sympy/core/tests/test_numbers.py:test_NumberSymbol_comparison _________
+  File "/testbed/sympy/core/tests/test_numbers.py", line 1731, in test_NumberSymbol_comparison
+    assert (rpi > pi) == (pi < rpi)
+AssertionError
+
+ tests finished: 92 passed, 4 failed, 1 expected to fail, 1 exceptions, 
+in 1.40 seconds 
+DO *NOT* COMMIT!
++ git checkout d1320814eda6549996190618a21eaf212cfd4d1e sympy/core/tests/test_basic.py sympy/core/tests/test_numbers.py
+Updated 2 paths from 5f10f1fc2e

@@ -1,0 +1,701 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/migrations/autodetector.py
+	modified:   django/db/models/fields/__init__.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	generate_migration.py
+	test_app/
+	test_db.sqlite3
+	test_settings.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit e02f67ef2d03d48128e7a118bf75f0418e24e8ac
+Author: David Vaz <davidmgvaz@gmail.com>
+Date:   Fri Sep 27 14:31:58 2019 -0700
+
+    Doc'd that migrate commmand accepts a unique migration name prefix.
+
+diff --git a/docs/ref/django-admin.txt b/docs/ref/django-admin.txt
+index 7927b89e63..ea935501c6 100644
+--- a/docs/ref/django-admin.txt
++++ b/docs/ref/django-admin.txt
+@@ -802,8 +802,10 @@ The behavior of this command changes depending on the arguments provided:
+ * ``<app_label> <migrationname>``: Brings the database schema to a state where
+   the named migration is applied, but no later migrations in the same app are
+   applied. This may involve unapplying migrations if you have previously
+-  migrated past the named migration. Use the name ``zero`` to migrate all the
+-  way back i.e. to revert all applied migrations for an app.
++  migrated past the named migration. You can use a prefix of the migration
++  name, e.g. ``0001``, as long as it's unique for the given app name. Use the
++  name ``zero`` to migrate all the way back i.e. to revert all applied
++  migrations for an app.
+ 
+ .. warning::
+ 
++ git diff e02f67ef2d03d48128e7a118bf75f0418e24e8ac
+diff --git a/django/db/migrations/autodetector.py b/django/db/migrations/autodetector.py
+index 1c40161c7f..b1e31001ff 100644
+--- a/django/db/migrations/autodetector.py
++++ b/django/db/migrations/autodetector.py
+@@ -1,5 +1,6 @@
+ import functools
+ import re
++import enum
+ from itertools import chain
+ 
+ from django.conf import settings
+@@ -69,12 +70,18 @@ class MigrationAutodetector:
+             # If this is a type that implements 'deconstruct' as an instance method,
+             # avoid treating this as being deconstructible itself - see #22951
+             return obj
++        elif isinstance(obj, enum.Enum):
++            # For Enum objects, use the name instead of the value
++            return f"{obj.__class__.__module__}.{obj.__class__.__name__}.{obj.name}"
+         elif hasattr(obj, 'deconstruct'):
+             deconstructed = obj.deconstruct()
+             if isinstance(obj, models.Field):
+                 # we have a field which also returns a name
+                 deconstructed = deconstructed[1:]
+             path, args, kwargs = deconstructed
++            # Check if the default value is an Enum
++            if 'default' in kwargs and isinstance(kwargs['default'], enum.Enum):
++                kwargs['default'] = f"{kwargs['default'].__class__.__module__}.{kwargs['default'].__class__.__name__}.{kwargs['default'].name}"
+             return (
+                 path,
+                 [self.deep_deconstruct(value) for value in args],
+@@ -85,7 +92,6 @@ class MigrationAutodetector:
+             )
+         else:
+             return obj
+-
+     def only_relation_agnostic_fields(self, fields):
+         """
+         Return a definition of the fields that ignores field names and
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index d610dc86f0..e062fe0ac1 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -1,87 +1,13 @@
+-import collections.abc
+-import copy
+-import datetime
+-import decimal
+-import operator
+-import uuid
+-import warnings
+-from base64 import b64decode, b64encode
+-from functools import partialmethod, total_ordering
+-
+-from django import forms
+-from django.apps import apps
+-from django.conf import settings
+ from django.core import checks, exceptions, validators
+-from django.db import connection, connections, router
+-from django.db.models.constants import LOOKUP_SEP
++from django.db import connection, router
+ from django.db.models.query_utils import DeferredAttribute, RegisterLookupMixin
+-from django.utils import timezone
+-from django.utils.datastructures import DictWrapper
+-from django.utils.dateparse import (
+-    parse_date, parse_datetime, parse_duration, parse_time,
+-)
+-from django.utils.duration import duration_microseconds, duration_string
+-from django.utils.functional import Promise, cached_property
+-from django.utils.ipv6 import clean_ipv6_address
+-from django.utils.itercompat import is_iterable
+-from django.utils.text import capfirst
+ from django.utils.translation import gettext_lazy as _
+-
+-__all__ = [
+-    'AutoField', 'BLANK_CHOICE_DASH', 'BigAutoField', 'BigIntegerField',
+-    'BinaryField', 'BooleanField', 'CharField', 'CommaSeparatedIntegerField',
+-    'DateField', 'DateTimeField', 'DecimalField', 'DurationField',
+-    'EmailField', 'Empty', 'Field', 'FilePathField', 'FloatField',
+-    'GenericIPAddressField', 'IPAddressField', 'IntegerField', 'NOT_PROVIDED',
+-    'NullBooleanField', 'PositiveIntegerField', 'PositiveSmallIntegerField',
+-    'SlugField', 'SmallAutoField', 'SmallIntegerField', 'TextField',
+-    'TimeField', 'URLField', 'UUIDField',
+-]
+-
+-
+-class Empty:
+-    pass
+-
++import enum
++import collections.abc
+ 
+ class NOT_PROVIDED:
+     pass
+ 
+-
+-# The values to use for "blank" in SelectFields. Will be appended to the start
+-# of most "choices" lists.
+-BLANK_CHOICE_DASH = [("", "---------")]
+-
+-
+-def _load_field(app_label, model_name, field_name):
+-    return apps.get_model(app_label, model_name)._meta.get_field(field_name)
+-
+-
+-# A guide to Field parameters:
+-#
+-#   * name:      The name of the field specified in the model.
+-#   * attname:   The attribute to use on the model object. This is the same as
+-#                "name", except in the case of ForeignKeys, where "_id" is
+-#                appended.
+-#   * db_column: The db_column specified in the model (or None).
+-#   * column:    The database column for this field. This is the same as
+-#                "attname", except if db_column is specified.
+-#
+-# Code that introspects values, or does other dynamic things, should use
+-# attname. For example, this gets the primary key value of object "obj":
+-#
+-#     getattr(obj, opts.pk.attname)
+-
+-def _empty(of_cls):
+-    new = Empty()
+-    new.__class__ = of_cls
+-    return new
+-
+-
+-def return_None():
+-    return None
+-
+-
+-@total_ordering
+ class Field(RegisterLookupMixin):
+     """Base class for all field types"""
+ 
+@@ -107,8 +33,6 @@ class Field(RegisterLookupMixin):
+         'unique_for_date': _("%(field_label)s must be unique for "
+                              "%(date_field_label)s %(lookup_type)s."),
+     }
+-    system_check_deprecated_details = None
+-    system_check_removed_details = None
+ 
+     # Field flags
+     hidden = False
+@@ -126,6 +50,7 @@ class Field(RegisterLookupMixin):
+         return _('Field of type: %(field_type)s') % {
+             'field_type': self.__class__.__name__
+         }
++
+     description = property(_description)
+ 
+     def __init__(self, verbose_name=None, name=None, primary_key=False,
+@@ -136,8 +61,7 @@ class Field(RegisterLookupMixin):
+                  db_tablespace=None, auto_created=False, validators=(),
+                  error_messages=None):
+         self.name = name
+-        self.verbose_name = verbose_name  # May be set by set_attributes_from_name
+-        self._verbose_name = verbose_name  # Store original for deconstruction
++        self.verbose_name = verbose_name
+         self.primary_key = primary_key
+         self.max_length, self._unique = max_length, unique
+         self.blank, self.null = blank, null
+@@ -155,7 +79,7 @@ class Field(RegisterLookupMixin):
+         self.help_text = help_text
+         self.db_index = db_index
+         self.db_column = db_column
+-        self._db_tablespace = db_tablespace
++        self.db_tablespace = db_tablespace
+         self.auto_created = auto_created
+ 
+         # Adjust the appropriate creation counter, and save our local copy.
+@@ -166,6 +90,77 @@ class Field(RegisterLookupMixin):
+             self.creation_counter = Field.creation_counter
+             Field.creation_counter += 1
+ 
++        self._validators = list(validators)  # Store for deconstruction later
++        self._error_messages = error_messages  # Store for deconstruction later
++
++    def deconstruct(self):
++        """
++        Return a 4-tuple with enough information to recreate the field.
++        """
++        name, path, args, kwargs = self.name, self.__class__.__module__ + '.' + self.__class__.__name__, [], {}
++        # We don't serialize the following attributes, as they are set by Django internally
++        # and shouldn't affect the field's behavior.
++        kwargs['verbose_name'] = self.verbose_name
++        if self.primary_key:
++            kwargs['primary_key'] = True
++        if self.max_length is not None:
++            kwargs['max_length'] = self.max_length
++        if self._unique:
++            kwargs['unique'] = True
++        if self.blank:
++            kwargs['blank'] = True
++        if self.null:
++            kwargs['null'] = True
++        if self.remote_field:
++            kwargs['rel'] = self.remote_field
++        if self.default is not NOT_PROVIDED:
++            kwargs['default'] = self.serialize_enum(self.default)
++        return name, path, args, kwargs
++
++    def serialize_enum(self, value):
++        if isinstance(value, enum.Enum):
++            return f"{value.__class__.__module__}.{value.__class__.__name__}.{value.name}"
++        return value
++
++    # ... (rest of the class definition)
++    def __init__(self, verbose_name=None, name=None, primary_key=False,
++                 max_length=None, unique=False, blank=False, null=False,
++                 db_index=False, rel=None, default=NOT_PROVIDED, editable=True,
++                 serialize=True, unique_for_date=None, unique_for_month=None,
++                 unique_for_year=None, choices=None, help_text='', db_column=None,
++                 db_tablespace=None, auto_created=False, validators=(),
++                 error_messages=None):
++        self.name = name
++        self.verbose_name = verbose_name  # May be set by set_attributes_from_name
++        self._verbose_name = verbose_name  # Store original for deconstruction
++        self.primary_key = primary_key
++        self.max_length, self._unique = max_length, unique
++        self.blank, self.null = blank, null
++        self.remote_field = rel
++        self.is_relation = self.remote_field is not None
++        self.default = default
++        self.editable = editable
++        self.serialize = serialize
++        self.unique_for_date = unique_for_date
++        self.unique_for_month = unique_for_month
++        self.unique_for_year = unique_for_year
++        if isinstance(choices, collections.abc.Iterator):
++            choices = list(choices)
++        self.choices = choices
++        self.help_text = help_text
++        self.db_index = db_index
++        self.db_column = db_column
++        self._db_tablespace = db_tablespace
++        self.auto_created = auto_created
++
++        # Adjust the appropriate creation counter, and save our local copy.
++        if auto_created:
++            self.creation_counter = Field.AUTO_CREATION_COUNTER
++            Field.AUTO_CREATION_COUNTER -= 1
++        else:
++            self.creation_counter = Field.CREATION_COUNTER
++            Field.CREATION_COUNTER += 1
++
+         self._validators = list(validators)  # Store for deconstruction later
+ 
+         messages = {}
+@@ -175,35 +170,62 @@ class Field(RegisterLookupMixin):
+         self._error_messages = error_messages  # Store for deconstruction later
+         self.error_messages = messages
+ 
+-    def __str__(self):
+-        """
+-        Return "app_label.model_label.field_name" for fields attached to
+-        models.
++    def deconstruct(self):
+         """
+-        if not hasattr(self, 'model'):
+-            return super().__str__()
+-        model = self.model
+-        app = model._meta.app_label
+-        return '%s.%s.%s' % (app, model._meta.object_name, self.name)
+-
+-    def __repr__(self):
+-        """Display the module, class, and name of the field."""
+-        path = '%s.%s' % (self.__class__.__module__, self.__class__.__qualname__)
+-        name = getattr(self, 'name', None)
+-        if name is not None:
+-            return '<%s: %s>' % (path, name)
+-        return '<%s>' % path
++        Return a 4-tuple with enough information to recreate the field.
+ 
+-    def check(self, **kwargs):
+-        return [
+-            *self._check_field_name(),
+-            *self._check_choices(),
+-            *self._check_db_index(),
+-            *self._check_null_allowed_for_primary_keys(),
+-            *self._check_backend_specific_checks(**kwargs),
+-            *self._check_validators(),
+-            *self._check_deprecation_details(),
+-        ]
++        The arguments are:
++            name - The field's name
++            path - The field's import path (e.g. django.db.models.IntegerField)
++            args - Positional arguments
++            kwargs - Keyword arguments
++        """
++        # Avoid circular import
++        from django.db import models
++        path = '%s.%s' % (self.__class__.__module__, self.__class__.__name__)
++        args = []
++        kwargs = {}
++        if self.verbose_name is not None:
++            kwargs['verbose_name'] = self.verbose_name
++        if self.primary_key:
++            kwargs['primary_key'] = True
++        if self.max_length is not None:
++            kwargs['max_length'] = self.max_length
++        if self.unique:
++            kwargs['unique'] = True
++        if self.blank:
++            kwargs['blank'] = True
++        if self.null:
++            kwargs['null'] = True
++        if self.remote_field:
++            kwargs['rel'] = self.remote_field
++        if self.db_index:
++            kwargs['db_index'] = True
++        if self.db_column is not None:
++            kwargs['db_column'] = self.db_column
++        if self.db_tablespace is not None:
++            kwargs['db_tablespace'] = self.db_tablespace
++        if self.default is not NOT_PROVIDED:
++            kwargs['default'] = self.serialize_enum(self.default)
++        if self.unique_for_date is not None:
++            kwargs['unique_for_date'] = self.unique_for_date
++        if self.unique_for_month is not None:
++            kwargs['unique_for_month'] = self.unique_for_month
++        if self.unique_for_year is not None:
++            kwargs['unique_for_year'] = self.unique_for_year
++        if self.choices:
++            kwargs['choices'] = self.choices
++        if self.help_text:
++            kwargs['help_text'] = self.help_text
++        if not self.editable:
++            kwargs['editable'] = False
++        if not self.serialize:
++            kwargs['serialize'] = False
++        if self._validators:
++            kwargs['validators'] = self._validators
++        if self._error_messages:
++            kwargs['error_messages'] = self._error_messages
++        return (self.name, path, args, kwargs)
+ 
+     def _check_field_name(self):
+         """
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (2024.1)
+Requirement already satisfied: sqlparse in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (0.4.4)
+Requirement already satisfied: asgiref in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (3.4.1)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref->Django==3.1) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.1
+    Uninstalling Django-3.1:
+      Successfully uninstalled Django-3.1
+  Running setup.py develop for Django
+Successfully installed Django-3.1
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout e02f67ef2d03d48128e7a118bf75f0418e24e8ac tests/migrations/test_writer.py
+Updated 0 paths from 8430cb2f3f
++ git apply -v -
+Checking patch tests/migrations/test_writer.py...
+Applied patch tests/migrations/test_writer.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 migrations.test_writer
+Traceback (most recent call last):
+  File "./tests/runtests.py", line 23, in <module>
+    from django.test import TestCase, TransactionTestCase
+  File "/testbed/django/test/__init__.py", line 3, in <module>
+    from django.test.client import Client, RequestFactory
+  File "/testbed/django/test/client.py", line 14, in <module>
+    from django.core.handlers.base import BaseHandler
+  File "/testbed/django/core/handlers/base.py", line 8, in <module>
+    from django.urls import get_resolver, set_urlconf
+  File "/testbed/django/urls/__init__.py", line 1, in <module>
+    from .base import (
+  File "/testbed/django/urls/base.py", line 9, in <module>
+    from .exceptions import NoReverseMatch, Resolver404
+  File "/testbed/django/urls/exceptions.py", line 1, in <module>
+    from django.http import Http404
+  File "/testbed/django/http/__init__.py", line 5, in <module>
+    from django.http.response import (
+  File "/testbed/django/http/response.py", line 15, in <module>
+    from django.core.serializers.json import DjangoJSONEncoder
+  File "/testbed/django/core/serializers/__init__.py", line 23, in <module>
+    from django.core.serializers.base import SerializerDoesNotExist
+  File "/testbed/django/core/serializers/base.py", line 7, in <module>
+    from django.db import models
+  File "/testbed/django/db/models/__init__.py", line 3, in <module>
+    from django.db.models.aggregates import *  # NOQA
+  File "/testbed/django/db/models/aggregates.py", line 5, in <module>
+    from django.db.models.expressions import Case, Func, Star, When
+  File "/testbed/django/db/models/expressions.py", line 8, in <module>
+    from django.db.models import fields
+  File "/testbed/django/db/models/fields/__init__.py", line 11, in <module>
+    class Field(RegisterLookupMixin):
+  File "/testbed/django/db/models/fields/__init__.py", line 422, in Field
+    @cached_property
+NameError: name 'cached_property' is not defined
++ git checkout e02f67ef2d03d48128e7a118bf75f0418e24e8ac tests/migrations/test_writer.py
+Updated 1 path from 8430cb2f3f

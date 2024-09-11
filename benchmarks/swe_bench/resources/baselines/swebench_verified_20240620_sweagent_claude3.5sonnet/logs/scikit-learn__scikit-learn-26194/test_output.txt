@@ -1,0 +1,1179 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sklearn/metrics/_ranking.py
+	modified:   sklearn/metrics/tests/test_ranking.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_roc_curve_issue.py
+	run_roc_curve_test.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit e886ce4e1444c61b865e7839c9cff5464ee20ace
+Author: Yuchen Zhou <72342196+ROMEEZHOU@users.noreply.github.com>
+Date:   Mon Apr 17 10:25:38 2023 -0400
+
+    MAINT Parameters validation for sklearn.neighbors.sort_graph_by_row_values (#26173)
+    
+    Co-authored-by: Jérémie du Boisberranger <34657725+jeremiedbb@users.noreply.github.com>
+
+diff --git a/sklearn/neighbors/_base.py b/sklearn/neighbors/_base.py
+index 8ba1f4fa7..9af85a38f 100644
+--- a/sklearn/neighbors/_base.py
++++ b/sklearn/neighbors/_base.py
+@@ -36,7 +36,7 @@ from ..utils import (
+ from ..utils.multiclass import check_classification_targets
+ from ..utils.validation import check_is_fitted
+ from ..utils.validation import check_non_negative
+-from ..utils._param_validation import Interval, StrOptions
++from ..utils._param_validation import Interval, StrOptions, validate_params
+ from ..utils.parallel import delayed, Parallel
+ from ..utils.fixes import parse_version, sp_base_version, sp_version
+ from ..exceptions import DataConversionWarning, EfficiencyWarning
+@@ -197,6 +197,13 @@ def _check_precomputed(X):
+     return graph
+ 
+ 
++@validate_params(
++    {
++        "graph": ["sparse matrix"],
++        "copy": ["boolean"],
++        "warn_when_not_sorted": ["boolean"],
++    }
++)
+ def sort_graph_by_row_values(graph, copy=False, warn_when_not_sorted=True):
+     """Sort a sparse graph such that each row is stored with increasing values.
+ 
+@@ -224,9 +231,6 @@ def sort_graph_by_row_values(graph, copy=False, warn_when_not_sorted=True):
+         Distance matrix to other samples, where only non-zero elements are
+         considered neighbors. Matrix is in CSR format.
+     """
+-    if not issparse(graph):
+-        raise TypeError(f"Input graph must be a sparse matrix, got {graph!r} instead.")
+-
+     if graph.format == "csr" and _is_sorted_by_data(graph):
+         return graph
+ 
+diff --git a/sklearn/neighbors/tests/test_neighbors.py b/sklearn/neighbors/tests/test_neighbors.py
+index 3e22193ba..092b85ad9 100644
+--- a/sklearn/neighbors/tests/test_neighbors.py
++++ b/sklearn/neighbors/tests/test_neighbors.py
+@@ -497,10 +497,6 @@ def test_sort_graph_by_row_values_copy():
+     with pytest.raises(ValueError, match="Use copy=True to allow the conversion"):
+         sort_graph_by_row_values(X.tocsc(), copy=False)
+ 
+-    # raise if X is not even sparse
+-    with pytest.raises(TypeError, match="Input graph must be a sparse matrix"):
+-        sort_graph_by_row_values(X.toarray())
+-
+ 
+ def test_sort_graph_by_row_values_warning():
+     # Test that the parameter warn_when_not_sorted works as expected.
+diff --git a/sklearn/tests/test_public_functions.py b/sklearn/tests/test_public_functions.py
+index 0a2ff0db5..d46ae0782 100644
+--- a/sklearn/tests/test_public_functions.py
++++ b/sklearn/tests/test_public_functions.py
+@@ -243,6 +243,7 @@ PARAM_VALIDATION_FUNCTION_LIST = [
+     "sklearn.metrics.top_k_accuracy_score",
+     "sklearn.metrics.zero_one_loss",
+     "sklearn.model_selection.train_test_split",
++    "sklearn.neighbors.sort_graph_by_row_values",
+     "sklearn.preprocessing.add_dummy_feature",
+     "sklearn.preprocessing.binarize",
+     "sklearn.preprocessing.label_binarize",
++ git diff e886ce4e1444c61b865e7839c9cff5464ee20ace
+diff --git a/sklearn/metrics/_ranking.py b/sklearn/metrics/_ranking.py
+index 0cdead923..080c44cee 100644
+--- a/sklearn/metrics/_ranking.py
++++ b/sklearn/metrics/_ranking.py
+@@ -1083,7 +1083,7 @@ def roc_curve(
+     # to make sure that the curve starts at (0, 0)
+     tps = np.r_[0, tps]
+     fps = np.r_[0, fps]
+-    thresholds = np.r_[thresholds[0] + 1, thresholds]
++    thresholds = np.r_[min(thresholds[0] + 1, 1), thresholds]
+ 
+     if fps[-1] <= 0:
+         warnings.warn(
+diff --git a/sklearn/metrics/tests/test_ranking.py b/sklearn/metrics/tests/test_ranking.py
+index f38f118c3..77ccc62c4 100644
+--- a/sklearn/metrics/tests/test_ranking.py
++++ b/sklearn/metrics/tests/test_ranking.py
+@@ -2199,3 +2199,11 @@ def test_ranking_metric_pos_label_types(metric, classes):
+         assert not np.isnan(metric_1).any()
+         assert not np.isnan(metric_2).any()
+         assert not np.isnan(thresholds).any()
++
++def test_roc_curve_with_probability_estimates():
++    rng = np.random.RandomState(42)
++    y_true = rng.randint(0, 2, size=10)
++    y_score = rng.rand(10)
++    _, _, thresholds = roc_curve(y_true, y_score)
++    assert np.all(np.logical_or(thresholds <= 1, thresholds >= 0))
++    assert thresholds.max() <= 1, f"Max threshold {thresholds.max()} exceeds 1"
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval '. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh
+++++ export GSETTINGS_SCHEMA_DIR=
+++++ GSETTINGS_SCHEMA_DIR=
+++++ unset GSETTINGS_SCHEMA_DIR_CONDA_BACKUP
+++++ '[' -z ']'
+++++ unset GSETTINGS_SCHEMA_DIR
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -v --no-use-pep517 --no-build-isolation -e .
+Using pip 24.0 from /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pip (python 3.9)
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Running command python setup.py egg_info
+  Partial import of sklearn during the build process.
+  running egg_info
+  creating /tmp/pip-pip-egg-info-vrwgfya7/scikit_learn.egg-info
+  writing /tmp/pip-pip-egg-info-vrwgfya7/scikit_learn.egg-info/PKG-INFO
+  writing dependency_links to /tmp/pip-pip-egg-info-vrwgfya7/scikit_learn.egg-info/dependency_links.txt
+  writing requirements to /tmp/pip-pip-egg-info-vrwgfya7/scikit_learn.egg-info/requires.txt
+  writing top-level names to /tmp/pip-pip-egg-info-vrwgfya7/scikit_learn.egg-info/top_level.txt
+  writing manifest file '/tmp/pip-pip-egg-info-vrwgfya7/scikit_learn.egg-info/SOURCES.txt'
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/npy_math.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+  dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+  reading manifest file '/tmp/pip-pip-egg-info-vrwgfya7/scikit_learn.egg-info/SOURCES.txt'
+  reading manifest template 'MANIFEST.in'
+  warning: no previously-included files matching '*' found under directory 'asv_benchmarks'
+  warning: no previously-included files matching '*' found under directory 'benchmarks'
+  warning: no previously-included files matching '*' found under directory 'build_tools'
+  warning: no previously-included files matching '*' found under directory 'maint_tools'
+  warning: no previously-included files matching '*' found under directory 'benchmarks'
+  warning: no previously-included files matching '*' found under directory '.binder'
+  warning: no previously-included files matching '*' found under directory '.circleci'
+  warning: no previously-included files found matching '.cirrus.star'
+  warning: no previously-included files found matching '.codecov.yml'
+  warning: no previously-included files found matching '.git-blame-ignore-revs'
+  warning: no previously-included files found matching '.mailmap'
+  warning: no previously-included files found matching '.pre-commit-config.yaml'
+  warning: no previously-included files found matching 'azure-pipelines.yml'
+  warning: no previously-included files found matching 'CODE_OF_CONDUCT.md'
+  warning: no previously-included files found matching 'CONTRIBUTING.md'
+  warning: no previously-included files found matching 'SECURITY.md'
+  warning: no previously-included files found matching 'PULL_REQUEST_TEMPLATE.md'
+  adding license file 'COPYING'
+  writing manifest file '/tmp/pip-pip-egg-info-vrwgfya7/scikit_learn.egg-info/SOURCES.txt'
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: numpy>=1.17.3 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from scikit-learn==1.3.dev0) (1.26.4)
+Requirement already satisfied: scipy>=1.5.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from scikit-learn==1.3.dev0) (1.13.1)
+Requirement already satisfied: joblib>=1.1.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from scikit-learn==1.3.dev0) (1.4.2)
+Requirement already satisfied: threadpoolctl>=2.0.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from scikit-learn==1.3.dev0) (3.5.0)
+Installing collected packages: scikit-learn
+  Attempting uninstall: scikit-learn
+    Found existing installation: scikit-learn 1.3.dev0
+    Uninstalling scikit-learn-1.3.dev0:
+      Removing file or directory /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/scikit-learn.egg-link
+      Removing pth entries from /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/easy-install.pth:
+      Removing entry: /testbed
+      Successfully uninstalled scikit-learn-1.3.dev0
+  Running setup.py develop for scikit-learn
+    Running command python setup.py develop
+    Partial import of sklearn during the build process.
+    running develop
+    /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/setuptools/command/develop.py:40: EasyInstallDeprecationWarning: easy_install command is deprecated.
+    !!
+
+            ********************************************************************************
+            Please avoid running ``setup.py`` and ``easy_install``.
+            Instead, use pypa/build, pypa/installer or other
+            standards-based tools.
+
+            See https://github.com/pypa/setuptools/issues/917 for details.
+            ********************************************************************************
+
+    !!
+      easy_install.initialize_options(self)
+    /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/setuptools/_distutils/cmd.py:66: SetuptoolsDeprecationWarning: setup.py install is deprecated.
+    !!
+
+            ********************************************************************************
+            Please avoid running ``setup.py`` directly.
+            Instead, use pypa/build, pypa/installer or other
+            standards-based tools.
+
+            See https://blog.ganssle.io/articles/2021/10/setup-py-deprecated.html for details.
+            ********************************************************************************
+
+    !!
+      self.initialize_options()
+    running egg_info
+    writing scikit_learn.egg-info/PKG-INFO
+    writing dependency_links to scikit_learn.egg-info/dependency_links.txt
+    writing requirements to scikit_learn.egg-info/requires.txt
+    writing top-level names to scikit_learn.egg-info/top_level.txt
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/npy_math.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/arrayscalars.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarrayobject.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ndarraytypes.h won't be automatically included in the manifest: the path must be relative
+    dependency /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/numpy/core/include/numpy/ufuncobject.h won't be automatically included in the manifest: the path must be relative
+    reading manifest file 'scikit_learn.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    warning: no previously-included files matching '*' found under directory 'asv_benchmarks'
+    warning: no previously-included files matching '*' found under directory 'benchmarks'
+    warning: no previously-included files matching '*' found under directory 'build_tools'
+    warning: no previously-included files matching '*' found under directory 'maint_tools'
+    warning: no previously-included files matching '*' found under directory 'benchmarks'
+    warning: no previously-included files matching '*' found under directory '.binder'
+    warning: no previously-included files matching '*' found under directory '.circleci'
+    warning: no previously-included files found matching '.cirrus.star'
+    warning: no previously-included files found matching '.codecov.yml'
+    warning: no previously-included files found matching '.git-blame-ignore-revs'
+    warning: no previously-included files found matching '.mailmap'
+    warning: no previously-included files found matching '.pre-commit-config.yaml'
+    warning: no previously-included files found matching 'azure-pipelines.yml'
+    warning: no previously-included files found matching 'CODE_OF_CONDUCT.md'
+    warning: no previously-included files found matching 'CONTRIBUTING.md'
+    warning: no previously-included files found matching 'SECURITY.md'
+    warning: no previously-included files found matching 'PULL_REQUEST_TEMPLATE.md'
+    adding license file 'COPYING'
+    writing manifest file 'scikit_learn.egg-info/SOURCES.txt'
+    running build_ext
+    running build_clib
+    building 'libsvm-skl' library
+    building 'liblinear-skl' library
+    Creating /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/scikit-learn.egg-link (link to .)
+    Adding scikit-learn 1.3.dev0 to easy-install.pth file
+
+    Installed /testbed
+Successfully installed scikit-learn-1.3.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout e886ce4e1444c61b865e7839c9cff5464ee20ace sklearn/metrics/tests/test_ranking.py
+Updated 1 path from 397f77cbc
++ git apply -v -
+Checking patch sklearn/metrics/tests/test_ranking.py...
+Applied patch sklearn/metrics/tests/test_ranking.py cleanly.
++ pytest -rA sklearn/metrics/tests/test_ranking.py
+[1m============================= test session starts ==============================[0m
+platform linux -- Python 3.9.19, pytest-7.4.4, pluggy-1.0.0
+rootdir: /testbed
+configfile: setup.cfg
+collected 205 items
+
+sklearn/metrics/tests/test_ranking.py [32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[31mF[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[31m [ 16%]
+[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[31m [ 51%]
+[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[31m [ 86%]
+[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[31mF[0m[31m                                              [100%][0m
+
+=================================== FAILURES ===================================
+[31m[1m_______________________ test_roc_curve_drop_intermediate _______________________[0m
+
+    def test_roc_curve_drop_intermediate():
+        # Test that drop_intermediate drops the correct thresholds
+        y_true = [0, 0, 0, 0, 1, 1]
+        y_score = [0.0, 0.2, 0.5, 0.6, 0.7, 1.0]
+        tpr, fpr, thresholds = roc_curve(y_true, y_score, drop_intermediate=True)
+>       assert_array_almost_equal(thresholds, [np.inf, 1.0, 0.7, 0.0])
+
+[1m[31msklearn/metrics/tests/test_ranking.py[0m:421: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+[1m[31m/opt/miniconda3/envs/testbed/lib/python3.9/contextlib.py[0m:79: in inner
+    return func(*args, **kwds)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (<function assert_array_almost_equal.<locals>.compare at 0x7fbab509fdc0>, array([1. , 1. , 0.7, 0. ]), [inf, 1.0, 0.7, 0.0])
+kwds = {'err_msg': '', 'header': 'Arrays are not almost equal to 6 decimals', 'precision': 6, 'verbose': True}
+
+    @wraps(func)
+    def inner(*args, **kwds):
+        with self._recreate_cm():
+>           return func(*args, **kwds)
+[1m[31mE           AssertionError: [0m
+[1m[31mE           Arrays are not almost equal to 6 decimals[0m
+[1m[31mE           [0m
+[1m[31mE           x and y +inf location mismatch:[0m
+[1m[31mE            x: array([1. , 1. , 0.7, 0. ])[0m
+[1m[31mE            y: array([inf, 1. , 0.7, 0. ])[0m
+
+[1m[31m/opt/miniconda3/envs/testbed/lib/python3.9/contextlib.py[0m:79: AssertionError
+[31m[1m_________________ test_roc_curve_with_probablity_estimates[42] _________________[0m
+
+global_random_seed = 42
+
+    def test_roc_curve_with_probablity_estimates(global_random_seed):
+        """Check that thresholds do not exceed 1.0 when `y_score` is a probability
+        estimate.
+    
+        Non-regression test for:
+        https://github.com/scikit-learn/scikit-learn/issues/26193
+        """
+        rng = np.random.RandomState(global_random_seed)
+        y_true = rng.randint(0, 2, size=10)
+        y_score = rng.rand(10)
+        _, _, thresholds = roc_curve(y_true, y_score)
+>       assert np.isinf(thresholds[0])
+[1m[31mE       AssertionError: assert False[0m
+[1m[31mE        +  where False = <ufunc 'isinf'>(1.0)[0m
+[1m[31mE        +    where <ufunc 'isinf'> = np.isinf[0m
+
+[1m[31msklearn/metrics/tests/test_ranking.py[0m:2215: AssertionError
+==================================== PASSES ====================================
+[36m[1m=========================== short test summary info ============================[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_curve[True][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_curve[False][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_curve_end_points[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_returns_consistency[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_curve_multi[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_curve_confidence[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_curve_hard[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_curve_one_label[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_curve_toydata[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_curve_fpr_tpr_increasing[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_auc[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_auc_errors[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_multiclass_ovo_roc_auc_toydata[y_true0-labels0][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_multiclass_ovo_roc_auc_toydata[y_true1-None][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_multiclass_ovo_roc_auc_toydata[y_true2-labels2][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_multiclass_ovo_roc_auc_toydata[y_true3-None][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_multiclass_ovo_roc_auc_toydata_binary[y_true0-labels0][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_multiclass_ovo_roc_auc_toydata_binary[y_true1-labels1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_multiclass_ovr_roc_auc_toydata[y_true0-None][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_multiclass_ovr_roc_auc_toydata[y_true1-None][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_multiclass_ovr_roc_auc_toydata[y_true2-labels2][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_multiclass_ovr_roc_auc_toydata[y_true3-labels3][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_perfect_imperfect_chance_multiclass_roc_auc[ovr-macro][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_perfect_imperfect_chance_multiclass_roc_auc[ovr-micro][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_perfect_imperfect_chance_multiclass_roc_auc[ovo-macro][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_micro_averaged_ovr_roc_auc[42][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovo-Parameter 'labels' must be unique-y_true0-labels0][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovo-Parameter 'labels' must be unique-y_true1-labels1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovo-Number of classes in y_true not equal to the number of columns in 'y_score'-y_true2-None][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovo-Parameter 'labels' must be ordered-y_true3-labels3][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovo-Number of given labels, 2, not equal to the number of columns in 'y_score', 3-y_true4-labels4][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovo-Number of given labels, 2, not equal to the number of columns in 'y_score', 3-y_true5-labels5][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovo-Number of given labels, 4, not equal to the number of columns in 'y_score', 3-y_true6-labels6][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovo-Number of given labels, 4, not equal to the number of columns in 'y_score', 3-y_true7-labels7][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovo-'y_true' contains labels not in parameter 'labels'-y_true8-labels8][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovo-'y_true' contains labels not in parameter 'labels'-y_true9-labels9][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovo-'y_true' contains labels not in parameter 'labels'-y_true10-labels10][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovr-Parameter 'labels' must be unique-y_true0-labels0][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovr-Parameter 'labels' must be unique-y_true1-labels1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovr-Number of classes in y_true not equal to the number of columns in 'y_score'-y_true2-None][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovr-Parameter 'labels' must be ordered-y_true3-labels3][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovr-Number of given labels, 2, not equal to the number of columns in 'y_score', 3-y_true4-labels4][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovr-Number of given labels, 2, not equal to the number of columns in 'y_score', 3-y_true5-labels5][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovr-Number of given labels, 4, not equal to the number of columns in 'y_score', 3-y_true6-labels6][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovr-Number of given labels, 4, not equal to the number of columns in 'y_score', 3-y_true7-labels7][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovr-'y_true' contains labels not in parameter 'labels'-y_true8-labels8][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovr-'y_true' contains labels not in parameter 'labels'-y_true9-labels9][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_labels_error[ovr-'y_true' contains labels not in parameter 'labels'-y_true10-labels10][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_error[average must be one of \\('macro', 'weighted', None\\) for multiclass problems-kwargs0][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_error[average must be one of \\('micro', 'macro', 'weighted', None\\) for multiclass problems-kwargs1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_error[sample_weight is not supported for multiclass one-vs-one ROC AUC, 'sample_weight' must be None in this case-kwargs2][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_error[Partial AUC computation not available in multiclass setting, 'max_fpr' must be set to `None`, received `max_fpr=0.5` instead-kwargs3][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_auc_score_multiclass_error[multi_class must be in \\('ovo', 'ovr'\\)-kwargs4][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_auc_score_non_binary_class[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_binary_clf_curve_multiclass_error[det_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_binary_clf_curve_multiclass_error[precision_recall_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_binary_clf_curve_multiclass_error[roc_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_binary_clf_curve_implicit_pos_label[det_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_binary_clf_curve_implicit_pos_label[precision_recall_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_binary_clf_curve_implicit_pos_label[roc_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_binary_clf_curve_zero_sample_weight[det_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_binary_clf_curve_zero_sample_weight[precision_recall_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_binary_clf_curve_zero_sample_weight[roc_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_precision_recall_curve[True][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_precision_recall_curve[False][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_precision_recall_curve_toydata[True][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_precision_recall_curve_toydata[False][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_precision_recall_curve_drop_intermediate[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_average_precision_constant_values[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_average_precision_score_pos_label_errors[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_score_scale_invariance[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true0-y_score0-expected_fpr0-expected_fnr0][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true1-y_score1-expected_fpr1-expected_fnr1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true2-y_score2-expected_fpr2-expected_fnr2][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true3-y_score3-expected_fpr3-expected_fnr3][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true4-y_score4-expected_fpr4-expected_fnr4][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true5-y_score5-expected_fpr5-expected_fnr5][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true6-y_score6-expected_fpr6-expected_fnr6][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true7-y_score7-expected_fpr7-expected_fnr7][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true8-y_score8-expected_fpr8-expected_fnr8][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true9-y_score9-expected_fpr9-expected_fnr9][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true10-y_score10-expected_fpr10-expected_fnr10][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true11-y_score11-expected_fpr11-expected_fnr11][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true12-y_score12-expected_fpr12-expected_fnr12][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true13-y_score13-expected_fpr13-expected_fnr13][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true14-y_score14-expected_fpr14-expected_fnr14][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true15-y_score15-expected_fpr15-expected_fnr15][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true16-y_score16-expected_fpr16-expected_fnr16][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true17-y_score17-expected_fpr17-expected_fnr17][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true18-y_score18-expected_fpr18-expected_fnr18][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_toydata[y_true19-y_score19-expected_fpr19-expected_fnr19][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_tie_handling[y_true0-y_score0-expected_fpr0-expected_fnr0][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_tie_handling[y_true1-y_score1-expected_fpr1-expected_fnr1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_tie_handling[y_true2-y_score2-expected_fpr2-expected_fnr2][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_tie_handling[y_true3-y_score3-expected_fpr3-expected_fnr3][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_tie_handling[y_true4-y_score4-expected_fpr4-expected_fnr4][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_tie_handling[y_true5-y_score5-expected_fpr5-expected_fnr5][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_tie_handling[y_true6-y_score6-expected_fpr6-expected_fnr6][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_tie_handling[y_true7-y_score7-expected_fpr7-expected_fnr7][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_sanity_check[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_constant_scores[0][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_constant_scores[0.25][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_constant_scores[0.5][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_constant_scores[0.75][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_constant_scores[1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_perfect_scores[y_true0][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_perfect_scores[y_true1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_perfect_scores[y_true2][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_perfect_scores[y_true3][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_perfect_scores[y_true4][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_bad_input[y_true0-y_pred0-inconsistent numbers of samples][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_bad_input[y_true1-y_pred1-inconsistent numbers of samples][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_bad_input[y_true2-y_pred2-Only one class present in y_true][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_bad_input[y_true3-y_pred3-Only one class present in y_true][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_bad_input[y_true4-y_pred4-pos_label is not specified][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_det_curve_pos_label[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_label_ranking_avp[label_ranking_average_precision_score-check_lrap_toy][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_label_ranking_avp[label_ranking_average_precision_score-check_lrap_without_tie_and_increasing_score][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_label_ranking_avp[label_ranking_average_precision_score-check_lrap_only_ties][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_label_ranking_avp[label_ranking_average_precision_score-check_zero_or_all_relevant_labels][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_label_ranking_avp[_my_lrap-check_lrap_toy][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_label_ranking_avp[_my_lrap-check_lrap_without_tie_and_increasing_score][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_label_ranking_avp[_my_lrap-check_lrap_only_ties][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_label_ranking_avp[_my_lrap-check_zero_or_all_relevant_labels][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_lrap_error_raised[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_alternative_lrap_implementation[0-2-1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_alternative_lrap_implementation[0-2-2][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_alternative_lrap_implementation[0-2-8][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_alternative_lrap_implementation[0-2-20][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_alternative_lrap_implementation[0-5-1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_alternative_lrap_implementation[0-5-2][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_alternative_lrap_implementation[0-5-8][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_alternative_lrap_implementation[0-5-20][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_alternative_lrap_implementation[0-10-1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_alternative_lrap_implementation[0-10-2][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_alternative_lrap_implementation[0-10-8][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_alternative_lrap_implementation[0-10-20][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_lrap_sample_weighting_zero_labels[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_coverage_error[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_coverage_tie_handling[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_coverage_1d_error_message[y_true0-y_score0][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_coverage_1d_error_message[y_true1-y_score1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_coverage_1d_error_message[y_true2-y_score2][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_label_ranking_loss[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ranking_appropriate_input_shape[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ranking_loss_ties_handling[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_dcg_score[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_dcg_ties[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ndcg_ignore_ties_with_k[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ndcg_negative_ndarray_warn[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ndcg_invariant[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ndcg_toy_examples[True][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ndcg_toy_examples[False][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ndcg_error_single_document[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ndcg_score[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_partial_roc_auc_score[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score[y_true0-1-0.25][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score[y_true1-2-0.5][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score[y_true2-3-0.75][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_binary[y_score0-1-1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_binary[y_score1-1-0.5][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_binary[y_score2-2-1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_binary[y_score3-1-1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_binary[y_score4-1-0.5][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_binary[y_score5-2-1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_multiclass_with_labels[True-y_true0-0.75-labels0][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_multiclass_with_labels[True-y_true1-0.5-labels1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_multiclass_with_labels[True-y_true2-0.5-labels2][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_multiclass_with_labels[True-y_true3-0.75-labels3][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_multiclass_with_labels[False-y_true0-0.75-labels0][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_multiclass_with_labels[False-y_true1-0.5-labels1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_multiclass_with_labels[False-y_true2-0.5-labels2][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_multiclass_with_labels[False-y_true3-0.75-labels3][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_increasing[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_ties[y_true0-1-0.25][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_ties[y_true1-2-0.5][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_ties[y_true2-3-1][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_warning[y_true0-4][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_warning[y_true1-5][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_error[y_true0-y_score0-None-y type must be 'binary' or 'multiclass', got 'continuous'][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_error[y_true1-y_score1-None-Number of classes in 'y_true' \\(4\\) not equal to the number of classes in 'y_score' \\(3\\).][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_error[y_true2-y_score2-labels2-Parameter 'labels' must be unique.][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_error[y_true3-y_score3-labels3-Parameter 'labels' must be ordered.][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_error[y_true4-y_score4-labels4-Number of given labels \\(4\\) not equal to the number of classes in 'y_score' \\(3\\).][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_error[y_true5-y_score5-labels5-'y_true' contains labels not in parameter 'labels'.][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_top_k_accuracy_score_error[y_true6-y_score6-None-`y_true` is binary while y_score is 2d with 3 classes. If `y_true` does not contain all the labels, `labels` must be provided][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_label_ranking_avg_precision_score_should_allow_csr_matrix_for_y_true_input[0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ranking_metric_pos_label_types[classes0-average_precision_score][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ranking_metric_pos_label_types[classes0-det_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ranking_metric_pos_label_types[classes0-precision_recall_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ranking_metric_pos_label_types[classes0-roc_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ranking_metric_pos_label_types[classes1-average_precision_score][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ranking_metric_pos_label_types[classes1-det_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ranking_metric_pos_label_types[classes1-precision_recall_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ranking_metric_pos_label_types[classes1-roc_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ranking_metric_pos_label_types[classes2-average_precision_score][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ranking_metric_pos_label_types[classes2-det_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ranking_metric_pos_label_types[classes2-precision_recall_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ranking_metric_pos_label_types[classes2-roc_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ranking_metric_pos_label_types[classes3-average_precision_score][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ranking_metric_pos_label_types[classes3-det_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ranking_metric_pos_label_types[classes3-precision_recall_curve][0m
+[32mPASSED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_ranking_metric_pos_label_types[classes3-roc_curve][0m
+[31mFAILED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_curve_drop_intermediate[0m - AssertionError: 
+[31mFAILED[0m sklearn/metrics/tests/test_ranking.py::[1mtest_roc_curve_with_probablity_estimates[42][0m - AssertionError: assert False
+[31m================== [31m[1m2 failed[0m, [32m203 passed[0m, [33m3 warnings[0m[31m in 4.39s[0m[31m ===================[0m
++ git checkout e886ce4e1444c61b865e7839c9cff5464ee20ace sklearn/metrics/tests/test_ranking.py
+Updated 1 path from 397f77cbc

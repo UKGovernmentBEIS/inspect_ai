@@ -1,0 +1,207 @@
+
+diff --git a/django/db/models/sql/where.py b/django/db/models/sql/where.py
+index 50ff13be75..2c6752808d 100644
+--- a/django/db/models/sql/where.py
++++ b/django/db/models/sql/where.py
+@@ -63,12 +63,6 @@ class WhereNode(tree.Node):
+         return where_node, having_node
+ 
+     def as_sql(self, compiler, connection):
+-        """
+-        Return the SQL version of the where clause and the value to be
+-        substituted in. Return '', [] if this node matches everything,
+-        None, [] if this node is empty, and raise EmptyResultSet if this
+-        node can't match anything.
+-        """
+         result = []
+         result_params = []
+         if self.connector == AND:
+@@ -76,26 +70,25 @@ class WhereNode(tree.Node):
+         else:
+             full_needed, empty_needed = 1, len(self.children)
+ 
++        all_empty = True
+         for child in self.children:
+             try:
+                 sql, params = compiler.compile(child)
+             except EmptyResultSet:
+                 empty_needed -= 1
+             else:
++                all_empty = False
+                 if sql:
+                     result.append(sql)
+                     result_params.extend(params)
+                 else:
+                     full_needed -= 1
+-            # Check if this node matches nothing or everything.
+-            # First check the amount of full nodes and empty nodes
+-            # to make this node empty/full.
+-            # Now, check if this node is full/empty using the
+-            # counts.
+             if empty_needed == 0:
+                 if self.negated:
+                     return '', []
+                 else:
++                    if all_empty:
++                        return '1=0', []  # Always false condition
+                     raise EmptyResultSet
+             if full_needed == 0:
+                 if self.negated:
+@@ -106,9 +99,6 @@ class WhereNode(tree.Node):
+         sql_string = conn.join(result)
+         if sql_string:
+             if self.negated:
+-                # Some backends (Oracle at least) need parentheses
+-                # around the inner SQL in the negated case, even if the
+-                # inner SQL contains just a single expression.
+                 sql_string = 'NOT (%s)' % sql_string
+             elif len(result) > 1 or self.resolved:
+                 sql_string = '(%s)' % sql_string
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..653404617c
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,13 @@
++import os
++os.environ.setdefault("DJANGO_SETTINGS_MODULE", "test_settings")
++
++import django
++django.setup()
++
++from django.core.management import call_command
++
++if __name__ == '__main__':
++    call_command('makemigrations', 'test_app', interactive=False)
++    call_command('migrate', interactive=False)
++    call_command('run_bug_test')
++    print("Script completed successfully, no errors.")
+diff --git a/test_app/__init__.py b/test_app/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_app/management/__init__.py b/test_app/management/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_app/management/commands/__init__.py b/test_app/management/commands/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_app/management/commands/run_bug_test.py b/test_app/management/commands/run_bug_test.py
+new file mode 100644
+index 0000000000..691010e013
+--- /dev/null
++++ b/test_app/management/commands/run_bug_test.py
+@@ -0,0 +1,32 @@
++from django.core.management.base import BaseCommand
++from django.db import connection, models
++from django.test import TestCase
++from test_app.models import MyModel
++
++class Command(BaseCommand):
++    help = 'Run the bug reproduction test'
++
++    def handle(self, *args, **options):
++        with connection.cursor() as cursor:
++            cursor.execute('PRAGMA foreign_keys = OFF;')
++
++        class BugReproductionTest(TestCase):
++            def test_exists_subquery_with_empty_queryset(self, stdout):
++                qs = MyModel.objects.filter(~models.Exists(MyModel.objects.none()), name='test')
++                stdout.write(f"QuerySet: {qs}")
++                try:
++                    stdout.write(f"SQL Query: {qs.query}")
++                except Exception as e:
++                    stdout.write(f"Exception raised: {type(e).__name__}")
++                    # Force SQL compilation even if exception is raised
++                    compiler = qs.query.get_compiler(using=qs.db)
++                    stdout.write(f"Forced SQL Query: {compiler.as_sql()[0]}")
++
++        test = BugReproductionTest()
++        test.setUp()
++        test.test_exists_subquery_with_empty_queryset(self.stdout)
++
++        with connection.cursor() as cursor:
++            cursor.execute('PRAGMA foreign_keys = ON;')
++
++        self.stdout.write(self.style.SUCCESS('Bug reproduction test completed successfully'))
+diff --git a/test_app/migrations/0001_initial.py b/test_app/migrations/0001_initial.py
+new file mode 100644
+index 0000000000..00ffe6f895
+--- /dev/null
++++ b/test_app/migrations/0001_initial.py
+@@ -0,0 +1,21 @@
++# Generated by Django 4.1.dev20220202061757 on 2024-07-08 09:15
++
++from django.db import migrations, models
++
++
++class Migration(migrations.Migration):
++
++    initial = True
++
++    dependencies = [
++    ]
++
++    operations = [
++        migrations.CreateModel(
++            name='MyModel',
++            fields=[
++                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
++                ('name', models.CharField(max_length=100)),
++            ],
++        ),
++    ]
+diff --git a/test_app/migrations/__init__.py b/test_app/migrations/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_app/models.py b/test_app/models.py
+new file mode 100644
+index 0000000000..eca85b6f76
+--- /dev/null
++++ b/test_app/models.py
+@@ -0,0 +1,4 @@
++from django.db import models
++
++class MyModel(models.Model):
++    name = models.CharField(max_length=100)
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..446405bb7c
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,15 @@
++SECRET_KEY = 'dummy'
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'django.contrib.auth',
++    'test_app',
++]
++
++# Add this line to silence Django's system check warnings
++SILENCED_SYSTEM_CHECKS = ['models.E001']
+diff --git a/tests/queries/tests.py b/tests/queries/tests.py
+index f146bc89fd..73ff5264b5 100644
+--- a/tests/queries/tests.py
++++ b/tests/queries/tests.py
+@@ -1122,6 +1122,16 @@ class Queries1Tests(TestCase):
+ 
+ 
+ class Queries2Tests(TestCase):
++    @classmethod
++    def setUpTestData(cls):
++        cls.num4 = Number.objects.create(num=4)
++        cls.num8 = Number.objects.create(num=8)
++
++    def test_exists_subquery_with_empty_queryset(self):
++        qs = Item.objects.filter(~Exists(Item.objects.none()), name='test')
++        self.assertIn('NOT (EXISTS (SELECT 1 FROM', str(qs.query))
++        self.assertIn('WHERE 1=0', str(qs.query))
++
+     @classmethod
+     def setUpTestData(cls):
+         cls.num4 = Number.objects.create(num=4)

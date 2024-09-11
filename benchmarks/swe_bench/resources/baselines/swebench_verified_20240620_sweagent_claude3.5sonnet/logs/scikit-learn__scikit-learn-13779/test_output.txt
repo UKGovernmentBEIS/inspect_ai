@@ -1,0 +1,923 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sklearn/ensemble/voting.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_issue.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit b34751b7ed02b2cfcc36037fb729d4360480a299
+Author: Guillaume Lemaitre <g.lemaitre58@gmail.com>
+Date:   Mon May 6 09:41:46 2019 +0200
+
+    [MRG] MAINT: add fixture for init and clean-up with matplotlib (#13708)
+
+diff --git a/azure-pipelines.yml b/azure-pipelines.yml
+index ae27828dd..c31385dd3 100644
+--- a/azure-pipelines.yml
++++ b/azure-pipelines.yml
+@@ -22,6 +22,7 @@ jobs:
+         SCIPY_VERSION: '0.17.0'
+         CYTHON_VERSION: '*'
+         PILLOW_VERSION: '4.0.0'
++        MATPLOTLIB_VERSION: '1.5.1'
+         # later version of joblib are not packaged in conda for Python 3.5
+         JOBLIB_VERSION: '0.12.3'
+         COVERAGE: 'true'
+diff --git a/build_tools/azure/install.cmd b/build_tools/azure/install.cmd
+index 97f5cb4f7..a53cd61b3 100644
+--- a/build_tools/azure/install.cmd
++++ b/build_tools/azure/install.cmd
+@@ -11,7 +11,7 @@ IF "%PYTHON_ARCH%"=="64" (
+     call deactivate
+     @rem Clean up any left-over from a previous build
+     conda remove --all -q -y -n %VIRTUALENV%
+-    conda create -n %VIRTUALENV% -q -y python=%PYTHON_VERSION% numpy scipy cython pytest wheel pillow joblib
++    conda create -n %VIRTUALENV% -q -y python=%PYTHON_VERSION% numpy scipy cython matplotlib pytest wheel pillow joblib
+ 
+     call activate %VIRTUALENV%
+ ) else (
+diff --git a/doc/developers/contributing.rst b/doc/developers/contributing.rst
+index 45ca89a80..69e7f0b2b 100644
+--- a/doc/developers/contributing.rst
++++ b/doc/developers/contributing.rst
+@@ -626,7 +626,7 @@ reviewing pull requests, you may find :ref:`this tip
+ .. _testing_coverage:
+ 
+ Testing and improving test coverage
+-------------------------------------
++-----------------------------------
+ 
+ High-quality `unit testing <https://en.wikipedia.org/wiki/Unit_testing>`_
+ is a corner-stone of the scikit-learn development process. For this
+@@ -641,22 +641,42 @@ the corresponding subpackages.
+ 
+ We expect code coverage of new features to be at least around 90%.
+ 
+-.. note:: **Workflow to improve test coverage**
++For guidelines on how to use ``pytest`` efficiently, see the
++:ref:`pytest_tips`.
+ 
+-   To test code coverage, you need to install the `coverage
+-   <https://pypi.org/project/coverage/>`_ package in addition to pytest.
++Writing matplotlib related tests
++................................
+ 
+-   1. Run 'make test-coverage'. The output lists for each file the line
+-      numbers that are not tested.
++Test fixtures ensure that a set of tests will be executing with the appropriate
++initialization and cleanup. The scikit-learn test suite implements a fixture
++which can be used with ``matplotlib``.
+ 
+-   2. Find a low hanging fruit, looking at which lines are not tested,
+-      write or adapt a test specifically for these lines.
++``pyplot``
++    The ``pyplot`` fixture should be used when a test function is dealing with
++    ``matplotlib``. ``matplotlib`` is a soft dependency and is not required.
++    This fixture is in charge of skipping the tests if ``matplotlib`` is not
++    installed. In addition, figures created during the tests will be
++    automatically closed once the test function has been executed.
+ 
+-   3. Loop.
++To use this fixture in a test function, one needs to pass it as an
++argument::
+ 
+-For guidelines on how to use ``pytest`` efficiently, see the
+-:ref:`pytest_tips`.
++    def test_requiring_mpl_fixture(pyplot):
++        # you can now safely use matplotlib
++
++Workflow to improve test coverage
++.................................
++
++To test code coverage, you need to install the `coverage
++<https://pypi.org/project/coverage/>`_ package in addition to pytest.
++
++1. Run 'make test-coverage'. The output lists for each file the line
++    numbers that are not tested.
++
++2. Find a low hanging fruit, looking at which lines are not tested,
++    write or adapt a test specifically for these lines.
+ 
++3. Loop.
+ 
+ Developers web site
+ -------------------
+diff --git a/sklearn/conftest.py b/sklearn/conftest.py
+new file mode 100644
+index 000000000..d38e45f57
+--- /dev/null
++++ b/sklearn/conftest.py
+@@ -0,0 +1,21 @@
++import pytest
++
++
++@pytest.fixture(scope='function')
++def pyplot():
++    """Setup and teardown fixture for matplotlib.
++
++    This fixture checks if we can import matplotlib. If not, the tests will be
++    skipped. Otherwise, we setup matplotlib backend and close the figures
++    after running the functions.
++
++    Returns
++    -------
++    pyplot : module
++        The ``matplotlib.pyplot`` module.
++    """
++    matplotlib = pytest.importorskip('matplotlib')
++    matplotlib.use('agg', warn=False, force=True)
++    pyplot = pytest.importorskip('matplotlib.pyplot')
++    yield pyplot
++    pyplot.close('all')
+diff --git a/sklearn/ensemble/tests/test_partial_dependence.py b/sklearn/ensemble/tests/test_partial_dependence.py
+index a40fea2ff..dc0e0419e 100644
+--- a/sklearn/ensemble/tests/test_partial_dependence.py
++++ b/sklearn/ensemble/tests/test_partial_dependence.py
+@@ -7,14 +7,12 @@ import numpy as np
+ from numpy.testing import assert_array_equal, assert_allclose
+ 
+ from sklearn.utils.testing import assert_raises
+-from sklearn.utils.testing import if_matplotlib
+ from sklearn.ensemble.partial_dependence import partial_dependence
+ from sklearn.ensemble.partial_dependence import plot_partial_dependence
+ from sklearn.ensemble import GradientBoostingClassifier
+ from sklearn.ensemble import GradientBoostingRegressor
+ from sklearn import datasets
+ from sklearn.utils.testing import ignore_warnings
+-from sklearn.utils.testing import assert_warns_message
+ 
+ 
+ # toy sample
+@@ -156,8 +154,7 @@ def test_partial_dependecy_input():
+ @ignore_warnings(category=DeprecationWarning)
+ @pytest.mark.filterwarnings('ignore: Using or importing the ABCs from')
+ # matplotlib Python3.7 warning
+-@if_matplotlib
+-def test_plot_partial_dependence():
++def test_plot_partial_dependence(pyplot):
+     # Test partial dependence plot function.
+     clf = GradientBoostingRegressor(n_estimators=10, random_state=1)
+     clf.fit(boston.data, boston.target)
+@@ -190,9 +187,8 @@ def test_plot_partial_dependence():
+ 
+ @pytest.mark.filterwarnings('ignore: Using or importing the ABCs from')
+ # matplotlib Python3.7 warning
+-@if_matplotlib
+ @ignore_warnings(category=DeprecationWarning)
+-def test_plot_partial_dependence_input():
++def test_plot_partial_dependence_input(pyplot):
+     # Test partial dependence plot function input checks.
+     clf = GradientBoostingClassifier(n_estimators=10, random_state=1)
+ 
+@@ -228,9 +224,8 @@ def test_plot_partial_dependence_input():
+ 
+ @pytest.mark.filterwarnings('ignore: Using or importing the ABCs from')
+ # matplotlib Python3.7 warning
+-@if_matplotlib
+ @ignore_warnings(category=DeprecationWarning)
+-def test_plot_partial_dependence_multiclass():
++def test_plot_partial_dependence_multiclass(pyplot):
+     # Test partial dependence plot function on multi-class input.
+     clf = GradientBoostingClassifier(n_estimators=10, random_state=1)
+     clf.fit(iris.data, iris.target)
+@@ -265,30 +260,18 @@ def test_plot_partial_dependence_multiclass():
+                   grid_resolution=grid_resolution)
+ 
+ 
+-def test_warning_raised_partial_dependence():
+-    # Test that deprecation warning is raised
+-
+-    clf = GradientBoostingRegressor(n_estimators=10, random_state=1)
+-    clf.fit(boston.data, boston.target)
+-    grid_resolution = 25
+-
+-    assert_warns_message(DeprecationWarning, "The function "
+-                         "ensemble.partial_dependence has been deprecated ",
+-                         partial_dependence, clf, [0], X=boston.data,
+-                         grid_resolution=grid_resolution)
+-
+-
+-@if_matplotlib
+-def test_warning_raised_partial_dependence_plot():
+-    # Test that deprecation warning is raised
+-
++@pytest.mark.parametrize(
++    "func, params",
++    [(partial_dependence, {'target_variables': [0], 'X': boston.data}),
++     (plot_partial_dependence, {'X': boston.data, 'features': [0, 1, (0, 1)]})]
++)
++def test_raise_deprecation_warning(pyplot, func, params):
+     clf = GradientBoostingRegressor(n_estimators=10, random_state=1)
+     clf.fit(boston.data, boston.target)
+     grid_resolution = 25
+ 
+-    assert_warns_message(DeprecationWarning, "The function "
+-                         "ensemble.plot_partial_dependence has been "
+-                         "deprecated",
+-                         plot_partial_dependence, clf, boston.data,
+-                         [0, 1, (0, 1)], grid_resolution=grid_resolution,
+-                         feature_names=boston.feature_names)
++    warn_msg = "The function ensemble.{} has been deprecated".format(
++        func.__name__
++    )
++    with pytest.warns(DeprecationWarning, match=warn_msg):
++        func(clf, **params, grid_resolution=grid_resolution)
+diff --git a/sklearn/inspection/tests/test_partial_dependence.py b/sklearn/inspection/tests/test_partial_dependence.py
+index d2d3c7818..b90b76c42 100644
+--- a/sklearn/inspection/tests/test_partial_dependence.py
++++ b/sklearn/inspection/tests/test_partial_dependence.py
+@@ -27,7 +27,6 @@ from sklearn.dummy import DummyClassifier
+ from sklearn.base import BaseEstimator, ClassifierMixin
+ from sklearn.utils.testing import assert_allclose
+ from sklearn.utils.testing import assert_array_equal
+-from sklearn.utils.testing import if_matplotlib
+ 
+ 
+ # toy sample
+@@ -396,11 +395,8 @@ def test_partial_dependence_sample_weight():
+     assert np.corrcoef(pdp, values)[0, 1] > 0.99
+ 
+ 
+-@if_matplotlib
+-def test_plot_partial_dependence():
++def test_plot_partial_dependence(pyplot):
+     # Test partial dependence plot function.
+-    import matplotlib.pyplot as plt  # noqa
+-
+     boston = load_boston()
+     clf = GradientBoostingRegressor(n_estimators=10, random_state=1)
+     clf.fit(boston.data, boston.target)
+@@ -409,7 +405,7 @@ def test_plot_partial_dependence():
+     plot_partial_dependence(clf, boston.data, [0, 1, (0, 1)],
+                             grid_resolution=grid_resolution,
+                             feature_names=boston.feature_names)
+-    fig = plt.gcf()
++    fig = pyplot.gcf()
+     axs = fig.get_axes()
+     assert len(axs) == 3
+     assert all(ax.has_data for ax in axs)
+@@ -420,7 +416,7 @@ def test_plot_partial_dependence():
+                             grid_resolution=grid_resolution,
+                             feature_names=boston.feature_names)
+ 
+-    fig = plt.gcf()
++    fig = pyplot.gcf()
+     axs = fig.get_axes()
+     assert len(axs) == 3
+     assert all(ax.has_data for ax in axs)
+@@ -431,18 +427,14 @@ def test_plot_partial_dependence():
+                                                ('CRIM', 'ZN')],
+                             grid_resolution=grid_resolution,
+                             feature_names=feature_names)
+-    fig = plt.gcf()
++    fig = pyplot.gcf()
+     axs = fig.get_axes()
+     assert len(axs) == 3
+     assert all(ax.has_data for ax in axs)
+ 
+-    plt.close('all')
+-
+ 
+-@if_matplotlib
+-def test_plot_partial_dependence_multiclass():
++def test_plot_partial_dependence_multiclass(pyplot):
+     # Test partial dependence plot function on multi-class input.
+-    import matplotlib.pyplot as plt  # noqa
+     iris = load_iris()
+     clf = GradientBoostingClassifier(n_estimators=10, random_state=1)
+     clf.fit(iris.data, iris.target)
+@@ -451,7 +443,7 @@ def test_plot_partial_dependence_multiclass():
+     plot_partial_dependence(clf, iris.data, [0, 1],
+                             target=0,
+                             grid_resolution=grid_resolution)
+-    fig = plt.gcf()
++    fig = pyplot.gcf()
+     axs = fig.get_axes()
+     assert len(axs) == 2
+     assert all(ax.has_data for ax in axs)
+@@ -465,18 +457,14 @@ def test_plot_partial_dependence_multiclass():
+     plot_partial_dependence(clf, iris.data, [0, 1],
+                             target='setosa',
+                             grid_resolution=grid_resolution)
+-    fig = plt.gcf()
++    fig = pyplot.gcf()
+     axs = fig.get_axes()
+     assert len(axs) == 2
+     assert all(ax.has_data for ax in axs)
+ 
+-    plt.close('all')
+ 
+-
+-@if_matplotlib
+-def test_plot_partial_dependence_multioutput():
++def test_plot_partial_dependence_multioutput(pyplot):
+     # Test partial dependence plot function on multi-output input.
+-    import matplotlib.pyplot as plt  # noqa
+     (X, y), _ = multioutput_regression_data
+     clf = LinearRegression()
+     clf.fit(X, y)
+@@ -485,7 +473,7 @@ def test_plot_partial_dependence_multioutput():
+     plot_partial_dependence(clf, X, [0, 1],
+                             target=0,
+                             grid_resolution=grid_resolution)
+-    fig = plt.gcf()
++    fig = pyplot.gcf()
+     axs = fig.get_axes()
+     assert len(axs) == 2
+     assert all(ax.has_data for ax in axs)
+@@ -493,15 +481,12 @@ def test_plot_partial_dependence_multioutput():
+     plot_partial_dependence(clf, X, [0, 1],
+                             target=1,
+                             grid_resolution=grid_resolution)
+-    fig = plt.gcf()
++    fig = pyplot.gcf()
+     axs = fig.get_axes()
+     assert len(axs) == 2
+     assert all(ax.has_data for ax in axs)
+ 
+-    plt.close('all')
+-
+ 
+-@if_matplotlib
+ @pytest.mark.parametrize(
+     "data, params, err_msg",
+     [(multioutput_regression_data[0], {"target": None, 'features': [0]},
+@@ -531,32 +516,23 @@ def test_plot_partial_dependence_multioutput():
+ )
+ @pytest.mark.filterwarnings('ignore:Default solver will be changed ')  # 0.22
+ @pytest.mark.filterwarnings('ignore:Default multi_class will be')  # 0.22
+-def test_plot_partial_dependence_error(data, params, err_msg):
+-    import matplotlib.pyplot as plt  # noqa
++def test_plot_partial_dependence_error(pyplot, data, params, err_msg):
+     X, y = data
+     estimator = LinearRegression().fit(X, y)
+ 
+     with pytest.raises(ValueError, match=err_msg):
+         plot_partial_dependence(estimator, X, **params)
+ 
+-    plt.close()
+ 
+-
+-@if_matplotlib
+-def test_plot_partial_dependence_fig():
++def test_plot_partial_dependence_fig(pyplot):
+     # Make sure fig object is correctly used if not None
+-
+-    import matplotlib.pyplot as plt
+-
+     (X, y), _ = regression_data
+     clf = LinearRegression()
+     clf.fit(X, y)
+ 
+-    fig = plt.figure()
++    fig = pyplot.figure()
+     grid_resolution = 25
+     plot_partial_dependence(
+         clf, X, [0, 1], target=0, grid_resolution=grid_resolution, fig=fig)
+ 
+-    assert plt.gcf() is fig
+-
+-    plt.close()
++    assert pyplot.gcf() is fig
+diff --git a/sklearn/tests/test_common.py b/sklearn/tests/test_common.py
+index fc3c7f398..660b38c1a 100644
+--- a/sklearn/tests/test_common.py
++++ b/sklearn/tests/test_common.py
+@@ -215,7 +215,7 @@ def test_import_all_consistency():
+ 
+ 
+ def test_root_import_all_completeness():
+-    EXCEPTIONS = ('utils', 'tests', 'base', 'setup')
++    EXCEPTIONS = ('utils', 'tests', 'base', 'setup', 'conftest')
+     for _, modname, _ in pkgutil.walk_packages(path=sklearn.__path__,
+                                                onerror=lambda _: None):
+         if '.' in modname or modname.startswith('_') or modname in EXCEPTIONS:
+diff --git a/sklearn/tree/tests/test_export.py b/sklearn/tree/tests/test_export.py
+index 65b0a201b..eed9be7bc 100644
+--- a/sklearn/tree/tests/test_export.py
++++ b/sklearn/tree/tests/test_export.py
+@@ -399,9 +399,8 @@ def test_export_text():
+     assert export_text(reg, decimals=1, show_weights=True) == expected_report
+ 
+ 
+-def test_plot_tree():
++def test_plot_tree(pyplot):
+     # mostly smoke tests
+-    pytest.importorskip("matplotlib.pyplot")
+     # Check correctness of export_graphviz
+     clf = DecisionTreeClassifier(max_depth=3,
+                                  min_samples_split=2,
+diff --git a/sklearn/utils/testing.py b/sklearn/utils/testing.py
+index 65bed4c7e..babf0b865 100644
+--- a/sklearn/utils/testing.py
++++ b/sklearn/utils/testing.py
+@@ -714,28 +714,6 @@ def set_random_state(estimator, random_state=0):
+         estimator.set_params(random_state=random_state)
+ 
+ 
+-def if_matplotlib(func):
+-    """Test decorator that skips test if matplotlib not installed.
+-
+-    Parameters
+-    ----------
+-    func
+-    """
+-    @wraps(func)
+-    def run_test(*args, **kwargs):
+-        try:
+-            import matplotlib
+-            matplotlib.use('Agg', warn=False)
+-            # this fails if no $DISPLAY specified
+-            import matplotlib.pyplot as plt
+-            plt.figure()
+-        except ImportError:
+-            raise SkipTest('Matplotlib not available.')
+-        else:
+-            return func(*args, **kwargs)
+-    return run_test
+-
+-
+ try:
+     import pytest
+ 
+@@ -1024,21 +1002,3 @@ def assert_run_python_script(source_code, timeout=60):
+                                % e.output.decode('utf-8'))
+     finally:
+         os.unlink(source_file)
+-
+-
+-def close_figure(fig=None):
+-    """Close a matplotlibt figure.
+-
+-    Parameters
+-    ----------
+-    fig : int or str or Figure, optional (default=None)
+-        The figure, figure number or figure name to close. If ``None``, all
+-        current figures are closed.
+-    """
+-    from matplotlib.pyplot import get_fignums, close as _close  # noqa
+-
+-    if fig is None:
+-        for fig in get_fignums():
+-            _close(fig)
+-    else:
+-        _close(fig)
++ git diff b34751b7ed02b2cfcc36037fb729d4360480a299
+diff --git a/sklearn/ensemble/voting.py b/sklearn/ensemble/voting.py
+index 7afa7180c..13accdcec 100644
+--- a/sklearn/ensemble/voting.py
++++ b/sklearn/ensemble/voting.py
+@@ -78,7 +78,7 @@ class _BaseVoting(_BaseComposition, TransformerMixin):
+ 
+         if sample_weight is not None:
+             for name, step in self.estimators:
+-                if not has_fit_parameter(step, 'sample_weight'):
++                if step is not None and not has_fit_parameter(step, 'sample_weight'):
+                     raise ValueError('Underlying estimator \'%s\' does not'
+                                      ' support sample weights.' % name)
+ 
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -v --no-use-pep517 --no-build-isolation -e .
+Using pip 21.2.2 from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/pip (python 3.6)
+Obtaining file:///testbed
+    Running command python setup.py egg_info
+    running egg_info
+    creating /tmp/pip-pip-egg-info-6h3meirj/scikit_learn.egg-info
+    writing /tmp/pip-pip-egg-info-6h3meirj/scikit_learn.egg-info/PKG-INFO
+    writing dependency_links to /tmp/pip-pip-egg-info-6h3meirj/scikit_learn.egg-info/dependency_links.txt
+    writing requirements to /tmp/pip-pip-egg-info-6h3meirj/scikit_learn.egg-info/requires.txt
+    writing top-level names to /tmp/pip-pip-egg-info-6h3meirj/scikit_learn.egg-info/top_level.txt
+    writing manifest file '/tmp/pip-pip-egg-info-6h3meirj/scikit_learn.egg-info/SOURCES.txt'
+    reading manifest file '/tmp/pip-pip-egg-info-6h3meirj/scikit_learn.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    adding license file 'COPYING'
+    writing manifest file '/tmp/pip-pip-egg-info-6h3meirj/scikit_learn.egg-info/SOURCES.txt'
+    Partial import of sklearn during the build process.
+Requirement already satisfied: numpy>=1.11.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from scikit-learn==0.22.dev0) (1.19.2)
+Requirement already satisfied: scipy>=0.17.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from scikit-learn==0.22.dev0) (1.5.2)
+Requirement already satisfied: joblib>=0.11 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from scikit-learn==0.22.dev0) (1.1.1)
+Installing collected packages: scikit-learn
+  Attempting uninstall: scikit-learn
+    Found existing installation: scikit-learn 0.22.dev0
+    Uninstalling scikit-learn-0.22.dev0:
+      Removing file or directory /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/scikit-learn.egg-link
+      Removing pth entries from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/easy-install.pth:
+      Removing entry: /testbed
+      Successfully uninstalled scikit-learn-0.22.dev0
+  Running setup.py develop for scikit-learn
+    Running command /opt/miniconda3/envs/testbed/bin/python -c 'import io, os, sys, setuptools, tokenize; sys.argv[0] = '"'"'/testbed/setup.py'"'"'; __file__='"'"'/testbed/setup.py'"'"';f = getattr(tokenize, '"'"'open'"'"', open)(__file__) if os.path.exists(__file__) else io.StringIO('"'"'from setuptools import setup; setup()'"'"');code = f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' develop --no-deps
+    blas_opt_info:
+    blas_mkl_info:
+    customize UnixCCompiler
+      libraries mkl_rt not found in ['/opt/miniconda3/envs/testbed/lib', '/usr/local/lib', '/usr/lib64', '/usr/lib', '/usr/lib/x86_64-linux-gnu']
+      NOT AVAILABLE
+
+    blis_info:
+      libraries blis not found in ['/opt/miniconda3/envs/testbed/lib', '/usr/local/lib', '/usr/lib64', '/usr/lib', '/usr/lib/x86_64-linux-gnu']
+      NOT AVAILABLE
+
+    openblas_info:
+    C compiler: gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC
+
+    creating /tmp/tmp9_52qv4h/tmp
+    creating /tmp/tmp9_52qv4h/tmp/tmp9_52qv4h
+    compile options: '-c'
+    gcc: /tmp/tmp9_52qv4h/source.c
+    gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ /tmp/tmp9_52qv4h/tmp/tmp9_52qv4h/source.o -L/opt/miniconda3/envs/testbed/lib -lopenblas -o /tmp/tmp9_52qv4h/a.out
+      FOUND:
+        libraries = ['openblas', 'openblas']
+        library_dirs = ['/opt/miniconda3/envs/testbed/lib']
+        language = c
+        define_macros = [('HAVE_CBLAS', None)]
+
+      FOUND:
+        libraries = ['openblas', 'openblas']
+        library_dirs = ['/opt/miniconda3/envs/testbed/lib']
+        language = c
+        define_macros = [('HAVE_CBLAS', None)]
+
+    C compiler: gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC
+
+    compile options: '-c'
+    extra options: '-fopenmp'
+    gcc: test_openmp.c
+    gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ objects/test_openmp.o -o test_openmp -fopenmp
+    running develop
+    running build_scripts
+    running egg_info
+    running build_src
+    build_src
+    building library "libsvm-skl" sources
+    building extension "sklearn.__check_build._check_build" sources
+    building extension "sklearn.preprocessing._csr_polynomial_expansion" sources
+    building extension "sklearn.cluster._dbscan_inner" sources
+    building extension "sklearn.cluster._hierarchical" sources
+    building extension "sklearn.cluster._k_means_elkan" sources
+    building extension "sklearn.cluster._k_means" sources
+    building extension "sklearn.datasets._svmlight_format" sources
+    building extension "sklearn.decomposition._online_lda" sources
+    building extension "sklearn.decomposition.cdnmf_fast" sources
+    building extension "sklearn.ensemble._gradient_boosting" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting._gradient_boosting" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting.histogram" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting.splitting" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting._binning" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting._predictor" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting._loss" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting.types" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting.utils" sources
+    building extension "sklearn.feature_extraction._hashing" sources
+    building extension "sklearn.manifold._utils" sources
+    building extension "sklearn.manifold._barnes_hut_tsne" sources
+    building extension "sklearn.metrics.cluster.expected_mutual_info_fast" sources
+    building extension "sklearn.metrics.pairwise_fast" sources
+    building extension "sklearn.neighbors.ball_tree" sources
+    building extension "sklearn.neighbors.kd_tree" sources
+    building extension "sklearn.neighbors.dist_metrics" sources
+    building extension "sklearn.neighbors.typedefs" sources
+    building extension "sklearn.neighbors.quad_tree" sources
+    building extension "sklearn.tree._tree" sources
+    building extension "sklearn.tree._splitter" sources
+    building extension "sklearn.tree._criterion" sources
+    building extension "sklearn.tree._utils" sources
+    building extension "sklearn.utils.sparsefuncs_fast" sources
+    building extension "sklearn.utils._cython_blas" sources
+    building extension "sklearn.utils.arrayfuncs" sources
+    building extension "sklearn.utils.murmurhash" sources
+    building extension "sklearn.utils.lgamma" sources
+    building extension "sklearn.utils.graph_shortest_path" sources
+    building extension "sklearn.utils.fast_dict" sources
+    building extension "sklearn.utils.seq_dataset" sources
+    building extension "sklearn.utils.weight_vector" sources
+    building extension "sklearn.utils._random" sources
+    building extension "sklearn.utils._logistic_sigmoid" sources
+    building extension "sklearn.svm.libsvm" sources
+    building extension "sklearn.svm.liblinear" sources
+    building extension "sklearn.svm.libsvm_sparse" sources
+    building extension "sklearn.linear_model.cd_fast" sources
+    building extension "sklearn.linear_model.sgd_fast" sources
+    building extension "sklearn.linear_model.sag_fast" sources
+    building extension "sklearn._isotonic" sources
+    building data_files sources
+    build_src: building npy-pkg config files
+    writing scikit_learn.egg-info/PKG-INFO
+    writing dependency_links to scikit_learn.egg-info/dependency_links.txt
+    writing requirements to scikit_learn.egg-info/requires.txt
+    writing top-level names to scikit_learn.egg-info/top_level.txt
+    reading manifest file 'scikit_learn.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    adding license file 'COPYING'
+    writing manifest file 'scikit_learn.egg-info/SOURCES.txt'
+    running build_ext
+    customize UnixCCompiler
+    customize UnixCCompiler using build_clib
+    customize UnixCCompiler
+    customize UnixCCompiler using build_ext_subclass
+    customize UnixCCompiler
+    customize UnixCCompiler using build_ext_subclass
+    Creating /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/scikit-learn.egg-link (link to .)
+    Adding scikit-learn 0.22.dev0 to easy-install.pth file
+
+    Installed /testbed
+    Partial import of sklearn during the build process.
+Successfully installed scikit-learn-0.22.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout b34751b7ed02b2cfcc36037fb729d4360480a299 sklearn/ensemble/tests/test_voting.py
+Updated 0 paths from 7b9b2f347
++ git apply -v -
+Checking patch sklearn/ensemble/tests/test_voting.py...
+Applied patch sklearn/ensemble/tests/test_voting.py cleanly.
++ pytest -rA sklearn/ensemble/tests/test_voting.py
+============================= test session starts ==============================
+platform linux -- Python 3.6.13, pytest-6.2.4, py-1.11.0, pluggy-0.13.1
+rootdir: /testbed, configfile: setup.cfg
+collected 20 items
+
+sklearn/ensemble/tests/test_voting.py ....................               [100%]
+
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED sklearn/ensemble/tests/test_voting.py::test_estimator_init
+PASSED sklearn/ensemble/tests/test_voting.py::test_predictproba_hardvoting
+PASSED sklearn/ensemble/tests/test_voting.py::test_notfitted
+PASSED sklearn/ensemble/tests/test_voting.py::test_majority_label_iris
+PASSED sklearn/ensemble/tests/test_voting.py::test_tie_situation
+PASSED sklearn/ensemble/tests/test_voting.py::test_weights_iris
+PASSED sklearn/ensemble/tests/test_voting.py::test_weights_regressor
+PASSED sklearn/ensemble/tests/test_voting.py::test_predict_on_toy_problem
+PASSED sklearn/ensemble/tests/test_voting.py::test_predict_proba_on_toy_problem
+PASSED sklearn/ensemble/tests/test_voting.py::test_multilabel
+PASSED sklearn/ensemble/tests/test_voting.py::test_gridsearch
+PASSED sklearn/ensemble/tests/test_voting.py::test_parallel_fit
+PASSED sklearn/ensemble/tests/test_voting.py::test_sample_weight
+PASSED sklearn/ensemble/tests/test_voting.py::test_sample_weight_kwargs
+PASSED sklearn/ensemble/tests/test_voting.py::test_set_params
+PASSED sklearn/ensemble/tests/test_voting.py::test_set_estimator_none
+PASSED sklearn/ensemble/tests/test_voting.py::test_estimator_weights_format
+PASSED sklearn/ensemble/tests/test_voting.py::test_transform
+PASSED sklearn/ensemble/tests/test_voting.py::test_none_estimator_with_weights[X0-y0-voter0]
+PASSED sklearn/ensemble/tests/test_voting.py::test_none_estimator_with_weights[X1-y1-voter1]
+======================== 20 passed, 1 warning in 4.71s =========================
++ git checkout b34751b7ed02b2cfcc36037fb729d4360480a299 sklearn/ensemble/tests/test_voting.py
+Updated 1 path from 7b9b2f347

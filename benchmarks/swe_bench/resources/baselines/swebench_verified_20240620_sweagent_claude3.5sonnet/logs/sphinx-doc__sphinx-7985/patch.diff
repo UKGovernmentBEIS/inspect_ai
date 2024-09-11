@@ -1,0 +1,128 @@
+
+diff --git a/setup.py b/setup.py
+index a404f1fa5..2c6848797 100644
+--- a/setup.py
++++ b/setup.py
+@@ -15,22 +15,22 @@ if sys.version_info < (3, 5):
+     sys.exit(1)
+ 
+ install_requires = [
+-    'sphinxcontrib-applehelp',
+-    'sphinxcontrib-devhelp',
++    'sphinxcontrib-applehelp<=1.0.7',
++    'sphinxcontrib-devhelp<=1.0.5',
+     'sphinxcontrib-jsmath',
+-    'sphinxcontrib-htmlhelp',
+-    'sphinxcontrib-serializinghtml',
+-    'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'sphinxcontrib-htmlhelp<=2.0.4',
++    'sphinxcontrib-serializinghtml<=1.1.9',
++    'sphinxcontrib-qthelp<=1.0.6',
++    'Jinja2<3.0',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+     'babel>=1.3',
+-    'alabaster>=0.7,<0.8',
++    'alabaster>=0.7,<0.7.12',
+     'imagesize',
+     'requests>=2.5.0',
+     'setuptools',
+-    'packaging',
++    'packaging', 'markupsafe<=2.0.1',
+ ]
+ 
+ extras_require = {
+diff --git a/sphinx/builders/linkcheck.py b/sphinx/builders/linkcheck.py
+index dd5317087..24a083485 100644
+--- a/sphinx/builders/linkcheck.py
++++ b/sphinx/builders/linkcheck.py
+@@ -74,6 +74,32 @@ def check_anchor(response: requests.requests.Response, anchor: str) -> bool:
+     parser.close()
+     return parser.found
+ 
++def check_local_link(app, env, node, contnode):
++    target = node['refuri']
++    if target.startswith(('http:', 'https:', 'ftp:')):
++        return None  # Not a local link
++    
++    docname = env.docname
++    if target.startswith('#'):
++        # It's a link to an anchor in the same document
++        return env.get_doctree(docname).ids.get(target[1:]) is not None
++    else:
++        # It's a link to another document
++        if '#' in target:
++            filename, anchor = target.split('#', 1)
++        else:
++            filename, anchor = target, ''
++        
++        # Check if the target document exists
++        if not env.doc2path(filename, False):
++            return False
++        
++        # If there's an anchor, check if it exists in the target document
++        if anchor:
++            doctree = env.get_doctree(filename)
++            return doctree.ids.get(anchor) is not None
++        
++        return True
+ 
+ class CheckExternalLinksBuilder(Builder):
+     """
+@@ -213,7 +239,11 @@ class CheckExternalLinksBuilder(Builder):
+             if len(uri) == 0 or uri.startswith(('#', 'mailto:', 'ftp:')):
+                 return 'unchecked', '', 0
+             elif not uri.startswith(('http:', 'https:')):
+-                return 'local', '', 0
++                # Check local links
++                if check_local_link(self.app, self.env, {'refuri': uri}, None):
++                    return 'working', '', 0
++                else:
++                    return 'broken', 'Local link not found', 0
+             elif uri in self.good:
+                 return 'working', 'old', 0
+             elif uri in self.broken:
+@@ -256,6 +286,10 @@ class CheckExternalLinksBuilder(Builder):
+         if status == 'unchecked':
+             self.write_linkstat(linkstat)
+             return
++        if status == 'working' and not uri.startswith(('http:', 'https:')):
++            logger.info(darkgreen('ok        ') + uri)
++            self.write_linkstat(linkstat)
++            return
+         if status == 'working' and info == 'old':
+             self.write_linkstat(linkstat)
+             return
+@@ -275,12 +309,15 @@ class CheckExternalLinksBuilder(Builder):
+             logger.info(darkgreen('ok        ') + uri + info)
+             self.write_linkstat(linkstat)
+         elif status == 'broken':
+-            if self.app.quiet or self.app.warningiserror:
++            if not uri.startswith(('http:', 'https:')):
++                logger.info(red('broken    ') + uri + red(' - Local link not found'))
++                self.write_entry('broken', docname, filename, lineno, uri + ': Local link not found')
++            elif self.app.quiet or self.app.warningiserror:
+                 logger.warning(__('broken link: %s (%s)'), uri, info,
+                                location=(filename, lineno))
+             else:
+                 logger.info(red('broken    ') + uri + red(' - ' + info))
+-            self.write_entry('broken', docname, filename, lineno, uri + ': ' + info)
++                self.write_entry('broken', docname, filename, lineno, uri + ': ' + info)
+             self.write_linkstat(linkstat)
+         elif status == 'redirected':
+             try:
+diff --git a/tox.ini b/tox.ini
+index bddd822a6..34baee205 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,7 +27,7 @@ extras =
+ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+ commands=
+-    pytest --durations 25 {posargs}
++    pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

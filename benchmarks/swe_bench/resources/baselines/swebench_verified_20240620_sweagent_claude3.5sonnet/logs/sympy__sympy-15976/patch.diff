@@ -1,0 +1,53 @@
+
+diff --git a/reproduce_mathml_issue.py b/reproduce_mathml_issue.py
+new file mode 100644
+index 0000000000..3e6e65cae9
+--- /dev/null
++++ b/reproduce_mathml_issue.py
+@@ -0,0 +1,18 @@
++import sympy
++from sympy.printing.mathml import mathml
++
++x2, x, y, z = sympy.symbols('x2 x y z')
++y1 = x2*z + x2**3
++y2 = x*z + x**3
++
++f = open('sympy_test.html', 'w')
++f.write('<html><body>\n')
++f.write('<h2>Expression with x2:</h2>\n')
++f.write(sympy.mathml(y1, printer='presentation') + '\n')
++f.write('<h2>Expression with x:</h2>\n')
++f.write(sympy.mathml(y2, printer='presentation') + '\n')
++f.write('</body></html>\n')
++f.close()
++
++print("MathML content written to sympy_test.html")
++print("Script completed successfully, no errors.")
+diff --git a/sympy/printing/mathml.py b/sympy/printing/mathml.py
+index 3f8b8d49e0..ae6fd927ac 100644
+--- a/sympy/printing/mathml.py
++++ b/sympy/printing/mathml.py
+@@ -772,6 +772,11 @@ def translate(s):
+             else:
+                 return s
+ 
++        # Check if the symbol name ends with a number
++        if sym.name[-1].isdigit():
++            x.appendChild(self.dom.createTextNode(sym.name))
++            return x
++
+         name, supers, subs = split_super_sub(sym.name)
+         name = translate(name)
+         supers = [translate(sup) for sup in supers]
+diff --git a/sympy_test.html b/sympy_test.html
+new file mode 100644
+index 0000000000..ff57ffd006
+--- /dev/null
++++ b/sympy_test.html
+@@ -0,0 +1,6 @@
++<html><body>
++<h2>Expression with x2:</h2>
++<mrow><msup><mrow><mfenced><mi>x2</mi></mfenced></mrow><mn>3</mn></msup><mo>+</mo><mrow><mi>x2</mi><mo>&InvisibleTimes;</mo><mi>z</mi></mrow></mrow>
++<h2>Expression with x:</h2>
++<mrow><msup><mi>x</mi><mn>3</mn></msup><mo>+</mo><mrow><mi>x</mi><mo>&InvisibleTimes;</mo><mi>z</mi></mrow></mrow>
++</body></html>

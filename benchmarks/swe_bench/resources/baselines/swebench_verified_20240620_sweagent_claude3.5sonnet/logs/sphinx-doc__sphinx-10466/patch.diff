@@ -1,0 +1,72 @@
+
+diff --git a/CHANGES b/CHANGES
+index ed47709e5..32535c4db 100644
+--- a/CHANGES
++++ b/CHANGES
+@@ -16,6 +16,7 @@ Features added
+ Bugs fixed
+ ----------
+ 
++* #10510: builders: Remove duplicate locations in Message objects for gettext builder.
+ * #9575: autodoc: The annotation of return value should not be shown when
+   ``autodoc_typehints="description"``
+ * #9648: autodoc: ``*args`` and ``**kwargs`` entries are duplicated when
+diff --git a/sphinx/builders/gettext.py b/sphinx/builders/gettext.py
+index e8bc547b7..1b8346f35 100644
+--- a/sphinx/builders/gettext.py
++++ b/sphinx/builders/gettext.py
+@@ -32,7 +32,7 @@ class Message:
+     """An entry of translatable message."""
+     def __init__(self, text: str, locations: List[Tuple[str, int]], uuids: List[str]):
+         self.text = text
+-        self.locations = locations
++        self.locations = list(set(locations))  # Remove duplicates
+         self.uuids = uuids
+ 
+ 
+diff --git a/tests/test_builders_gettext.py b/tests/test_builders_gettext.py
+new file mode 100644
+index 000000000..a4cde5f14
+--- /dev/null
++++ b/tests/test_builders_gettext.py
+@@ -0,0 +1,27 @@
++import pytest
++from sphinx.builders.gettext import Message
++
++def test_message_removes_duplicate_locations():
++    text = "Test message"
++    locations = [
++        ("/path/to/file1.rst", 10),
++        ("/path/to/file1.rst", 10),
++        ("/path/to/file2.rst", 20),
++        ("/path/to/file2.rst", 20),
++        ("/path/to/file3.rst", 30),
++    ]
++    uuids = ["uuid1", "uuid2", "uuid3", "uuid4", "uuid5"]
++
++    message = Message(text, locations, uuids)
++
++    assert len(message.locations) == 3
++    assert set(message.locations) == {
++        ("/path/to/file1.rst", 10),
++        ("/path/to/file2.rst", 20),
++        ("/path/to/file3.rst", 30),
++    }
++    assert message.text == text
++    assert message.uuids == uuids
++
++if __name__ == "__main__":
++    pytest.main([__file__])
+diff --git a/tox.ini b/tox.ini
+index 105a02597..90ada0821 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -29,7 +29,7 @@ setenv =
+     PYTHONWARNINGS = all
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -X warn_default_encoding -m pytest --durations 25 {posargs}
++    python -X dev -X warn_default_encoding -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:du-latest]
+ commands =

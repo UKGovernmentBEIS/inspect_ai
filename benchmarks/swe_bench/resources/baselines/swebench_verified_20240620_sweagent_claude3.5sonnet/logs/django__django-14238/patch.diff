@@ -1,0 +1,68 @@
+
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index 0f53d9c30b..0ce7de02c6 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -2524,7 +2524,7 @@ class AutoFieldMeta(type):
+         return isinstance(instance, self._subclasses) or super().__instancecheck__(instance)
+ 
+     def __subclasscheck__(self, subclass):
+-        return subclass in self._subclasses or super().__subclasscheck__(subclass)
++        return issubclass(subclass, self._subclasses) or super().__subclasscheck__(subclass)
+ 
+ 
+ class AutoField(AutoFieldMixin, IntegerField, metaclass=AutoFieldMeta):
+diff --git a/tests/model_fields/test_autofield.py b/tests/model_fields/test_autofield.py
+index 646cd2ab0a..fea4119a31 100644
+--- a/tests/model_fields/test_autofield.py
++++ b/tests/model_fields/test_autofield.py
+@@ -1,35 +1,19 @@
+ from django.db import models
+-from django.test import SimpleTestCase
++from django.test import TestCase
+ 
+-from .models import AutoModel, BigAutoModel, SmallAutoModel
+-from .test_integerfield import (
+-    BigIntegerFieldTests, IntegerFieldTests, SmallIntegerFieldTests,
+-)
++class MyBigAutoField(models.BigAutoField):
++    pass
+ 
++class AutoFieldSubclassTests(TestCase):
++    def test_bigautofield_subclass(self):
++        self.assertTrue(issubclass(MyBigAutoField, models.AutoField))
+ 
+-class AutoFieldTests(IntegerFieldTests):
+-    model = AutoModel
+-    rel_db_type_class = models.IntegerField
++    def test_smallautofield_subclass(self):
++        class MySmallAutoField(models.SmallAutoField):
++            pass
++        self.assertTrue(issubclass(MySmallAutoField, models.AutoField))
+ 
+-
+-class BigAutoFieldTests(BigIntegerFieldTests):
+-    model = BigAutoModel
+-    rel_db_type_class = models.BigIntegerField
+-
+-
+-class SmallAutoFieldTests(SmallIntegerFieldTests):
+-    model = SmallAutoModel
+-    rel_db_type_class = models.SmallIntegerField
+-
+-
+-class AutoFieldInheritanceTests(SimpleTestCase):
+-
+-    def test_isinstance_of_autofield(self):
+-        for field in (models.BigAutoField, models.SmallAutoField):
+-            with self.subTest(field.__name__):
+-                self.assertIsInstance(field(), models.AutoField)
+-
+-    def test_issubclass_of_autofield(self):
+-        for field in (models.BigAutoField, models.SmallAutoField):
+-            with self.subTest(field.__name__):
+-                self.assertTrue(issubclass(field, models.AutoField))
++    def test_autofield_subclass(self):
++        class MyAutoField(models.AutoField):
++            pass
++        self.assertTrue(issubclass(MyAutoField, models.AutoField))

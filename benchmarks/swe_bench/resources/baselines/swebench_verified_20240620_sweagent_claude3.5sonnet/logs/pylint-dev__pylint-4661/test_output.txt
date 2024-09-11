@@ -1,0 +1,1541 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   doc/faq.rst
+	modified:   pylint/config/__init__.py
+	modified:   tests/lint/unittest_lint.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 1d1619ef913b99b06647d2030bddff4800abdf63
+Author: hippo91 <guillaume.peillex@gmail.com>
+Date:   Wed Jul 28 21:11:10 2021 +0200
+
+    Performance improvment of the Similarity checker (#4565)
+    
+    * Adds execution time measurements
+    
+    * Remove @profile decorator
+    
+    * Changes the whole algorithm. The old one, while being very readable, is a performance bottleneck especially when comparing two big files. Let's try a more efficient one...
+    
+    * Use a copy of  SuccessiveLinesLimits in the all_couples collection in order to avoid modification of the same object when removing successives common lines (in remove_successive method).
+    
+    * Remove old algorithm (dead code now)
+    
+    * Creates the LineSpecifs type, to be clearer when manipulating stripped lines.
+    
+    * Adds type hint in the stripped_lines function signature. Modifies docstring for the same function
+    
+    * LineSetStartCouple is now a classic class (no more NamedTuple). It allows to define __add__ dunder method to make operations clearer
+    
+    * Adds __repr__ method to SuccessiveLinesLimits class. Also update the docstring
+    
+    * Modifies the way the LinesChunk hash is computed. If the line is not empty or is empty but corresponds to a docstring then the hash is the classical one. Otherwise the hash is randomized in order to be sure that two empty lines corresponding to import line are not considered equal
+    
+    * Empty lines that were comments before being stripped are considered as equal
+    
+    * Rework the help message do distinguish the options
+    
+    * Adds a full line of comments in the test and adapts the expected results
+    
+    * ignore-docstrings by default is True and so all docstrings (differents or identicals) are considered identicals
+    
+    * In case of multiprocessing reports options
+    
+    * Simplifies the algoriothm and clarifies the use of the options. For now if something is ignored (docstrings, comments, signature, imports) then it is removed from stripped lines collection. No need of the LineType anymore. The drawback is that 2 chunks of lines in both file may have been detected as similar (which is correct) but have different number of lines because, for example, some comments are inserted and comments habe ignored.
+    
+    * The CplSuccessiveLinesLimits is no more a NamedTuple because we added the effective_cm_lines_nb member which has to be mutable. It holds the number of "true" common lines between both files (i.e the number of common lines in both stripped lines collection)
+    
+    * check_sim function is renamed filter_noncode_lines and check the similarities on the stripped lines collection (and no more the real lines collection). Adds the computation of the effective number of common lines (i.e the number of "true" common stripped lines)
+    
+    * Adapts legacy code so that the effective number of common lines is printed (the number of common lines in both stripped lines collection) and the corresponding component of the first file is printed too.
+    
+    * Updates the expected result so that they contain the effective common lines number
+    
+    * Stripped lines are purged from all that is ignored (by default comments and docstrings). Adapts the expected result in consquence
+    
+    * By default comment and docstrings are excluded from the comparison
+    
+    * Print also the ending line number in the report
+    
+    * Adapts the expected results to take into account the ending line number
+    
+    * Takes into account Pierre-Sassoulas remarks
+    * Takes into accound the remarks of cdce8p
+    
+    * The parameters of the SImilarChecker are read from configuration also in the __init__ method
+    
+    Co-authored-by: Pierre Sassoulas <pierre.sassoulas@gmail.com>
+
+diff --git a/ChangeLog b/ChangeLog
+index 51511554a..047ee3709 100644
+--- a/ChangeLog
++++ b/ChangeLog
+@@ -17,6 +17,10 @@ Release date: TBA
+ 
+   Closes #3826
+ 
++* Improved the Similarity checker performance.
++
++  Close #4120
++
+ 
+ What's New in Pylint 2.9.6?
+ ===========================
+diff --git a/doc/whatsnew/2.10.rst b/doc/whatsnew/2.10.rst
+index a2c4e1fbf..e94530bf1 100644
+--- a/doc/whatsnew/2.10.rst
++++ b/doc/whatsnew/2.10.rst
+@@ -20,4 +20,7 @@ New checkers
+ Other Changes
+ =============
+ 
++
++* Performance of the Similarity checker has been improved.
++
+ * Added ``time.clock`` to deprecated functions/methods for python 3.3
+diff --git a/pylint/checkers/similar.py b/pylint/checkers/similar.py
+index 8d3155c9c..5bf55ee78 100644
+--- a/pylint/checkers/similar.py
++++ b/pylint/checkers/similar.py
+@@ -27,15 +27,41 @@
+ 
+ # pylint: disable=redefined-builtin
+ """a similarities / code duplication command line tool and pylint checker
++
++The algorithm is based on comparing the hash value of n successive lines of a file.
++First the files are read and any line that doesn't fullfill requirement are removed (comments, docstrings...)
++Those stripped lines are stored in the LineSet class which gives access to them.
++Then each index of the stripped lines collection is associated with the hash of n successive entries of the stripped lines starting at the current index
++(n is the minimum common lines option).
++The common hashes between both linesets are then looked for. If there are matches, then the match indices in both linesets are stored and associated
++with the corresponding couples (start line number/end line number) in both files.
++This association is then postprocessed to handle the case of successive matches. For example if the minimum common lines setting is set to four, then
++the hashes are computed with four lines. If one of match indices couple (12, 34) is the successor of another one (11, 33) then it means that there are
++in fact five lines wich are common.
++Once postprocessed the values of association table are the result looked for, i.e start and end lines numbers of common lines in both files.
+ """
++import copy
+ import functools
++import itertools
++import operator
+ import re
+ import sys
+ from collections import defaultdict
+ from getopt import getopt
+ from io import TextIOWrapper
+ from itertools import chain, groupby
+-from typing import List, Tuple
++from typing import (
++    Any,
++    Dict,
++    FrozenSet,
++    Generator,
++    Iterable,
++    List,
++    NamedTuple,
++    NewType,
++    Set,
++    Tuple,
++)
+ 
+ import astroid
+ 
+@@ -44,15 +70,290 @@ from pylint.interfaces import IRawChecker
+ from pylint.reporters.ureports.nodes import Table
+ from pylint.utils import decoding_stream
+ 
++DEFAULT_MIN_SIMILARITY_LINE = 4
++
+ REGEX_FOR_LINES_WITH_CONTENT = re.compile(r".*\w+")
+ 
++# Index defines a location in a LineSet stripped lines collection
++Index = NewType("Index", int)
++
++# LineNumber defines a location in a LinesSet real lines collection (the whole file lines)
++LineNumber = NewType("LineNumber", int)
++
++
++# LineSpecifs holds characteristics of a line in a file
++class LineSpecifs(NamedTuple):
++    line_number: LineNumber
++    text: str
++
++
++# Links LinesChunk object to the starting indices (in lineset's stripped lines)
++# of the different chunk of lines that are used to compute the hash
++HashToIndex_T = Dict["LinesChunk", List[Index]]
++
++# Links index in the lineset's stripped lines to the real lines in the file
++IndexToLines_T = Dict[Index, "SuccessiveLinesLimits"]
++
++
++class CplSuccessiveLinesLimits:
++    """
++    This class holds a couple of SuccessiveLinesLimits objects, one for each file compared,
++    and a counter on the number of common lines between both stripped lines collections extracted
++    from both files
++    """
++
++    __slots__ = ("first_file", "second_file", "effective_cmn_lines_nb")
++
++    def __init__(
++        self,
++        first_file: "SuccessiveLinesLimits",
++        second_file: "SuccessiveLinesLimits",
++        effective_cmn_lines_nb: int,
++    ) -> None:
++        self.first_file = first_file
++        self.second_file = second_file
++        self.effective_cmn_lines_nb = effective_cmn_lines_nb
++
++
++# Links the indices ot the starting line in both lineset's stripped lines to
++# the start and end lines in both files
++CplIndexToCplLines_T = Dict["LineSetStartCouple", CplSuccessiveLinesLimits]
++
++
++class LinesChunk:
++    """
++    The LinesChunk object computes and stores the hash of some consecutive stripped lines of a lineset.
++    """
++
++    __slots__ = ("_fileid", "_index", "_hash")
++
++    def __init__(self, fileid: str, num_line: int, *lines: Iterable[str]) -> None:
++        self._fileid: str = fileid
++        """The name of the file from which the LinesChunk object is generated """
++
++        self._index: Index = Index(num_line)
++        """The index in the stripped lines that is the starting of consecutive lines"""
++
++        self._hash: int = sum(hash(lin) for lin in lines)
++        """The hash of some consecutive lines"""
++
++    def __eq__(self, o: Any) -> bool:
++        if not isinstance(o, LinesChunk):
++            return NotImplemented
++        return self._hash == o._hash
++
++    def __hash__(self) -> int:
++        return self._hash
++
++    def __repr__(self) -> str:
++        return (
++            f"<LinesChunk object for file {self._fileid} ({self._index}, {self._hash})>"
++        )
++
++    def __str__(self) -> str:
++        return (
++            f"LinesChunk object for file {self._fileid}, starting at line {self._index} \n"
++            f"Hash is {self._hash}"
++        )
++
++
++class SuccessiveLinesLimits:
++    """
++    A class to handle the numbering of begin and end of successive lines.
++
++    :note: Only the end line number can be updated.
++    """
++
++    __slots__ = ("_start", "_end")
++
++    def __init__(self, start: LineNumber, end: LineNumber) -> None:
++        self._start: LineNumber = start
++        self._end: LineNumber = end
++
++    @property
++    def start(self) -> LineNumber:
++        return self._start
++
++    @property
++    def end(self) -> LineNumber:
++        return self._end
++
++    @end.setter
++    def end(self, value: LineNumber) -> None:
++        self._end = value
++
++    def __repr__(self) -> str:
++        return f"<SuccessiveLinesLimits <{self._start};{self._end}>>"
++
++
++class LineSetStartCouple(NamedTuple):
++    """
++    Indices in both linesets that mark the beginning of successive lines
++    """
++
++    fst_lineset_index: Index
++    snd_lineset_index: Index
++
++    def __repr__(self) -> str:
++        return (
++            f"<LineSetStartCouple <{self.fst_lineset_index};{self.snd_lineset_index}>>"
++        )
++
++    def __eq__(self, other) -> bool:
++        if not isinstance(other, LineSetStartCouple):
++            return NotImplemented
++        return (
++            self.fst_lineset_index == other.fst_lineset_index
++            and self.snd_lineset_index == other.snd_lineset_index
++        )
++
++    def __hash__(self) -> int:
++        return hash(self.fst_lineset_index) + hash(self.snd_lineset_index)
++
++    def increment(self, value: Index) -> "LineSetStartCouple":
++        return LineSetStartCouple(
++            Index(self.fst_lineset_index + value),
++            Index(self.snd_lineset_index + value),
++        )
++
++
++LinesChunkLimits_T = Tuple["LineSet", LineNumber, LineNumber]
++
++
++def hash_lineset(
++    lineset: "LineSet", min_common_lines: int = DEFAULT_MIN_SIMILARITY_LINE
++) -> Tuple[HashToIndex_T, IndexToLines_T]:
++    """
++    Return two dicts. The first associates the hash of successive stripped lines of a lineset
++    to the indices of the starting lines.
++    The second dict, associates the index of the starting line in the lineset's stripped lines to the
++    couple [start, end] lines number in the corresponding file.
++
++    :param lineset: lineset object (i.e the lines in a file)
++    :param min_common_lines: number of successive lines that are used to compute the hash
++    :return: a dict linking hashes to corresponding start index and a dict that links this
++             index to the start and end lines in the file
++    """
++    hash2index = defaultdict(list)
++    index2lines = {}
++    # Comments, docstring and other specific patterns maybe excluded -> call to stripped_lines
++    # to get only what is desired
++    lines = tuple(x.text for x in lineset.stripped_lines)
++    # Need different iterators on same lines but each one is shifted 1 from the precedent
++    shifted_lines = [iter(lines[i:]) for i in range(min_common_lines)]
++
++    for index_i, *succ_lines in enumerate(zip(*shifted_lines)):
++        start_linenumber = lineset.stripped_lines[index_i].line_number
++        try:
++            end_linenumber = lineset.stripped_lines[
++                index_i + min_common_lines
++            ].line_number
++        except IndexError:
++            end_linenumber = lineset.stripped_lines[-1].line_number + 1
++
++        index = Index(index_i)
++        index2lines[index] = SuccessiveLinesLimits(
++            start=LineNumber(start_linenumber), end=LineNumber(end_linenumber)
++        )
++
++        l_c = LinesChunk(lineset.name, index, *succ_lines)
++        hash2index[l_c].append(index)
++
++    return hash2index, index2lines
++
++
++def remove_successives(all_couples: CplIndexToCplLines_T) -> None:
++    """
++    Removes all successive entries in the dictionary in argument
++
++    :param all_couples: collection that has to be cleaned up from successives entries.
++                        The keys are couples of indices that mark the beginning of common entries
++                        in both linesets. The values have two parts. The first one is the couple
++                        of starting and ending line numbers of common successives lines in the first file.
++                        The second part is the same for the second file.
++
++    For example consider the following dict:
++
++    >>> all_couples
++    {(11, 34): ([5, 9], [27, 31]),
++     (23, 79): ([15, 19], [45, 49]),
++     (12, 35): ([6, 10], [28, 32])}
++
++    There are two successives keys (11, 34) and (12, 35).
++    It means there are two consecutive similar chunks of lines in both files.
++    Thus remove last entry and update the last line numbers in the first entry
++
++    >>> remove_successives(all_couples)
++    >>> all_couples
++    {(11, 34): ([5, 10], [27, 32]),
++     (23, 79): ([15, 19], [45, 49])}
++    """
++    couple: LineSetStartCouple
++    for couple in tuple(all_couples.keys()):
++        to_remove = []
++        test = couple.increment(Index(1))
++        while test in all_couples:
++            all_couples[couple].first_file.end = all_couples[test].first_file.end
++            all_couples[couple].second_file.end = all_couples[test].second_file.end
++            all_couples[couple].effective_cmn_lines_nb += 1
++            to_remove.append(test)
++            test = test.increment(Index(1))
++
++        for target in to_remove:
++            try:
++                all_couples.pop(target)
++            except KeyError:
++                pass
++
++
++def filter_noncode_lines(
++    ls_1: "LineSet",
++    stindex_1: Index,
++    ls_2: "LineSet",
++    stindex_2: Index,
++    common_lines_nb: int,
++) -> int:
++    """
++    Return the effective number of common lines between lineset1 and lineset2 filtered from non code lines, that is to say the number of
++    common successive stripped lines except those that do not contain code (for example a ligne with only an
++    ending parathensis)
++
++    :param ls_1: first lineset
++    :param stindex_1: first lineset starting index
++    :param ls_2: second lineset
++    :param stindex_2: second lineset starting index
++    :param common_lines_nb: number of common successive stripped lines before being filtered from non code lines
++    :return: the number of common successives stripped lines that contain code
++    """
++    stripped_l1 = [
++        lspecif.text
++        for lspecif in ls_1.stripped_lines[stindex_1 : stindex_1 + common_lines_nb]
++        if REGEX_FOR_LINES_WITH_CONTENT.match(lspecif.text)
++    ]
++    stripped_l2 = [
++        lspecif.text
++        for lspecif in ls_2.stripped_lines[stindex_2 : stindex_2 + common_lines_nb]
++        if REGEX_FOR_LINES_WITH_CONTENT.match(lspecif.text)
++    ]
++    return sum(sline_1 == sline_2 for sline_1, sline_2 in zip(stripped_l1, stripped_l2))
++
++
++class Commonality(NamedTuple):
++    cmn_lines_nb: int
++    fst_lset: "LineSet"
++    fst_file_start: LineNumber
++    fst_file_end: LineNumber
++    snd_lset: "LineSet"
++    snd_file_start: LineNumber
++    snd_file_end: LineNumber
++
+ 
+ class Similar:
+     """finds copy-pasted lines of code in a project"""
+ 
+     def __init__(
+         self,
+-        min_lines: int = 4,
++        min_lines: int = DEFAULT_MIN_SIMILARITY_LINE,
+         ignore_comments: bool = False,
+         ignore_docstrings: bool = False,
+         ignore_imports: bool = False,
+@@ -91,45 +392,68 @@ class Similar:
+         """start looking for similarities and display results on stdout"""
+         self._display_sims(self._compute_sims())
+ 
+-    def _compute_sims(self):
++    def _compute_sims(self) -> List[Tuple[int, Set[LinesChunkLimits_T]]]:
+         """compute similarities in appended files"""
+-        no_duplicates = defaultdict(list)
+-        for num, lineset1, idx1, lineset2, idx2 in self._iter_sims():
++        no_duplicates: Dict[int, List[Set[LinesChunkLimits_T]]] = defaultdict(list)
++
++        for commonality in self._iter_sims():
++            num = commonality.cmn_lines_nb
++            lineset1 = commonality.fst_lset
++            start_line_1 = commonality.fst_file_start
++            end_line_1 = commonality.fst_file_end
++            lineset2 = commonality.snd_lset
++            start_line_2 = commonality.snd_file_start
++            end_line_2 = commonality.snd_file_end
++
+             duplicate = no_duplicates[num]
++            couples: Set[LinesChunkLimits_T]
+             for couples in duplicate:
+-                if (lineset1, idx1) in couples or (lineset2, idx2) in couples:
+-                    couples.add((lineset1, idx1))
+-                    couples.add((lineset2, idx2))
++                if (lineset1, start_line_1, end_line_1) in couples or (
++                    lineset2,
++                    start_line_2,
++                    end_line_2,
++                ) in couples:
+                     break
+             else:
+-                duplicate.append({(lineset1, idx1), (lineset2, idx2)})
+-        sims = []
++                duplicate.append(
++                    {
++                        (lineset1, start_line_1, end_line_1),
++                        (lineset2, start_line_2, end_line_2),
++                    }
++                )
++        sims: List[Tuple[int, Set[LinesChunkLimits_T]]] = []
++        ensembles: List[Set[LinesChunkLimits_T]]
+         for num, ensembles in no_duplicates.items():
+-            for couples in ensembles:
+-                sims.append((num, couples))
++            cpls: Set[LinesChunkLimits_T]
++            for cpls in ensembles:
++                sims.append((num, cpls))
+         sims.sort()
+         sims.reverse()
+         return sims
+ 
+-    def _display_sims(self, similarities: List[Tuple]) -> None:
++    def _display_sims(
++        self, similarities: List[Tuple[int, Set[LinesChunkLimits_T]]]
++    ) -> None:
+         """Display computed similarities on stdout"""
+         report = self._get_similarity_report(similarities)
+         print(report)
+ 
+-    def _get_similarity_report(self, similarities: List[Tuple]) -> str:
++    def _get_similarity_report(
++        self, similarities: List[Tuple[int, Set[LinesChunkLimits_T]]]
++    ) -> str:
+         """Create a report from similarities"""
+         report: str = ""
+         duplicated_line_number: int = 0
+-        for number, files in similarities:
+-            report += f"\n{number} similar lines in {len(files)} files\n"
+-            files = sorted(files)
+-            line_set = idx = None
+-            for line_set, idx in files:
+-                report += f"=={line_set.name}:{idx}\n"
++        for number, couples in similarities:
++            report += f"\n{number} similar lines in {len(couples)} files\n"
++            couples_l = sorted(couples)
++            line_set = start_line = end_line = None
++            for line_set, start_line, end_line in couples_l:
++                report += f"=={line_set.name}:[{start_line}:{end_line}]\n"
+             if line_set:
+-                for line in line_set._real_lines[idx : idx + number]:
++                for line in line_set._real_lines[start_line:end_line]:
+                     report += f"   {line.rstrip()}\n" if line.rstrip() else "\n"
+-            duplicated_line_number += number * (len(files) - 1)
++            duplicated_line_number += number * (len(couples_l) - 1)
+         total_line_number: int = sum(len(lineset) for lineset in self.linesets)
+         report += "TOTAL lines={} duplicates={} percent={:.2f}\n".format(
+             total_line_number,
+@@ -138,37 +462,76 @@ class Similar:
+         )
+         return report
+ 
+-    def _find_common(self, lineset1, lineset2):
+-        """find similarities in the two given linesets"""
+-        lines1 = lineset1.enumerate_stripped
+-        lines2 = lineset2.enumerate_stripped
+-        find = lineset2.find
+-        index1 = 0
+-        min_lines = self.min_lines
+-        while index1 < len(lineset1):
+-            skip = 1
+-            num = 0
+-            for index2 in find(lineset1[index1]):
+-                num_lines_with_content = 0
+-                for num, ((_, line1), (_, line2)) in enumerate(
+-                    zip(lines1(index1), lines2(index2))
+-                ):
+-                    if line1 != line2:
+-                        if num_lines_with_content > min_lines:
+-                            yield num, lineset1, index1, lineset2, index2
+-                        skip = max(skip, num)
+-                        break
+-                    if re.match(REGEX_FOR_LINES_WITH_CONTENT, line1):
+-                        num_lines_with_content += 1
+-                else:
+-                    # we may have reached the end
+-                    num += 1
+-                    if num_lines_with_content > min_lines:
+-                        yield num, lineset1, index1, lineset2, index2
+-                    skip = max(skip, num)
+-            index1 += skip
+-
+-    def _iter_sims(self):
++    def _find_common(
++        self, lineset1: "LineSet", lineset2: "LineSet"
++    ) -> Generator[Commonality, None, None]:
++        """
++        Find similarities in the two given linesets.
++
++        This the core of the algorithm.
++        The idea is to compute the hashes of a minimal number of successive lines of each lineset and then compare the hashes.
++        Every match of such comparison is stored in a dict that links the couple of starting indices in both linesets to
++        the couple of corresponding starting and ending lines in both files.
++        Last regroups all successive couples in a bigger one. It allows to take into account common chunk of lines that have more
++        than the minimal number of successive lines required.
++        """
++        hash_to_index_1: HashToIndex_T
++        hash_to_index_2: HashToIndex_T
++        index_to_lines_1: IndexToLines_T
++        index_to_lines_2: IndexToLines_T
++        hash_to_index_1, index_to_lines_1 = hash_lineset(lineset1, self.min_lines)
++        hash_to_index_2, index_to_lines_2 = hash_lineset(lineset2, self.min_lines)
++
++        hash_1: FrozenSet[LinesChunk] = frozenset(hash_to_index_1.keys())
++        hash_2: FrozenSet[LinesChunk] = frozenset(hash_to_index_2.keys())
++
++        common_hashes: Iterable[LinesChunk] = sorted(
++            hash_1 & hash_2, key=lambda m: hash_to_index_1[m][0]
++        )
++
++        # all_couples is a dict that links the couple of indices in both linesets that mark the beginning of
++        # successive common lines, to the corresponding starting and ending number lines in both files
++        all_couples: CplIndexToCplLines_T = {}
++
++        for c_hash in sorted(common_hashes, key=operator.attrgetter("_index")):
++            for indices_in_linesets in itertools.product(
++                hash_to_index_1[c_hash], hash_to_index_2[c_hash]
++            ):
++                index_1 = indices_in_linesets[0]
++                index_2 = indices_in_linesets[1]
++                all_couples[
++                    LineSetStartCouple(index_1, index_2)
++                ] = CplSuccessiveLinesLimits(
++                    copy.copy(index_to_lines_1[index_1]),
++                    copy.copy(index_to_lines_2[index_2]),
++                    effective_cmn_lines_nb=self.min_lines,
++                )
++
++        remove_successives(all_couples)
++
++        for cml_stripped_l, cmn_l in all_couples.items():
++            start_index_1 = cml_stripped_l.fst_lineset_index
++            start_index_2 = cml_stripped_l.snd_lineset_index
++            nb_common_lines = cmn_l.effective_cmn_lines_nb
++
++            com = Commonality(
++                cmn_lines_nb=nb_common_lines,
++                fst_lset=lineset1,
++                fst_file_start=cmn_l.first_file.start,
++                fst_file_end=cmn_l.first_file.end,
++                snd_lset=lineset2,
++                snd_file_start=cmn_l.second_file.start,
++                snd_file_end=cmn_l.second_file.end,
++            )
++
++            eff_cmn_nb = filter_noncode_lines(
++                lineset1, start_index_1, lineset2, start_index_2, nb_common_lines
++            )
++
++            if eff_cmn_nb > self.min_lines:
++                yield com
++
++    def _iter_sims(self) -> Generator[Commonality, None, None]:
+         """iterate on similarities among all files, by making a cartesian
+         product
+         """
+@@ -192,14 +555,21 @@ class Similar:
+ 
+ 
+ def stripped_lines(
+-    lines,
++    lines: Iterable[str],
+     ignore_comments: bool,
+     ignore_docstrings: bool,
+     ignore_imports: bool,
+     ignore_signatures: bool,
+-):
+-    """return lines with leading/trailing whitespace and any ignored code
+-    features removed
++) -> List[LineSpecifs]:
++    """
++    Return tuples of line/line number/line type with leading/trailing whitespace and any ignored code features removed
++
++    :param lines: a collection of lines
++    :param ignore_comments: if true, any comment in the lines collection is removed from the result
++    :param ignore_docstrings: if true, any line that is a docstring is removed from the result
++    :param ignore_imports: if true, any line that is an import is removed from the result
++    :param ignore_signatures: if true, any line that is part of a function signature is removed from the result
++    :return: the collection of line/line number/line type tuples
+     """
+     if ignore_imports or ignore_signatures:
+         tree = astroid.parse("".join(lines))
+@@ -259,13 +629,20 @@ def stripped_lines(
+             line = line.split("#", 1)[0].strip()
+         if ignore_signatures and lineno in signature_lines:
+             line = ""
+-        strippedlines.append(line)
++        if line:
++            strippedlines.append(
++                LineSpecifs(text=line, line_number=LineNumber(lineno - 1))
++            )
+     return strippedlines
+ 
+ 
+ @functools.total_ordering
+ class LineSet:
+-    """Holds and indexes all the lines of a single source file"""
++    """
++    Holds and indexes all the lines of a single source file.
++    Allows for correspondance between real lines of the source file and stripped ones, which
++    are the real ones from which undesired patterns have been removed.
++    """
+ 
+     def __init__(
+         self,
+@@ -275,13 +652,12 @@ class LineSet:
+         ignore_docstrings=False,
+         ignore_imports=False,
+         ignore_signatures=False,
+-    ):
++    ) -> None:
+         self.name = name
+         self._real_lines = lines
+         self._stripped_lines = stripped_lines(
+             lines, ignore_comments, ignore_docstrings, ignore_imports, ignore_signatures
+         )
+-        self._index = self._mk_index()
+ 
+     def __str__(self):
+         return "<Lineset for %s>" % self.name
+@@ -303,31 +679,13 @@ class LineSet:
+             return False
+         return self.__dict__ == other.__dict__
+ 
+-    def enumerate_stripped(self, start_at=0):
+-        """return an iterator on stripped lines, starting from a given index
+-        if specified, else 0
+-        """
+-        idx = start_at
+-        if start_at:
+-            lines = self._stripped_lines[start_at:]
+-        else:
+-            lines = self._stripped_lines
+-        for line in lines:
+-            # if line:
+-            yield idx, line
+-            idx += 1
+-
+-    def find(self, stripped_line):
+-        """return positions of the given stripped line in this set"""
+-        return self._index.get(stripped_line, ())
++    @property
++    def stripped_lines(self):
++        return self._stripped_lines
+ 
+-    def _mk_index(self):
+-        """create the index for this set"""
+-        index = defaultdict(list)
+-        for line_no, line in enumerate(self._stripped_lines):
+-            if line:
+-                index[line].append(line_no)
+-        return index
++    @property
++    def real_lines(self):
++        return self._real_lines
+ 
+ 
+ MSGS = {
+@@ -368,7 +726,7 @@ class SimilarChecker(BaseChecker, Similar, MapReduceMixin):
+         (
+             "min-similarity-lines",  # type: ignore
+             {
+-                "default": 4,
++                "default": DEFAULT_MIN_SIMILARITY_LINE,
+                 "type": "int",
+                 "metavar": "<int>",
+                 "help": "Minimum lines number of a similarity.",
+@@ -380,7 +738,7 @@ class SimilarChecker(BaseChecker, Similar, MapReduceMixin):
+                 "default": True,
+                 "type": "yn",
+                 "metavar": "<y or n>",
+-                "help": "Ignore comments when computing similarities.",
++                "help": "Comments are removed from the similarity computation",
+             },
+         ),
+         (
+@@ -389,7 +747,7 @@ class SimilarChecker(BaseChecker, Similar, MapReduceMixin):
+                 "default": True,
+                 "type": "yn",
+                 "metavar": "<y or n>",
+-                "help": "Ignore docstrings when computing similarities.",
++                "help": "Docstrings are removed from the similarity computation",
+             },
+         ),
+         (
+@@ -398,7 +756,7 @@ class SimilarChecker(BaseChecker, Similar, MapReduceMixin):
+                 "default": False,
+                 "type": "yn",
+                 "metavar": "<y or n>",
+-                "help": "Ignore imports when computing similarities.",
++                "help": "Imports are removed from the similarity computation",
+             },
+         ),
+         (
+@@ -407,17 +765,22 @@ class SimilarChecker(BaseChecker, Similar, MapReduceMixin):
+                 "default": False,
+                 "type": "yn",
+                 "metavar": "<y or n>",
+-                "help": "Ignore function signatures when computing similarities.",
++                "help": "Signatures are removed from the similarity computation",
+             },
+         ),
+     )
+     # reports
+     reports = (("RP0801", "Duplication", report_similarities),)  # type: ignore
+ 
+-    def __init__(self, linter=None):
++    def __init__(self, linter=None) -> None:
+         BaseChecker.__init__(self, linter)
+         Similar.__init__(
+-            self, min_lines=4, ignore_comments=True, ignore_docstrings=True
++            self,
++            min_lines=self.config.min_similarity_lines,
++            ignore_comments=self.config.ignore_comments,
++            ignore_docstrings=self.config.ignore_docstrings,
++            ignore_imports=self.config.ignore_imports,
++            ignore_signatures=self.config.ignore_signatures,
+         )
+         self.stats = None
+ 
+@@ -462,13 +825,13 @@ class SimilarChecker(BaseChecker, Similar, MapReduceMixin):
+         stats = self.stats
+         for num, couples in self._compute_sims():
+             msg = []
+-            lineset = idx = None
+-            for lineset, idx in couples:
+-                msg.append(f"=={lineset.name}:{idx}")
++            lineset = start_line = end_line = None
++            for lineset, start_line, end_line in couples:
++                msg.append(f"=={lineset.name}:[{start_line}:{end_line}]")
+             msg.sort()
+ 
+             if lineset:
+-                for line in lineset._real_lines[idx : idx + num]:
++                for line in lineset.real_lines[start_line:end_line]:
+                     msg.append(line.rstrip())
+ 
+             self.add_message("R0801", args=(len(couples), "\n".join(msg)))
+@@ -480,12 +843,16 @@ class SimilarChecker(BaseChecker, Similar, MapReduceMixin):
+         """Passthru override"""
+         return Similar.get_map_data(self)
+ 
+-    @classmethod
+-    def reduce_map_data(cls, linter, data):
++    def reduce_map_data(self, linter, data):
+         """Reduces and recombines data into a format that we can report on
+ 
+         The partner function of get_map_data()"""
+         recombined = SimilarChecker(linter)
++        recombined.min_lines = self.min_lines
++        recombined.ignore_comments = self.ignore_comments
++        recombined.ignore_docstrings = self.ignore_docstrings
++        recombined.ignore_imports = self.ignore_imports
++        recombined.ignore_signatures = self.ignore_signatures
+         recombined.open()
+         Similar.combine_mapreduce_data(recombined, linesets_collection=data)
+         recombined.close()
+@@ -521,7 +888,7 @@ def Run(argv=None):
+         "ignore-docstrings",
+         "ignore-signatures",
+     )
+-    min_lines = 4
++    min_lines = DEFAULT_MIN_SIMILARITY_LINE
+     ignore_comments = False
+     ignore_docstrings = False
+     ignore_imports = False
+diff --git a/tests/checkers/unittest_similar.py b/tests/checkers/unittest_similar.py
+index ca64bdba3..db59b00c5 100644
+--- a/tests/checkers/unittest_similar.py
++++ b/tests/checkers/unittest_similar.py
+@@ -52,26 +52,27 @@ def test_ignore_comments():
+         == (
+             """
+ 10 similar lines in 2 files
+-==%s:0
+-==%s:0
++==%s:[0:11]
++==%s:[0:11]
+    import one
+    from two import two
+    three
+    four
+    five
+    six
++   # A full line comment
+    seven
+    eight
+    nine
+    ''' ten
+-TOTAL lines=60 duplicates=10 percent=16.67
++TOTAL lines=62 duplicates=10 percent=16.13
+ """
+             % (SIMILAR1, SIMILAR2)
+         ).strip()
+     )
+ 
+ 
+-def test_ignore_docsrings():
++def test_ignore_docstrings():
+     output = StringIO()
+     with redirect_stdout(output), pytest.raises(SystemExit) as ex:
+         similar.Run(["--ignore-docstrings", SIMILAR1, SIMILAR2])
+@@ -80,9 +81,9 @@ def test_ignore_docsrings():
+         output.getvalue().strip()
+         == (
+             """
+-8 similar lines in 2 files
+-==%s:6
+-==%s:6
++5 similar lines in 2 files
++==%s:[7:15]
++==%s:[7:15]
+    seven
+    eight
+    nine
+@@ -93,14 +94,14 @@ def test_ignore_docsrings():
+    fourteen
+ 
+ 5 similar lines in 2 files
+-==%s:0
+-==%s:0
++==%s:[0:5]
++==%s:[0:5]
+    import one
+    from two import two
+    three
+    four
+    five
+-TOTAL lines=60 duplicates=13 percent=21.67
++TOTAL lines=62 duplicates=10 percent=16.13
+ """
+             % ((SIMILAR1, SIMILAR2) * 2)
+         ).strip()
+@@ -115,7 +116,7 @@ def test_ignore_imports():
+     assert (
+         output.getvalue().strip()
+         == """
+-TOTAL lines=60 duplicates=0 percent=0.00
++TOTAL lines=62 duplicates=0 percent=0.00
+ """.strip()
+     )
+ 
+@@ -130,8 +131,8 @@ def test_multiline_imports():
+         == (
+             """
+ 8 similar lines in 2 files
+-==%s:0
+-==%s:0
++==%s:[0:8]
++==%s:[0:8]
+    from foo import (
+      bar,
+      baz,
+@@ -169,9 +170,9 @@ def test_ignore_signatures_fail():
+         output.getvalue().strip()
+         == (
+             '''
+-10 similar lines in 2 files
+-==%s:1
+-==%s:8
++9 similar lines in 2 files
++==%s:[1:11]
++==%s:[8:18]
+        arg1: int = 3,
+        arg2: Class1 = val1,
+        arg3: Class2 = func3(val2),
+@@ -182,7 +183,7 @@ def test_ignore_signatures_fail():
+ 
+    def example():
+        """Valid function definition with docstring only."""
+-TOTAL lines=29 duplicates=10 percent=34.48
++TOTAL lines=29 duplicates=9 percent=31.03
+ '''
+             % (SIMILAR5, SIMILAR6)
+         ).strip()
+@@ -212,8 +213,8 @@ def test_ignore_signatures_empty_functions_fail():
+         == (
+             '''
+ 6 similar lines in 2 files
+-==%s:1
+-==%s:1
++==%s:[1:7]
++==%s:[1:7]
+        arg1: int = 1,
+        arg2: str = "2",
+        arg3: int = 3,
+@@ -258,14 +259,14 @@ def test_ignore_nothing():
+         == (
+             """
+ 5 similar lines in 2 files
+-==%s:0
+-==%s:0
++==%s:[0:5]
++==%s:[0:5]
+    import one
+    from two import two
+    three
+    four
+    five
+-TOTAL lines=60 duplicates=5 percent=8.33
++TOTAL lines=62 duplicates=5 percent=8.06
+ """
+             % (SIMILAR1, SIMILAR2)
+         ).strip()
+@@ -282,8 +283,8 @@ def test_lines_without_meaningful_content_do_not_trigger_similarity():
+         == (
+             """
+ 14 similar lines in 2 files
+-==%s:11
+-==%s:11
++==%s:[11:25]
++==%s:[11:25]
+    b = (
+        (
+            [
+@@ -340,12 +341,6 @@ def test_get_map_data():
+     )
+     expected_linelists = (
+         (
+-            "",
+-            "",
+-            "",
+-            "",
+-            "",
+-            "",
+             "def adipiscing(elit):",
+             'etiam = "id"',
+             'dictum = "purus,"',
+@@ -354,26 +349,21 @@ def test_get_map_data():
+             'nec = "ornare"',
+             'tortor = "sit"',
+             "return etiam, dictum, vitae, neque, nec, tortor",
+-            "",
+-            "",
+             "class Amet:",
+             "def similar_function_3_lines(self, tellus):",
+             "agittis = 10",
+             "tellus *= 300",
+             "return agittis, tellus",
+-            "",
+             "def lorem(self, ipsum):",
+             'dolor = "sit"',
+             'amet = "consectetur"',
+             "return (lorem, dolor, amet)",
+-            "",
+             "def similar_function_5_lines(self, similar):",
+             "some_var = 10",
+             "someother_var *= 300",
+             'fusce = "sit"',
+             'amet = "tortor"',
+             "return some_var, someother_var, fusce, amet",
+-            "",
+             'def __init__(self, moleskie, lectus="Mauris", ac="pellentesque"):',
+             'metus = "ut"',
+             'lobortis = "urna."',
+@@ -385,7 +375,6 @@ def test_get_map_data():
+             'iaculis = "dolor"',
+             'facilisis = "ultrices"',
+             'vitae = "ut."',
+-            "",
+             "return (",
+             "metus,",
+             "lobortis,",
+@@ -398,28 +387,18 @@ def test_get_map_data():
+             "facilisis,",
+             "vitae,",
+             ")",
+-            "",
+             "def similar_function_3_lines(self, tellus):",
+             "agittis = 10",
+             "tellus *= 300",
+             "return agittis, tellus",
+         ),
+         (
+-            "",
+-            "",
+-            "",
+-            "",
+-            "",
+-            "",
+-            "",
+             "class Nulla:",
+             'tortor = "ultrices quis porta in"',
+             'sagittis = "ut tellus"',
+-            "",
+             "def pulvinar(self, blandit, metus):",
+             "egestas = [mauris for mauris in zip(blandit, metus)]",
+             "neque = (egestas, blandit)",
+-            "",
+             "def similar_function_5_lines(self, similar):",
+             "some_var = 10",
+             "someother_var *= 300",
+@@ -427,14 +406,10 @@ def test_get_map_data():
+             'amet = "tortor"',
+             'iaculis = "dolor"',
+             "return some_var, someother_var, fusce, amet, iaculis, iaculis",
+-            "",
+-            "",
+             "def tortor(self):",
+             "ultrices = 2",
+             'quis = ultricies * "porta"',
+             "return ultricies, quis",
+-            "",
+-            "",
+             "class Commodo:",
+             "def similar_function_3_lines(self, tellus):",
+             "agittis = 10",
+@@ -460,5 +435,5 @@ def test_get_map_data():
+     ):
+         assert source_fname == lineset_obj.name
+         # There doesn't seem to be a faster way of doing this, yet.
+-        lines = (line for idx, line in lineset_obj.enumerate_stripped())
++        lines = (linespec.text for linespec in lineset_obj.stripped_lines)
+         assert tuple(expected_lines) == tuple(lines)
+diff --git a/tests/input/similar1 b/tests/input/similar1
+index a533e2f6f..eb7f389c9 100644
+--- a/tests/input/similar1
++++ b/tests/input/similar1
+@@ -4,6 +4,7 @@ three
+ four
+ five
+ six # comments optionally ignored
++# even full line comment!
+ seven
+ eight
+ nine
+diff --git a/tests/input/similar2 b/tests/input/similar2
+index 79bcab2fd..687479a1a 100644
+--- a/tests/input/similar2
++++ b/tests/input/similar2
+@@ -4,6 +4,7 @@ three
+ four
+ five
+ six
++# A full line comment
+ seven
+ eight
+ nine
+diff --git a/tests/messages/func_w0801.txt b/tests/messages/func_w0801.txt
+index 203ce9294..54355ab8a 100644
+--- a/tests/messages/func_w0801.txt
++++ b/tests/messages/func_w0801.txt
+@@ -1,6 +1,6 @@
+ R:  1: Similar lines in 2 files
+-==input.func_w0801:3
+-==input.w0801_same:3
++==input.func_w0801:[3:10]
++==input.w0801_same:[3:10]
+ __revision__ = 'id'
+ A = 2
+ B = 3
+@@ -8,4 +8,3 @@ C = A + B
+ # need more than X lines to trigger the message
+ C *= 2
+ A -= B
+-# all this should be detected
++ git diff 1d1619ef913b99b06647d2030bddff4800abdf63
+diff --git a/doc/faq.rst b/doc/faq.rst
+index c817855f8..c64ea7ba6 100644
+--- a/doc/faq.rst
++++ b/doc/faq.rst
+@@ -93,10 +93,10 @@ localized using the following rules:
+ 
+ * value of the PYLINTHOME environment variable if set
+ 
+-* ".pylint.d" subdirectory of the user's home directory if it is found
+-	(not always findable on Windows platforms)
++* ".local/share/pylint" subdirectory of the user's home directory if it is found
++  (following the XDG Base Directory Specification)
+ 
+-* ".pylint.d" directory in the current directory
++* ".local/share/pylint" directory in the current directory
+ 
+ 3.3 How do I find the option name (for pylintrc) corresponding to a specific command line option?
+ --------------------------------------------------------------------------------------------------------
+diff --git a/pylint/config/__init__.py b/pylint/config/__init__.py
+index 84774d0e3..b5843bd4c 100644
+--- a/pylint/config/__init__.py
++++ b/pylint/config/__init__.py
+@@ -56,14 +56,14 @@ __all__ = [
+ ]
+ 
+ USER_HOME = os.path.expanduser("~")
+-if "PYLINTHOME" in os.environ:
+-    PYLINT_HOME = os.environ["PYLINTHOME"]
++if "PYLINT_HOME" in os.environ:
++    PYLINT_HOME = os.environ["PYLINT_HOME"]
+     if USER_HOME == "~":
+         USER_HOME = os.path.dirname(PYLINT_HOME)
+ elif USER_HOME == "~":
+-    PYLINT_HOME = ".pylint.d"
++    PYLINT_HOME = os.path.join(os.path.expanduser("~"), ".local", "share", "pylint")
+ else:
+-    PYLINT_HOME = os.path.join(USER_HOME, ".pylint.d")
++    PYLINT_HOME = os.path.join(USER_HOME, ".local", "share", "pylint")
+ 
+ 
+ def _get_pdata_path(base_name, recurs):
+@@ -83,9 +83,10 @@ def load_results(base):
+ def save_results(results, base):
+     if not os.path.exists(PYLINT_HOME):
+         try:
+-            os.mkdir(PYLINT_HOME)
+-        except OSError:
+-            print("Unable to create directory %s" % PYLINT_HOME, file=sys.stderr)
++            os.makedirs(PYLINT_HOME, exist_ok=True)
++        except OSError as ex:
++            print(f"Unable to create directory {PYLINT_HOME}: {ex}", file=sys.stderr)
++            return
+     data_file = _get_pdata_path(base, 1)
+     try:
+         with open(data_file, "wb") as stream:
+@@ -105,16 +106,13 @@ def find_pylintrc():
+ 
+ PYLINTRC = find_pylintrc()
+ 
+-ENV_HELP = (
+-    """
++ENV_HELP = """
+ The following environment variables are used:
+     * PYLINTHOME
+     Path to the directory where persistent data for the run will be stored. If
+-not found, it defaults to ~/.pylint.d/ or .pylint.d (in the current working
++not found, it defaults to ~/.local/share/pylint/ or .local/share/pylint (in the current working
+ directory).
+     * PYLINTRC
+     Path to the configuration file. See the documentation for the method used
+ to search for configuration file.
+ """
+-    % globals()  # type: ignore
+-)
+diff --git a/tests/lint/unittest_lint.py b/tests/lint/unittest_lint.py
+index 004c29281..d811fe2df 100644
+--- a/tests/lint/unittest_lint.py
++++ b/tests/lint/unittest_lint.py
+@@ -629,13 +629,13 @@ def pop_pylintrc():
+ def test_pylint_home():
+     uhome = os.path.expanduser("~")
+     if uhome == "~":
+-        expected = ".pylint.d"
++        expected = os.path.join(".local", "share", "pylint")
+     else:
+-        expected = os.path.join(uhome, ".pylint.d")
++        expected = os.path.join(uhome, ".local", "share", "pylint")
+     assert config.PYLINT_HOME == expected
+ 
+     try:
+-        pylintd = join(tempfile.gettempdir(), ".pylint.d")
++        pylintd = join(tempfile.gettempdir(), ".local", "share", "pylint")
+         os.environ["PYLINTHOME"] = pylintd
+         try:
+             reload(config)
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: astroid<2.7,>=2.6.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==2.10.0.dev0) (2.6.6)
+Requirement already satisfied: isort<6,>=4.2.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==2.10.0.dev0) (5.9.3)
+Requirement already satisfied: mccabe<0.7,>=0.6 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==2.10.0.dev0) (0.6.1)
+Requirement already satisfied: toml>=0.7.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==2.10.0.dev0) (0.10.2)
+Requirement already satisfied: lazy-object-proxy>=1.4.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from astroid<2.7,>=2.6.5->pylint==2.10.0.dev0) (1.10.0)
+Requirement already satisfied: wrapt<1.13,>=1.11 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from astroid<2.7,>=2.6.5->pylint==2.10.0.dev0) (1.12.1)
+Requirement already satisfied: setuptools>=20.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from astroid<2.7,>=2.6.5->pylint==2.10.0.dev0) (69.5.1)
+Installing collected packages: pylint
+  Attempting uninstall: pylint
+    Found existing installation: pylint 2.10.0.dev0
+    Uninstalling pylint-2.10.0.dev0:
+      Successfully uninstalled pylint-2.10.0.dev0
+  Running setup.py develop for pylint
+Successfully installed pylint-2.10.0.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 1d1619ef913b99b06647d2030bddff4800abdf63 tests/lint/unittest_lint.py
+Updated 1 path from e39429f9c
++ git apply -v -
+Checking patch tests/lint/unittest_lint.py...
+Applied patch tests/lint/unittest_lint.py cleanly.
++ pytest -rA tests/lint/unittest_lint.py
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-6.2.5, py-1.11.0, pluggy-1.5.0
+benchmark: 3.4.1 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: /testbed, configfile: setup.cfg
+plugins: benchmark-3.4.1, cov-2.12.1, forked-1.6.0, profiling-1.7.0, xdist-2.5.0
+collected 0 items / 1 error
+
+==================================== ERRORS ====================================
+_________________ ERROR collecting tests/lint/unittest_lint.py _________________
+ImportError while importing test module '/testbed/tests/lint/unittest_lint.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/miniconda3/envs/testbed/lib/python3.9/importlib/__init__.py:127: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests/lint/unittest_lint.py:49: in <module>
+    import appdirs
+E   ModuleNotFoundError: No module named 'appdirs'
+=============================== warnings summary ===============================
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/astroid/interpreter/_import/util.py:6
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/astroid/interpreter/_import/util.py:6: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+    import pkg_resources
+
+-- Docs: https://docs.pytest.org/en/stable/warnings.html
+=========================== short test summary info ============================
+ERROR tests/lint/unittest_lint.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+========================= 1 warning, 1 error in 0.35s ==========================
++ git checkout 1d1619ef913b99b06647d2030bddff4800abdf63 tests/lint/unittest_lint.py
+Updated 1 path from e39429f9c

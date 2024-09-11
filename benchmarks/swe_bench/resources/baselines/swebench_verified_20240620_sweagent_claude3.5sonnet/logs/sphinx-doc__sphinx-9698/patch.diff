@@ -1,0 +1,80 @@
+
+diff --git a/setup.py b/setup.py
+index 3dbc8746b..31bd48c0a 100644
+--- a/setup.py
++++ b/setup.py
+@@ -15,22 +15,22 @@ if sys.version_info < (3, 6):
+     sys.exit(1)
+ 
+ install_requires = [
+-    'sphinxcontrib-applehelp',
+-    'sphinxcontrib-devhelp',
++    'sphinxcontrib-applehelp<=1.0.7',
++    'sphinxcontrib-devhelp<=1.0.5',
+     'sphinxcontrib-jsmath',
+-    'sphinxcontrib-htmlhelp>=2.0.0',
+-    'sphinxcontrib-serializinghtml>=1.1.5',
+-    'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'sphinxcontrib-htmlhelp>=2.0.0,<=2.0.4',
++    'sphinxcontrib-serializinghtml>=1.1.5,<=1.1.9',
++    'sphinxcontrib-qthelp<=1.0.6',
++    'Jinja2<3.0',
+     'Pygments>=2.0',
+     'docutils>=0.14,<0.18',
+     'snowballstemmer>=1.1',
+     'babel>=1.3',
+-    'alabaster>=0.7,<0.8',
++    'alabaster>=0.7,<0.7.12',
+     'imagesize',
+     'requests>=2.5.0',
+     'setuptools',
+-    'packaging',
++    'packaging', 'markupsafe<=2.0.1',
+ ]
+ 
+ extras_require = {
+diff --git a/sphinx/environment/adapters/indexentries.py b/sphinx/environment/adapters/indexentries.py
+index a2c20abd8..d30325ade 100644
+--- a/sphinx/environment/adapters/indexentries.py
++++ b/sphinx/environment/adapters/indexentries.py
+@@ -39,6 +39,10 @@ class IndexEntries:
+             # This will solve problems with unicode normalization later.
+             # For instance the RFC role will add bytestrings at the moment
+             word = str(word)
++            # Remove parentheses from property entries
++            # This fixes the issue of properties having unnecessary parentheses in the index
++            if word.endswith(" (property)"):
++                word = word[:-11]  # remove " (property)"
+             entry = dic.get(word)
+             if not entry:
+                 dic[word] = entry = [[], {}, key]
+@@ -51,7 +55,6 @@ class IndexEntries:
+                     pass
+                 else:
+                     entry[0].append((main, uri))
+-
+         domain = cast(IndexDomain, self.env.get_domain('index'))
+         for fn, entries in domain.entries.items():
+             # new entry types must be listed in directives/other.py!
+diff --git a/tox.ini b/tox.ini
+index 00c8e13bd..11d3352df 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -22,14 +22,14 @@ deps =
+     du15: docutils==0.15.*
+     du16: docutils==0.16.*
+     du17: docutils==0.17.*
+-    py311: git+https://github.com/pytest-dev/py
++    py311: git+https://github.com/pytest -rA-dev/py
+ extras =
+     test
+ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:du-latest]
+ commands =

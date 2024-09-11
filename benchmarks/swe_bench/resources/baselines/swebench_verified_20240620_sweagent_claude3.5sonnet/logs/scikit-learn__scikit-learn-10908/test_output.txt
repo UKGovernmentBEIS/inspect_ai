@@ -1,0 +1,691 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sklearn/feature_extraction/text.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_issue.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 67d06b18c68ee4452768f8a1e868565dd4354abf
+Author: pietruh <micp0@op.pl>
+Date:   Tue Apr 3 03:37:16 2018 +0200
+
+    DOC Mentioned that Calinski-Harabasz score is also known as Variance Rati… (#10893)
+
+diff --git a/doc/modules/clustering.rst b/doc/modules/clustering.rst
+index df2e890af..80b640621 100644
+--- a/doc/modules/clustering.rst
++++ b/doc/modules/clustering.rst
+@@ -1527,9 +1527,9 @@ Calinski-Harabaz Index
+ ----------------------
+ 
+ If the ground truth labels are not known, the Calinski-Harabaz index
+-(:func:`sklearn.metrics.calinski_harabaz_score`) can be used to evaluate the
+-model, where a higher Calinski-Harabaz score relates to a model with better
+-defined clusters.
++(:func:`sklearn.metrics.calinski_harabaz_score`) - also known as the Variance 
++Ratio Criterion - can be used to evaluate the model, where a higher 
++Calinski-Harabaz score relates to a model with better defined clusters.
+ 
+ For :math:`k` clusters, the Calinski-Harabaz score :math:`s` is given as the
+ ratio of the between-clusters dispersion mean and the within-cluster
+diff --git a/sklearn/metrics/cluster/unsupervised.py b/sklearn/metrics/cluster/unsupervised.py
+index f4da109f1..635aa42b0 100644
+--- a/sklearn/metrics/cluster/unsupervised.py
++++ b/sklearn/metrics/cluster/unsupervised.py
+@@ -211,6 +211,8 @@ def silhouette_samples(X, labels, metric='euclidean', **kwds):
+ def calinski_harabaz_score(X, labels):
+     """Compute the Calinski and Harabaz score.
+ 
++    It is also known as the Variance Ratio Criterion.
++
+     The score is defined as ratio between the within-cluster dispersion and
+     the between-cluster dispersion.
+ 
++ git diff 67d06b18c68ee4452768f8a1e868565dd4354abf
+diff --git a/sklearn/feature_extraction/text.py b/sklearn/feature_extraction/text.py
+index 9b1ebd632..8c28e24f1 100644
+--- a/sklearn/feature_extraction/text.py
++++ b/sklearn/feature_extraction/text.py
+@@ -1,77 +1,62 @@
+-# -*- coding: utf-8 -*-
+-# Authors: Olivier Grisel <olivier.grisel@ensta.org>
+-#          Mathieu Blondel <mathieu@mblondel.org>
+-#          Lars Buitinck
+-#          Robert Layton <robertlayton@gmail.com>
+-#          Jochen Wersdörfer <jochen@wersdoerfer.de>
+-#          Roman Sinayev <roman.sinayev@gmail.com>
+-#
+-# License: BSD 3 clause
+-"""
+-The :mod:`sklearn.feature_extraction.text` submodule gathers utilities to
+-build feature vectors from text documents.
+-"""
+-from __future__ import unicode_literals
+-
+-import array
+-from collections import Mapping, defaultdict
+-import numbers
+-from operator import itemgetter
+-import re
+-import unicodedata
+-
+-import numpy as np
+-import scipy.sparse as sp
+-
+-from ..base import BaseEstimator, TransformerMixin
+-from ..externals import six
+-from ..externals.six.moves import xrange
+-from ..preprocessing import normalize
+-from .hashing import FeatureHasher
+-from .stop_words import ENGLISH_STOP_WORDS
+-from ..utils.validation import check_is_fitted
+-from ..utils.fixes import sp_version
+-
+-__all__ = ['CountVectorizer',
+-           'ENGLISH_STOP_WORDS',
+-           'TfidfTransformer',
+-           'TfidfVectorizer',
+-           'strip_accents_ascii',
+-           'strip_accents_unicode',
+-           'strip_tags']
+-
+-
+-def strip_accents_unicode(s):
+-    """Transform accentuated unicode symbols into their simple counterpart
+-
+-    Warning: the python-level loop and join operations make this
+-    implementation 20 times slower than the strip_accents_ascii basic
+-    normalization.
++from sklearn.feature_extraction.text import CountVectorizer
+ 
+-    See also
+-    --------
+-    strip_accents_ascii
+-        Remove accentuated char for any unicode symbol that has a direct
+-        ASCII equivalent.
+-    """
+-    normalized = unicodedata.normalize('NFKD', s)
+-    if normalized == s:
+-        return s
+-    else:
+-        return ''.join([c for c in normalized if not unicodedata.combining(c)])
++corpus = [
++    'This is the first document.',
++    'This is the second second document.',
++    'And the third one.',
++    'Is this the first document?',
++]
+ 
++vocabulary = ['and', 'document', 'first', 'is', 'one', 'second', 'the', 'third', 'this']
+ 
+-def strip_accents_ascii(s):
+-    """Transform accentuated unicode symbols into ascii or nothing
++vectorizer = CountVectorizer(vocabulary=vocabulary)
+ 
+-    Warning: this solution is only suited for languages that have a direct
+-    transliteration to ASCII symbols.
++print("Has vocabulary_ attribute before transform:", hasattr(vectorizer, "vocabulary_"))
+ 
+-    See also
+-    --------
+-    strip_accents_unicode
+-        Remove accentuated char for any unicode symbol.
+-    """
++try:
++    feature_names = vectorizer.get_feature_names()
++    print("Feature names before transform:", feature_names)
++except Exception as e:
++    print("Error in get_feature_names() before transform:", str(e))
++
++vectorizer.transform(corpus)
++
++print("Has vocabulary_ attribute after transform:", hasattr(vectorizer, "vocabulary_"))
++
++try:
++    feature_names = vectorizer.get_feature_names()
++    print("Feature names after transform:", feature_names)
++except Exception as e:
++    print("Error in get_feature_names() after transform:", str(e))
++
++print("Script completed successfully, no errors.")
++        self.tokenizer = tokenizer
++        self.analyzer = analyzer
++        self.lowercase = lowercase
++        self.token_pattern = token_pattern
++        self.stop_words = stop_words
++        self.max_df = max_df
++        self.min_df = min_df
++        self.max_features = max_features
++        self.ngram_range = ngram_range
++        self.vocabulary = vocabulary
++        self.binary = binary
++        self.dtype = dtype
++
++    def get_feature_names(self):
++        """Array mapping from feature integer indices to feature name"""
++        if self.vocabulary is not None:
++            return [t for t, i in sorted(six.iteritems(self.vocabulary),
++                                         key=itemgetter(1))]
++        elif hasattr(self, 'vocabulary_'):
++            return [t for t, i in sorted(six.iteritems(self.vocabulary_),
++                                         key=itemgetter(1))]
++        else:
++            check_is_fitted(self, 'vocabulary_')
++            return [t for t, i in sorted(six.iteritems(self.vocabulary_),
++                                         key=itemgetter(1))]
++
++    # Other methods (fit, transform, etc.) should be implemented here...
+     nkfd_form = unicodedata.normalize('NFKD', s)
+     return nkfd_form.encode('ASCII', 'ignore').decode('ASCII')
+ 
+@@ -993,10 +978,13 @@ class CountVectorizer(BaseEstimator, VectorizerMixin):
+ 
+     def get_feature_names(self):
+         """Array mapping from feature integer indices to feature name"""
+-        self._check_vocabulary()
+-
+-        return [t for t, i in sorted(six.iteritems(self.vocabulary_),
+-                                     key=itemgetter(1))]
++        if self.vocabulary is not None:
++            return [t for t, i in sorted(six.iteritems(self.vocabulary),
++                                         key=itemgetter(1))]
++        else:
++            self._check_vocabulary()
++            return [t for t, i in sorted(six.iteritems(self.vocabulary_),
++                                         key=itemgetter(1))]
+ 
+ 
+ def _make_int_array():
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -v --no-use-pep517 --no-build-isolation -e .
+Using pip 21.2.2 from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/pip (python 3.6)
+Obtaining file:///testbed
+    Running command python setup.py egg_info
+    running egg_info
+    creating /tmp/pip-pip-egg-info-zfmjfxwh/scikit_learn.egg-info
+    writing /tmp/pip-pip-egg-info-zfmjfxwh/scikit_learn.egg-info/PKG-INFO
+    writing dependency_links to /tmp/pip-pip-egg-info-zfmjfxwh/scikit_learn.egg-info/dependency_links.txt
+    writing requirements to /tmp/pip-pip-egg-info-zfmjfxwh/scikit_learn.egg-info/requires.txt
+    writing top-level names to /tmp/pip-pip-egg-info-zfmjfxwh/scikit_learn.egg-info/top_level.txt
+    writing manifest file '/tmp/pip-pip-egg-info-zfmjfxwh/scikit_learn.egg-info/SOURCES.txt'
+    reading manifest file '/tmp/pip-pip-egg-info-zfmjfxwh/scikit_learn.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    adding license file 'COPYING'
+    adding license file 'AUTHORS.rst'
+    writing manifest file '/tmp/pip-pip-egg-info-zfmjfxwh/scikit_learn.egg-info/SOURCES.txt'
+    Partial import of sklearn during the build process.
+Requirement already satisfied: numpy>=1.8.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from scikit-learn==0.20.dev0) (1.19.2)
+Requirement already satisfied: scipy>=0.13.3 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from scikit-learn==0.20.dev0) (1.5.2)
+Installing collected packages: scikit-learn
+  Attempting uninstall: scikit-learn
+    Found existing installation: scikit-learn 0.20.dev0
+    Uninstalling scikit-learn-0.20.dev0:
+      Removing file or directory /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/scikit-learn.egg-link
+      Removing pth entries from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/easy-install.pth:
+      Removing entry: /testbed
+      Successfully uninstalled scikit-learn-0.20.dev0
+  Running setup.py develop for scikit-learn
+    Running command /opt/miniconda3/envs/testbed/bin/python -c 'import io, os, sys, setuptools, tokenize; sys.argv[0] = '"'"'/testbed/setup.py'"'"'; __file__='"'"'/testbed/setup.py'"'"';f = getattr(tokenize, '"'"'open'"'"', open)(__file__) if os.path.exists(__file__) else io.StringIO('"'"'from setuptools import setup; setup()'"'"');code = f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' develop --no-deps
+    blas_opt_info:
+    blas_mkl_info:
+    customize UnixCCompiler
+      libraries mkl_rt not found in ['/opt/miniconda3/envs/testbed/lib', '/usr/local/lib', '/usr/lib64', '/usr/lib', '/usr/lib/x86_64-linux-gnu']
+      NOT AVAILABLE
+
+    blis_info:
+      libraries blis not found in ['/opt/miniconda3/envs/testbed/lib', '/usr/local/lib', '/usr/lib64', '/usr/lib', '/usr/lib/x86_64-linux-gnu']
+      NOT AVAILABLE
+
+    openblas_info:
+    C compiler: gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC
+
+    creating /tmp/tmps2bkmz0p/tmp
+    creating /tmp/tmps2bkmz0p/tmp/tmps2bkmz0p
+    compile options: '-c'
+    gcc: /tmp/tmps2bkmz0p/source.c
+    gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ /tmp/tmps2bkmz0p/tmp/tmps2bkmz0p/source.o -L/opt/miniconda3/envs/testbed/lib -lopenblas -o /tmp/tmps2bkmz0p/a.out
+      FOUND:
+        libraries = ['openblas', 'openblas']
+        library_dirs = ['/opt/miniconda3/envs/testbed/lib']
+        language = c
+        define_macros = [('HAVE_CBLAS', None)]
+
+      FOUND:
+        libraries = ['openblas', 'openblas']
+        library_dirs = ['/opt/miniconda3/envs/testbed/lib']
+        language = c
+        define_macros = [('HAVE_CBLAS', None)]
+
+    running develop
+    running build_scripts
+    running egg_info
+    running build_src
+    build_src
+    building library "libsvm-skl" sources
+    building extension "sklearn.__check_build._check_build" sources
+    building extension "sklearn.cluster._dbscan_inner" sources
+    building extension "sklearn.cluster._hierarchical" sources
+    building extension "sklearn.cluster._k_means_elkan" sources
+    building extension "sklearn.cluster._k_means" sources
+    building extension "sklearn.datasets._svmlight_format" sources
+    building extension "sklearn.decomposition._online_lda" sources
+    building extension "sklearn.decomposition.cdnmf_fast" sources
+    building extension "sklearn.ensemble._gradient_boosting" sources
+    building extension "sklearn.feature_extraction._hashing" sources
+    building extension "sklearn.manifold._utils" sources
+    building extension "sklearn.manifold._barnes_hut_tsne" sources
+    building extension "sklearn.metrics.cluster.expected_mutual_info_fast" sources
+    building extension "sklearn.metrics.pairwise_fast" sources
+    building extension "sklearn.neighbors.ball_tree" sources
+    building extension "sklearn.neighbors.kd_tree" sources
+    building extension "sklearn.neighbors.dist_metrics" sources
+    building extension "sklearn.neighbors.typedefs" sources
+    building extension "sklearn.neighbors.quad_tree" sources
+    building extension "sklearn.tree._tree" sources
+    building extension "sklearn.tree._splitter" sources
+    building extension "sklearn.tree._criterion" sources
+    building extension "sklearn.tree._utils" sources
+    building extension "sklearn.svm.libsvm" sources
+    building extension "sklearn.svm.liblinear" sources
+    building extension "sklearn.svm.libsvm_sparse" sources
+    building extension "sklearn._isotonic" sources
+    building extension "sklearn.linear_model.cd_fast" sources
+    building extension "sklearn.linear_model.sgd_fast" sources
+    building extension "sklearn.linear_model.sag_fast" sources
+    building extension "sklearn.utils.sparsefuncs_fast" sources
+    building extension "sklearn.utils.arrayfuncs" sources
+    building extension "sklearn.utils.murmurhash" sources
+    building extension "sklearn.utils.lgamma" sources
+    building extension "sklearn.utils.graph_shortest_path" sources
+    building extension "sklearn.utils.fast_dict" sources
+    building extension "sklearn.utils.seq_dataset" sources
+    building extension "sklearn.utils.weight_vector" sources
+    building extension "sklearn.utils._random" sources
+    building extension "sklearn.utils._logistic_sigmoid" sources
+    building data_files sources
+    build_src: building npy-pkg config files
+    writing scikit_learn.egg-info/PKG-INFO
+    writing dependency_links to scikit_learn.egg-info/dependency_links.txt
+    writing requirements to scikit_learn.egg-info/requires.txt
+    writing top-level names to scikit_learn.egg-info/top_level.txt
+    reading manifest file 'scikit_learn.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    adding license file 'COPYING'
+    adding license file 'AUTHORS.rst'
+    writing manifest file 'scikit_learn.egg-info/SOURCES.txt'
+    running build_ext
+    customize UnixCCompiler
+    customize UnixCCompiler using build_clib
+    customize UnixCCompiler
+    customize UnixCCompiler using build_ext
+    resetting extension 'sklearn.svm.liblinear' language from 'c' to 'c++'.
+    customize UnixCCompiler
+    customize UnixCCompiler using build_ext
+    Creating /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/scikit-learn.egg-link (link to .)
+    Adding scikit-learn 0.20.dev0 to easy-install.pth file
+
+    Installed /testbed
+    Partial import of sklearn during the build process.
+Successfully installed scikit-learn-0.20.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 67d06b18c68ee4452768f8a1e868565dd4354abf sklearn/feature_extraction/tests/test_text.py
+Updated 0 paths from d7e9da7c1
++ git apply -v -
+Checking patch sklearn/feature_extraction/tests/test_text.py...
+Hunk #1 succeeded at 270 (offset 1 line).
+Hunk #2 succeeded at 544 (offset 1 line).
+Hunk #3 succeeded at 560 (offset 1 line).
+Applied patch sklearn/feature_extraction/tests/test_text.py cleanly.
++ pytest -rA sklearn/feature_extraction/tests/test_text.py
+============================= test session starts ==============================
+platform linux -- Python 3.6.13, pytest-6.2.4, py-1.11.0, pluggy-0.13.1
+rootdir: /testbed, configfile: setup.cfg
+collected 0 items / 2 errors
+
+==================================== ERRORS ====================================
+________ ERROR collecting sklearn/feature_extraction/tests/test_text.py ________
+/opt/miniconda3/envs/testbed/lib/python3.6/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:994: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:971: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:941: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:219: in _call_with_frames_removed
+    ???
+<frozen importlib._bootstrap>:994: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:971: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:941: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:219: in _call_with_frames_removed
+    ???
+<frozen importlib._bootstrap>:994: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:971: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:955: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:665: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:678: in exec_module
+    ???
+<frozen importlib._bootstrap>:219: in _call_with_frames_removed
+    ???
+sklearn/feature_extraction/__init__.py:10: in <module>
+    from . import text
+E     File "/testbed/sklearn/feature_extraction/text.py", line 33
+E       self.tokenizer = tokenizer
+E       ^
+E   IndentationError: unexpected indent
+________ ERROR collecting sklearn/feature_extraction/tests/test_text.py ________
+/opt/miniconda3/envs/testbed/lib/python3.6/site-packages/_pytest/python.py:578: in _importtestmodule
+    mod = import_path(self.fspath, mode=importmode)
+/opt/miniconda3/envs/testbed/lib/python3.6/site-packages/_pytest/pathlib.py:524: in import_path
+    importlib.import_module(module_name)
+/opt/miniconda3/envs/testbed/lib/python3.6/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:994: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:971: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:941: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:219: in _call_with_frames_removed
+    ???
+<frozen importlib._bootstrap>:994: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:971: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:941: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:219: in _call_with_frames_removed
+    ???
+<frozen importlib._bootstrap>:994: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:971: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:955: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:665: in _load_unlocked
+    ???
+<frozen importlib._bootstrap_external>:678: in exec_module
+    ???
+<frozen importlib._bootstrap>:219: in _call_with_frames_removed
+    ???
+sklearn/feature_extraction/__init__.py:10: in <module>
+    from . import text
+E     File "/testbed/sklearn/feature_extraction/text.py", line 33
+E       self.tokenizer = tokenizer
+E       ^
+E   IndentationError: unexpected indent
+=========================== short test summary info ============================
+ERROR sklearn/feature_extraction/tests/test_text.py -   File "/testbed/sklear...
+ERROR sklearn/feature_extraction/tests/test_text.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!!
+============================== 2 errors in 0.72s ===============================
++ git checkout 67d06b18c68ee4452768f8a1e868565dd4354abf sklearn/feature_extraction/tests/test_text.py
+Updated 1 path from d7e9da7c1

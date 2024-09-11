@@ -1,0 +1,1191 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/models/fields/related_descriptors.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 76e37513e22f4d9a01c7f15eee36fe44388e6670
+Author: Simon Charette <charette.s@gmail.com>
+Date:   Sun Nov 6 11:19:33 2022 -0500
+
+    Refs #33374 -- Adjusted full match condition handling.
+    
+    Adjusting WhereNode.as_sql() to raise an exception when encoutering a
+    full match just like with empty matches ensures that all case are
+    explicitly handled.
+
+diff --git a/django/core/exceptions.py b/django/core/exceptions.py
+index 7be4e16bc5..646644f3e0 100644
+--- a/django/core/exceptions.py
++++ b/django/core/exceptions.py
+@@ -233,6 +233,12 @@ class EmptyResultSet(Exception):
+     pass
+ 
+ 
++class FullResultSet(Exception):
++    """A database query predicate is matches everything."""
++
++    pass
++
++
+ class SynchronousOnlyOperation(Exception):
+     """The user tried to call a sync-only function from an async context."""
+ 
+diff --git a/django/db/backends/mysql/compiler.py b/django/db/backends/mysql/compiler.py
+index bd2715fb43..2ec6bea2f1 100644
+--- a/django/db/backends/mysql/compiler.py
++++ b/django/db/backends/mysql/compiler.py
+@@ -1,4 +1,4 @@
+-from django.core.exceptions import FieldError
++from django.core.exceptions import FieldError, FullResultSet
+ from django.db.models.expressions import Col
+ from django.db.models.sql import compiler
+ 
+@@ -40,12 +40,16 @@ class SQLDeleteCompiler(compiler.SQLDeleteCompiler, SQLCompiler):
+             "DELETE %s FROM"
+             % self.quote_name_unless_alias(self.query.get_initial_alias())
+         ]
+-        from_sql, from_params = self.get_from_clause()
++        from_sql, params = self.get_from_clause()
+         result.extend(from_sql)
+-        where_sql, where_params = self.compile(where)
+-        if where_sql:
++        try:
++            where_sql, where_params = self.compile(where)
++        except FullResultSet:
++            pass
++        else:
+             result.append("WHERE %s" % where_sql)
+-        return " ".join(result), tuple(from_params) + tuple(where_params)
++            params.extend(where_params)
++        return " ".join(result), tuple(params)
+ 
+ 
+ class SQLUpdateCompiler(compiler.SQLUpdateCompiler, SQLCompiler):
+diff --git a/django/db/models/aggregates.py b/django/db/models/aggregates.py
+index ab38a33bf0..7878fb6fb2 100644
+--- a/django/db/models/aggregates.py
++++ b/django/db/models/aggregates.py
+@@ -1,7 +1,7 @@
+ """
+ Classes to represent the definitions of aggregate functions.
+ """
+-from django.core.exceptions import FieldError
++from django.core.exceptions import FieldError, FullResultSet
+ from django.db.models.expressions import Case, Func, Star, When
+ from django.db.models.fields import IntegerField
+ from django.db.models.functions.comparison import Coalesce
+@@ -104,8 +104,11 @@ class Aggregate(Func):
+         extra_context["distinct"] = "DISTINCT " if self.distinct else ""
+         if self.filter:
+             if connection.features.supports_aggregate_filter_clause:
+-                filter_sql, filter_params = self.filter.as_sql(compiler, connection)
+-                if filter_sql:
++                try:
++                    filter_sql, filter_params = self.filter.as_sql(compiler, connection)
++                except FullResultSet:
++                    pass
++                else:
+                     template = self.filter_template % extra_context.get(
+                         "template", self.template
+                     )
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index 8b04e1f11b..86a3a92f07 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -7,7 +7,7 @@ from collections import defaultdict
+ from decimal import Decimal
+ from uuid import UUID
+ 
+-from django.core.exceptions import EmptyResultSet, FieldError
++from django.core.exceptions import EmptyResultSet, FieldError, FullResultSet
+ from django.db import DatabaseError, NotSupportedError, connection
+ from django.db.models import fields
+ from django.db.models.constants import LOOKUP_SEP
+@@ -955,6 +955,8 @@ class Func(SQLiteNumericMixin, Expression):
+                 if empty_result_set_value is NotImplemented:
+                     raise
+                 arg_sql, arg_params = compiler.compile(Value(empty_result_set_value))
++            except FullResultSet:
++                arg_sql, arg_params = compiler.compile(Value(True))
+             sql_parts.append(arg_sql)
+             params.extend(arg_params)
+         data = {**self.extra, **extra_context}
+@@ -1367,14 +1369,6 @@ class When(Expression):
+         template_params = extra_context
+         sql_params = []
+         condition_sql, condition_params = compiler.compile(self.condition)
+-        # Filters that match everything are handled as empty strings in the
+-        # WHERE clause, but in a CASE WHEN expression they must use a predicate
+-        # that's always True.
+-        if condition_sql == "":
+-            if connection.features.supports_boolean_expr_in_select_clause:
+-                condition_sql, condition_params = compiler.compile(Value(True))
+-            else:
+-                condition_sql, condition_params = "1=1", ()
+         template_params["condition"] = condition_sql
+         result_sql, result_params = compiler.compile(self.result)
+         template_params["result"] = result_sql
+@@ -1461,14 +1455,17 @@ class Case(SQLiteNumericMixin, Expression):
+         template_params = {**self.extra, **extra_context}
+         case_parts = []
+         sql_params = []
++        default_sql, default_params = compiler.compile(self.default)
+         for case in self.cases:
+             try:
+                 case_sql, case_params = compiler.compile(case)
+             except EmptyResultSet:
+                 continue
++            except FullResultSet:
++                default_sql, default_params = compiler.compile(case.result)
++                break
+             case_parts.append(case_sql)
+             sql_params.extend(case_params)
+-        default_sql, default_params = compiler.compile(self.default)
+         if not case_parts:
+             return default_sql, default_params
+         case_joiner = case_joiner or self.case_joiner
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index 5069a491e8..2a98396cad 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -1103,15 +1103,6 @@ class BooleanField(Field):
+             defaults = {"form_class": form_class, "required": False}
+         return super().formfield(**{**defaults, **kwargs})
+ 
+-    def select_format(self, compiler, sql, params):
+-        sql, params = super().select_format(compiler, sql, params)
+-        # Filters that match everything are handled as empty strings in the
+-        # WHERE clause, but in SELECT or GROUP BY list they must use a
+-        # predicate that's always True.
+-        if sql == "":
+-            sql = "1"
+-        return sql, params
+-
+ 
+ class CharField(Field):
+     description = _("String (up to %(max_length)s)")
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index 97c7ba2013..170bde1d42 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -4,7 +4,7 @@ import re
+ from functools import partial
+ from itertools import chain
+ 
+-from django.core.exceptions import EmptyResultSet, FieldError
++from django.core.exceptions import EmptyResultSet, FieldError, FullResultSet
+ from django.db import DatabaseError, NotSupportedError
+ from django.db.models.constants import LOOKUP_SEP
+ from django.db.models.expressions import F, OrderBy, RawSQL, Ref, Value
+@@ -169,7 +169,7 @@ class SQLCompiler:
+                 expr = Ref(alias, expr)
+             try:
+                 sql, params = self.compile(expr)
+-            except EmptyResultSet:
++            except (EmptyResultSet, FullResultSet):
+                 continue
+             sql, params = expr.select_format(self, sql, params)
+             params_hash = make_hashable(params)
+@@ -287,6 +287,8 @@ class SQLCompiler:
+                     sql, params = "0", ()
+                 else:
+                     sql, params = self.compile(Value(empty_result_set_value))
++            except FullResultSet:
++                sql, params = self.compile(Value(True))
+             else:
+                 sql, params = col.select_format(self, sql, params)
+             if alias is None and with_col_aliases:
+@@ -721,9 +723,16 @@ class SQLCompiler:
+                         raise
+                     # Use a predicate that's always False.
+                     where, w_params = "0 = 1", []
+-                having, h_params = (
+-                    self.compile(self.having) if self.having is not None else ("", [])
+-                )
++                except FullResultSet:
++                    where, w_params = "", []
++                try:
++                    having, h_params = (
++                        self.compile(self.having)
++                        if self.having is not None
++                        else ("", [])
++                    )
++                except FullResultSet:
++                    having, h_params = "", []
+                 result = ["SELECT"]
+                 params = []
+ 
+@@ -1817,11 +1826,12 @@ class SQLDeleteCompiler(SQLCompiler):
+         )
+ 
+     def _as_sql(self, query):
+-        result = ["DELETE FROM %s" % self.quote_name_unless_alias(query.base_table)]
+-        where, params = self.compile(query.where)
+-        if where:
+-            result.append("WHERE %s" % where)
+-        return " ".join(result), tuple(params)
++        delete = "DELETE FROM %s" % self.quote_name_unless_alias(query.base_table)
++        try:
++            where, params = self.compile(query.where)
++        except FullResultSet:
++            return delete, ()
++        return f"{delete} WHERE {where}", tuple(params)
+ 
+     def as_sql(self):
+         """
+@@ -1906,8 +1916,11 @@ class SQLUpdateCompiler(SQLCompiler):
+             "UPDATE %s SET" % qn(table),
+             ", ".join(values),
+         ]
+-        where, params = self.compile(self.query.where)
+-        if where:
++        try:
++            where, params = self.compile(self.query.where)
++        except FullResultSet:
++            params = []
++        else:
+             result.append("WHERE %s" % where)
+         return " ".join(result), tuple(update_params + params)
+ 
+diff --git a/django/db/models/sql/datastructures.py b/django/db/models/sql/datastructures.py
+index 1edf040e82..069eb1a301 100644
+--- a/django/db/models/sql/datastructures.py
++++ b/django/db/models/sql/datastructures.py
+@@ -2,6 +2,7 @@
+ Useful auxiliary data structures for query construction. Not useful outside
+ the SQL domain.
+ """
++from django.core.exceptions import FullResultSet
+ from django.db.models.sql.constants import INNER, LOUTER
+ 
+ 
+@@ -100,8 +101,11 @@ class Join:
+             join_conditions.append("(%s)" % extra_sql)
+             params.extend(extra_params)
+         if self.filtered_relation:
+-            extra_sql, extra_params = compiler.compile(self.filtered_relation)
+-            if extra_sql:
++            try:
++                extra_sql, extra_params = compiler.compile(self.filtered_relation)
++            except FullResultSet:
++                pass
++            else:
+                 join_conditions.append("(%s)" % extra_sql)
+                 params.extend(extra_params)
+         if not join_conditions:
+diff --git a/django/db/models/sql/where.py b/django/db/models/sql/where.py
+index 63fdf58d9d..1928ba91b8 100644
+--- a/django/db/models/sql/where.py
++++ b/django/db/models/sql/where.py
+@@ -4,7 +4,7 @@ Code to manage the creation and SQL rendering of 'where' constraints.
+ import operator
+ from functools import reduce
+ 
+-from django.core.exceptions import EmptyResultSet
++from django.core.exceptions import EmptyResultSet, FullResultSet
+ from django.db.models.expressions import Case, When
+ from django.db.models.lookups import Exact
+ from django.utils import tree
+@@ -145,6 +145,8 @@ class WhereNode(tree.Node):
+                 sql, params = compiler.compile(child)
+             except EmptyResultSet:
+                 empty_needed -= 1
++            except FullResultSet:
++                full_needed -= 1
+             else:
+                 if sql:
+                     result.append(sql)
+@@ -158,24 +160,25 @@ class WhereNode(tree.Node):
+             # counts.
+             if empty_needed == 0:
+                 if self.negated:
+-                    return "", []
++                    raise FullResultSet
+                 else:
+                     raise EmptyResultSet
+             if full_needed == 0:
+                 if self.negated:
+                     raise EmptyResultSet
+                 else:
+-                    return "", []
++                    raise FullResultSet
+         conn = " %s " % self.connector
+         sql_string = conn.join(result)
+-        if sql_string:
+-            if self.negated:
+-                # Some backends (Oracle at least) need parentheses
+-                # around the inner SQL in the negated case, even if the
+-                # inner SQL contains just a single expression.
+-                sql_string = "NOT (%s)" % sql_string
+-            elif len(result) > 1 or self.resolved:
+-                sql_string = "(%s)" % sql_string
++        if not sql_string:
++            raise FullResultSet
++        if self.negated:
++            # Some backends (Oracle at least) need parentheses around the inner
++            # SQL in the negated case, even if the inner SQL contains just a
++            # single expression.
++            sql_string = "NOT (%s)" % sql_string
++        elif len(result) > 1 or self.resolved:
++            sql_string = "(%s)" % sql_string
+         return sql_string, result_params
+ 
+     def get_group_by_cols(self):
+diff --git a/docs/ref/exceptions.txt b/docs/ref/exceptions.txt
+index 2b567414e6..b588d0ee81 100644
+--- a/docs/ref/exceptions.txt
++++ b/docs/ref/exceptions.txt
+@@ -42,6 +42,17 @@ Django core exception classes are defined in ``django.core.exceptions``.
+     return any results. Most Django projects won't encounter this exception,
+     but it might be useful for implementing custom lookups and expressions.
+ 
++``FullResultSet``
++-----------------
++
++.. exception:: FullResultSet
++
++.. versionadded:: 4.2
++
++    ``FullResultSet`` may be raised during query generation if a query will
++    match everything. Most Django projects won't encounter this exception, but
++    it might be useful for implementing custom lookups and expressions.
++
+ ``FieldDoesNotExist``
+ ---------------------
+ 
+diff --git a/tests/annotations/tests.py b/tests/annotations/tests.py
+index 52c15bba87..d05af552b4 100644
+--- a/tests/annotations/tests.py
++++ b/tests/annotations/tests.py
+@@ -24,7 +24,15 @@ from django.db.models import (
+     When,
+ )
+ from django.db.models.expressions import RawSQL
+-from django.db.models.functions import Coalesce, ExtractYear, Floor, Length, Lower, Trim
++from django.db.models.functions import (
++    Cast,
++    Coalesce,
++    ExtractYear,
++    Floor,
++    Length,
++    Lower,
++    Trim,
++)
+ from django.test import TestCase, skipUnlessDBFeature
+ from django.test.utils import register_lookup
+ 
+@@ -282,6 +290,13 @@ class NonAggregateAnnotationTestCase(TestCase):
+         self.assertEqual(len(books), Book.objects.count())
+         self.assertTrue(all(book.selected for book in books))
+ 
++    def test_full_expression_wrapped_annotation(self):
++        books = Book.objects.annotate(
++            selected=Coalesce(~Q(pk__in=[]), True),
++        )
++        self.assertEqual(len(books), Book.objects.count())
++        self.assertTrue(all(book.selected for book in books))
++
+     def test_full_expression_annotation_with_aggregation(self):
+         qs = Book.objects.filter(isbn="159059725").annotate(
+             selected=ExpressionWrapper(~Q(pk__in=[]), output_field=BooleanField()),
+@@ -292,7 +307,7 @@ class NonAggregateAnnotationTestCase(TestCase):
+     def test_aggregate_over_full_expression_annotation(self):
+         qs = Book.objects.annotate(
+             selected=ExpressionWrapper(~Q(pk__in=[]), output_field=BooleanField()),
+-        ).aggregate(Sum("selected"))
++        ).aggregate(selected__sum=Sum(Cast("selected", IntegerField())))
+         self.assertEqual(qs["selected__sum"], Book.objects.count())
+ 
+     def test_empty_queryset_annotation(self):
+diff --git a/tests/queries/tests.py b/tests/queries/tests.py
+index 63e9ea6687..332a6e5d9a 100644
+--- a/tests/queries/tests.py
++++ b/tests/queries/tests.py
+@@ -5,7 +5,7 @@ import unittest
+ from operator import attrgetter
+ from threading import Lock
+ 
+-from django.core.exceptions import EmptyResultSet, FieldError
++from django.core.exceptions import EmptyResultSet, FieldError, FullResultSet
+ from django.db import DEFAULT_DB_ALIAS, connection
+ from django.db.models import CharField, Count, Exists, F, Max, OuterRef, Q
+ from django.db.models.expressions import RawSQL
+@@ -3588,7 +3588,8 @@ class WhereNodeTest(SimpleTestCase):
+         with self.assertRaises(EmptyResultSet):
+             w.as_sql(compiler, connection)
+         w.negate()
+-        self.assertEqual(w.as_sql(compiler, connection), ("", []))
++        with self.assertRaises(FullResultSet):
++            w.as_sql(compiler, connection)
+         w = WhereNode(children=[self.DummyNode(), self.DummyNode()])
+         self.assertEqual(w.as_sql(compiler, connection), ("(dummy AND dummy)", []))
+         w.negate()
+@@ -3597,7 +3598,8 @@ class WhereNodeTest(SimpleTestCase):
+         with self.assertRaises(EmptyResultSet):
+             w.as_sql(compiler, connection)
+         w.negate()
+-        self.assertEqual(w.as_sql(compiler, connection), ("", []))
++        with self.assertRaises(FullResultSet):
++            w.as_sql(compiler, connection)
+ 
+     def test_empty_full_handling_disjunction(self):
+         compiler = WhereNodeTest.MockCompiler()
+@@ -3605,7 +3607,8 @@ class WhereNodeTest(SimpleTestCase):
+         with self.assertRaises(EmptyResultSet):
+             w.as_sql(compiler, connection)
+         w.negate()
+-        self.assertEqual(w.as_sql(compiler, connection), ("", []))
++        with self.assertRaises(FullResultSet):
++            w.as_sql(compiler, connection)
+         w = WhereNode(children=[self.DummyNode(), self.DummyNode()], connector=OR)
+         self.assertEqual(w.as_sql(compiler, connection), ("(dummy OR dummy)", []))
+         w.negate()
+@@ -3619,7 +3622,8 @@ class WhereNodeTest(SimpleTestCase):
+         compiler = WhereNodeTest.MockCompiler()
+         empty_w = WhereNode()
+         w = WhereNode(children=[empty_w, empty_w])
+-        self.assertEqual(w.as_sql(compiler, connection), ("", []))
++        with self.assertRaises(FullResultSet):
++            w.as_sql(compiler, connection)
+         w.negate()
+         with self.assertRaises(EmptyResultSet):
+             w.as_sql(compiler, connection)
+@@ -3627,9 +3631,11 @@ class WhereNodeTest(SimpleTestCase):
+         with self.assertRaises(EmptyResultSet):
+             w.as_sql(compiler, connection)
+         w.negate()
+-        self.assertEqual(w.as_sql(compiler, connection), ("", []))
++        with self.assertRaises(FullResultSet):
++            w.as_sql(compiler, connection)
+         w = WhereNode(children=[empty_w, NothingNode()], connector=OR)
+-        self.assertEqual(w.as_sql(compiler, connection), ("", []))
++        with self.assertRaises(FullResultSet):
++            w.as_sql(compiler, connection)
+         w = WhereNode(children=[empty_w, NothingNode()], connector=AND)
+         with self.assertRaises(EmptyResultSet):
+             w.as_sql(compiler, connection)
++ git diff 76e37513e22f4d9a01c7f15eee36fe44388e6670
+diff --git a/django/db/models/fields/related_descriptors.py b/django/db/models/fields/related_descriptors.py
+index c5d87f647a..4702d5f00a 100644
+--- a/django/db/models/fields/related_descriptors.py
++++ b/django/db/models/fields/related_descriptors.py
+@@ -78,6 +78,8 @@ from django.db.models.query import QuerySet
+ from django.db.models.query_utils import DeferredAttribute
+ from django.db.models.utils import AltersData, resolve_callables
+ from django.utils.functional import cached_property
++from asgiref.sync import sync_to_async
++
+ 
+ 
+ class ForeignKeyDeferredAttribute(DeferredAttribute):
+@@ -792,6 +794,10 @@ def create_reverse_many_to_one_manager(superclass, rel):
+             return super(RelatedManager, self.db_manager(db)).create(**kwargs)
+ 
+         create.alters_data = True
++        async def acreate(self, **kwargs):
++            return await sync_to_async(self.create)(**kwargs)
++
++        acreate.alters_data = True
+ 
+         def get_or_create(self, **kwargs):
+             self._check_fk_val()
+@@ -801,6 +807,11 @@ def create_reverse_many_to_one_manager(superclass, rel):
+ 
+         get_or_create.alters_data = True
+ 
++        async def aget_or_create(self, **kwargs):
++            return await sync_to_async(self.get_or_create)(**kwargs)
++
++        aget_or_create.alters_data = True
++
+         def update_or_create(self, **kwargs):
+             self._check_fk_val()
+             kwargs[self.field.name] = self.instance
+@@ -809,6 +820,11 @@ def create_reverse_many_to_one_manager(superclass, rel):
+ 
+         update_or_create.alters_data = True
+ 
++        async def aupdate_or_create(self, **kwargs):
++            return await sync_to_async(self.update_or_create)(**kwargs)
++
++        aupdate_or_create.alters_data = True
++
+         # remove() and clear() are only provided if the ForeignKey can have a
+         # value of null.
+         if rel.field.null:
+@@ -1191,6 +1207,12 @@ def create_forward_many_to_many_manager(superclass, rel, reverse):
+ 
+         create.alters_data = True
+ 
++        async def acreate(self, *, through_defaults=None, **kwargs):
++            return await sync_to_async(self.create)(through_defaults=through_defaults, **kwargs)
++
++        acreate.alters_data = True
++
++
+         def get_or_create(self, *, through_defaults=None, **kwargs):
+             db = router.db_for_write(self.instance.__class__, instance=self.instance)
+             obj, created = super(ManyRelatedManager, self.db_manager(db)).get_or_create(
+@@ -1204,6 +1226,12 @@ def create_forward_many_to_many_manager(superclass, rel, reverse):
+ 
+         get_or_create.alters_data = True
+ 
++        async def aget_or_create(self, *, through_defaults=None, **kwargs):
++            return await sync_to_async(self.get_or_create)(through_defaults=through_defaults, **kwargs)
++
++        aget_or_create.alters_data = True
++
++
+         def update_or_create(self, *, through_defaults=None, **kwargs):
+             db = router.db_for_write(self.instance.__class__, instance=self.instance)
+             obj, created = super(
+@@ -1217,6 +1245,12 @@ def create_forward_many_to_many_manager(superclass, rel, reverse):
+ 
+         update_or_create.alters_data = True
+ 
++        async def aupdate_or_create(self, *, through_defaults=None, **kwargs):
++            return await sync_to_async(self.update_or_create)(through_defaults=through_defaults, **kwargs)
++
++        aupdate_or_create.alters_data = True
++
++
+         def _get_target_ids(self, target_field_name, objs):
+             """
+             Return the set of ids of `objs` that the target field references.
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.5.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.2.dev20221107192353) (3.8.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.2.dev20221107192353) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from asgiref>=3.5.2->Django==4.2.dev20221107192353) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.2.dev20221107192353-0.editable-py3-none-any.whl size=27229 sha256=7617f961b73005601f42a19c5fe34a94f3dbd533458687db1b710a44966796b3
+  Stored in directory: /tmp/pip-ephem-wheel-cache-77jtcox9/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.2.dev20221107192353
+    Uninstalling Django-4.2.dev20221107192353:
+      Successfully uninstalled Django-4.2.dev20221107192353
+Successfully installed Django-4.2.dev20221107192353
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 76e37513e22f4d9a01c7f15eee36fe44388e6670 tests/async/models.py tests/generic_relations/tests.py
+Updated 0 paths from 575decec75
++ git apply -v -
+Checking patch tests/async/models.py...
+Checking patch tests/async/test_async_related_managers.py...
+Checking patch tests/generic_relations/tests.py...
+Applied patch tests/async/models.py cleanly.
+Applied patch tests/async/test_async_related_managers.py cleanly.
+Applied patch tests/generic_relations/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 async.models async.test_async_related_managers generic_relations.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application async
+Importing application generic_relations
+Found 64 test(s).
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: async, auth, contenttypes, generic_relations, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table async_relatedmodel
+    Creating table async_simplemodel
+    Creating table async_manytomanymodel
+    Creating table generic_relations_taggeditem
+    Creating table generic_relations_valuabletaggeditem
+    Creating table generic_relations_abstractcomparison
+    Creating table generic_relations_comparison
+    Creating table generic_relations_animal
+    Creating table generic_relations_vegetable
+    Creating table generic_relations_carrot
+    Creating table generic_relations_mineral
+    Creating table generic_relations_gecko
+    Creating table generic_relations_rock
+    Creating table generic_relations_valuablerock
+    Creating table generic_relations_manualpk
+    Creating table generic_relations_forproxymodelmodel
+    Creating table generic_relations_forconcretemodelmodel
+    Creating table generic_relations_concreterelatedmodel
+    Creating table generic_relations_allowsnullgfk
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+test_acreate (async.test_async_related_managers.AsyncRelatedManagersOperationTest) ... ok
+test_acreate_reverse (async.test_async_related_managers.AsyncRelatedManagersOperationTest) ... ok
+test_aget_or_create (async.test_async_related_managers.AsyncRelatedManagersOperationTest) ... ok
+test_aget_or_create_reverse (async.test_async_related_managers.AsyncRelatedManagersOperationTest) ... ok
+test_aupdate_or_create (async.test_async_related_managers.AsyncRelatedManagersOperationTest) ... ok
+test_aupdate_or_create_reverse (async.test_async_related_managers.AsyncRelatedManagersOperationTest) ... ok
+test_access_content_object (generic_relations.tests.GenericRelationsTests)
+Test accessing the content object like a foreign key. ... ok
+test_access_via_content_type (generic_relations.tests.GenericRelationsTests)
+Test lookups through content type. ... ok
+test_add_after_prefetch (generic_relations.tests.GenericRelationsTests) ... ok
+test_add_bulk (generic_relations.tests.GenericRelationsTests) ... ok
+test_add_bulk_false (generic_relations.tests.GenericRelationsTests) ... ok
+test_add_rejects_unsaved_objects (generic_relations.tests.GenericRelationsTests) ... ok
+test_add_rejects_wrong_instances (generic_relations.tests.GenericRelationsTests) ... ok
+test_add_then_remove_after_prefetch (generic_relations.tests.GenericRelationsTests) ... ok
+test_assign (generic_relations.tests.GenericRelationsTests) ... ok
+test_assign_content_object_in_init (generic_relations.tests.GenericRelationsTests) ... ok
+test_assign_with_queryset (generic_relations.tests.GenericRelationsTests) ... ok
+test_cache_invalidation_for_content_type_id (generic_relations.tests.GenericRelationsTests) ... ok
+test_cache_invalidation_for_object_id (generic_relations.tests.GenericRelationsTests) ... ok
+test_clear (generic_relations.tests.GenericRelationsTests) ... ok
+test_clear_after_prefetch (generic_relations.tests.GenericRelationsTests) ... ok
+test_create_after_prefetch (generic_relations.tests.GenericRelationsTests) ... ok
+test_exclude_generic_relations (generic_relations.tests.GenericRelationsTests)
+Test lookups over an object without GenericRelations. ... ok
+test_generic_async_acreate (generic_relations.tests.GenericRelationsTests) ... ERROR
+test_generic_async_aget_or_create (generic_relations.tests.GenericRelationsTests) ... ERROR
+test_generic_async_aupdate_or_create (generic_relations.tests.GenericRelationsTests) ... ERROR
+test_generic_get_or_create_when_created (generic_relations.tests.GenericRelationsTests)
+Should be able to use get_or_create from the generic related manager ... ok
+test_generic_get_or_create_when_exists (generic_relations.tests.GenericRelationsTests)
+Should be able to use get_or_create from the generic related manager ... ok
+test_generic_relation_related_name_default (generic_relations.tests.GenericRelationsTests) ... ok
+test_generic_relation_to_inherited_child (generic_relations.tests.GenericRelationsTests) ... ok
+test_generic_relations_m2m_mimic (generic_relations.tests.GenericRelationsTests)
+Objects with declared GenericRelations can be tagged directly -- the ... ok
+test_generic_update_or_create_when_created (generic_relations.tests.GenericRelationsTests)
+Should be able to use update_or_create from the generic related manager ... ok
+test_generic_update_or_create_when_updated (generic_relations.tests.GenericRelationsTests)
+Should be able to use update_or_create from the generic related manager ... ok
+test_get_or_create (generic_relations.tests.GenericRelationsTests) ... ok
+test_gfk_manager (generic_relations.tests.GenericRelationsTests) ... ok
+test_gfk_subclasses (generic_relations.tests.GenericRelationsTests) ... ok
+test_multiple_gfk (generic_relations.tests.GenericRelationsTests) ... ok
+test_object_deletion_with_generic_relation (generic_relations.tests.GenericRelationsTests)
+If you delete an object with an explicit Generic relation, the related ... ok
+test_object_deletion_without_generic_relation (generic_relations.tests.GenericRelationsTests)
+If Generic Relation is not explicitly defined, any related objects ... ok
+test_prefetch_related_custom_object_id (generic_relations.tests.GenericRelationsTests) ... ok
+test_prefetch_related_different_content_types (generic_relations.tests.GenericRelationsTests) ... ok
+test_queries_across_generic_relations (generic_relations.tests.GenericRelationsTests)
+Queries across generic relations respect the content types. Even though ... ok
+test_queries_content_type_restriction (generic_relations.tests.GenericRelationsTests)
+Create another fatty tagged instance with different PK to ensure there ... ok
+test_query_content_object (generic_relations.tests.GenericRelationsTests) ... ok
+test_query_content_type (generic_relations.tests.GenericRelationsTests) ... ok
+test_remove (generic_relations.tests.GenericRelationsTests) ... ok
+test_remove_after_prefetch (generic_relations.tests.GenericRelationsTests) ... ok
+test_set (generic_relations.tests.GenericRelationsTests) ... ok
+test_set_after_prefetch (generic_relations.tests.GenericRelationsTests) ... ok
+test_set_foreign_key (generic_relations.tests.GenericRelationsTests)
+You can set a generic foreign key in the way you'd expect. ... ok
+test_subclasses_with_gen_rel (generic_relations.tests.GenericRelationsTests)
+Concrete model subclasses with generic relations work ... ok
+test_subclasses_with_parent_gen_rel (generic_relations.tests.GenericRelationsTests)
+Generic relations on a base class (Vegetable) work correctly in ... ok
+test_tag_deletion_related_objects_unaffected (generic_relations.tests.GenericRelationsTests)
+If you delete a tag, the objects using the tag are unaffected (other ... ok
+test_unsaved_generic_foreign_key_parent_bulk_create (generic_relations.tests.GenericRelationsTests) ... ok
+test_unsaved_generic_foreign_key_parent_save (generic_relations.tests.GenericRelationsTests) ... ok
+test_update_or_create_defaults (generic_relations.tests.GenericRelationsTests) ... ok
+test_default_behavior (generic_relations.tests.ProxyRelatedModelTest)
+The default for for_concrete_model should be True ... ok
+test_generic_relation (generic_relations.tests.ProxyRelatedModelTest) ... ok
+test_generic_relation_set (generic_relations.tests.ProxyRelatedModelTest) ... ok
+test_proxy_is_returned (generic_relations.tests.ProxyRelatedModelTest)
+Instances of the proxy should be returned when ... ok
+test_query (generic_relations.tests.ProxyRelatedModelTest) ... ok
+test_query_proxy (generic_relations.tests.ProxyRelatedModelTest) ... ok
+test_works_normally (generic_relations.tests.ProxyRelatedModelTest)
+When for_concrete_model is False, we should still be able to get ... ok
+test_none_allowed (generic_relations.tests.TestInitWithNoneArgument) ... ok
+
+======================================================================
+ERROR: test_generic_async_acreate (generic_relations.tests.GenericRelationsTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/backends/sqlite3/base.py", line 369, in execute
+    return Database.Cursor.execute(self, query, params)
+sqlite3.IntegrityError: NOT NULL constraint failed: generic_relations_taggeditem.content_type_id
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/asgiref/sync.py", line 254, in __call__
+    return call_result.result()
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/concurrent/futures/_base.py", line 439, in result
+    return self.__get_result()
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/concurrent/futures/_base.py", line 391, in __get_result
+    raise self._exception
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/asgiref/sync.py", line 331, in main_wrap
+    result = await self.awaitable(*args, **kwargs)
+  File "/testbed/tests/generic_relations/tests.py", line 49, in test_generic_async_acreate
+    await self.bacon.tags.acreate(tag="orange")
+  File "/testbed/django/db/models/query.py", line 679, in acreate
+    return await sync_to_async(self.create)(**kwargs)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/asgiref/sync.py", line 468, in __call__
+    ret = await asyncio.shield(exec_coro)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/asgiref/current_thread_executor.py", line 40, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/asgiref/sync.py", line 522, in thread_handler
+    return func(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 675, in create
+    obj.save(force_insert=True, using=self.db)
+  File "/testbed/django/db/models/base.py", line 814, in save
+    self.save_base(
+  File "/testbed/django/db/models/base.py", line 877, in save_base
+    updated = self._save_table(
+  File "/testbed/django/db/models/base.py", line 1020, in _save_table
+    results = self._do_insert(
+  File "/testbed/django/db/models/base.py", line 1061, in _do_insert
+    return manager._insert(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1822, in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+  File "/testbed/django/db/models/sql/compiler.py", line 1768, in execute_sql
+    cursor.execute(sql, params)
+  File "/testbed/django/db/backends/utils.py", line 67, in execute
+    return self._execute_with_wrappers(
+  File "/testbed/django/db/backends/utils.py", line 80, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "/testbed/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/testbed/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/backends/sqlite3/base.py", line 369, in execute
+    return Database.Cursor.execute(self, query, params)
+django.db.utils.IntegrityError: NOT NULL constraint failed: generic_relations_taggeditem.content_type_id
+
+======================================================================
+ERROR: test_generic_async_aget_or_create (generic_relations.tests.GenericRelationsTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/db/models/query.py", line 932, in get_or_create
+    return self.get(**kwargs), False
+  File "/testbed/django/db/models/query.py", line 654, in get
+    raise self.model.DoesNotExist(
+generic_relations.models.TaggedItem.DoesNotExist: TaggedItem matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/testbed/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/backends/sqlite3/base.py", line 369, in execute
+    return Database.Cursor.execute(self, query, params)
+sqlite3.IntegrityError: NOT NULL constraint failed: generic_relations_taggeditem.content_type_id
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/asgiref/sync.py", line 254, in __call__
+    return call_result.result()
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/concurrent/futures/_base.py", line 439, in result
+    return self.__get_result()
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/concurrent/futures/_base.py", line 391, in __get_result
+    raise self._exception
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/asgiref/sync.py", line 331, in main_wrap
+    result = await self.awaitable(*args, **kwargs)
+  File "/testbed/tests/generic_relations/tests.py", line 122, in test_generic_async_aget_or_create
+    tag, created = await self.bacon.tags.aget_or_create(tag="orange")
+  File "/testbed/django/db/models/query.py", line 948, in aget_or_create
+    return await sync_to_async(self.get_or_create)(
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/asgiref/sync.py", line 468, in __call__
+    ret = await asyncio.shield(exec_coro)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/asgiref/current_thread_executor.py", line 40, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/asgiref/sync.py", line 522, in thread_handler
+    return func(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 939, in get_or_create
+    return self.create(**params), True
+  File "/testbed/django/db/models/query.py", line 675, in create
+    obj.save(force_insert=True, using=self.db)
+  File "/testbed/django/db/models/base.py", line 814, in save
+    self.save_base(
+  File "/testbed/django/db/models/base.py", line 877, in save_base
+    updated = self._save_table(
+  File "/testbed/django/db/models/base.py", line 1020, in _save_table
+    results = self._do_insert(
+  File "/testbed/django/db/models/base.py", line 1061, in _do_insert
+    return manager._insert(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1822, in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+  File "/testbed/django/db/models/sql/compiler.py", line 1768, in execute_sql
+    cursor.execute(sql, params)
+  File "/testbed/django/db/backends/utils.py", line 67, in execute
+    return self._execute_with_wrappers(
+  File "/testbed/django/db/backends/utils.py", line 80, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "/testbed/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/testbed/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/backends/sqlite3/base.py", line 369, in execute
+    return Database.Cursor.execute(self, query, params)
+django.db.utils.IntegrityError: NOT NULL constraint failed: generic_relations_taggeditem.content_type_id
+
+======================================================================
+ERROR: test_generic_async_aupdate_or_create (generic_relations.tests.GenericRelationsTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/db/models/query.py", line 932, in get_or_create
+    return self.get(**kwargs), False
+  File "/testbed/django/db/models/query.py", line 654, in get
+    raise self.model.DoesNotExist(
+generic_relations.models.TaggedItem.DoesNotExist: TaggedItem matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/testbed/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/backends/sqlite3/base.py", line 369, in execute
+    return Database.Cursor.execute(self, query, params)
+sqlite3.IntegrityError: NOT NULL constraint failed: generic_relations_taggeditem.content_type_id
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/asgiref/sync.py", line 254, in __call__
+    return call_result.result()
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/concurrent/futures/_base.py", line 439, in result
+    return self.__get_result()
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/concurrent/futures/_base.py", line 391, in __get_result
+    raise self._exception
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/asgiref/sync.py", line 331, in main_wrap
+    result = await self.awaitable(*args, **kwargs)
+  File "/testbed/tests/generic_relations/tests.py", line 84, in test_generic_async_aupdate_or_create
+    tag, created = await self.bacon.tags.aupdate_or_create(tag="pink")
+  File "/testbed/django/db/models/query.py", line 992, in aupdate_or_create
+    return await sync_to_async(self.update_or_create)(
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/asgiref/sync.py", line 468, in __call__
+    ret = await asyncio.shield(exec_coro)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/asgiref/current_thread_executor.py", line 40, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/asgiref/sync.py", line 522, in thread_handler
+    return func(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 965, in update_or_create
+    obj, created = self.select_for_update().get_or_create(defaults, **kwargs)
+  File "/testbed/django/db/models/query.py", line 939, in get_or_create
+    return self.create(**params), True
+  File "/testbed/django/db/models/query.py", line 675, in create
+    obj.save(force_insert=True, using=self.db)
+  File "/testbed/django/db/models/base.py", line 814, in save
+    self.save_base(
+  File "/testbed/django/db/models/base.py", line 877, in save_base
+    updated = self._save_table(
+  File "/testbed/django/db/models/base.py", line 1020, in _save_table
+    results = self._do_insert(
+  File "/testbed/django/db/models/base.py", line 1061, in _do_insert
+    return manager._insert(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1822, in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+  File "/testbed/django/db/models/sql/compiler.py", line 1768, in execute_sql
+    cursor.execute(sql, params)
+  File "/testbed/django/db/backends/utils.py", line 67, in execute
+    return self._execute_with_wrappers(
+  File "/testbed/django/db/backends/utils.py", line 80, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "/testbed/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/testbed/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/backends/sqlite3/base.py", line 369, in execute
+    return Database.Cursor.execute(self, query, params)
+django.db.utils.IntegrityError: NOT NULL constraint failed: generic_relations_taggeditem.content_type_id
+
+----------------------------------------------------------------------
+Ran 64 tests in 0.442s
+
+FAILED (errors=3)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout 76e37513e22f4d9a01c7f15eee36fe44388e6670 tests/async/models.py tests/generic_relations/tests.py
+Updated 2 paths from 575decec75

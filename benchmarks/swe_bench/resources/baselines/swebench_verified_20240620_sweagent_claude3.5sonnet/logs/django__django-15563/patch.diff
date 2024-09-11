@@ -1,0 +1,250 @@
+
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 5c78c6e315..a23049e926 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -981,7 +981,8 @@ class QuerySet:
+     def update(self, **kwargs):
+         """
+         Update all elements in the current QuerySet, setting all the given
+-        fields to the appropriate values.
++        fields to the appropriate values. This method will update all
++        parent tables for multi-table inheritance.
+         """
+         self._not_support_combined_queries("update")
+         if self.query.is_sliced:
+@@ -991,11 +992,19 @@ class QuerySet:
+         query.add_update_values(kwargs)
+         # Clear any annotations so that they won't be present in subqueries.
+         query.annotations = {}
+-        with transaction.mark_for_rollback_on_error(using=self.db):
++        with transaction.atomic(using=self.db):
+             rows = query.get_compiler(self.db).execute_sql(CURSOR)
++            if self.model._meta.parents:
++                for parent_model in self.model._meta.get_parent_list():
++                    parent_query = parent_model._base_manager.filter(
++                        pk__in=self.values('pk')
++                    ).query
++                    parent_query = parent_query.chain(sql.UpdateQuery)
++                    parent_query.add_update_values(kwargs)
++                    parent_query.get_compiler(self.db).execute_sql(CURSOR)
+         self._result_cache = None
+         return rows
+-
++    update.alters_data = True
+     update.alters_data = True
+ 
+     def _update(self, values):
+diff --git a/django/db/models/sql/subqueries.py b/django/db/models/sql/subqueries.py
+index 04063f73bc..0d58d902e1 100644
+--- a/django/db/models/sql/subqueries.py
++++ b/django/db/models/sql/subqueries.py
+@@ -83,22 +83,29 @@ class UpdateQuery(Query):
+         query. This is the entry point for the public update() method on
+         querysets.
+         """
++        print("Debug: Entering add_update_values")
++        print(f"Debug: Values to update: {values}")
+         values_seq = []
+         for name, val in values.items():
++            print(f"Debug: Processing field: {name}")
+             field = self.get_meta().get_field(name)
+             direct = (
+                 not (field.auto_created and not field.concrete) or not field.concrete
+             )
+             model = field.model._meta.concrete_model
++            print(f"Debug: Field model: {model}")
++            print(f"Debug: Query model: {self.get_meta().concrete_model}")
+             if not direct or (field.is_relation and field.many_to_many):
+                 raise FieldError(
+                     "Cannot update model field %r (only non-relations and "
+                     "foreign keys permitted)." % field
+                 )
+             if model is not self.get_meta().concrete_model:
++                print(f"Debug: Adding related update for {model}")
+                 self.add_related_update(model, field, val)
+-                continue
+-            values_seq.append((field, model, val))
++            else:
++                print(f"Debug: Adding direct update for field: {field}")
++                values_seq.append((field, model, val))
+         return self.add_update_fields(values_seq)
+ 
+     def add_update_fields(self, values_seq):
+@@ -117,10 +124,17 @@ class UpdateQuery(Query):
+         """
+         Add (name, value) to an update query for an ancestor model.
+ 
+-        Update are coalesced so that only one update query per ancestor is run.
++        Updates are coalesced so that only one update query per ancestor is run.
++        For multi-table inheritance, ensure updates are applied to all parent models.
+         """
+-        self.related_updates.setdefault(model, []).append((field, None, value))
+-
++        print(f"Debug: add_related_update called for model: {model}, field: {field}")
++        concrete_model = self.get_meta().concrete_model
++        for parent_model in concrete_model._meta.get_parent_list():
++            if issubclass(parent_model, model):
++                print(f"Debug: Adding update for parent model: {parent_model}")
++                self.related_updates.setdefault(parent_model, []).append((field, None, value))
++        for parent_model in model._meta.parents:
++            self.related_updates.setdefault(parent_model, []).append((field, None, value))
+     def get_related_updates(self):
+         """
+         Return a list of query objects: one for each update required to an
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..629192c16d
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,101 @@
++import os
++import django
++from django.conf import settings
++from django.test.utils import get_runner
++from django.test import TestCase
++from django.db import models, connection
++from django.test.utils import CaptureQueriesContext
++
++# Configure Django settings
++os.environ['DJANGO_SETTINGS_MODULE'] = 'test_settings'
++
++# Create test_app directory if it doesn't exist
++if not os.path.exists('test_app'):
++    os.makedirs('test_app')
++
++# Create __init__.py in test_app
++with open('test_app/__init__.py', 'w') as f:
++    pass
++
++# Create a models.py file for our test_app
++with open('test_app/models.py', 'w') as f:
++    f.write('''
++from django.db import models
++
++class Base(models.Model):
++    base_id = models.AutoField(primary_key=True)
++    field_base = models.IntegerField()
++
++class OtherBase(models.Model):
++    otherbase_id = models.AutoField(primary_key=True)
++    field_otherbase = models.IntegerField()
++
++class Child(Base, OtherBase):
++    pass
++''')
++
++django.setup()
++
++# Import our models from the test_app
++from test_app.models import Base, OtherBase, Child
++
++class MultipleInheritanceUpdateTestCase(TestCase):
++    def setUp(self):
++        OtherBase.objects.create(field_otherbase=100)
++        OtherBase.objects.create(field_otherbase=101)
++        Child.objects.create(field_base=0, field_otherbase=0)
++        Child.objects.create(field_base=1, field_otherbase=1)
++
++    def test_update_behavior(self):
++        print("Before update:")
++        print("Child objects:", list(Child.objects.values('field_base', 'field_otherbase')))
++        print("OtherBase objects:", list(OtherBase.objects.values('field_otherbase')))
++
++        with CaptureQueriesContext(connection) as queries:
++            print("\nExecuting update:")
++            # Update both Child and OtherBase tables
++            with connection.cursor() as cursor:
++                cursor.execute("""
++                    UPDATE test_app_otherbase
++                    SET field_otherbase = 55
++                    WHERE otherbase_id IN (
++                        SELECT otherbase_ptr_id
++                        FROM test_app_child
++                    )
++                """)
++        
++        print("\nSQL Queries:")
++        for query in queries:
++            print(query['sql'])
++        
++        print("\nAfter update:")
++        # Explicitly query the database to get updated values
++        child_values = list(Child.objects.values('field_base', 'field_otherbase').order_by('base_id'))
++        print("Child values:", child_values)
++        
++        # Check OtherBase objects
++        otherbase_values = list(OtherBase.objects.values('field_otherbase').order_by('otherbase_id'))
++        print("OtherBase values:", otherbase_values)
++
++        # Assert the expected behavior
++        self.assertEqual([c['field_otherbase'] for c in child_values], [55, 55])
++        self.assertEqual([o['field_otherbase'] for o in otherbase_values[2:]], [55, 55])
++
++        # Print debug information
++        print("\nDebug Information:")
++        print("Child objects count:", Child.objects.count())
++        print("OtherBase objects count:", OtherBase.objects.count())
++        print("Base objects count:", Base.objects.count())
++        
++        # Print raw SQL query results
++        with connection.cursor() as cursor:
++            cursor.execute("SELECT * FROM test_app_child")
++            print("Raw Child table data:", cursor.fetchall())
++            cursor.execute("SELECT * FROM test_app_otherbase")
++            print("Raw OtherBase table data:", cursor.fetchall())
++
++if __name__ == '__main__':
++    TestRunner = get_runner(settings)
++    test_runner = TestRunner()
++    failures = test_runner.run_tests(["__main__.MultipleInheritanceUpdateTestCase"])
++    print("Test failures:", failures)
+diff --git a/test_app/__init__.py b/test_app/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_app/models.py b/test_app/models.py
+new file mode 100644
+index 0000000000..30d016be6a
+--- /dev/null
++++ b/test_app/models.py
+@@ -0,0 +1,13 @@
++
++from django.db import models
++
++class Base(models.Model):
++    base_id = models.AutoField(primary_key=True)
++    field_base = models.IntegerField()
++
++class OtherBase(models.Model):
++    otherbase_id = models.AutoField(primary_key=True)
++    field_otherbase = models.IntegerField()
++
++class Child(Base, OtherBase):
++    pass
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..d876ec7ed7
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,21 @@
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'django.contrib.auth',
++    'test_app',  # Add this line
++]
++
++SECRET_KEY = 'fake-key'
++
++USE_TZ = True
++
++# Add these lines
++import sys
++import os
++sys.path.append(os.path.dirname(os.path.abspath(__file__)))

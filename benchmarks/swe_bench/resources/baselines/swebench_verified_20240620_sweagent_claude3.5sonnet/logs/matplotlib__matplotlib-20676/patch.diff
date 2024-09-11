@@ -1,0 +1,54 @@
+
+diff --git a/lib/matplotlib/widgets.py b/lib/matplotlib/widgets.py
+index a199e45d40..1daf950d94 100644
+--- a/lib/matplotlib/widgets.py
++++ b/lib/matplotlib/widgets.py
+@@ -1873,6 +1873,7 @@ class _SelectorWidget(AxesWidget):
+             self.canvas.blit(self.ax.bbox)
+         else:
+             self.canvas.draw_idle()
++        self._update_axes_limits()
+         return False
+ 
+     def _get_data(self, event):
+@@ -2154,6 +2155,15 @@ class SpanSelector(_SelectorWidget):
+             self.artists[0] = self._rect
+         else:
+             self.artists.append(self._rect)
++        self._update_axes_limits()
++
++    def _update_axes_limits(self):
++        if self.direction == 'horizontal':
++            xmin, xmax = self.ax.get_xlim()
++            self.ax.set_xlim(xmin, xmax)
++        else:
++            ymin, ymax = self.ax.get_ylim()
++            self.ax.set_ylim(ymin, ymax)
+ 
+     def _setup_edge_handle(self, props):
+         self._edge_handles = ToolLineHandles(self.ax, self.extents,
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..a60006656a
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,19 @@
++from matplotlib import pyplot as plt
++from matplotlib.widgets import SpanSelector
++import time
++
++fig, ax = plt.subplots()
++ax.plot([10, 20], [10, 20])
++
++print(f"X-axis limits before SpanSelector: {ax.get_xlim()}")
++
++ss = SpanSelector(ax, print, "horizontal", interactive=True)
++
++# Allow some time for the figure to update
++plt.pause(0.1)
++
++print(f"X-axis limits after SpanSelector: {ax.get_xlim()}")
++
++plt.show()
++
++print("Script completed successfully, no errors.")

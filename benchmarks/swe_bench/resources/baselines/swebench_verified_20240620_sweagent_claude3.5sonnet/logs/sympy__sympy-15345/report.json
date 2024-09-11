@@ -1,0 +1,37 @@
+{
+    "sympy__sympy-15345": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "test_Function"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_Integer",
+                    "test_Rational",
+                    "test_Pow",
+                    "test_Mul",
+                    "test_constants",
+                    "test_containers",
+                    "test_Integral",
+                    "test_Derivative"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

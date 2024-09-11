@@ -1,0 +1,411 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/forms/widgets.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	tests/forms_tests/widget_tests/test_select_date_widget.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 02c356f2f3945b8075735d485c3cf48cad991011
+Author: Carlton Gibson <carlton.gibson@noumenal.es>
+Date:   Tue Mar 21 20:51:53 2023 +0100
+
+    Fixed #34428 -- Made ASGIStaticFilesHandler adapt response to async iterator.
+    
+    Bug in 0bd2c0c9015b53c41394a1c0989afbfd94dc2830.
+
+diff --git a/django/contrib/staticfiles/handlers.py b/django/contrib/staticfiles/handlers.py
+index cd1cde1fc6..7394eff818 100644
+--- a/django/contrib/staticfiles/handlers.py
++++ b/django/contrib/staticfiles/handlers.py
+@@ -103,4 +103,13 @@ class ASGIStaticFilesHandler(StaticFilesHandlerMixin, ASGIHandler):
+     async def get_response_async(self, request):
+         response = await super().get_response_async(request)
+         response._resource_closers.append(request.close)
++        # FileResponse is not async compatible.
++        if response.streaming and not response.is_async:
++            _iterator = response.streaming_content
++
++            async def awrapper():
++                for part in await sync_to_async(list)(_iterator):
++                    yield part
++
++            response.streaming_content = awrapper()
+         return response
+diff --git a/tests/asgi/tests.py b/tests/asgi/tests.py
+index 824f396e00..fc22a992a7 100644
+--- a/tests/asgi/tests.py
++++ b/tests/asgi/tests.py
+@@ -116,7 +116,6 @@ class ASGITest(SimpleTestCase):
+             "django.contrib.staticfiles.finders.FileSystemFinder",
+         ],
+     )
+-    @ignore_warnings(module="django.http.response")
+     async def test_static_file_response(self):
+         application = ASGIStaticFilesHandler(get_asgi_application())
+         # Construct HTTP request.
++ git diff 02c356f2f3945b8075735d485c3cf48cad991011
+diff --git a/django/forms/widgets.py b/django/forms/widgets.py
+index 842b73e95c..e577cd9cbc 100644
+--- a/django/forms/widgets.py
++++ b/django/forms/widgets.py
+@@ -1156,7 +1156,10 @@ class SelectDateWidget(Widget):
+             input_format = get_format("DATE_INPUT_FORMATS")[0]
+             input_format = formats.sanitize_strftime_format(input_format)
+             try:
+-                date_value = datetime.date(int(y), int(m), int(d))
++                y, m, d = int(y), int(m), int(d)
++                if y > 9999 or m > 12 or d > 31:
++                    raise ValueError
++                date_value = datetime.date(y, m, d)
+             except ValueError:
+                 # Return pseudo-ISO dates with zeros for any unselected values,
+                 # e.g. '2017-0-23'.
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.6.0 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from Django==5.0.dev20230321195153) (3.8.1)
+Requirement already satisfied: sqlparse>=0.3.1 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from Django==5.0.dev20230321195153) (0.5.1)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-5.0.dev20230321195153-0.editable-py3-none-any.whl size=27362 sha256=db2ee7bca504481aee1bc2391e6766a5ed4a7902a65caf17012835826e3c5849
+  Stored in directory: /tmp/pip-ephem-wheel-cache-ziebbqcr/wheels/49/5f/4f/01b7d31ea6ddac9643da788242d33e5fd3467d95d17b032c6b
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 5.0.dev20230321195153
+    Uninstalling Django-5.0.dev20230321195153:
+      Successfully uninstalled Django-5.0.dev20230321195153
+Successfully installed Django-5.0.dev20230321195153
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 02c356f2f3945b8075735d485c3cf48cad991011 tests/forms_tests/field_tests/test_datefield.py tests/forms_tests/widget_tests/test_selectdatewidget.py
+Updated 0 paths from 61d7233636
++ git apply -v -
+Checking patch tests/forms_tests/field_tests/test_datefield.py...
+Checking patch tests/forms_tests/widget_tests/test_selectdatewidget.py...
+Applied patch tests/forms_tests/field_tests/test_datefield.py cleanly.
+Applied patch tests/forms_tests/widget_tests/test_selectdatewidget.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 forms_tests.field_tests.test_datefield forms_tests.widget_tests.test_selectdatewidget
+Testing against Django installed in '/testbed/django'
+Importing application forms_tests
+Found 26 test(s).
+Skipping setup of unused database(s): default, other.
+System check identified no issues (0 silenced).
+test_datefield_1 (forms_tests.field_tests.test_datefield.DateFieldTest.test_datefield_1) ... ok
+test_datefield_2 (forms_tests.field_tests.test_datefield.DateFieldTest.test_datefield_2) ... ok
+test_datefield_3 (forms_tests.field_tests.test_datefield.DateFieldTest.test_datefield_3) ... ok
+test_datefield_4 (forms_tests.field_tests.test_datefield.DateFieldTest.test_datefield_4) ... ok
+test_datefield_5 (forms_tests.field_tests.test_datefield.DateFieldTest.test_datefield_5) ... ok
+test_datefield_changed (forms_tests.field_tests.test_datefield.DateFieldTest.test_datefield_changed) ... ok
+test_datefield_strptime (forms_tests.field_tests.test_datefield.DateFieldTest.test_datefield_strptime)
+field.strptime() doesn't raise a UnicodeEncodeError (#16123) ... ok
+test_form_field (forms_tests.field_tests.test_datefield.DateFieldTest.test_form_field) ... ok
+test_form_label_association (forms_tests.field_tests.test_datefield.DateFieldTest.test_form_label_association) ... ok
+test_l10n_date_changed (forms_tests.field_tests.test_datefield.DateFieldTest.test_l10n_date_changed)
+DateField.has_changed() with SelectDateWidget works with a localized ... ok
+test_l10n_invalid_date_in (forms_tests.field_tests.test_datefield.DateFieldTest.test_l10n_invalid_date_in) ... ok
+test_custom_input_format (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_custom_input_format) ... ok
+test_custom_months (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_custom_months) ... ok
+test_fieldset (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_fieldset) ... ok
+test_format_value (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_format_value) ... ok
+test_l10n (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_l10n) ... ok
+test_render_datetime (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_render_datetime) ... ok
+test_render_empty (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_render_empty) ... ok
+test_render_invalid_date (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_render_invalid_date)
+Invalid dates should still render the failed date. ... ok
+test_render_none (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_render_none)
+Rendering the None or '' values should yield the same output. ... ok
+test_render_string (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_render_string) ... ok
+test_selectdate_empty_label (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_selectdate_empty_label) ... ok
+test_selectdate_required (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_selectdate_required) ... ok
+test_value_from_datadict (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_value_from_datadict) ... 
+  test_value_from_datadict (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_value_from_datadict) (values=('9223372036854775808', '12', '1')) ... FAIL
+test_value_omitted_from_data (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_value_omitted_from_data) ... ok
+test_years_rendered_without_separator (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_years_rendered_without_separator) ... ok
+
+======================================================================
+FAIL: test_value_from_datadict (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_value_from_datadict) (values=('9223372036854775808', '12', '1'))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/forms_tests/widget_tests/test_selectdatewidget.py", line 622, in test_value_from_datadict
+    self.assertEqual(
+AssertionError: '9223372036854775808-12-1' != '0-0-0'
+- 9223372036854775808-12-1
++ 0-0-0
+
+
+----------------------------------------------------------------------
+Ran 26 tests in 0.376s
+
+FAILED (failures=1)
++ git checkout 02c356f2f3945b8075735d485c3cf48cad991011 tests/forms_tests/field_tests/test_datefield.py tests/forms_tests/widget_tests/test_selectdatewidget.py
+Updated 2 paths from 61d7233636

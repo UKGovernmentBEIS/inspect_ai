@@ -1,0 +1,55 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..7727436582
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,9 @@
++import sympy as smp
++
++q, u = smp.symbols(('q:2', 'u:2'), cls=smp.Function)
++print(type(q[0]))
++
++# Add a check for the expected result
++print("Is the type correct?", type(q[0]) == smp.core.function.UndefinedFunction)
++
++print("Script completed successfully, no errors.")
+diff --git a/sympy/core/symbol.py b/sympy/core/symbol.py
+index f4a555c13f..54fce322b8 100644
+--- a/sympy/core/symbol.py
++++ b/sympy/core/symbol.py
+@@ -789,11 +789,13 @@ def literal(s):
+             return result[0]
+ 
+         return tuple(result)
++    elif isinstance(names, (tuple, list, set)):
++        if len(names) == 1 and isinstance(names[0], (tuple, list)):
++            # Handle the case of nested tuple
++            return tuple(symbols(names[0], cls=cls, **args))
++        return type(names)(symbols(name, cls=cls, **args) for name in names)
+     else:
+-        for name in names:
+-            result.append(symbols(name, **args))
+-
+-        return type(names)(result)
++        raise TypeError("names must be a string, tuple, list or set")
+ 
+ 
+ def var(names, **args):
+diff --git a/test_symbols.py b/test_symbols.py
+new file mode 100644
+index 0000000000..5c2fd059cc
+--- /dev/null
++++ b/test_symbols.py
+@@ -0,0 +1,11 @@
++from sympy import symbols, Function
++
++def test_nested_tuple_symbols():
++    q, u = symbols(('q:2', 'u:2'), cls=Function)
++    print("Type of q[0]:", type(q[0]))
++    print("Type of u[0]:", type(u[0]))
++    print("q:", q)
++    print("u:", u)
++
++if __name__ == "__main__":
++    test_nested_tuple_symbols()

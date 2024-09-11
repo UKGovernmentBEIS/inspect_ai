@@ -1,0 +1,46 @@
+{
+    "pylint-dev__pylint-4970": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "tests/checkers/unittest_similar.py::test_set_duplicate_lines_to_zero"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "tests/checkers/unittest_similar.py::test_ignore_comments",
+                    "tests/checkers/unittest_similar.py::test_ignore_docstrings",
+                    "tests/checkers/unittest_similar.py::test_ignore_imports",
+                    "tests/checkers/unittest_similar.py::test_multiline_imports",
+                    "tests/checkers/unittest_similar.py::test_ignore_multiline_imports",
+                    "tests/checkers/unittest_similar.py::test_ignore_signatures_fail",
+                    "tests/checkers/unittest_similar.py::test_ignore_signatures_pass",
+                    "tests/checkers/unittest_similar.py::test_ignore_signatures_class_methods_fail",
+                    "tests/checkers/unittest_similar.py::test_ignore_signatures_class_methods_pass",
+                    "tests/checkers/unittest_similar.py::test_ignore_signatures_empty_functions_fail",
+                    "tests/checkers/unittest_similar.py::test_ignore_signatures_empty_functions_pass",
+                    "tests/checkers/unittest_similar.py::test_no_hide_code_with_imports",
+                    "tests/checkers/unittest_similar.py::test_ignore_nothing",
+                    "tests/checkers/unittest_similar.py::test_lines_without_meaningful_content_do_not_trigger_similarity",
+                    "tests/checkers/unittest_similar.py::test_help",
+                    "tests/checkers/unittest_similar.py::test_no_args",
+                    "tests/checkers/unittest_similar.py::test_get_map_data"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

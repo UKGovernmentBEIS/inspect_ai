@@ -1,0 +1,84 @@
+{
+    "django__django-16899": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "test_nonexistent_field (admin_checks.tests.SystemChecksTestCase.test_nonexistent_field)",
+                    "test_nonexistent_field_on_inline (admin_checks.tests.SystemChecksTestCase.test_nonexistent_field_on_inline)"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_admin_check_ignores_import_error_in_middleware (admin_checks.tests.SystemChecksTestCase.test_admin_check_ignores_import_error_in_middleware)",
+                    "test_allows_checks_relying_on_other_modeladmins (admin_checks.tests.SystemChecksTestCase.test_allows_checks_relying_on_other_modeladmins)",
+                    "test_app_label_in_admin_checks (admin_checks.tests.SystemChecksTestCase.test_app_label_in_admin_checks)",
+                    "test_apps_dependencies (admin_checks.tests.SystemChecksTestCase.test_apps_dependencies)",
+                    "test_cannot_include_through (admin_checks.tests.SystemChecksTestCase.test_cannot_include_through)",
+                    "test_check_fieldset_sublists_for_duplicates (admin_checks.tests.SystemChecksTestCase.test_check_fieldset_sublists_for_duplicates)",
+                    "test_check_sublists_for_duplicates (admin_checks.tests.SystemChecksTestCase.test_check_sublists_for_duplicates)",
+                    "test_checks_are_performed (admin_checks.tests.SystemChecksTestCase.test_checks_are_performed)",
+                    "test_context_processor_dependencies (admin_checks.tests.SystemChecksTestCase.test_context_processor_dependencies)",
+                    "test_context_processor_dependencies_model_backend_subclass (admin_checks.tests.SystemChecksTestCase.test_context_processor_dependencies_model_backend_subclass)",
+                    "test_custom_adminsite (admin_checks.tests.SystemChecksTestCase.test_custom_adminsite)",
+                    "The fieldsets checks are skipped when the ModelAdmin.get_form() method",
+                    "# Regression test for #8027: custom ModelForms with fields/fieldsets",
+                    "test_editable (admin_checks.tests.SystemChecksTestCase.test_editable)",
+                    "test_exclude_duplicate_values (admin_checks.tests.SystemChecksTestCase.test_exclude_duplicate_values)",
+                    "test_exclude_in_inline (admin_checks.tests.SystemChecksTestCase.test_exclude_in_inline)",
+                    "Regression test for #9932 - exclude in InlineModelAdmin should not",
+                    "Tests for basic system checks of 'exclude' option values (#12689)",
+                    "Regression test for #12209 -- If the explicitly provided through model",
+                    "test_extra (admin_checks.tests.SystemChecksTestCase.test_extra)",
+                    "test_field_name_not_in_list_display (admin_checks.tests.SystemChecksTestCase.test_field_name_not_in_list_display)",
+                    "The first fieldset's fields must be a list/tuple.",
+                    "Regression test for #11709 - when testing for fk excluding (when exclude is",
+                    "A GenericInlineModelAdmin errors if the ct_field points to a",
+                    "A GenericInlineModelAdmin errors if the ct_fk_field points to a",
+                    "A model without a GenericForeignKey raises problems if it's included",
+                    "A GenericInlineModelAdmin raises problems if the ct_field points to a",
+                    "A GenericInlineModelAdmin raises problems if the ct_fk_field points to",
+                    "Regression test for #12203/#12237 - Fail more gracefully when a M2M field that",
+                    "test_inline_self_check (admin_checks.tests.SystemChecksTestCase.test_inline_self_check)",
+                    "test_inline_with_specified (admin_checks.tests.SystemChecksTestCase.test_inline_with_specified)",
+                    "test_inlines_property (admin_checks.tests.SystemChecksTestCase.test_inlines_property)",
+                    "test_list_editable_missing_field (admin_checks.tests.SystemChecksTestCase.test_list_editable_missing_field)",
+                    "test_list_editable_not_a_list_or_tuple (admin_checks.tests.SystemChecksTestCase.test_list_editable_not_a_list_or_tuple)",
+                    "Ensure list_filter can access reverse fields even when the app registry",
+                    "test_middleware_dependencies (admin_checks.tests.SystemChecksTestCase.test_middleware_dependencies)",
+                    "test_middleware_subclasses (admin_checks.tests.SystemChecksTestCase.test_middleware_subclasses)",
+                    "test_nested_fields (admin_checks.tests.SystemChecksTestCase.test_nested_fields)",
+                    "test_nested_fieldsets (admin_checks.tests.SystemChecksTestCase.test_nested_fieldsets)",
+                    "test_no_template_engines (admin_checks.tests.SystemChecksTestCase.test_no_template_engines)",
+                    "Regression for ensuring ModelAdmin.fields can contain non-model fields",
+                    "Regression for ensuring ModelAdmin.field can handle first elem being a",
+                    "The second fieldset's fields must be a list/tuple.",
+                    "test_pk_not_editable (admin_checks.tests.SystemChecksTestCase.test_pk_not_editable)",
+                    "test_readonly (admin_checks.tests.SystemChecksTestCase.test_readonly)",
+                    "test_readonly_and_editable (admin_checks.tests.SystemChecksTestCase.test_readonly_and_editable)",
+                    "test_readonly_dynamic_attribute_on_modeladmin (admin_checks.tests.SystemChecksTestCase.test_readonly_dynamic_attribute_on_modeladmin)",
+                    "test_readonly_fields_not_list_or_tuple (admin_checks.tests.SystemChecksTestCase.test_readonly_fields_not_list_or_tuple)",
+                    "test_readonly_lambda (admin_checks.tests.SystemChecksTestCase.test_readonly_lambda)",
+                    "test_readonly_method_on_model (admin_checks.tests.SystemChecksTestCase.test_readonly_method_on_model)",
+                    "test_readonly_on_method (admin_checks.tests.SystemChecksTestCase.test_readonly_on_method)",
+                    "test_readonly_on_modeladmin (admin_checks.tests.SystemChecksTestCase.test_readonly_on_modeladmin)",
+                    "test_several_templates_backends (admin_checks.tests.SystemChecksTestCase.test_several_templates_backends)",
+                    "Regression test for #22034 - check that generic inlines don't look for"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

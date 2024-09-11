@@ -1,0 +1,159 @@
+
+diff --git a/reproduce_stratified_kfold_issue.py b/reproduce_stratified_kfold_issue.py
+new file mode 100644
+index 000000000..53fbe8874
+--- /dev/null
++++ b/reproduce_stratified_kfold_issue.py
+@@ -0,0 +1,39 @@
++import numpy as np
++from sklearn.model_selection import StratifiedKFold
++
++def print_fold_indices(train_idx, test_idx):
++    print("Train indices:", train_idx[train_idx < 10], train_idx[train_idx >= 10])
++    print("Test indices:", test_idx[test_idx < 10], test_idx[test_idx >= 10])
++    print()
++
++RANDOM_SEED = 1
++
++samples_per_class = 10
++X = np.linspace(0, samples_per_class*2-1, samples_per_class * 2)
++y = np.concatenate((np.ones(samples_per_class), np.zeros(samples_per_class)), axis=0)
++
++print(X, '\n', y, '\n')
++
++print('\nshuffle = False\n')
++
++k_fold = StratifiedKFold(n_splits=5, shuffle=False, random_state=RANDOM_SEED)
++for fold_n, (train_idx, test_idx) in enumerate(k_fold.split(X, y)):
++    print(f"Fold {fold_n + 1}:")
++    print_fold_indices(train_idx, test_idx)
++
++print('\nshuffle = True, Random seed =', RANDOM_SEED, '\n')
++
++k_fold = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_SEED)
++for fold_n, (train_idx, test_idx) in enumerate(k_fold.split(X, y)):
++    print(f"Fold {fold_n + 1}:")
++    print_fold_indices(train_idx, test_idx)
++
++RANDOM_SEED += 1
++print('\nshuffle = True, Random seed =', RANDOM_SEED, '\n')
++
++k_fold = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_SEED)
++for fold_n, (train_idx, test_idx) in enumerate(k_fold.split(X, y)):
++    print(f"Fold {fold_n + 1}:")
++    print_fold_indices(train_idx, test_idx)
++
++print("Script completed successfully, no errors.")
+diff --git a/sklearn/model_selection/_split.py b/sklearn/model_selection/_split.py
+index 24394f869..8c862f569 100644
+--- a/sklearn/model_selection/_split.py
++++ b/sklearn/model_selection/_split.py
+@@ -18,7 +18,6 @@ from abc import ABCMeta, abstractmethod
+ from inspect import signature
+ 
+ import numpy as np
+-
+ from ..utils import indexable, check_random_state, safe_indexing
+ from ..utils.validation import _num_samples, column_or_1d
+ from ..utils.validation import check_array
+@@ -575,15 +574,16 @@ class StratifiedKFold(_BaseKFold):
+         .. versionchanged:: 0.20
+             ``n_splits`` default value will change from 3 to 5 in v0.22.
+ 
+-    shuffle : boolean, optional
+-        Whether to shuffle each stratification of the data before splitting
+-        into batches.
++    shuffle : boolean, optional, default=False
++        Whether to shuffle the samples within each class before splitting
++        into batches. Note that the samples from each class are always
++        stratified and split among the folds, regardless of the shuffle parameter.
+ 
+     random_state : int, RandomState instance or None, optional, default=None
+-        If int, random_state is the seed used by the random number generator;
+-        If RandomState instance, random_state is the random number generator;
+-        If None, the random number generator is the RandomState instance used
+-        by `np.random`. Used when ``shuffle`` == True.
++        When shuffle is True, random_state affects the ordering of the
++        indices, which controls the randomness of each fold for each class.
++        Otherwise, leave random_state as None.
++        Pass an int for reproducible output across multiple function calls.
+ 
+     Examples
+     --------
+@@ -620,7 +620,7 @@ class StratifiedKFold(_BaseKFold):
+         super().__init__(n_splits, shuffle, random_state)
+ 
+     def _make_test_folds(self, X, y=None):
+-        rng = self.random_state
++        rng = check_random_state(self.random_state)
+         y = np.asarray(y)
+         type_of_target_y = type_of_target(y)
+         allowed_target_types = ('binary', 'multiclass')
+@@ -641,40 +641,30 @@ class StratifiedKFold(_BaseKFold):
+         if self.n_splits > min_groups:
+             warnings.warn(("The least populated class in y has only %d"
+                            " members, which is too few. The minimum"
+-                           " number of members in any class cannot"
++                           " number of groups for any class cannot"
+                            " be less than n_splits=%d."
+                            % (min_groups, self.n_splits)), Warning)
+ 
+-        # pre-assign each sample to a test fold index using individual KFold
+-        # splitting strategies for each class so as to respect the balance of
+-        # classes
+-        # NOTE: Passing the data corresponding to ith class say X[y==class_i]
+-        # will break when the data is not 100% stratifiable for all classes.
+-        # So we pass np.zeroes(max(c, n_splits)) as data to the KFold
+-        per_cls_cvs = [
+-            KFold(self.n_splits, shuffle=self.shuffle,
+-                  random_state=rng).split(np.zeros(max(count, self.n_splits)))
+-            for count in y_counts]
+-
++        # Distribute samples from each class into folds
+         test_folds = np.zeros(n_samples, dtype=np.int)
+-        for test_fold_indices, per_cls_splits in enumerate(zip(*per_cls_cvs)):
+-            for cls, (_, test_split) in zip(unique_y, per_cls_splits):
+-                cls_test_folds = test_folds[y == cls]
+-                # the test split can be too big because we used
+-                # KFold(...).split(X[:max(c, n_splits)]) when data is not 100%
+-                # stratifiable for all the classes
+-                # (we use a warning instead of raising an exception)
+-                # If this is the case, let's trim it:
+-                test_split = test_split[test_split < len(cls_test_folds)]
+-                cls_test_folds[test_split] = test_fold_indices
+-                test_folds[y == cls] = cls_test_folds
++        for class_label in unique_y:
++            class_indices = np.where(y == class_label)[0]
++            if self.shuffle:
++                rng.shuffle(class_indices)
++            fold_sizes = np.full(self.n_splits, class_indices.size // self.n_splits, dtype=np.int)
++            fold_sizes[:class_indices.size % self.n_splits] += 1
++            current = 0
++            for fold_index, fold_size in enumerate(fold_sizes):
++                start, stop = current, current + fold_size
++                test_folds[class_indices[start:stop]] = fold_index
++                current = stop
+ 
+         return test_folds
+ 
+-    def _iter_test_masks(self, X, y=None, groups=None):
++    def _iter_test_indices(self, X, y=None, groups=None):
+         test_folds = self._make_test_folds(X, y)
+-        for i in range(self.n_splits):
+-            yield test_folds == i
++        for f in range(self.n_splits):
++            yield np.where(test_folds == f)[0]
+ 
+     def split(self, X, y, groups=None):
+         """Generate indices to split data into training and test set.
+@@ -685,10 +675,6 @@ class StratifiedKFold(_BaseKFold):
+             Training data, where n_samples is the number of samples
+             and n_features is the number of features.
+ 
+-            Note that providing ``y`` is sufficient to generate the splits and
+-            hence ``np.zeros(n_samples)`` may be used as a placeholder for
+-            ``X`` instead of actual training data.
+-
+         y : array-like, shape (n_samples,)
+             The target variable for supervised learning problems.
+             Stratification is done based on the y labels.

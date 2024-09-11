@@ -1,0 +1,98 @@
+
+diff --git a/django/db/models/options.py b/django/db/models/options.py
+index 1f11e26d87..762148f72a 100644
+--- a/django/db/models/options.py
++++ b/django/db/models/options.py
+@@ -149,6 +149,7 @@ class Options:
+     def contribute_to_class(self, cls, name):
+         from django.db import connection
+         from django.db.backends.utils import truncate_name
++        from django.db.models.expressions import OrderBy, F
+ 
+         cls._meta = self
+         self.model = cls
+@@ -172,10 +173,16 @@ class Options:
+                     del meta_attrs[name]
+             for attr_name in DEFAULT_NAMES:
+                 if attr_name in meta_attrs:
+-                    setattr(self, attr_name, meta_attrs.pop(attr_name))
++                    value = meta_attrs.pop(attr_name)
++                    if attr_name == 'ordering':
++                        value = self._process_ordering(value)
++                    setattr(self, attr_name, value)
+                     self.original_attrs[attr_name] = getattr(self, attr_name)
+                 elif hasattr(self.meta, attr_name):
+-                    setattr(self, attr_name, getattr(self.meta, attr_name))
++                    value = getattr(self.meta, attr_name)
++                    if attr_name == 'ordering':
++                        value = self._process_ordering(value)
++                    setattr(self, attr_name, value)
+                     self.original_attrs[attr_name] = getattr(self, attr_name)
+ 
+             self.unique_together = normalize_together(self.unique_together)
+@@ -207,6 +214,21 @@ class Options:
+             self.db_table = "%s_%s" % (self.app_label, self.model_name)
+             self.db_table = truncate_name(self.db_table, connection.ops.max_name_length())
+ 
++    def _process_ordering(self, ordering):
++        from django.db.models.expressions import OrderBy, F
++        processed_ordering = []
++        for item in ordering:
++            if isinstance(item, (OrderBy, F)):
++                processed_ordering.append(item)
++            elif isinstance(item, str):
++                if item.startswith('-'):
++                    processed_ordering.append(OrderBy(F(item[1:]), descending=True))
++                else:
++                    processed_ordering.append(OrderBy(F(item)))
++            else:
++                processed_ordering.append(item)
++        return processed_ordering
++
+     def _format_names_with_class(self, cls, objs):
+         """App label/class name interpolation for object names."""
+         new_objs = []
+diff --git a/tests/model_inheritance/test_ordering_with_expressions.py b/tests/model_inheritance/test_ordering_with_expressions.py
+new file mode 100644
+index 0000000000..fb990ffc1d
+--- /dev/null
++++ b/tests/model_inheritance/test_ordering_with_expressions.py
+@@ -0,0 +1,38 @@
++from django.db import models
++from django.test import TestCase
++from django.db.models import F
++
++class OrderingParent(models.Model):
++    name = models.CharField(max_length=50)
++    value = models.IntegerField()
++
++    class Meta:
++        ordering = [F('value').desc()]
++        app_label = 'model_inheritance'
++
++class OrderingChild(OrderingParent):
++    extra = models.CharField(max_length=50)
++
++    class Meta:
++        app_label = 'model_inheritance'
++
++class OrderingWithExpressionsTest(TestCase):
++    @classmethod
++    def setUpTestData(cls):
++        OrderingParent.objects.create(name='Parent 1', value=10)
++        OrderingParent.objects.create(name='Parent 2', value=20)
++        OrderingChild.objects.create(name='Child 1', value=15, extra='Extra 1')
++        OrderingChild.objects.create(name='Child 2', value=25, extra='Extra 2')
++
++    def test_ordering_with_expressions(self):
++        # Test ordering of OrderingParent objects (including child objects due to multi-table inheritance)
++        parents = OrderingParent.objects.all()
++        self.assertEqual(list(parents.values_list('name', flat=True)), ['Child 2', 'Parent 2', 'Child 1', 'Parent 1'])
++
++        # Test ordering of OrderingChild objects
++        children = OrderingChild.objects.all()
++        self.assertEqual(list(children.values_list('name', flat=True)), ['Child 2', 'Child 1'])
++
++        # Test ordering of only OrderingParent objects (excluding child objects)
++        parent_only = OrderingParent.objects.filter(orderingchild__isnull=True)
++        self.assertEqual(list(parent_only.values_list('name', flat=True)), ['Parent 2', 'Parent 1'])

@@ -1,0 +1,141 @@
+
+diff --git a/lib/matplotlib/__init__.py b/lib/matplotlib/__init__.py
+index c268a56724..d2bea6218d 100644
+--- a/lib/matplotlib/__init__.py
++++ b/lib/matplotlib/__init__.py
+@@ -98,6 +98,8 @@ import logging
+ import os
+ from pathlib import Path
+ import pprint
++from matplotlib import pyplot
++
+ import re
+ import shutil
+ import subprocess
+@@ -1175,6 +1177,13 @@ def get_backend():
+     --------
+     matplotlib.use
+     """
++    from matplotlib import pyplot as plt
++    if plt._get_backend_mod() is None:
++        backend = rcParams['backend']
++        if backend == 'auto':
++            from matplotlib import rcsetup
++            backend = rcsetup._auto_backend_sentinel
++        plt.switch_backend(backend, close_figures=False, force=True)
+     return rcParams['backend']
+ 
+ 
+diff --git a/lib/matplotlib/pyplot.py b/lib/matplotlib/pyplot.py
+index e3c66ea67c..4b44df0313 100644
+--- a/lib/matplotlib/pyplot.py
++++ b/lib/matplotlib/pyplot.py
+@@ -191,6 +191,17 @@ def _get_required_interactive_framework(backend_mod):
+ 
+ _backend_mod = None
+ 
++def _init_backend():
++    global _backend_mod
++    backend = dict.__getitem__(rcParams, "backend")
++    if backend is rcsetup._auto_backend_sentinel:
++        current_framework = cbook._get_running_interactive_framework()
++        mapping = {'qt': 'qtagg', 'gtk3': 'gtk3agg', 'gtk4': 'gtk4agg', 'wx': 'wxagg',
++                   'tk': 'tkagg', 'macosx': 'macosx', 'headless': 'agg'}
++        backend = mapping.get(current_framework, 'agg')
++    backend_mod = importlib.import_module(cbook._backend_module_name(backend))
++    _backend_mod = backend_mod
++    return backend_mod
+ 
+ def _get_backend_mod():
+     """
+@@ -198,15 +209,13 @@ def _get_backend_mod():
+ 
+     This is currently private, but may be made public in the future.
+     """
++    global _backend_mod
+     if _backend_mod is None:
+-        # Use __getitem__ here to avoid going through the fallback logic (which
+-        # will (re)import pyplot and then call switch_backend if we need to
+-        # resolve the auto sentinel)
+-        switch_backend(dict.__getitem__(rcParams, "backend"))
++        _backend_mod = _init_backend()
+     return _backend_mod
+ 
+ 
+-def switch_backend(newbackend):
++def switch_backend(newbackend, *, close_figures=True, force=False):
+     """
+     Close all open figures and set the Matplotlib backend.
+ 
+@@ -218,12 +227,20 @@ def switch_backend(newbackend):
+     ----------
+     newbackend : str
+         The name of the backend to use.
++    close_figures : bool, optional
++        If True (default), close all open figures before switching the backend.
++        If False, keep existing figures open.
++    force : bool, optional
++        If True, allow the backend to be switched even if the current backend
++        has already been initialized. This is used to force a call to
++        `switch_backend` from `get_backend`.
+     """
+     global _backend_mod
+     # make sure the init is pulled up so we can assign to it later
+     import matplotlib.backends
+-    close("all")
+-
++    
++    if not force and close_figures:
++        close("all")
+     if newbackend is rcsetup._auto_backend_sentinel:
+         current_framework = cbook._get_running_interactive_framework()
+         mapping = {'qt': 'qtagg',
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..fca615a8d8
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,17 @@
++import matplotlib.pyplot as plt
++from matplotlib import get_backend, rc_context
++
++# fig1 = plt.figure()  # <- UNCOMMENT THIS LINE AND IT WILL WORK
++# plt.ion()            # <- ALTERNATIVELY, UNCOMMENT THIS LINE AND IT WILL ALSO WORK
++with rc_context():
++    fig2 = plt.figure()
++before = f'{id(plt._pylab_helpers.Gcf)} {plt._pylab_helpers.Gcf.figs!r}'
++get_backend()
++after = f'{id(plt._pylab_helpers.Gcf)} {plt._pylab_helpers.Gcf.figs!r}'
++
++try:
++    assert before == after, '\n' + before + '\n' + after
++    print("Script completed successfully, no errors.")
++except AssertionError as e:
++    print("AssertionError occurred:")
++    print(str(e))
+diff --git a/test_get_backend.py b/test_get_backend.py
+new file mode 100644
+index 0000000000..d196d7b3b0
+--- /dev/null
++++ b/test_get_backend.py
+@@ -0,0 +1,20 @@
++import matplotlib.pyplot as plt
++from matplotlib import get_backend, rc_context
++
++# fig1 = plt.figure()  # <- UNCOMMENT THIS LINE AND IT WILL WORK
++# plt.ion()            # <- ALTERNATIVELY, UNCOMMENT THIS LINE AND IT WILL ALSO WORK
++with rc_context():
++    fig2 = plt.figure()
++before = f'{id(plt._pylab_helpers.Gcf)} {plt._pylab_helpers.Gcf.figs!r}'
++print("Before get_backend():", before)
++get_backend()
++after = f'{id(plt._pylab_helpers.Gcf)} {plt._pylab_helpers.Gcf.figs!r}'
++print("After get_backend():", after)
++
++try:
++    assert before == after, '\n' + before + '\n' + after
++    print("Test passed: Gcf.figs was not cleared.")
++except AssertionError:
++    print("Test failed: Gcf.figs was cleared.")
++
++print("Can we still access fig2?", fig2 in plt._pylab_helpers.Gcf.figs.values())

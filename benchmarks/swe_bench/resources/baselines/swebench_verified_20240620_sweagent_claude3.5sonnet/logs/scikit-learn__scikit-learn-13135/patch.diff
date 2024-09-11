@@ -1,0 +1,61 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..ec4971845
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,11 @@
++import numpy as np
++from sklearn.preprocessing import KBinsDiscretizer
++
++X = np.array([0, 0.5, 2, 3, 9, 10]).reshape(-1, 1)
++
++# with 5 bins
++est = KBinsDiscretizer(n_bins=5, strategy='kmeans', encode='ordinal')
++Xt = est.fit_transform(X)
++
++print(Xt)
++print("Script completed successfully, no errors.")
+diff --git a/sklearn/preprocessing/_discretization.py b/sklearn/preprocessing/_discretization.py
+index dd969c12b..e58a18ced 100644
+--- a/sklearn/preprocessing/_discretization.py
++++ b/sklearn/preprocessing/_discretization.py
+@@ -172,6 +172,7 @@ class KBinsDiscretizer(BaseEstimator, TransformerMixin):
+                 # 1D k-means procedure
+                 km = KMeans(n_clusters=n_bins[jj], init=init, n_init=1)
+                 centers = km.fit(column[:, None]).cluster_centers_[:, 0]
++                centers.sort()  # Ensure centers are sorted
+                 bin_edges[jj] = (centers[1:] + centers[:-1]) * 0.5
+                 bin_edges[jj] = np.r_[col_min, bin_edges[jj], col_max]
+ 
+diff --git a/sklearn/preprocessing/tests/test_discretization_kmeans.py b/sklearn/preprocessing/tests/test_discretization_kmeans.py
+new file mode 100644
+index 000000000..77bfd05f0
+--- /dev/null
++++ b/sklearn/preprocessing/tests/test_discretization_kmeans.py
+@@ -0,0 +1,25 @@
++import numpy as np
++from sklearn.preprocessing import KBinsDiscretizer
++
++def test_kbins_discretizer_kmeans_strategy():
++    X = np.array([0, 0.5, 2, 3, 9, 10]).reshape(-1, 1)
++    
++    # Test with 5 bins (higher than default)
++    est = KBinsDiscretizer(n_bins=5, strategy='kmeans', encode='ordinal')
++    Xt = est.fit_transform(X)
++    
++    # Check that the transformation doesn't raise an error
++    assert Xt is not None
++    
++    # Check that the bin edges are monotonically increasing
++    for edges in est.bin_edges_:
++        assert np.all(np.diff(edges) > 0)
++    
++    # Check that the transformed values are within the expected range
++    assert np.all(Xt >= 0)
++    assert np.all(Xt < 5)
++    
++    print("All tests passed successfully.")
++
++if __name__ == "__main__":
++    test_kbins_discretizer_kmeans_strategy()

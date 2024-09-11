@@ -1,0 +1,89 @@
+
+diff --git a/changelog/9988.bugfix.rst b/changelog/9988.bugfix.rst
+new file mode 100644
+index 000000000..32b2044ef
+--- /dev/null
++++ b/changelog/9988.bugfix.rst
+@@ -0,0 +1 @@
++Fixed an issue where the tearDown method was being executed for skipped tests when using the --pdb flag.
+diff --git a/doc/en/changelog.rst b/doc/en/changelog.rst
+index 01c6d6983..b961c102f 100644
+--- a/doc/en/changelog.rst
++++ b/doc/en/changelog.rst
+@@ -28,8 +28,17 @@ with advance notice in the **Deprecations** section of releases.
+ 
+ .. towncrier release notes start
+ 
++pytest 7.1.3 (unreleased)
++=========================
++
++Bug Fixes
++---------
++
++- `#XXXX <https://github.com/pytest-dev/pytest/issues/XXXX>`_: Fixed an issue where the tearDown method was being executed for skipped tests when using the --pdb flag.
++
+ pytest 7.1.2 (2022-04-23)
+ =========================
++=========================
+ 
+ Bug Fixes
+ ---------
+diff --git a/src/_pytest/debugging.py b/src/_pytest/debugging.py
+index b99c3fe2d..4a59d2816 100644
+--- a/src/_pytest/debugging.py
++++ b/src/_pytest/debugging.py
+@@ -286,6 +286,9 @@ class PdbInvoke:
+     def pytest_exception_interact(
+         self, node: Node, call: "CallInfo[Any]", report: BaseReport
+     ) -> None:
++        from _pytest.outcomes import Skipped
++        if isinstance(call.excinfo.value, Skipped):
++            return  # Don't enter PDB for skipped tests
+         capman = node.config.pluginmanager.getplugin("capturemanager")
+         if capman:
+             capman.suspend_global_capture(in_=True)
+diff --git a/test_repro_skip_class.py b/test_repro_skip_class.py
+new file mode 100644
+index 000000000..f228d1454
+--- /dev/null
++++ b/test_repro_skip_class.py
+@@ -0,0 +1,10 @@
++import unittest
++
++@unittest.skip("hello")
++class MyTestCase(unittest.TestCase):
++    def setUp(self):
++        "xxx"  # This line will raise a NameError when executed
++    def test_one(self):
++        pass
++    def tearDown(self):
++        "xxx"  # This line will raise a NameError when executed
+diff --git a/testing/test_debugging.py b/testing/test_debugging.py
+index 08ae09658..167093149 100644
+--- a/testing/test_debugging.py
++++ b/testing/test_debugging.py
+@@ -1302,3 +1302,24 @@ def test_pdb_wrapper_class_is_reused(pytester: Pytester) -> None:
+     result.stdout.fnmatch_lines(
+         ["*set_trace_called*", "*set_trace_called*", "* 1 passed in *"]
+     )
++
++def test_pdb_not_used_for_skipped_test(pytester: Pytester) -> None:
++    p1 = pytester.makepyfile("""
++        import unittest
++
++        @unittest.skip("hello")
++        class MyTestCase(unittest.TestCase):
++            def setUp(self):
++                print("setUp called")
++            def test_one(self):
++                pass
++            def tearDown(self):
++                print("tearDown called")
++    """)
++    result = pytester.runpytest("--pdb", p1)
++    assert result.ret == 0
++    result.stdout.fnmatch_lines([
++        "*1 skipped*",
++    ])
++    assert "setUp called" not in result.stdout.str()
++    assert "tearDown called" not in result.stdout.str()

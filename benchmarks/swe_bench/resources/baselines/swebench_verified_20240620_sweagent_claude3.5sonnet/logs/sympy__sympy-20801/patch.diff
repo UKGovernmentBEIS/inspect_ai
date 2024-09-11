@@ -1,0 +1,95 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..1c3e0c9b61
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,31 @@
++from sympy import S, Float, sympify
++from sympy.logic.boolalg import BooleanFalse
++
++def debug_eq(a, b):
++    print(f"\nComparing {a} and {b}:")
++    print(f"a.__eq__(b) called: {a.__eq__(b)}")
++    print(f"b.__eq__(a) called: {b.__eq__(a)}")
++    print(f"a == b result: {a == b}")
++    print(f"b == a result: {b == a}")
++
++print("Original issue:")
++debug_eq(S(0.0), S.false)
++
++print("\nAdditional checks:")
++debug_eq(S(0), S.false)
++
++print("\nChecking fix:")
++debug_eq(Float('0.0'), BooleanFalse())
++
++print("\nType information:")
++print("type(S(0.0)):", type(S(0.0)))
++print("type(S.false):", type(S.false))
++
++print("\nHashable content:")
++print("S(0.0)._hashable_content():", S(0.0)._hashable_content())
++print("S.false._hashable_content():", S.false._hashable_content())
++
++print("\nSympy equality check:")
++print("sympify(S(0.0) == S.false):", sympify(S(0.0) == S.false))
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sympy/core/numbers.py b/sympy/core/numbers.py
+index 79f6a7d165..89580feb96 100644
+--- a/sympy/core/numbers.py
++++ b/sympy/core/numbers.py
+@@ -1213,7 +1213,7 @@ def __getstate__(self):
+         return {'_prec': self._prec}
+ 
+     def _hashable_content(self):
+-        return (self._mpf_, self._prec)
++        return (self.__class__.__name__, self._mpf_, self._prec)
+ 
+     def floor(self):
+         return Integer(int(mlib.to_int(
+@@ -1381,14 +1381,20 @@ def __int__(self):
+         return int(mlib.to_int(self._mpf_))  # uses round_fast = round_down
+ 
+     def __eq__(self, other):
+-        from sympy.logic.boolalg import Boolean
++        from sympy.logic.boolalg import Boolean, BooleanFalse
++        print(f"Float.__eq__ called with self={self}, other={other}")
++        print(f"Type of other before sympify: {type(other)}")
+         try:
+             other = _sympify(other)
+         except SympifyError:
+             return NotImplemented
++        print(f"After sympify: other={other}, type={type(other)}")
++        print(f"Is other Boolean? {isinstance(other, Boolean)}")
++        print(f"Is other BooleanFalse? {isinstance(other, BooleanFalse)}")
+         if not self:
+             return not other
+-        if isinstance(other, Boolean):
++        if isinstance(other, (Boolean, BooleanFalse)):
++            print(f"other is Boolean or BooleanFalse")
+             return False
+         if other.is_NumberSymbol:
+             if other.is_irrational:
+@@ -1408,6 +1414,7 @@ def __eq__(self, other):
+             # the mpf tuples
+             ompf = other._as_mpf_val(self._prec)
+             return bool(mlib.mpf_eq(self._mpf_, ompf))
++        print(f"Returning False for non-Number")
+         return False    # Float != non-Number
+ 
+     def __ne__(self, other):
+diff --git a/sympy/logic/boolalg.py b/sympy/logic/boolalg.py
+index fbcba1f8d4..bd9eb8201b 100644
+--- a/sympy/logic/boolalg.py
++++ b/sympy/logic/boolalg.py
+@@ -348,6 +348,8 @@ def as_set(self):
+ 
+ 
+ class BooleanFalse(BooleanAtom, metaclass=Singleton):
++    def _hashable_content(self):
++        return ("BooleanFalse",)
+     """
+     SymPy version of False, a singleton that can be accessed via S.false.
+ 

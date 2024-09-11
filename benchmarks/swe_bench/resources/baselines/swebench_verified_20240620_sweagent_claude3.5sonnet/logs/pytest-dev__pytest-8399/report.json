@@ -1,0 +1,88 @@
+{
+    "pytest-dev__pytest-8399": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "testing/test_unittest.py::test_fixtures_setup_setUpClass_issue8394"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "testing/test_unittest.py::test_simple_unittest",
+                    "testing/test_unittest.py::test_runTest_method",
+                    "testing/test_unittest.py::test_isclasscheck_issue53",
+                    "testing/test_unittest.py::test_setup",
+                    "testing/test_unittest.py::test_setUpModule",
+                    "testing/test_unittest.py::test_setUpModule_failing_no_teardown",
+                    "testing/test_unittest.py::test_new_instances",
+                    "testing/test_unittest.py::test_function_item_obj_is_instance",
+                    "testing/test_unittest.py::test_teardown",
+                    "testing/test_unittest.py::test_teardown_issue1649",
+                    "testing/test_unittest.py::test_unittest_skip_issue148",
+                    "testing/test_unittest.py::test_method_and_teardown_failing_reporting",
+                    "testing/test_unittest.py::test_setup_failure_is_shown",
+                    "testing/test_unittest.py::test_setup_setUpClass",
+                    "testing/test_unittest.py::test_setup_class",
+                    "testing/test_unittest.py::test_testcase_adderrorandfailure_defers[Error]",
+                    "testing/test_unittest.py::test_testcase_adderrorandfailure_defers[Failure]",
+                    "testing/test_unittest.py::test_testcase_custom_exception_info[Error]",
+                    "testing/test_unittest.py::test_testcase_custom_exception_info[Failure]",
+                    "testing/test_unittest.py::test_testcase_totally_incompatible_exception_info",
+                    "testing/test_unittest.py::test_module_level_pytestmark",
+                    "testing/test_unittest.py::test_djangolike_testcase",
+                    "testing/test_unittest.py::test_unittest_not_shown_in_traceback",
+                    "testing/test_unittest.py::test_unorderable_types",
+                    "testing/test_unittest.py::test_unittest_typerror_traceback",
+                    "testing/test_unittest.py::test_unittest_expected_failure_for_failing_test_is_xfail[pytest]",
+                    "testing/test_unittest.py::test_unittest_expected_failure_for_failing_test_is_xfail[unittest]",
+                    "testing/test_unittest.py::test_unittest_expected_failure_for_passing_test_is_fail[pytest]",
+                    "testing/test_unittest.py::test_unittest_expected_failure_for_passing_test_is_fail[unittest]",
+                    "testing/test_unittest.py::test_unittest_setup_interaction[return]",
+                    "testing/test_unittest.py::test_unittest_setup_interaction[yield]",
+                    "testing/test_unittest.py::test_non_unittest_no_setupclass_support",
+                    "testing/test_unittest.py::test_no_teardown_if_setupclass_failed",
+                    "testing/test_unittest.py::test_cleanup_functions",
+                    "testing/test_unittest.py::test_issue333_result_clearing",
+                    "testing/test_unittest.py::test_unittest_raise_skip_issue748",
+                    "testing/test_unittest.py::test_unittest_skip_issue1169",
+                    "testing/test_unittest.py::test_class_method_containing_test_issue1558",
+                    "testing/test_unittest.py::test_usefixtures_marker_on_unittest[builtins.object]",
+                    "testing/test_unittest.py::test_usefixtures_marker_on_unittest[unittest.TestCase]",
+                    "testing/test_unittest.py::test_testcase_handles_init_exceptions",
+                    "testing/test_unittest.py::test_error_message_with_parametrized_fixtures",
+                    "testing/test_unittest.py::test_setup_inheritance_skipping[test_setup_skip.py-1",
+                    "testing/test_unittest.py::test_setup_inheritance_skipping[test_setup_skip_class.py-1",
+                    "testing/test_unittest.py::test_setup_inheritance_skipping[test_setup_skip_module.py-1",
+                    "testing/test_unittest.py::test_BdbQuit",
+                    "testing/test_unittest.py::test_exit_outcome",
+                    "testing/test_unittest.py::test_trace",
+                    "testing/test_unittest.py::test_pdb_teardown_called",
+                    "testing/test_unittest.py::test_pdb_teardown_skipped[@unittest.skip]",
+                    "testing/test_unittest.py::test_pdb_teardown_skipped[@pytest.mark.skip]",
+                    "testing/test_unittest.py::test_async_support",
+                    "testing/test_unittest.py::test_do_class_cleanups_on_success",
+                    "testing/test_unittest.py::test_do_class_cleanups_on_setupclass_failure",
+                    "testing/test_unittest.py::test_do_class_cleanups_on_teardownclass_failure",
+                    "testing/test_unittest.py::test_do_cleanups_on_success",
+                    "testing/test_unittest.py::test_do_cleanups_on_setup_failure",
+                    "testing/test_unittest.py::test_do_cleanups_on_teardown_failure",
+                    "testing/test_unittest.py::test_plain_unittest_does_not_support_async"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

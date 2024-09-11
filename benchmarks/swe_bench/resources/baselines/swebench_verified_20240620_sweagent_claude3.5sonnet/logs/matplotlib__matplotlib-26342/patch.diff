@@ -1,0 +1,118 @@
+
+diff --git a/lib/matplotlib/contour.py b/lib/matplotlib/contour.py
+index 3f84250b64..d58afc1799 100644
+--- a/lib/matplotlib/contour.py
++++ b/lib/matplotlib/contour.py
+@@ -943,13 +943,25 @@ class ContourSet(ContourLabeler, mcoll.Collection):
+     alpha = property(lambda self: self.get_alpha())
+     linestyles = property(lambda self: self._orig_linestyles)
+ 
++    def set_paths(self, paths):
++        """
++        Set the paths of the contour set.
++
++        Parameters
++        ----------
++        paths : list of Path
++            The new paths for the contour set.
++        """
++        self._paths = paths
++
+     @_api.deprecated("3.8")
+-    @property
+     def collections(self):
+         # On access, make oneself invisible and instead add the old-style collections
+         # (one PathCollection per level).  We do not try to further split contours into
+         # connected components as we already lost track of what pairs of contours need
+         # to be considered as single units to draw filled regions with holes.
++        # connected components as we already lost track of what pairs of contours need
++        # to be considered as single units to draw filled regions with holes.
+         if not hasattr(self, "_old_style_split_collections"):
+             self.set_visible(False)
+             fcs = self.get_facecolor()
+diff --git a/lib/matplotlib/typing.py b/lib/matplotlib/typing.py
+index 9605504ded..124d079c41 100644
+--- a/lib/matplotlib/typing.py
++++ b/lib/matplotlib/typing.py
+@@ -9,55 +9,43 @@ downstream libraries.
+     The ``typing`` module and type stub files are considered provisional and may change
+     at any time without a deprecation period.
+ """
+-from collections.abc import Hashable, Sequence
+-import pathlib
+-from typing import Any, Literal, Union
+-
+-from . import path
+-from ._enums import JoinStyle, CapStyle
+-from .markers import MarkerStyle
+ 
+ # The following are type aliases. Once python 3.9 is dropped, they should be annotated
+ # using ``typing.TypeAlias`` and Unions should be converted to using ``|`` syntax.
+ 
+-RGBColorType = Union[tuple[float, float, float], str]
+-RGBAColorType = Union[
+-    str,  # "none" or "#RRGGBBAA"/"#RGBA" hex strings
+-    tuple[float, float, float, float],
++RGBColorType = "tuple[float, float, float] | str"
++RGBAColorType = """str |  # "none" or "#RRGGBBAA"/"#RGBA" hex strings
++    tuple[float, float, float, float] |
+     # 2 tuple (color, alpha) representations, not infinitely recursive
+     # RGBColorType includes the (str, float) tuple, even for RGBA strings
+-    tuple[RGBColorType, float],
++    tuple[RGBColorType, float] |
+     # (4-tuple, float) is odd, but accepted as the outer float overriding A of 4-tuple
+-    tuple[tuple[float, float, float, float], float]
+-]
++    tuple[tuple[float, float, float, float], float]"""
+ 
+-ColorType = Union[RGBColorType, RGBAColorType]
++ColorType = "RGBColorType | RGBAColorType"
+ 
+ RGBColourType = RGBColorType
+ RGBAColourType = RGBAColorType
+ ColourType = ColorType
+ 
+-LineStyleType = Union[str, tuple[float, Sequence[float]]]
+-DrawStyleType = Literal["default", "steps", "steps-pre", "steps-mid", "steps-post"]
+-MarkEveryType = Union[
+-    None,
+-    int,
+-    tuple[int, int],
+-    slice,
+-    list[int],
+-    float,
+-    tuple[float, float],
+-    list[bool]
+-]
+-
+-MarkerType = Union[str, path.Path, MarkerStyle]
+-FillStyleType = Literal["full", "left", "right", "bottom", "top", "none"]
+-JoinStyleType = Union[JoinStyle, Literal["miter", "round", "bevel"]]
+-CapStyleType = Union[CapStyle, Literal["butt", "projecting", "round"]]
+-
+-RcStyleType = Union[
+-    str, dict[str, Any], pathlib.Path, list[Union[str, pathlib.Path, dict[str, Any]]]
+-]
+-
+-HashableList = list[Union[Hashable, "HashableList"]]
++LineStyleType = "str | tuple[float, Sequence[float]]"
++DrawStyleType = "Literal['default', 'steps', 'steps-pre', 'steps-mid', 'steps-post']"
++MarkEveryType = """None |
++    int |
++    tuple[int, int] |
++    slice |
++    list[int] |
++    float |
++    tuple[float, float] |
++    list[bool]"""
++
++FillStyleType = "Literal['full', 'left', 'right', 'bottom', 'top', 'none']"
++
++RcStyleType = "str | dict[str, Any] | pathlib.Path | list[str | pathlib.Path | dict[str, Any]]"
++
++HashableList = "list[Hashable | 'HashableList']"
+ """A nested list of Hashable values."""
++
++MarkerType = "str | path.Path | MarkerStyle"
++JoinStyleType = "JoinStyle | Literal['miter', 'round', 'bevel']"
++CapStyleType = "CapStyle | Literal['butt', 'projecting', 'round']"

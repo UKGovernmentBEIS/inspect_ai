@@ -1,0 +1,70 @@
+
+diff --git a/django/db/backends/postgresql/operations.py b/django/db/backends/postgresql/operations.py
+index 62273fc43c..70a8fa3b4f 100644
+--- a/django/db/backends/postgresql/operations.py
++++ b/django/db/backends/postgresql/operations.py
+@@ -354,11 +354,11 @@ class DatabaseOperations(BaseDatabaseOperations):
+             return "ON CONFLICT DO NOTHING"
+         if on_conflict == OnConflict.UPDATE:
+             return "ON CONFLICT(%s) DO UPDATE SET %s" % (
+-                ", ".join(map(self.quote_name, unique_fields)),
++                ", ".join(map(self.quote_name, [field.column for field in unique_fields])),
+                 ", ".join(
+                     [
+-                        f"{field} = EXCLUDED.{field}"
+-                        for field in map(self.quote_name, update_fields)
++                        f"{self.quote_name(field.column)} = EXCLUDED.{self.quote_name(field.column)}"
++                        for field in update_fields
+                     ]
+                 ),
+             )
+diff --git a/tests/postgres_on_conflict_test.py b/tests/postgres_on_conflict_test.py
+new file mode 100644
+index 0000000000..da3424ea73
+--- /dev/null
++++ b/tests/postgres_on_conflict_test.py
+@@ -0,0 +1,44 @@
++from django.db import models
++from django.test import TestCase, skipUnlessDBFeature
++from django.db import connection
++
++class MixedCaseModel(models.Model):
++    blacklistID = models.IntegerField(primary_key=True, db_column="BlacklistID")
++    sectorID = models.IntegerField(db_column="SectorID")
++
++    class Meta:
++        db_table = "MixedCase_Table"
++
++@skipUnlessDBFeature('supports_table_check_constraints')
++class PostgresOnConflictTest(TestCase):
++    def test_bulk_create_mixed_case_columns(self):
++        # Create initial objects
++        MixedCaseModel.objects.bulk_create([
++            MixedCaseModel(blacklistID=1, sectorID=100),
++            MixedCaseModel(blacklistID=2, sectorID=200),
++        ])
++
++        # Attempt to bulk_create with conflicts
++        new_objects = [
++            MixedCaseModel(blacklistID=1, sectorID=101),  # Conflict
++            MixedCaseModel(blacklistID=3, sectorID=300),  # New
++        ]
++
++        MixedCaseModel.objects.bulk_create(
++            new_objects,
++            update_conflicts=True,
++            update_fields=["sectorID"],
++            unique_fields=["blacklistID"],
++        )
++
++        # Check that the update worked and the new object was created
++        self.assertEqual(MixedCaseModel.objects.count(), 3)
++        self.assertEqual(MixedCaseModel.objects.get(blacklistID=1).sectorID, 101)
++        self.assertEqual(MixedCaseModel.objects.get(blacklistID=2).sectorID, 200)
++        self.assertEqual(MixedCaseModel.objects.get(blacklistID=3).sectorID, 300)
++
++        # Check the SQL that was generated
++        with connection.cursor() as cursor:
++            cursor.execute("SELECT * FROM MixedCase_Table")
++            columns = [col[0] for col in cursor.description]
++            self.assertEqual(columns, ["BlacklistID", "SectorID"])

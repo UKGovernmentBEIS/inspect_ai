@@ -1,0 +1,95 @@
+{
+    "scikit-learn__scikit-learn-12682": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_max_iter"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_shapes_omp",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_shapes",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_overcomplete",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_lars_positive_parameter",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[False-False-lasso_lars]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[False-False-lasso_cd]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[False-False-threshold]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[False-True-lasso_lars]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[False-True-lasso_cd]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[False-True-threshold]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[True-False-lasso_lars]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[True-False-lasso_cd]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[True-False-threshold]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[True-True-lasso_lars]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[True-True-lasso_cd]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_positivity[True-True-threshold]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_lars_dict_positivity[False]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_lars_dict_positivity[True]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_lars_code_positivity",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_reconstruction",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_reconstruction_parallel",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_lassocd_readonly_data",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_nonzero_coefs",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_unknown_fit_algorithm",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_split",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_shapes",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_lars_positive_parameter",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[False-False-lasso_lars]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[False-False-lasso_cd]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[False-False-threshold]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[False-True-lasso_lars]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[False-True-lasso_cd]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[False-True-threshold]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[True-False-lasso_lars]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[True-False-lasso_cd]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[True-False-threshold]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[True-True-lasso_lars]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[True-True-lasso_cd]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_positivity[True-True-threshold]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_lars[False]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_minibatch_dictionary_learning_lars[True]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_positivity[False-False]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_positivity[False-True]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_positivity[True-False]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_positivity[True-True]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_verbosity",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_estimator_shapes",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_overcomplete",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_initialization",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_readonly_initialization",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_dict_learning_online_partial_fit",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_shapes",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_positivity[False-lasso_lars]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_positivity[False-lasso_cd]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_positivity[False-threshold]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_positivity[True-lasso_lars]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_positivity[True-lasso_cd]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_positivity[True-threshold]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_unavailable_positivity[lars]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_unavailable_positivity[omp]",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_input",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_error",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_sparse_encode_error_default_sparsity",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_unknown_method",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_sparse_coder_estimator",
+                    "sklearn/decomposition/tests/test_dict_learning.py::test_sparse_coder_parallel_mmap"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

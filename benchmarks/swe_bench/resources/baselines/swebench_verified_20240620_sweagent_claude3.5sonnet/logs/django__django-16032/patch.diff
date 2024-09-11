@@ -1,0 +1,144 @@
+
+diff --git a/db.sqlite3 b/db.sqlite3
+new file mode 100644
+index 0000000000..0eaea18330
+Binary files /dev/null and b/db.sqlite3 differ
+diff --git a/run_query.py b/run_query.py
+new file mode 100644
+index 0000000000..0ea44ecf86
+--- /dev/null
++++ b/run_query.py
+@@ -0,0 +1,33 @@
++import os
++import django
++from django.conf import settings
++from django.db.models import Value
++
++# Set up Django
++os.environ['DJANGO_SETTINGS_MODULE'] = 'test_settings'
++django.setup()
++
++# Import your models
++from tests.annotations.models import Book, Publisher
++
++def run_query():
++    long_books_qs = (
++        Book.objects.filter(
++            pages__gt=400,
++        )
++        .annotate(book_annotate=Value(1))
++        .alias(book_alias=Value(1))
++        .values('id')  # Add this line to select only the 'id' column
++    )
++    publisher_books_qs = (
++        Publisher.objects.filter(
++            book__in=long_books_qs
++        )
++        .values("name")
++    )
++    
++    print("Query:")
++    print(publisher_books_qs.query)
++
++if __name__ == "__main__":
++    run_query()
+diff --git a/run_test.py b/run_test.py
+new file mode 100644
+index 0000000000..573bed60ee
+--- /dev/null
++++ b/run_test.py
+@@ -0,0 +1,34 @@
++import os
++import django
++from django.conf import settings
++from django.test import TestCase
++from django.db import connection
++from django.test.utils import setup_test_environment, teardown_test_environment
++
++# Set up Django
++os.environ['DJANGO_SETTINGS_MODULE'] = 'test_settings'
++django.setup()
++
++# Import your models and test case
++from tests.annotations.models import Book, Publisher
++from tests.annotations.tests import AliasTests
++
++# Set up the test environment
++setup_test_environment()
++
++# Create a test database
++connection.creation.create_test_db(verbosity=1)
++
++# Run the specific test
++test_case = AliasTests('test_annotation_and_alias_filter_in_subquery')
++test_case._pre_setup()
++test_case.setUp()
++test_case.test_annotation_and_alias_filter_in_subquery()
++test_case.tearDown()
++test_case._post_teardown()
++
++# Tear down the test environment
++connection.creation.destroy_test_db(verbosity=1)
++teardown_test_environment()
++
++print("Test completed successfully!")
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..30d394b50d
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,22 @@
++from pathlib import Path
++
++BASE_DIR = Path(__file__).resolve().parent
++
++SECRET_KEY = 'django-insecure-test-key'
++DEBUG = True
++ALLOWED_HOSTS = []
++
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'django.contrib.auth',
++    'tests',
++]
++
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': BASE_DIR / 'db.sqlite3',
++    }
++}
++
++USE_TZ = True
+diff --git a/tests/annotations/tests.py b/tests/annotations/tests.py
+index 8de2bf1998..df31f6c103 100644
+--- a/tests/annotations/tests.py
++++ b/tests/annotations/tests.py
+@@ -1382,3 +1382,27 @@ class AliasTests(TestCase):
+         )
+         with self.assertRaisesMessage(ValueError, msg):
+             Book.objects.alias(**{crafted_alias: Value(1)})
++
++    def test_annotation_and_alias_filter_in_subquery(self):
++        long_books_qs = (
++            Book.objects.filter(
++                pages__gt=400,
++            )
++            .annotate(book_annotate=Value(1))
++            .alias(book_alias=Value(1))
++        )
++        publisher_books_qs = (
++            Publisher.objects.filter(
++                book__in=long_books_qs
++            )
++            .values("name")
++        )
++        self.assertCountEqual(
++            publisher_books_qs,
++            [
++                {'name': 'Apress'},
++                {'name': 'Sams'},
++                {'name': 'Prentice Hall'},
++                {'name': 'Morgan Kaufmann'}
++            ]
++        )

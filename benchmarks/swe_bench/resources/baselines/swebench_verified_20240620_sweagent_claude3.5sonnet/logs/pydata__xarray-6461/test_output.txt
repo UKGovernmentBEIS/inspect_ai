@@ -1,0 +1,977 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh
++++ '[' -n '' ']'
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh
++++ '[' -n /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh
++++ '[' -n '' ']'
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/gdal ']'
++++ export GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ export GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ '[' '!' -d /opt/miniconda3/envs/testbed/lib/gdalplugins ']'
++++ export CPL_ZIP_ENCODING=UTF-8
++++ CPL_ZIP_ENCODING=UTF-8
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/epsg_csv ']'
++++ '[' -d /opt/miniconda3/envs/testbed/Library/share/epsg_csv ']'
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/proj ']'
++++ export PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ '[' -f /opt/miniconda3/envs/testbed/share/proj/copyright_and_licenses.csv ']'
++++ export PROJ_NETWORK=ON
++++ PROJ_NETWORK=ON
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/udunits ']'
++++ export UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++++ UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   xarray/core/computation.py
+	modified:   xarray/tests/test_computation.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	commit_message.txt
+	reproduce_issue.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 851dadeb0338403e5021c3fbe80cbc9127ee672d
+Author: Joseph K Aicher <4666753+jaicher@users.noreply.github.com>
+Date:   Sat Apr 9 16:27:39 2022 -0400
+
+    No chunk warning if empty (#6402)
+    
+    * Test with warning when loading Zarr with empty dimension with chunks
+    
+    If an array has zero size (due to an empty dimension), it is saved as a
+    single chunk regardless of Dask chunking on other dimensions (#5742).
+    If the `chunks` parameter is provided for other dimensions when loading
+    the Zarr file, xarray gives a warning about potentially degraded
+    performance from splitting the single chunk.
+    
+    When the array has zero size, this warning seems inappropriate because:
+    
+    - performance degradation on an empty array should be negligible.
+    - we don't always know if one of the dimensions is empty until loading.
+      I would use the `chunks` parameter for dimensions that have known
+      chunksize (to specify some multiple of that chunksize), but this only
+      works without warning when the array is nonempty.
+    
+    * Don't check chunk compatibility if variable is empty/has no size
+    
+    * Docs describing removal of warning for `chunks` with empty array
+    
+    Co-authored-by: Deepak Cherian <dcherian@users.noreply.github.com>
+    Co-authored-by: Maximilian Roos <5635139+max-sixty@users.noreply.github.com>
+
+diff --git a/doc/whats-new.rst b/doc/whats-new.rst
+index 74120f06..c84a0549 100644
+--- a/doc/whats-new.rst
++++ b/doc/whats-new.rst
+@@ -62,8 +62,10 @@ Bug fixes
+   coordinates. See the corresponding pull-request on GitHub for more details. (:pull:`5692`).
+   By `Benoît Bovy <https://github.com/benbovy>`_.
+ - Fixed "unhashable type" error trying to read NetCDF file with variable having its 'units'
+-  attribute not ``str`` (e.g. ``numpy.ndarray``) (:issue:`6368`).
+-  By `Oleh Khoma <https://github.com/okhoma>`_.
++  attribute not ``str`` (e.g. ``numpy.ndarray``) (:issue:`6368`). By `Oleh Khoma <https://github.com/okhoma>`_.
++- Omit warning about specified dask chunks separating chunks on disk when the
++  underlying array is empty (e.g., because of an empty dimension) (:issue:`6401`).
++  By `Joseph K Aicher <https://github.com/jaicher>`_.
+ - Fixed the poor html repr performance on large multi-indexes (:pull:`6400`).
+   By `Benoît Bovy <https://github.com/benbovy>`_.
+ - Allow fancy indexing of duck dask arrays along multiple dimensions. (:pull:`6414`)
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index 0c3a5938..6ff7a1f7 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -199,30 +199,34 @@ def _get_chunk(var, chunks):
+         chunk_shape, shape=shape, dtype=var.dtype, previous_chunks=preferred_chunk_shape
+     )
+ 
+-    # Warn where requested chunks break preferred chunks.
+-    for dim, size, chunk_sizes in zip(dims, shape, chunk_shape):
+-        try:
+-            preferred_chunk_sizes = preferred_chunks[dim]
+-        except KeyError:
+-            continue
+-        # Determine the stop indices of the preferred chunks, but omit the last stop
+-        # (equal to the dim size).  In particular, assume that when a sequence expresses
+-        # the preferred chunks, the sequence sums to the size.
+-        preferred_stops = (
+-            range(preferred_chunk_sizes, size, preferred_chunk_sizes)
+-            if isinstance(preferred_chunk_sizes, Number)
+-            else itertools.accumulate(preferred_chunk_sizes[:-1])
+-        )
+-        # Gather any stop indices of the specified chunks that are not a stop index of a
+-        # preferred chunk.  Again, omit the last stop, assuming that it equals the dim
+-        # size.
+-        breaks = set(itertools.accumulate(chunk_sizes[:-1])).difference(preferred_stops)
+-        if breaks:
+-            warnings.warn(
+-                "The specified Dask chunks separate the stored chunks along dimension "
+-                f'"{dim}" starting at index {min(breaks)}. This could degrade '
+-                "performance. Instead, consider rechunking after loading."
++    # Warn where requested chunks break preferred chunks, provided that the variable
++    # contains data.
++    if var.size:
++        for dim, size, chunk_sizes in zip(dims, shape, chunk_shape):
++            try:
++                preferred_chunk_sizes = preferred_chunks[dim]
++            except KeyError:
++                continue
++            # Determine the stop indices of the preferred chunks, but omit the last stop
++            # (equal to the dim size).  In particular, assume that when a sequence
++            # expresses the preferred chunks, the sequence sums to the size.
++            preferred_stops = (
++                range(preferred_chunk_sizes, size, preferred_chunk_sizes)
++                if isinstance(preferred_chunk_sizes, Number)
++                else itertools.accumulate(preferred_chunk_sizes[:-1])
+             )
++            # Gather any stop indices of the specified chunks that are not a stop index
++            # of a preferred chunk.  Again, omit the last stop, assuming that it equals
++            # the dim size.
++            breaks = set(itertools.accumulate(chunk_sizes[:-1])).difference(
++                preferred_stops
++            )
++            if breaks:
++                warnings.warn(
++                    "The specified Dask chunks separate the stored chunks along "
++                    f'dimension "{dim}" starting at index {min(breaks)}. This could '
++                    "degrade performance. Instead, consider rechunking after loading."
++                )
+ 
+     return dict(zip(dims, chunk_shape))
+ 
+diff --git a/xarray/tests/test_backends.py b/xarray/tests/test_backends.py
+index 94ffe619..6f6bb041 100644
+--- a/xarray/tests/test_backends.py
++++ b/xarray/tests/test_backends.py
+@@ -2210,6 +2210,13 @@ class ZarrBase(CFEncodedBase):
+         with self.roundtrip(ds) as ds_reload:
+             assert_identical(ds, ds_reload)
+ 
++    @requires_dask
++    def test_no_warning_from_open_emptydim_with_chunks(self):
++        ds = Dataset({"x": (("a", "b"), np.empty((5, 0)))}).chunk({"a": 1})
++        with assert_no_warnings():
++            with self.roundtrip(ds, open_kwargs=dict(chunks={"a": 1})) as ds_reload:
++                assert_identical(ds, ds_reload)
++
+     @pytest.mark.parametrize("consolidated", [False, True])
+     @pytest.mark.parametrize("compute", [False, True])
+     @pytest.mark.parametrize("use_dask", [False, True])
++ git diff 851dadeb0338403e5021c3fbe80cbc9127ee672d
+diff --git a/xarray/core/computation.py b/xarray/core/computation.py
+index 7676d8e5..d02d191c 100644
+--- a/xarray/core/computation.py
++++ b/xarray/core/computation.py
+@@ -1745,7 +1745,7 @@ def where(cond, x, y, keep_attrs=None):
+ 
+     Performs xarray-like broadcasting across input arguments.
+ 
+-    All dimension coordinates on `x` and `y`  must be aligned with each
++    All dimension coordinates on `x` and `y` must be aligned with each
+     other and with `cond`.
+ 
+     Parameters
+@@ -1753,11 +1753,12 @@ def where(cond, x, y, keep_attrs=None):
+     cond : scalar, array, Variable, DataArray or Dataset
+         When True, return values from `x`, otherwise returns values from `y`.
+     x : scalar, array, Variable, DataArray or Dataset
+-        values to choose from where `cond` is True
++        Values to choose from where `cond` is True.
+     y : scalar, array, Variable, DataArray or Dataset
+-        values to choose from where `cond` is False
++        Values to choose from where `cond` is False.
+     keep_attrs : bool or str or callable, optional
+-        How to treat attrs. If True, keep the attrs of `x`.
++        How to treat attrs. If True, keep the attrs of `x`. If `x` is a scalar,
++        the attrs of `y` will be used instead.
+ 
+     Returns
+     -------
+@@ -1825,13 +1826,12 @@ def where(cond, x, y, keep_attrs=None):
+     """
+     if keep_attrs is None:
+         keep_attrs = _get_keep_attrs(default=False)
+-
+     if keep_attrs is True:
+-        # keep the attributes of x, the second parameter, by default to
+-        # be consistent with the `where` method of `DataArray` and `Dataset`
+-        keep_attrs = lambda attrs, context: attrs[1]
+-
+-    # alignment for three arguments is complicated, so don't support it yet
++        if hasattr(x, 'attrs'):
++            keep_attrs = lambda attrs, context: attrs[1]
++        else:
++            keep_attrs = lambda attrs, context: {}
++    
+     return apply_ufunc(
+         duck_array_ops.where,
+         cond,
+diff --git a/xarray/tests/test_computation.py b/xarray/tests/test_computation.py
+index 6a86738a..5d0be5ff 100644
+--- a/xarray/tests/test_computation.py
++++ b/xarray/tests/test_computation.py
+@@ -1928,6 +1928,14 @@ def test_where_attrs() -> None:
+     expected = xr.DataArray([1, 0], dims="x", attrs={"attr": "x"})
+     assert_identical(expected, actual)
+ 
++    # Test case for scalar x with keep_attrs=True
++    cond_scalar = xr.DataArray([True, False], dims="x")
++    x_scalar = 1
++    y_scalar = xr.DataArray([0, 0], dims="x", attrs={"attr": "y"})
++    actual_scalar = xr.where(cond_scalar, x_scalar, y_scalar, keep_attrs=True)
++    expected_scalar = xr.DataArray([1, 0], dims="x", attrs={"attr": "y"})
++    assert_identical(expected_scalar, actual_scalar)
++
+ 
+ @pytest.mark.parametrize("use_dask", [True, False])
+ @pytest.mark.parametrize("use_datetime", [True, False])
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/udunits2-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/proj4-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/geotiff-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/gdal-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmpy-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmf-deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval '. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/udunits2-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/proj4-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/geotiff-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/gdal-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmpy-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmf-deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/udunits2-deactivate.sh
+++++ unset UDUNITS2_XML_PATH
+++++ '[' -n '' ']'
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/proj4-deactivate.sh
+++++ unset PROJ_DATA
+++++ unset PROJ_NETWORK
+++++ '[' -n '' ']'
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh
+++++ test -n ''
+++++ unset XML_CATALOG_FILES
+++++ unset xml_catalog_files_libxml2
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh
+++++ export GSETTINGS_SCHEMA_DIR=
+++++ GSETTINGS_SCHEMA_DIR=
+++++ unset GSETTINGS_SCHEMA_DIR_CONDA_BACKUP
+++++ '[' -z ']'
+++++ unset GSETTINGS_SCHEMA_DIR
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/geotiff-deactivate.sh
+++++ unset GEOTIFF_CSV
+++++ '[' -n '' ']'
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/gdal-deactivate.sh
+++++ unset GDAL_DATA
+++++ '[' -n '' ']'
+++++ unset GDAL_DRIVER_PATH
+++++ '[' -n '' ']'
+++++ unset CPL_ZIP_ENCODING
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmpy-deactivate.sh
+++++ unset ESMFMKFILE
+++++ '[' -n /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
+++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++++ unset _CONDA_SET_ESMFMKFILE
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmf-deactivate.sh
+++++ unset ESMFMKFILE
+++++ '[' -n '' ']'
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh
++++ '[' -n '' ']'
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh
++++ '[' -n /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh
++++ '[' -n '' ']'
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/gdal ']'
++++ export GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ export GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ '[' '!' -d /opt/miniconda3/envs/testbed/lib/gdalplugins ']'
++++ export CPL_ZIP_ENCODING=UTF-8
++++ CPL_ZIP_ENCODING=UTF-8
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/epsg_csv ']'
++++ '[' -d /opt/miniconda3/envs/testbed/Library/share/epsg_csv ']'
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/proj ']'
++++ export PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ '[' -f /opt/miniconda3/envs/testbed/share/proj/copyright_and_licenses.csv ']'
++++ export PROJ_NETWORK=ON
++++ PROJ_NETWORK=ON
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/udunits ']'
++++ export UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++++ UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: numpy>=1.18 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from xarray==2022.3.1.dev43+g851dadeb.d20240725) (1.23.0)
+Requirement already satisfied: pandas>=1.1 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from xarray==2022.3.1.dev43+g851dadeb.d20240725) (1.5.3)
+Requirement already satisfied: packaging>=20.0 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from xarray==2022.3.1.dev43+g851dadeb.d20240725) (23.1)
+Requirement already satisfied: python-dateutil>=2.8.1 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from pandas>=1.1->xarray==2022.3.1.dev43+g851dadeb.d20240725) (2.8.2)
+Requirement already satisfied: pytz>=2020.1 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from pandas>=1.1->xarray==2022.3.1.dev43+g851dadeb.d20240725) (2023.3)
+Requirement already satisfied: six>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from python-dateutil>=2.8.1->pandas>=1.1->xarray==2022.3.1.dev43+g851dadeb.d20240725) (1.16.0)
+Building wheels for collected packages: xarray
+  Building editable for xarray (pyproject.toml): started
+  Building editable for xarray (pyproject.toml): finished with status 'done'
+  Created wheel for xarray: filename=xarray-2022.3.1.dev43+g851dadeb.d20240725-0.editable-py3-none-any.whl size=9108 sha256=b717140c66a390e530c76d4881cec3bf0e6fb743be5a161a40d332f47b65521b
+  Stored in directory: /tmp/pip-ephem-wheel-cache-b5ksuh37/wheels/0d/a6/cb/465a7b303d624cc531250fa27c75d038ddc29430bdb6ba7c9f
+Successfully built xarray
+Installing collected packages: xarray
+  Attempting uninstall: xarray
+    Found existing installation: xarray 2022.3.1.dev43+g851dadeb
+    Uninstalling xarray-2022.3.1.dev43+g851dadeb:
+      Successfully uninstalled xarray-2022.3.1.dev43+g851dadeb
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+Successfully installed xarray-2022.3.1.dev43+g851dadeb.d20240725
++ git checkout 851dadeb0338403e5021c3fbe80cbc9127ee672d xarray/tests/test_computation.py
+Updated 1 path from e8c11ae7
++ git apply -v -
+Checking patch xarray/tests/test_computation.py...
+Applied patch xarray/tests/test_computation.py cleanly.
++ pytest -rA xarray/tests/test_computation.py
+============================= test session starts ==============================
+platform linux -- Python 3.10.14, pytest-7.4.0, pluggy-1.5.0
+rootdir: /testbed
+configfile: setup.cfg
+plugins: hypothesis-6.108.4, cov-5.0.0, env-1.1.3, xdist-3.6.1
+collected 249 items
+
+xarray/tests/test_computation.py ....................................... [ 15%]
+.................................................s...................... [ 44%]
+........................................................................ [ 73%]
+..................................................................       [100%]
+
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED xarray/tests/test_computation.py::test_signature_properties
+PASSED xarray/tests/test_computation.py::test_result_name
+PASSED xarray/tests/test_computation.py::test_ordered_set_union
+PASSED xarray/tests/test_computation.py::test_ordered_set_intersection
+PASSED xarray/tests/test_computation.py::test_join_dict_keys
+PASSED xarray/tests/test_computation.py::test_collect_dict_values
+PASSED xarray/tests/test_computation.py::test_apply_identity
+PASSED xarray/tests/test_computation.py::test_apply_two_inputs
+PASSED xarray/tests/test_computation.py::test_apply_1d_and_0d
+PASSED xarray/tests/test_computation.py::test_apply_two_outputs
+PASSED xarray/tests/test_computation.py::test_apply_dask_parallelized_two_outputs
+PASSED xarray/tests/test_computation.py::test_apply_input_core_dimension
+PASSED xarray/tests/test_computation.py::test_apply_output_core_dimension
+PASSED xarray/tests/test_computation.py::test_apply_exclude
+PASSED xarray/tests/test_computation.py::test_apply_groupby_add
+PASSED xarray/tests/test_computation.py::test_unified_dim_sizes
+PASSED xarray/tests/test_computation.py::test_broadcast_compat_data_1d
+PASSED xarray/tests/test_computation.py::test_broadcast_compat_data_2d
+PASSED xarray/tests/test_computation.py::test_keep_attrs
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_variable[default]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_variable[False]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_variable[True]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_variable[override]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_variable[drop]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_variable[drop_conflicts]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_variable[no_conflicts]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray[default]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray[False]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray[True]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray[override]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray[drop]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray[drop_conflicts]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray[no_conflicts]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[default-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[default-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[False-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[False-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[True-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[True-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[override-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[override-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[drop-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[drop-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[drop_conflicts-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[drop_conflicts-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[no_conflicts-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataarray_variables[no_conflicts-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset[default]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset[False]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset[True]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset[override]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset[drop]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset[drop_conflicts]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset[no_conflicts]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[default-data]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[default-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[default-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[False-data]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[False-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[False-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[True-data]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[True-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[True-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[override-data]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[override-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[override-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[drop-data]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[drop-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[drop-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[drop_conflicts-data]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[drop_conflicts-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[drop_conflicts-coord]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[no_conflicts-data]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[no_conflicts-dim]
+PASSED xarray/tests/test_computation.py::test_keep_attrs_strategies_dataset_variables[no_conflicts-coord]
+PASSED xarray/tests/test_computation.py::test_dataset_join
+PASSED xarray/tests/test_computation.py::test_apply_dask
+PASSED xarray/tests/test_computation.py::test_apply_dask_parallelized_one_arg
+PASSED xarray/tests/test_computation.py::test_apply_dask_parallelized_two_args
+PASSED xarray/tests/test_computation.py::test_apply_dask_parallelized_errors
+PASSED xarray/tests/test_computation.py::test_apply_dask_multiple_inputs
+PASSED xarray/tests/test_computation.py::test_apply_dask_new_output_dimension
+PASSED xarray/tests/test_computation.py::test_apply_dask_new_output_sizes
+PASSED xarray/tests/test_computation.py::test_vectorize
+PASSED xarray/tests/test_computation.py::test_vectorize_dask
+PASSED xarray/tests/test_computation.py::test_vectorize_dask_dtype
+PASSED xarray/tests/test_computation.py::test_vectorize_dask_dtype_without_output_dtypes[data_array0]
+PASSED xarray/tests/test_computation.py::test_vectorize_dask_dtype_without_output_dtypes[data_array1]
+PASSED xarray/tests/test_computation.py::test_vectorize_exclude_dims
+PASSED xarray/tests/test_computation.py::test_vectorize_exclude_dims_dask
+PASSED xarray/tests/test_computation.py::test_corr_only_dataarray
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a0-da_b0-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a0-da_b0-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a1-da_b1-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a1-da_b1-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a2-da_b2-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a2-da_b2-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a3-da_b3-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a3-da_b3-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a4-da_b4-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a4-da_b4-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a5-da_b5-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[None-da_a5-da_b5-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a0-da_b0-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a0-da_b0-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a1-da_b1-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a1-da_b1-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a2-da_b2-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a2-da_b2-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a3-da_b3-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a3-da_b3-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a4-da_b4-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a4-da_b4-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a5-da_b5-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[x-da_a5-da_b5-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a0-da_b0-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a0-da_b0-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a1-da_b1-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a1-da_b1-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a2-da_b2-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a2-da_b2-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a3-da_b3-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a3-da_b3-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a4-da_b4-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a4-da_b4-1]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a5-da_b5-0]
+PASSED xarray/tests/test_computation.py::test_lazy_corrcov[time-da_a5-da_b5-1]
+PASSED xarray/tests/test_computation.py::test_cov[None-da_a0-da_b0-0]
+PASSED xarray/tests/test_computation.py::test_cov[None-da_a0-da_b0-1]
+PASSED xarray/tests/test_computation.py::test_cov[None-da_a1-da_b1-0]
+PASSED xarray/tests/test_computation.py::test_cov[None-da_a1-da_b1-1]
+PASSED xarray/tests/test_computation.py::test_cov[None-da_a2-da_b2-0]
+PASSED xarray/tests/test_computation.py::test_cov[None-da_a2-da_b2-1]
+PASSED xarray/tests/test_computation.py::test_cov[time-da_a0-da_b0-0]
+PASSED xarray/tests/test_computation.py::test_cov[time-da_a0-da_b0-1]
+PASSED xarray/tests/test_computation.py::test_cov[time-da_a1-da_b1-0]
+PASSED xarray/tests/test_computation.py::test_cov[time-da_a1-da_b1-1]
+PASSED xarray/tests/test_computation.py::test_cov[time-da_a2-da_b2-0]
+PASSED xarray/tests/test_computation.py::test_cov[time-da_a2-da_b2-1]
+PASSED xarray/tests/test_computation.py::test_corr[None-da_a0-da_b0]
+PASSED xarray/tests/test_computation.py::test_corr[None-da_a1-da_b1]
+PASSED xarray/tests/test_computation.py::test_corr[None-da_a2-da_b2]
+PASSED xarray/tests/test_computation.py::test_corr[time-da_a0-da_b0]
+PASSED xarray/tests/test_computation.py::test_corr[time-da_a1-da_b1]
+PASSED xarray/tests/test_computation.py::test_corr[time-da_a2-da_b2]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[None-da_a0-da_b0]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[None-da_a1-da_b1]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[None-da_a2-da_b2]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[None-da_a3-da_b3]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[None-da_a4-da_b4]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[None-da_a5-da_b5]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[None-da_a6-da_b6]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[None-da_a7-da_b7]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[None-da_a8-da_b8]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[time-da_a0-da_b0]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[time-da_a1-da_b1]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[time-da_a2-da_b2]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[time-da_a3-da_b3]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[time-da_a4-da_b4]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[time-da_a5-da_b5]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[time-da_a6-da_b6]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[time-da_a7-da_b7]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[time-da_a8-da_b8]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[x-da_a0-da_b0]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[x-da_a1-da_b1]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[x-da_a2-da_b2]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[x-da_a3-da_b3]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[x-da_a4-da_b4]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[x-da_a5-da_b5]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[x-da_a6-da_b6]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[x-da_a7-da_b7]
+PASSED xarray/tests/test_computation.py::test_covcorr_consistency[x-da_a8-da_b8]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[None-da_a0-da_b0]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[None-da_a1-da_b1]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[None-da_a2-da_b2]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[None-da_a3-da_b3]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[None-da_a4-da_b4]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[None-da_a5-da_b5]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[None-da_a6-da_b6]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[None-da_a7-da_b7]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[None-da_a8-da_b8]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[time-da_a0-da_b0]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[time-da_a1-da_b1]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[time-da_a2-da_b2]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[time-da_a3-da_b3]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[time-da_a4-da_b4]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[time-da_a5-da_b5]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[time-da_a6-da_b6]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[time-da_a7-da_b7]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[time-da_a8-da_b8]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[x-da_a0-da_b0]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[x-da_a1-da_b1]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[x-da_a2-da_b2]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[x-da_a3-da_b3]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[x-da_a4-da_b4]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[x-da_a5-da_b5]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[x-da_a6-da_b6]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[x-da_a7-da_b7]
+PASSED xarray/tests/test_computation.py::test_corr_lazycorr_consistency[x-da_a8-da_b8]
+PASSED xarray/tests/test_computation.py::test_corr_dtype_error
+PASSED xarray/tests/test_computation.py::test_autocov[None-da_a0]
+PASSED xarray/tests/test_computation.py::test_autocov[None-da_a1]
+PASSED xarray/tests/test_computation.py::test_autocov[None-da_a2]
+PASSED xarray/tests/test_computation.py::test_autocov[None-da_a3]
+PASSED xarray/tests/test_computation.py::test_autocov[None-da_a4]
+PASSED xarray/tests/test_computation.py::test_autocov[time-da_a0]
+PASSED xarray/tests/test_computation.py::test_autocov[time-da_a1]
+PASSED xarray/tests/test_computation.py::test_autocov[time-da_a2]
+PASSED xarray/tests/test_computation.py::test_autocov[time-da_a3]
+PASSED xarray/tests/test_computation.py::test_autocov[time-da_a4]
+PASSED xarray/tests/test_computation.py::test_autocov[x-da_a0]
+PASSED xarray/tests/test_computation.py::test_autocov[x-da_a1]
+PASSED xarray/tests/test_computation.py::test_autocov[x-da_a2]
+PASSED xarray/tests/test_computation.py::test_autocov[x-da_a3]
+PASSED xarray/tests/test_computation.py::test_autocov[x-da_a4]
+PASSED xarray/tests/test_computation.py::test_autocov[dim3-da_a0]
+PASSED xarray/tests/test_computation.py::test_autocov[dim3-da_a1]
+PASSED xarray/tests/test_computation.py::test_autocov[dim3-da_a2]
+PASSED xarray/tests/test_computation.py::test_autocov[dim3-da_a3]
+PASSED xarray/tests/test_computation.py::test_autocov[dim3-da_a4]
+PASSED xarray/tests/test_computation.py::test_vectorize_dask_new_output_dims
+PASSED xarray/tests/test_computation.py::test_output_wrong_number
+PASSED xarray/tests/test_computation.py::test_output_wrong_dims
+PASSED xarray/tests/test_computation.py::test_output_wrong_dim_size
+PASSED xarray/tests/test_computation.py::test_dot[True]
+PASSED xarray/tests/test_computation.py::test_dot[False]
+PASSED xarray/tests/test_computation.py::test_dot_align_coords[True]
+PASSED xarray/tests/test_computation.py::test_dot_align_coords[False]
+PASSED xarray/tests/test_computation.py::test_where
+PASSED xarray/tests/test_computation.py::test_where_attrs
+PASSED xarray/tests/test_computation.py::test_polyval[True-True]
+PASSED xarray/tests/test_computation.py::test_polyval[True-False]
+PASSED xarray/tests/test_computation.py::test_polyval[False-True]
+PASSED xarray/tests/test_computation.py::test_polyval[False-False]
+PASSED xarray/tests/test_computation.py::test_cross[a0-b0-ae0-be0-dim_0--1-False]
+PASSED xarray/tests/test_computation.py::test_cross[a0-b0-ae0-be0-dim_0--1-True]
+PASSED xarray/tests/test_computation.py::test_cross[a1-b1-ae1-be1-dim_0--1-False]
+PASSED xarray/tests/test_computation.py::test_cross[a1-b1-ae1-be1-dim_0--1-True]
+PASSED xarray/tests/test_computation.py::test_cross[a2-b2-ae2-be2-dim_0--1-False]
+PASSED xarray/tests/test_computation.py::test_cross[a2-b2-ae2-be2-dim_0--1-True]
+PASSED xarray/tests/test_computation.py::test_cross[a3-b3-ae3-be3-dim_0--1-False]
+PASSED xarray/tests/test_computation.py::test_cross[a3-b3-ae3-be3-dim_0--1-True]
+PASSED xarray/tests/test_computation.py::test_cross[a4-b4-ae4-be4-cartesian-1-False]
+PASSED xarray/tests/test_computation.py::test_cross[a4-b4-ae4-be4-cartesian-1-True]
+PASSED xarray/tests/test_computation.py::test_cross[a5-b5-ae5-be5-cartesian--1-False]
+PASSED xarray/tests/test_computation.py::test_cross[a5-b5-ae5-be5-cartesian--1-True]
+PASSED xarray/tests/test_computation.py::test_cross[a6-b6-ae6-be6-cartesian--1-False]
+PASSED xarray/tests/test_computation.py::test_cross[a6-b6-ae6-be6-cartesian--1-True]
+SKIPPED [1] xarray/tests/test_computation.py:1305: dask/dask#7669: can no longer pass output_dtypes and meta
+======================= 248 passed, 1 skipped in 13.89s ========================
++ git checkout 851dadeb0338403e5021c3fbe80cbc9127ee672d xarray/tests/test_computation.py
+Updated 1 path from e8c11ae7

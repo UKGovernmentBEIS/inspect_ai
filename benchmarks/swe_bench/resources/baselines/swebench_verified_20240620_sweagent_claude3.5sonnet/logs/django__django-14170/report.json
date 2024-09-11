@@ -1,0 +1,107 @@
+{
+    "django__django-14170": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "test_extract_iso_year_func_boundaries (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_iso_year_func_boundaries (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_extract_day_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_duration_unsupported_lookups (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_duration_without_native_duration_field (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_hour_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_iso_weekday_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_iso_year_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_minute_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_month_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_none (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_quarter_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_quarter_func_boundaries (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_second_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_week_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_week_func_boundaries (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_weekday_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_trunc_date_none (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_trunc_day_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_trunc_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_trunc_hour_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_trunc_minute_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_trunc_month_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_trunc_none (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_trunc_quarter_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_trunc_second_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_trunc_subquery_with_parameters (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_trunc_time_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_trunc_time_none (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_trunc_week_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_trunc_year_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_day_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_duration_unsupported_lookups (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_duration_without_native_duration_field (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_func_explicit_timezone_priority (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_func_with_timezone (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_hour_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_invalid_field_with_timezone (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_iso_weekday_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_iso_year_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_minute_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_month_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_none (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_quarter_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_quarter_func_boundaries (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_second_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_week_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_week_func_boundaries (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_weekday_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_trunc_date_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_trunc_date_none (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_trunc_day_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_trunc_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "If the truncated datetime transitions to a different offset (daylight",
+                    "test_trunc_hour_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_trunc_invalid_field_with_timezone (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_trunc_minute_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_trunc_month_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_trunc_none (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_trunc_quarter_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_trunc_second_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_trunc_subquery_with_parameters (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_trunc_time_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_trunc_time_none (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_trunc_timezone_applied_before_truncation (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_trunc_week_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_trunc_year_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)"
+                ],
+                "failure": [
+                    "Extract year uses a BETWEEN filter to compare the year to allow indexes",
+                    "test_extract_year_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_year_greaterthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_year_lessthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_trunc_date_func (db_functions.datetime.test_extract_trunc.DateFunctionTests)",
+                    "test_extract_year_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_year_greaterthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_extract_year_lessthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)",
+                    "test_trunc_ambiguous_and_invalid_times (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)"
+                ]
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

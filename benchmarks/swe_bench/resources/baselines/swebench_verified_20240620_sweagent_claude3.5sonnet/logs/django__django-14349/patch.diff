@@ -1,0 +1,49 @@
+
+diff --git a/django/core/validators.py b/django/core/validators.py
+index a385819510..4da4e39a3a 100644
+--- a/django/core/validators.py
++++ b/django/core/validators.py
+@@ -101,6 +101,9 @@ class URLValidator(RegexValidator):
+     def __call__(self, value):
+         if not isinstance(value, str):
+             raise ValidationError(self.message, code=self.code, params={'value': value})
++        # Check for newline, carriage return, and tab characters
++        if '\n' in value or '\r' in value or '\t' in value:
++            raise ValidationError(self.message, code=self.code, params={'value': value})
+         # Check if the scheme is valid.
+         scheme = value.split('://')[0].lower()
+         if scheme not in self.schemes:
+diff --git a/docs/ref/validators.txt b/docs/ref/validators.txt
+index 50761e5a42..90cbcc8459 100644
+--- a/docs/ref/validators.txt
++++ b/docs/ref/validators.txt
+@@ -163,12 +163,11 @@ to, or in lieu of custom ``field.clean()`` methods.
+ 
+ .. class:: URLValidator(schemes=None, regex=None, message=None, code=None)
+ 
+-    A :class:`RegexValidator` subclass that ensures a value looks like a URL,
+-    and raises an error code of ``'invalid'`` if it doesn't.
++    A :class:`RegexValidator` that ensures a value looks like a URL, and raises
++    an error code of ``'invalid'`` if it doesn't.
+ 
+     Loopback addresses and reserved IP spaces are considered valid. Literal
+-    IPv6 addresses (:rfc:`3986#section-3.2.2`) and Unicode domains are both
+-    supported.
++    IPv6 addresses (:rfc:`2732`) are supported.
+ 
+     In addition to the optional arguments of its parent :class:`RegexValidator`
+     class, ``URLValidator`` accepts an extra optional attribute:
+@@ -179,7 +178,12 @@ to, or in lieu of custom ``field.clean()`` methods.
+         list is ``['http', 'https', 'ftp', 'ftps']``. As a reference, the IANA
+         website provides a full list of `valid URI schemes`_.
+ 
+-        .. _valid URI schemes: https://www.iana.org/assignments/uri-schemes/uri-schemes.xhtml
++    .. note::
++        The URLValidator will reject URLs containing newline (``\n``),
++        carriage return (``\r``), or tab (``\t``) characters.
++
++.. _valid URI schemes: https://www.iana.org/assignments/uri-schemes/uri-schemes.xhtml
++
+ 
+ ``validate_email``
+ ------------------

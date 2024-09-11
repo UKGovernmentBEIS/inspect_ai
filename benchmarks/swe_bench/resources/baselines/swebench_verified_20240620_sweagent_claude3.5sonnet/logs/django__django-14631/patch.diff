@@ -1,0 +1,144 @@
+
+diff --git a/django/forms/boundfield.py b/django/forms/boundfield.py
+index 88adadb37d..bb2b6b62f8 100644
+--- a/django/forms/boundfield.py
++++ b/django/forms/boundfield.py
+@@ -69,6 +69,23 @@ class BoundField:
+                 % type(idx).__name__
+             )
+         return self.subwidgets[idx]
++    @property
++    def _did_change(self):
++        """
++        Return True if the data for this field has changed from its initial value.
++        """
++        data = self.data
++        initial = self.initial if self.form.is_bound else self.form.initial.get(self.name, self.field.initial)
++        if isinstance(data, str) and isinstance(initial, str):
++            return data != initial
++        elif isinstance(data, datetime.datetime) and isinstance(initial, datetime.datetime):
++            return data.replace(microsecond=0) != initial.replace(microsecond=0)
++        elif isinstance(data, datetime.date) and isinstance(initial, datetime.date):
++            return data != initial
++        elif isinstance(data, (list, tuple)) and isinstance(initial, (list, tuple)):
++            return set(data) != set(initial)
++        else:
++            return data != initial
+ 
+     @property
+     def errors(self):
+diff --git a/django/forms/forms.py b/django/forms/forms.py
+index d14037bfe9..da89fe0b14 100644
+--- a/django/forms/forms.py
++++ b/django/forms/forms.py
+@@ -5,6 +5,7 @@ Form classes
+ import copy
+ 
+ from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
++from django.forms.boundfield import BoundField
+ from django.forms.fields import Field, FileField
+ from django.forms.utils import ErrorDict, ErrorList
+ from django.forms.widgets import Media, MediaDefiningClass
+@@ -106,6 +107,13 @@ class BaseForm:
+                     renderer = renderer()
+         self.renderer = renderer
+ 
++    def is_multipart(self):
++        """
++        Return True if the form needs to be multipart-encoded, i.e. it has
++        FileInput, or False otherwise.
++        """
++        return any(field.widget.needs_multipart_form for field in self.fields.values())
++
+     def order_fields(self, field_order):
+         """
+         Rearrange the fields according to field_order.
+@@ -384,27 +392,34 @@ class BaseForm:
+ 
+         self._clean_fields()
+         self._clean_form()
+-        self._post_clean()
++    def _bound_items(self):
++        """
++        Yield BoundField objects for each field in the form, in the order
++        in which the fields were declared.
++        """
++        for name, field in self.fields.items():
++            yield name, BoundField(self, field, name)
++
+ 
+     def _clean_fields(self):
+-        for name, field in self.fields.items():
++        for name, bf in self._bound_items():
++            field = bf.field
+             if field.disabled:
+                 value = self.get_initial_for_field(field, name)
+             else:
+-                value = self._field_data_value(field, self.add_prefix(name))
++                value = bf.data
+             try:
+                 if isinstance(field, FileField):
+                     initial = self.get_initial_for_field(field, name)
+-                    value = field.clean(value, initial)
++                    value = bf.field.clean(value, initial)
+                 else:
+-                    value = field.clean(value)
++                    value = bf.field.clean(value)
+                 self.cleaned_data[name] = value
+                 if hasattr(self, 'clean_%s' % name):
+                     value = getattr(self, 'clean_%s' % name)()
+                     self.cleaned_data[name] = value
+             except ValidationError as e:
+                 self.add_error(name, e)
+-
+     def _clean_form(self):
+         try:
+             cleaned_data = self.clean()
+@@ -436,43 +451,10 @@ class BaseForm:
+ 
+     @cached_property
+     def changed_data(self):
+-        data = []
+-        for name, field in self.fields.items():
+-            data_value = self._field_data_value(field, self.add_prefix(name))
+-            if not field.show_hidden_initial:
+-                # Use the BoundField's initial as this is the value passed to
+-                # the widget.
+-                initial_value = self[name].initial
+-            else:
+-                initial_prefixed_name = self.add_initial_prefix(name)
+-                hidden_widget = field.hidden_widget()
+-                try:
+-                    initial_value = field.to_python(
+-                        self._widget_data_value(hidden_widget, initial_prefixed_name)
+-                    )
+-                except ValidationError:
+-                    # Always assume data has changed if validation fails.
+-                    data.append(name)
+-                    continue
+-            if field.has_changed(initial_value, data_value):
+-                data.append(name)
+-        return data
+-
+-    @property
+-    def media(self):
+-        """Return all media required to render the widgets on this form."""
+-        media = Media()
+-        for field in self.fields.values():
+-            media = media + field.widget.media
+-        return media
+-
+-    def is_multipart(self):
+-        """
+-        Return True if the form needs to be multipart-encoded, i.e. it has
+-        FileInput, or False otherwise.
+-        """
+-        return any(field.widget.needs_multipart_form for field in self.fields.values())
+-
++        return [
++            name for name, field in self._bound_items()
++            if field._did_change
++        ]
+     def hidden_fields(self):
+         """
+         Return a list of all the BoundField objects that are hidden fields.

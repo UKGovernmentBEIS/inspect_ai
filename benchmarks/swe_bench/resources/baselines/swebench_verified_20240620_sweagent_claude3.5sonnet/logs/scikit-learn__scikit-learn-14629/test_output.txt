@@ -1,0 +1,593 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sklearn/model_selection/_validation.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_bug.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 4aded39b5663d943f6a4809abacfa9cae3d7fb6a
+Author: Samesh Lakhotia <43701530+sameshl@users.noreply.github.com>
+Date:   Wed Aug 14 10:15:59 2019 +0530
+
+    MAINT Remove the use of assert_raises and assert_raises_regex (#14645)
+
+diff --git a/sklearn/cluster/tests/test_hierarchical.py b/sklearn/cluster/tests/test_hierarchical.py
+index c630ea5d2..ca021fc30 100644
+--- a/sklearn/cluster/tests/test_hierarchical.py
++++ b/sklearn/cluster/tests/test_hierarchical.py
+@@ -15,7 +15,6 @@ from scipy import sparse
+ from scipy.cluster import hierarchy
+ 
+ from sklearn.metrics.cluster.supervised import adjusted_rand_score
+-from sklearn.utils.testing import assert_raises
+ from sklearn.utils.testing import assert_almost_equal
+ from sklearn.utils.testing import assert_array_almost_equal
+ from sklearn.utils.testing import assert_raise_message
+@@ -41,9 +40,14 @@ def test_linkage_misc():
+     # Misc tests on linkage
+     rng = np.random.RandomState(42)
+     X = rng.normal(size=(5, 5))
+-    assert_raises(ValueError, AgglomerativeClustering(linkage='foo').fit, X)
+-    assert_raises(ValueError, linkage_tree, X, linkage='foo')
+-    assert_raises(ValueError, linkage_tree, X, connectivity=np.ones((4, 4)))
++    with pytest.raises(ValueError):
++        AgglomerativeClustering(linkage='foo').fit(X)
++
++    with pytest.raises(ValueError):
++        linkage_tree(X, linkage='foo')
++
++    with pytest.raises(ValueError):
++        linkage_tree(X, connectivity=np.ones((4, 4)))
+ 
+     # Smoke test FeatureAgglomeration
+     FeatureAgglomeration().fit(X)
+@@ -74,11 +78,11 @@ def test_structured_linkage_tree():
+         assert len(children) + n_leaves == n_nodes
+         # Check that ward_tree raises a ValueError with a connectivity matrix
+         # of the wrong shape
+-        assert_raises(ValueError,
+-                      tree_builder, X.T, np.ones((4, 4)))
++        with pytest.raises(ValueError):
++            tree_builder(X.T, np.ones((4, 4)))
+         # Check that fitting with no samples raises an error
+-        assert_raises(ValueError,
+-                      tree_builder, X.T[:0], connectivity)
++        with pytest.raises(ValueError):
++            tree_builder(X.T[:0], connectivity)
+ 
+ 
+ def test_unstructured_linkage_tree():
+@@ -124,7 +128,8 @@ def test_agglomerative_clustering_wrong_arg_memory():
+     X = rng.randn(n_samples, 50)
+     memory = 5
+     clustering = AgglomerativeClustering(memory=memory)
+-    assert_raises(ValueError, clustering.fit, X)
++    with pytest.raises(ValueError):
++        clustering.fit(X)
+ 
+ 
+ def test_zero_cosine_linkage_tree():
+@@ -179,7 +184,8 @@ def test_agglomerative_clustering():
+             connectivity=sparse.lil_matrix(
+                 connectivity.toarray()[:10, :10]),
+             linkage=linkage)
+-        assert_raises(ValueError, clustering.fit, X)
++        with pytest.raises(ValueError):
++            clustering.fit(X)
+ 
+     # Test that using ward with another metric than euclidean raises an
+     # exception
+@@ -188,7 +194,8 @@ def test_agglomerative_clustering():
+         connectivity=connectivity.toarray(),
+         affinity="manhattan",
+         linkage="ward")
+-    assert_raises(ValueError, clustering.fit, X)
++    with pytest.raises(ValueError):
++        clustering.fit(X)
+ 
+     # Test using another metric than euclidean works with linkage complete
+     for affinity in PAIRED_DISTANCES.keys():
+@@ -241,7 +248,8 @@ def test_ward_agglomeration():
+     assert_array_almost_equal(agglo.transform(X_full), X_red)
+ 
+     # Check that fitting with no samples raises a ValueError
+-    assert_raises(ValueError, agglo.fit, X[:0])
++    with pytest.raises(ValueError):
++        agglo.fit(X[:0])
+ 
+ 
+ def test_single_linkage_clustering():
+@@ -302,7 +310,8 @@ def test_scikit_vs_scipy():
+             assess_same_labelling(cut, cut_)
+ 
+     # Test error management in _hc_cut
+-    assert_raises(ValueError, _hc_cut, n_leaves + 1, children, n_leaves)
++    with pytest.raises(ValueError):
++        _hc_cut(n_leaves + 1, children, n_leaves)
+ 
+ 
+ def test_identical_points():
++ git diff 4aded39b5663d943f6a4809abacfa9cae3d7fb6a
+diff --git a/sklearn/model_selection/_validation.py b/sklearn/model_selection/_validation.py
+index 95669a212..d6f0caf04 100644
+--- a/sklearn/model_selection/_validation.py
++++ b/sklearn/model_selection/_validation.py
+@@ -1,7 +1,7 @@
+-"""
+-The :mod:`sklearn.model_selection._validation` module includes classes and
+-functions to validate the model.
+-"""
++# Remove the following line:
++# from sklearn.multioutput import MultiOutputClassifier
++
++# Keep the rest of the imports as they were
+ 
+ # Author: Alexandre Gramfort <alexandre.gramfort@inria.fr>
+ #         Gael Varoquaux <gael.varoquaux@normalesup.org>
+@@ -9,7 +9,6 @@ functions to validate the model.
+ #         Raghav RV <rvraghav93@gmail.com>
+ # License: BSD 3 clause
+ 
+-
+ import warnings
+ import numbers
+ import time
+@@ -854,7 +853,14 @@ def _fit_and_predict(estimator, X, y, train, test, verbose, fit_params,
+     func = getattr(estimator, method)
+     predictions = func(X_test)
+     if method in ['decision_function', 'predict_proba', 'predict_log_proba']:
+-        if isinstance(predictions, list):
++        if estimator.__class__.__name__ == 'MultiOutputClassifier':
++            if method in ['decision_function', 'predict_proba', 'predict_log_proba']:
++                raise AttributeError("'MultiOutputClassifier' object has no attribute 'classes_'")
++            predictions = [_enforce_prediction_order(
++                estimator.estimators_[i_label].classes_, predictions[i_label],
++                n_classes=len(set(y[:, i_label])), method=method)
++                for i_label in range(len(predictions))]
++        elif isinstance(predictions, list):
+             predictions = [_enforce_prediction_order(
+                 estimator.classes_[i_label], predictions[i_label],
+                 n_classes=len(set(y[:, i_label])), method=method)
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -v --no-use-pep517 --no-build-isolation -e .
+Using pip 21.2.2 from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/pip (python 3.6)
+Obtaining file:///testbed
+    Running command python setup.py egg_info
+    running egg_info
+    creating /tmp/pip-pip-egg-info-5wpow1u3/scikit_learn.egg-info
+    writing /tmp/pip-pip-egg-info-5wpow1u3/scikit_learn.egg-info/PKG-INFO
+    writing dependency_links to /tmp/pip-pip-egg-info-5wpow1u3/scikit_learn.egg-info/dependency_links.txt
+    writing requirements to /tmp/pip-pip-egg-info-5wpow1u3/scikit_learn.egg-info/requires.txt
+    writing top-level names to /tmp/pip-pip-egg-info-5wpow1u3/scikit_learn.egg-info/top_level.txt
+    writing manifest file '/tmp/pip-pip-egg-info-5wpow1u3/scikit_learn.egg-info/SOURCES.txt'
+    reading manifest file '/tmp/pip-pip-egg-info-5wpow1u3/scikit_learn.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    adding license file 'COPYING'
+    writing manifest file '/tmp/pip-pip-egg-info-5wpow1u3/scikit_learn.egg-info/SOURCES.txt'
+    Partial import of sklearn during the build process.
+Requirement already satisfied: numpy>=1.11.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from scikit-learn==0.22.dev0) (1.19.2)
+Requirement already satisfied: scipy>=0.17.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from scikit-learn==0.22.dev0) (1.5.2)
+Requirement already satisfied: joblib>=0.11 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from scikit-learn==0.22.dev0) (1.1.1)
+Installing collected packages: scikit-learn
+  Attempting uninstall: scikit-learn
+    Found existing installation: scikit-learn 0.22.dev0
+    Uninstalling scikit-learn-0.22.dev0:
+      Removing file or directory /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/scikit-learn.egg-link
+      Removing pth entries from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/easy-install.pth:
+      Removing entry: /testbed
+      Successfully uninstalled scikit-learn-0.22.dev0
+  Running setup.py develop for scikit-learn
+    Running command /opt/miniconda3/envs/testbed/bin/python -c 'import io, os, sys, setuptools, tokenize; sys.argv[0] = '"'"'/testbed/setup.py'"'"'; __file__='"'"'/testbed/setup.py'"'"';f = getattr(tokenize, '"'"'open'"'"', open)(__file__) if os.path.exists(__file__) else io.StringIO('"'"'from setuptools import setup; setup()'"'"');code = f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' develop --no-deps
+    C compiler: gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC
+
+    compile options: '-c'
+    extra options: '-fopenmp'
+    gcc: test_openmp.c
+    gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ objects/test_openmp.o -o test_openmp -fopenmp
+    running develop
+    running build_scripts
+    running egg_info
+    running build_src
+    build_src
+    building library "libsvm-skl" sources
+    building extension "sklearn.__check_build._check_build" sources
+    building extension "sklearn.preprocessing._csr_polynomial_expansion" sources
+    building extension "sklearn.cluster._dbscan_inner" sources
+    building extension "sklearn.cluster._hierarchical" sources
+    building extension "sklearn.cluster._k_means_elkan" sources
+    building extension "sklearn.cluster._k_means" sources
+    building extension "sklearn.datasets._svmlight_format" sources
+    building extension "sklearn.decomposition._online_lda" sources
+    building extension "sklearn.decomposition.cdnmf_fast" sources
+    building extension "sklearn.ensemble._gradient_boosting" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting._gradient_boosting" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting.histogram" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting.splitting" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting._binning" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting._predictor" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting._loss" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting.types" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting.utils" sources
+    building extension "sklearn.feature_extraction._hashing" sources
+    building extension "sklearn.manifold._utils" sources
+    building extension "sklearn.manifold._barnes_hut_tsne" sources
+    building extension "sklearn.metrics.cluster.expected_mutual_info_fast" sources
+    building extension "sklearn.metrics.pairwise_fast" sources
+    building extension "sklearn.neighbors.ball_tree" sources
+    building extension "sklearn.neighbors.kd_tree" sources
+    building extension "sklearn.neighbors.dist_metrics" sources
+    building extension "sklearn.neighbors.typedefs" sources
+    building extension "sklearn.neighbors.quad_tree" sources
+    building extension "sklearn.tree._tree" sources
+    building extension "sklearn.tree._splitter" sources
+    building extension "sklearn.tree._criterion" sources
+    building extension "sklearn.tree._utils" sources
+    building extension "sklearn.utils.sparsefuncs_fast" sources
+    building extension "sklearn.utils._cython_blas" sources
+    building extension "sklearn.utils.arrayfuncs" sources
+    building extension "sklearn.utils.murmurhash" sources
+    building extension "sklearn.utils.graph_shortest_path" sources
+    building extension "sklearn.utils.fast_dict" sources
+    building extension "sklearn.utils.seq_dataset" sources
+    building extension "sklearn.utils.weight_vector" sources
+    building extension "sklearn.utils._random" sources
+    building extension "sklearn.utils._logistic_sigmoid" sources
+    building extension "sklearn.svm.libsvm" sources
+    building extension "sklearn.svm.liblinear" sources
+    building extension "sklearn.svm.libsvm_sparse" sources
+    building extension "sklearn.linear_model.cd_fast" sources
+    building extension "sklearn.linear_model.sgd_fast" sources
+    building extension "sklearn.linear_model.sag_fast" sources
+    building extension "sklearn._isotonic" sources
+    building data_files sources
+    build_src: building npy-pkg config files
+    writing scikit_learn.egg-info/PKG-INFO
+    writing dependency_links to scikit_learn.egg-info/dependency_links.txt
+    writing requirements to scikit_learn.egg-info/requires.txt
+    writing top-level names to scikit_learn.egg-info/top_level.txt
+    reading manifest file 'scikit_learn.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    adding license file 'COPYING'
+    writing manifest file 'scikit_learn.egg-info/SOURCES.txt'
+    running build_ext
+    customize UnixCCompiler
+    customize UnixCCompiler using build_clib
+    customize UnixCCompiler
+    customize UnixCCompiler using build_ext_subclass
+    customize UnixCCompiler
+    customize UnixCCompiler using build_ext_subclass
+    Creating /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/scikit-learn.egg-link (link to .)
+    Adding scikit-learn 0.22.dev0 to easy-install.pth file
+
+    Installed /testbed
+    Partial import of sklearn during the build process.
+Successfully installed scikit-learn-0.22.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 4aded39b5663d943f6a4809abacfa9cae3d7fb6a sklearn/tests/test_multioutput.py
+Updated 0 paths from 69762d3f5
++ git apply -v -
+Checking patch sklearn/tests/test_multioutput.py...
+Applied patch sklearn/tests/test_multioutput.py cleanly.
++ pytest -rA sklearn/tests/test_multioutput.py
+============================= test session starts ==============================
+platform linux -- Python 3.6.13, pytest-6.2.4, py-1.11.0, pluggy-0.13.1
+rootdir: /testbed, configfile: setup.cfg
+collected 27 items
+
+sklearn/tests/test_multioutput.py .........................F.            [100%]
+
+=================================== FAILURES ===================================
+____________________ test_multi_output_classes_[estimator1] ____________________
+
+estimator = MultiOutputClassifier(estimator=RandomForestClassifier(bootstrap=True,
+                                               ...verbose=0,
+                                                       warm_start=False),
+                      n_jobs=None)
+
+    @pytest.mark.parametrize(
+        'estimator',
+        [RandomForestClassifier(n_estimators=2),
+         MultiOutputClassifier(RandomForestClassifier(n_estimators=2)),
+         ClassifierChain(RandomForestClassifier(n_estimators=2))]
+    )
+    def test_multi_output_classes_(estimator):
+        # Tests classes_ attribute of multioutput classifiers
+        # RandomForestClassifier supports multioutput out-of-the-box
+        estimator.fit(X, y)
+>       assert isinstance(estimator.classes_, list)
+E       AttributeError: 'MultiOutputClassifier' object has no attribute 'classes_'
+
+sklearn/tests/test_multioutput.py:542: AttributeError
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED sklearn/tests/test_multioutput.py::test_multi_target_regression
+PASSED sklearn/tests/test_multioutput.py::test_multi_target_regression_partial_fit
+PASSED sklearn/tests/test_multioutput.py::test_multi_target_regression_one_target
+PASSED sklearn/tests/test_multioutput.py::test_multi_target_sparse_regression
+PASSED sklearn/tests/test_multioutput.py::test_multi_target_sample_weights_api
+PASSED sklearn/tests/test_multioutput.py::test_multi_target_sample_weight_partial_fit
+PASSED sklearn/tests/test_multioutput.py::test_multi_target_sample_weights
+PASSED sklearn/tests/test_multioutput.py::test_multi_output_classification_partial_fit_parallelism
+PASSED sklearn/tests/test_multioutput.py::test_multi_output_predict_proba
+PASSED sklearn/tests/test_multioutput.py::test_multi_output_classification_partial_fit
+PASSED sklearn/tests/test_multioutput.py::test_multi_output_classification_partial_fit_no_first_classes_exception
+PASSED sklearn/tests/test_multioutput.py::test_multi_output_classification
+PASSED sklearn/tests/test_multioutput.py::test_multiclass_multioutput_estimator
+PASSED sklearn/tests/test_multioutput.py::test_multiclass_multioutput_estimator_predict_proba
+PASSED sklearn/tests/test_multioutput.py::test_multi_output_classification_sample_weights
+PASSED sklearn/tests/test_multioutput.py::test_multi_output_classification_partial_fit_sample_weights
+PASSED sklearn/tests/test_multioutput.py::test_multi_output_exceptions
+PASSED sklearn/tests/test_multioutput.py::test_classifier_chain_fit_and_predict_with_linear_svc
+PASSED sklearn/tests/test_multioutput.py::test_classifier_chain_fit_and_predict_with_sparse_data
+PASSED sklearn/tests/test_multioutput.py::test_classifier_chain_vs_independent_models
+PASSED sklearn/tests/test_multioutput.py::test_base_chain_fit_and_predict
+PASSED sklearn/tests/test_multioutput.py::test_base_chain_fit_and_predict_with_sparse_data_and_cv
+PASSED sklearn/tests/test_multioutput.py::test_base_chain_random_order
+PASSED sklearn/tests/test_multioutput.py::test_base_chain_crossval_fit_and_predict
+PASSED sklearn/tests/test_multioutput.py::test_multi_output_classes_[estimator0]
+PASSED sklearn/tests/test_multioutput.py::test_multi_output_classes_[estimator2]
+FAILED sklearn/tests/test_multioutput.py::test_multi_output_classes_[estimator1]
+================== 1 failed, 26 passed, 61 warnings in 29.05s ==================
++ git checkout 4aded39b5663d943f6a4809abacfa9cae3d7fb6a sklearn/tests/test_multioutput.py
+Updated 1 path from 69762d3f5

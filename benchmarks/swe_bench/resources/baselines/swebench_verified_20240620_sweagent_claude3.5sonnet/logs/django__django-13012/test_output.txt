@@ -1,0 +1,888 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/models/sql/compiler.py
+	modified:   tests/expressions/models.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	tests/expressions/test_constant_expressions.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 22a59c01c00cf9fbefaee0e8e67fab82bbaf1fd2
+Author: Adam Johnson <me@adamj.eu>
+Date:   Tue Jun 2 23:18:15 2020 +0100
+
+    Refs #31615 -- Added EXISTS clauses to extension operations.
+
+diff --git a/django/contrib/postgres/operations.py b/django/contrib/postgres/operations.py
+index b25438b826..7c28bc48ce 100644
+--- a/django/contrib/postgres/operations.py
++++ b/django/contrib/postgres/operations.py
+@@ -23,7 +23,7 @@ class CreateExtension(Operation):
+             return
+         if not self.extension_exists(schema_editor, self.name):
+             schema_editor.execute(
+-                'CREATE EXTENSION %s' % schema_editor.quote_name(self.name)
++                'CREATE EXTENSION IF NOT EXISTS %s' % schema_editor.quote_name(self.name)
+             )
+         # Clear cached, stale oids.
+         get_hstore_oids.cache_clear()
+@@ -38,7 +38,7 @@ class CreateExtension(Operation):
+             return
+         if self.extension_exists(schema_editor, self.name):
+             schema_editor.execute(
+-                'DROP EXTENSION %s' % schema_editor.quote_name(self.name)
++                'DROP EXTENSION IF EXISTS %s' % schema_editor.quote_name(self.name)
+             )
+         # Clear cached, stale oids.
+         get_hstore_oids.cache_clear()
+diff --git a/tests/postgres_tests/test_operations.py b/tests/postgres_tests/test_operations.py
+index a10f5da440..114c141a61 100644
+--- a/tests/postgres_tests/test_operations.py
++++ b/tests/postgres_tests/test_operations.py
+@@ -183,13 +183,13 @@ class CreateExtensionTests(PostgreSQLTestCase):
+             with connection.schema_editor(atomic=False) as editor:
+                 operation.database_forwards(self.app_label, editor, project_state, new_state)
+         self.assertEqual(len(captured_queries), 4)
+-        self.assertIn('CREATE EXTENSION', captured_queries[1]['sql'])
++        self.assertIn('CREATE EXTENSION IF NOT EXISTS', captured_queries[1]['sql'])
+         # Reversal.
+         with CaptureQueriesContext(connection) as captured_queries:
+             with connection.schema_editor(atomic=False) as editor:
+                 operation.database_backwards(self.app_label, editor, new_state, project_state)
+         self.assertEqual(len(captured_queries), 2)
+-        self.assertIn('DROP EXTENSION', captured_queries[1]['sql'])
++        self.assertIn('DROP EXTENSION IF EXISTS', captured_queries[1]['sql'])
+ 
+     def test_create_existing_extension(self):
+         operation = BloomExtension()
++ git diff 22a59c01c00cf9fbefaee0e8e67fab82bbaf1fd2
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index abbb1e37cb..d9bfbe4d03 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -6,9 +6,9 @@ from itertools import chain
+ from django.core.exceptions import EmptyResultSet, FieldError
+ from django.db import DatabaseError, NotSupportedError
+ from django.db.models.constants import LOOKUP_SEP
+-from django.db.models.expressions import F, OrderBy, Random, RawSQL, Ref, Value
+-from django.db.models.functions import Cast
+-from django.db.models.query_utils import Q, select_related_descend
++from django.db.models.expressions import (
++    F, OrderBy, Random, RawSQL, Ref, Value, ExpressionWrapper
++)
+ from django.db.models.sql.constants import (
+     CURSOR, GET_ITERATOR_CHUNK_SIZE, MULTI, NO_RESULTS, ORDER_DIR, SINGLE,
+ )
+@@ -68,66 +68,28 @@ class SQLCompiler:
+         to describe in other words than "if it passes the test suite,
+         then it is correct".
+         """
+-        # Some examples:
+-        #     SomeModel.objects.annotate(Count('somecol'))
+-        #     GROUP BY: all fields of the model
+-        #
+-        #    SomeModel.objects.values('name').annotate(Count('somecol'))
+-        #    GROUP BY: name
+-        #
+-        #    SomeModel.objects.annotate(Count('somecol')).values('name')
+-        #    GROUP BY: all cols of the model
+-        #
+-        #    SomeModel.objects.values('name', 'pk').annotate(Count('somecol')).values('pk')
+-        #    GROUP BY: name, pk
+-        #
+-        #    SomeModel.objects.values('name').annotate(Count('somecol')).values('pk')
+-        #    GROUP BY: name, pk
+-        #
+-        # In fact, the self.query.group_by is the minimal set to GROUP BY. It
+-        # can't be ever restricted to a smaller set, but additional columns in
+-        # HAVING, ORDER BY, and SELECT clauses are added to it. Unfortunately
+-        # the end result is that it is impossible to force the query to have
+-        # a chosen GROUP BY clause - you can almost do this by using the form:
+-        #     .values(*wanted_cols).annotate(AnAggregate())
+-        # but any later annotations, extra selects, values calls that
+-        # refer some column outside of the wanted_cols, order_by, or even
+-        # filter calls can alter the GROUP BY clause.
+-
+-        # The query.group_by is either None (no GROUP BY at all), True
+-        # (group by select fields), or a list of expressions to be added
+-        # to the group by.
+         if self.query.group_by is None:
+             return []
+         expressions = []
+         if self.query.group_by is not True:
+-            # If the group by is set to a list (by .values() call most likely),
+-            # then we need to add everything in it to the GROUP BY clause.
+-            # Backwards compatibility hack for setting query.group_by. Remove
+-            # when  we have public API way of forcing the GROUP BY clause.
+-            # Converts string references to expressions.
+             for expr in self.query.group_by:
+                 if not hasattr(expr, 'as_sql'):
+                     expressions.append(self.query.resolve_ref(expr))
+                 else:
+                     expressions.append(expr)
+-        # Note that even if the group_by is set, it is only the minimal
+-        # set to group by. So, we need to add cols in select, order_by, and
+-        # having into the select in any case.
+         ref_sources = {
+             expr.source for expr in expressions if isinstance(expr, Ref)
+         }
+         for expr, _, _ in select:
+-            # Skip members of the select clause that are already included
+-            # by reference.
+             if expr in ref_sources:
+                 continue
+-            cols = expr.get_group_by_cols()
++            # Skip constant expressions wrapped in ExpressionWrapper
++            # Skip constant expressions wrapped in ExpressionWrapper
++            if isinstance(expr, Value) or (isinstance(expr, ExpressionWrapper) and isinstance(expr.expression, Value)):
++                continue
+             for col in cols:
+                 expressions.append(col)
+         for expr, (sql, params, is_ref) in order_by:
+-            # Skip References to the select clause, as all expressions in the
+-            # select clause are already part of the group by.
+             if not is_ref:
+                 expressions.extend(expr.get_group_by_cols())
+         having_group_by = self.having.get_group_by_cols() if self.having else ()
+diff --git a/tests/expressions/models.py b/tests/expressions/models.py
+index 02836e653e..33cab789b9 100644
+--- a/tests/expressions/models.py
++++ b/tests/expressions/models.py
+@@ -9,6 +9,9 @@ from django.db import models
+ class Manager(models.Model):
+     name = models.CharField(max_length=50)
+ 
++    class Meta:
++        app_label = 'expressions'
++
+ 
+ class Employee(models.Model):
+     firstname = models.CharField(max_length=50)
+@@ -19,10 +22,16 @@ class Employee(models.Model):
+     def __str__(self):
+         return '%s %s' % (self.firstname, self.lastname)
+ 
++    class Meta:
++        app_label = 'expressions'
++
+ 
+ class RemoteEmployee(Employee):
+     adjusted_salary = models.IntegerField()
+ 
++    class Meta:
++        app_label = 'expressions'
++
+ 
+ class Company(models.Model):
+     name = models.CharField(max_length=100)
+@@ -44,6 +53,9 @@ class Company(models.Model):
+     def __str__(self):
+         return self.name
+ 
++    class Meta:
++        app_label = 'expressions'
++
+ 
+ class Number(models.Model):
+     integer = models.BigIntegerField(db_column='the_integer')
+@@ -52,6 +64,9 @@ class Number(models.Model):
+     def __str__(self):
+         return '%i, %.3f' % (self.integer, self.float)
+ 
++    class Meta:
++        app_label = 'expressions'
++
+ 
+ class Experiment(models.Model):
+     name = models.CharField(max_length=24)
+@@ -64,6 +79,7 @@ class Experiment(models.Model):
+     class Meta:
+         db_table = 'expressions_ExPeRiMeNt'
+         ordering = ('name',)
++        app_label = 'expressions'
+ 
+     def duration(self):
+         return self.end - self.start
+@@ -76,6 +92,9 @@ class Result(models.Model):
+     def __str__(self):
+         return "Result at %s" % self.result_time
+ 
++    class Meta:
++        app_label = 'expressions'
++
+ 
+ class Time(models.Model):
+     time = models.TimeField(null=True)
+@@ -83,6 +102,9 @@ class Time(models.Model):
+     def __str__(self):
+         return str(self.time)
+ 
++    class Meta:
++        app_label = 'expressions'
++
+ 
+ class SimulationRun(models.Model):
+     start = models.ForeignKey(Time, models.CASCADE, null=True, related_name='+')
+@@ -92,11 +114,19 @@ class SimulationRun(models.Model):
+     def __str__(self):
+         return "%s (%s to %s)" % (self.midpoint, self.start, self.end)
+ 
++    class Meta:
++        app_label = 'expressions'
++
+ 
+ class UUIDPK(models.Model):
+     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+ 
++    class Meta:
++        app_label = 'expressions'
++
+ 
+ class UUID(models.Model):
+     uuid = models.UUIDField(null=True)
+-    uuid_fk = models.ForeignKey(UUIDPK, models.CASCADE, null=True)
++
++    class Meta:
++        app_label = 'expressions'
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: asgiref>=3.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (3.4.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (0.4.4)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref>=3.2->Django==3.2) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.2
+    Uninstalling Django-3.2:
+      Successfully uninstalled Django-3.2
+  Running setup.py develop for Django
+Successfully installed Django-3.2
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 22a59c01c00cf9fbefaee0e8e67fab82bbaf1fd2 tests/expressions/tests.py
+Updated 0 paths from 03d01a775b
++ git apply -v -
+Checking patch tests/expressions/tests.py...
+Applied patch tests/expressions/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 expressions.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+test_aggregate_subquery_annotation (expressions.tests.BasicExpressionsTests) ... ok
+test_annotate_values_aggregate (expressions.tests.BasicExpressionsTests) ... ok
+test_annotate_values_count (expressions.tests.BasicExpressionsTests) ... ok
+test_annotate_values_filter (expressions.tests.BasicExpressionsTests) ... ok
+test_annotation_with_outerref (expressions.tests.BasicExpressionsTests) ... ok
+test_annotations_within_subquery (expressions.tests.BasicExpressionsTests) ... ERROR
+test_arithmetic (expressions.tests.BasicExpressionsTests) ... ok
+test_boolean_expression_combined (expressions.tests.BasicExpressionsTests) ... ok
+test_case_in_filter_if_boolean_output_field (expressions.tests.BasicExpressionsTests) ... ok
+test_exist_single_field_output_field (expressions.tests.BasicExpressionsTests) ... ok
+test_exists_in_filter (expressions.tests.BasicExpressionsTests) ... ok
+test_explicit_output_field (expressions.tests.BasicExpressionsTests) ... ok
+test_filter_inter_attribute (expressions.tests.BasicExpressionsTests) ... ok
+test_filter_with_join (expressions.tests.BasicExpressionsTests) ... ok
+test_filtering_on_annotate_that_uses_q (expressions.tests.BasicExpressionsTests) ... ok
+test_filtering_on_q_that_is_boolean (expressions.tests.BasicExpressionsTests) ... ok
+test_filtering_on_rawsql_that_is_boolean (expressions.tests.BasicExpressionsTests) ... ok
+test_in_subquery (expressions.tests.BasicExpressionsTests) ... ok
+test_incorrect_field_in_F_expression (expressions.tests.BasicExpressionsTests) ... ok
+test_incorrect_joined_field_in_F_expression (expressions.tests.BasicExpressionsTests) ... ok
+test_nested_outerref_with_function (expressions.tests.BasicExpressionsTests) ... ok
+test_nested_subquery (expressions.tests.BasicExpressionsTests) ... ok
+test_nested_subquery_join_outer_ref (expressions.tests.BasicExpressionsTests) ... ok
+test_nested_subquery_outer_ref_2 (expressions.tests.BasicExpressionsTests) ... ok
+test_nested_subquery_outer_ref_with_autofield (expressions.tests.BasicExpressionsTests) ... ok
+test_new_object_create (expressions.tests.BasicExpressionsTests) ... ok
+test_new_object_save (expressions.tests.BasicExpressionsTests) ... ok
+test_object_create_with_aggregate (expressions.tests.BasicExpressionsTests) ... ok
+test_object_update (expressions.tests.BasicExpressionsTests) ... ok
+test_object_update_fk (expressions.tests.BasicExpressionsTests) ... ok
+test_object_update_unsaved_objects (expressions.tests.BasicExpressionsTests) ... ok
+test_order_by_exists (expressions.tests.BasicExpressionsTests) ... ok
+test_order_by_multiline_sql (expressions.tests.BasicExpressionsTests) ... ok
+test_order_of_operations (expressions.tests.BasicExpressionsTests) ... ok
+test_outerref (expressions.tests.BasicExpressionsTests) ... ok
+test_outerref_mixed_case_table_name (expressions.tests.BasicExpressionsTests) ... ok
+test_outerref_with_operator (expressions.tests.BasicExpressionsTests) ... ok
+test_parenthesis_priority (expressions.tests.BasicExpressionsTests) ... ok
+test_pickle_expression (expressions.tests.BasicExpressionsTests) ... ok
+test_subquery (expressions.tests.BasicExpressionsTests) ... ok
+test_subquery_eq (expressions.tests.BasicExpressionsTests) ... ok
+test_subquery_filter_by_aggregate (expressions.tests.BasicExpressionsTests) ... ERROR
+test_subquery_filter_by_lazy (expressions.tests.BasicExpressionsTests) ... ok
+test_subquery_group_by_outerref_in_filter (expressions.tests.BasicExpressionsTests) ... ERROR
+test_subquery_in_filter (expressions.tests.BasicExpressionsTests) ... ok
+test_subquery_references_joined_table_twice (expressions.tests.BasicExpressionsTests) ... ok
+test_ticket_11722_iexact_lookup (expressions.tests.BasicExpressionsTests) ... ok
+test_ticket_16731_startswith_lookup (expressions.tests.BasicExpressionsTests) ... ok
+test_ticket_18375_chained_filters (expressions.tests.BasicExpressionsTests) ... ok
+test_ticket_18375_join_reuse (expressions.tests.BasicExpressionsTests) ... ok
+test_ticket_18375_kwarg_ordering (expressions.tests.BasicExpressionsTests) ... ok
+test_ticket_18375_kwarg_ordering_2 (expressions.tests.BasicExpressionsTests) ... ok
+test_update (expressions.tests.BasicExpressionsTests) ... ok
+test_update_inherited_field_value (expressions.tests.BasicExpressionsTests) ... ok
+test_update_with_fk (expressions.tests.BasicExpressionsTests) ... ok
+test_update_with_none (expressions.tests.BasicExpressionsTests) ... ok
+test_uuid_pk_subquery (expressions.tests.BasicExpressionsTests) ... ERROR
+test_lefthand_addition (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_bitwise_and (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_bitwise_left_shift_operator (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_bitwise_or (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_bitwise_right_shift_operator (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_bitwise_xor (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_bitwise_xor_not_supported (expressions.tests.ExpressionOperatorTests) ... skipped "Oracle doesn't support bitwise XOR."
+test_lefthand_bitwise_xor_null (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_division (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_modulo (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_multiplication (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_power (expressions.tests.ExpressionOperatorTests) ... ok
+test_lefthand_subtraction (expressions.tests.ExpressionOperatorTests) ... ok
+test_right_hand_addition (expressions.tests.ExpressionOperatorTests) ... ok
+test_right_hand_division (expressions.tests.ExpressionOperatorTests) ... ok
+test_right_hand_modulo (expressions.tests.ExpressionOperatorTests) ... ok
+test_right_hand_multiplication (expressions.tests.ExpressionOperatorTests) ... ok
+test_right_hand_subtraction (expressions.tests.ExpressionOperatorTests) ... ok
+test_righthand_power (expressions.tests.ExpressionOperatorTests) ... ok
+test_complex_expressions (expressions.tests.ExpressionsNumericTests) ... ok
+test_fill_with_value_from_same_object (expressions.tests.ExpressionsNumericTests) ... ok
+test_filter_not_equals_other_field (expressions.tests.ExpressionsNumericTests) ... ok
+test_increment_value (expressions.tests.ExpressionsNumericTests) ... ok
+test_F_reuse (expressions.tests.ExpressionsTests) ... ok
+test_insensitive_patterns_escape (expressions.tests.ExpressionsTests) ... ok
+test_patterns_escape (expressions.tests.ExpressionsTests) ... ok
+test_date_case_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_date_comparison (expressions.tests.FTimeDeltaTests) ... ok
+test_date_minus_duration (expressions.tests.FTimeDeltaTests) ... ok
+test_date_subquery_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_date_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_datetime_subquery_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_datetime_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_datetime_subtraction_microseconds (expressions.tests.FTimeDeltaTests) ... ok
+test_delta_add (expressions.tests.FTimeDeltaTests) ... ok
+test_delta_subtract (expressions.tests.FTimeDeltaTests) ... ok
+test_delta_update (expressions.tests.FTimeDeltaTests) ... ok
+test_duration_with_datetime (expressions.tests.FTimeDeltaTests) ... ok
+test_duration_with_datetime_microseconds (expressions.tests.FTimeDeltaTests) ... ok
+test_durationfield_add (expressions.tests.FTimeDeltaTests) ... ok
+test_exclude (expressions.tests.FTimeDeltaTests) ... ok
+test_invalid_operator (expressions.tests.FTimeDeltaTests) ... ok
+test_mixed_comparisons1 (expressions.tests.FTimeDeltaTests) ... skipped "Database doesn't support feature(s): supports_mixed_date_datetime_comparisons"
+test_mixed_comparisons2 (expressions.tests.FTimeDeltaTests) ... ok
+test_multiple_query_compilation (expressions.tests.FTimeDeltaTests) ... ok
+test_negative_timedelta_update (expressions.tests.FTimeDeltaTests) ... ok
+test_query_clone (expressions.tests.FTimeDeltaTests) ... ok
+test_time_subquery_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_time_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_month_aggregation (expressions.tests.FieldTransformTests) ... ok
+test_multiple_transforms_in_values (expressions.tests.FieldTransformTests) ... ok
+test_transform_in_values (expressions.tests.FieldTransformTests) ... ok
+test_complex_expressions_do_not_introduce_sql_injection_via_untrusted_string_inclusion (expressions.tests.IterableLookupInnerExpressionsTests) ... ok
+test_expressions_in_lookups_join_choice (expressions.tests.IterableLookupInnerExpressionsTests) ... ok
+test_in_lookup_allows_F_expressions_and_expressions_for_datetimes (expressions.tests.IterableLookupInnerExpressionsTests) ... ok
+test_in_lookup_allows_F_expressions_and_expressions_for_integers (expressions.tests.IterableLookupInnerExpressionsTests) ... ok
+test_range_lookup_allows_F_expressions_and_expressions_for_integers (expressions.tests.IterableLookupInnerExpressionsTests) ... ok
+test_deconstruct (expressions.tests.ValueTests) ... ok
+test_deconstruct_output_field (expressions.tests.ValueTests) ... ok
+test_equal (expressions.tests.ValueTests) ... ok
+test_equal_output_field (expressions.tests.ValueTests) ... ok
+test_hash (expressions.tests.ValueTests) ... ok
+test_raise_empty_expressionlist (expressions.tests.ValueTests) ... ok
+test_update_TimeField_using_Value (expressions.tests.ValueTests) ... ok
+test_update_UUIDField_using_Value (expressions.tests.ValueTests) ... ok
+test_and (expressions.tests.CombinableTests) ... ok
+test_negation (expressions.tests.CombinableTests) ... ok
+test_or (expressions.tests.CombinableTests) ... ok
+test_reversed_and (expressions.tests.CombinableTests) ... ok
+test_reversed_or (expressions.tests.CombinableTests) ... ok
+test_empty_group_by (expressions.tests.ExpressionWrapperTests) ... FAIL
+test_non_empty_group_by (expressions.tests.ExpressionWrapperTests) ... FAIL
+test_deconstruct (expressions.tests.FTests) ... ok
+test_deepcopy (expressions.tests.FTests) ... ok
+test_equal (expressions.tests.FTests) ... ok
+test_hash (expressions.tests.FTests) ... ok
+test_not_equal_Value (expressions.tests.FTests) ... ok
+test_aggregates (expressions.tests.ReprTests) ... ok
+test_distinct_aggregates (expressions.tests.ReprTests) ... ok
+test_expressions (expressions.tests.ReprTests) ... ok
+test_filtered_aggregates (expressions.tests.ReprTests) ... ok
+test_functions (expressions.tests.ReprTests) ... ok
+test_equal (expressions.tests.SimpleExpressionTests) ... ok
+test_hash (expressions.tests.SimpleExpressionTests) ... ok
+
+======================================================================
+ERROR: test_annotations_within_subquery (expressions.tests.BasicExpressionsTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions/tests.py", line 607, in test_annotations_within_subquery
+    [{'salary': 10, 'total_employees': 2300}, {'salary': 20, 'total_employees': 35}],
+  File "/opt/miniconda3/envs/testbed/lib/python3.6/unittest/case.py", line 940, in assertSequenceEqual
+    len1 = len(seq1)
+  File "/testbed/django/db/models/query.py", line 269, in __len__
+    self._fetch_all()
+  File "/testbed/django/db/models/query.py", line 1305, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+  File "/testbed/django/db/models/query.py", line 111, in __iter__
+    for row in compiler.results_iter(chunked_fetch=self.chunked_fetch, chunk_size=self.chunk_size):
+  File "/testbed/django/db/models/sql/compiler.py", line 1070, in results_iter
+    results = self.execute_sql(MULTI, chunked_fetch=chunked_fetch, chunk_size=chunk_size)
+  File "/testbed/django/db/models/sql/compiler.py", line 1105, in execute_sql
+    sql, params = self.as_sql()
+  File "/testbed/django/db/models/sql/compiler.py", line 460, in as_sql
+    extra_select, order_by, group_by = self.pre_sql_setup()
+  File "/testbed/django/db/models/sql/compiler.py", line 55, in pre_sql_setup
+    self.setup_query()
+  File "/testbed/django/db/models/sql/compiler.py", line 46, in setup_query
+    self.select, self.klass_info, self.annotation_col_map = self.get_select()
+  File "/testbed/django/db/models/sql/compiler.py", line 224, in get_select
+    sql, params = self.compile(col)
+  File "/testbed/django/db/models/sql/compiler.py", line 392, in compile
+    sql, params = node.as_sql(self, self.connection)
+  File "/testbed/django/db/models/expressions.py", line 1062, in as_sql
+    subquery_sql, sql_params = self.query.as_sql(compiler, connection)
+  File "/testbed/django/db/models/sql/query.py", line 1057, in as_sql
+    sql, params = self.get_compiler(connection=connection).as_sql()
+  File "/testbed/django/db/models/sql/compiler.py", line 460, in as_sql
+    extra_select, order_by, group_by = self.pre_sql_setup()
+  File "/testbed/django/db/models/sql/compiler.py", line 60, in pre_sql_setup
+    group_by = self.get_group_by(self.select + extra_select, order_by)
+  File "/testbed/django/db/models/sql/compiler.py", line 90, in get_group_by
+    for col in cols:
+NameError: name 'cols' is not defined
+
+======================================================================
+ERROR: test_subquery_filter_by_aggregate (expressions.tests.BasicExpressionsTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions/tests.py", line 629, in test_subquery_filter_by_aggregate
+    self.assertEqual(qs.get().float, 1.2)
+  File "/testbed/django/db/models/query.py", line 425, in get
+    num = len(clone)
+  File "/testbed/django/db/models/query.py", line 269, in __len__
+    self._fetch_all()
+  File "/testbed/django/db/models/query.py", line 1305, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+  File "/testbed/django/db/models/query.py", line 53, in __iter__
+    results = compiler.execute_sql(chunked_fetch=self.chunked_fetch, chunk_size=self.chunk_size)
+  File "/testbed/django/db/models/sql/compiler.py", line 1105, in execute_sql
+    sql, params = self.as_sql()
+  File "/testbed/django/db/models/sql/compiler.py", line 460, in as_sql
+    extra_select, order_by, group_by = self.pre_sql_setup()
+  File "/testbed/django/db/models/sql/compiler.py", line 55, in pre_sql_setup
+    self.setup_query()
+  File "/testbed/django/db/models/sql/compiler.py", line 46, in setup_query
+    self.select, self.klass_info, self.annotation_col_map = self.get_select()
+  File "/testbed/django/db/models/sql/compiler.py", line 224, in get_select
+    sql, params = self.compile(col)
+  File "/testbed/django/db/models/sql/compiler.py", line 392, in compile
+    sql, params = node.as_sql(self, self.connection)
+  File "/testbed/django/db/models/expressions.py", line 1062, in as_sql
+    subquery_sql, sql_params = self.query.as_sql(compiler, connection)
+  File "/testbed/django/db/models/sql/query.py", line 1057, in as_sql
+    sql, params = self.get_compiler(connection=connection).as_sql()
+  File "/testbed/django/db/models/sql/compiler.py", line 460, in as_sql
+    extra_select, order_by, group_by = self.pre_sql_setup()
+  File "/testbed/django/db/models/sql/compiler.py", line 60, in pre_sql_setup
+    group_by = self.get_group_by(self.select + extra_select, order_by)
+  File "/testbed/django/db/models/sql/compiler.py", line 90, in get_group_by
+    for col in cols:
+NameError: name 'cols' is not defined
+
+======================================================================
+ERROR: test_subquery_group_by_outerref_in_filter (expressions.tests.BasicExpressionsTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions/tests.py", line 747, in test_subquery_group_by_outerref_in_filter
+    self.assertIs(Employee.objects.filter(pk__in=Subquery(inner)).exists(), True)
+  File "/testbed/django/db/models/query.py", line 809, in exists
+    return self.query.has_results(using=self.db)
+  File "/testbed/django/db/models/sql/query.py", line 536, in has_results
+    return compiler.has_results()
+  File "/testbed/django/db/models/sql/compiler.py", line 1088, in has_results
+    return bool(self.execute_sql(SINGLE))
+  File "/testbed/django/db/models/sql/compiler.py", line 1105, in execute_sql
+    sql, params = self.as_sql()
+  File "/testbed/django/db/models/sql/compiler.py", line 475, in as_sql
+    where, w_params = self.compile(self.where) if self.where is not None else ("", [])
+  File "/testbed/django/db/models/sql/compiler.py", line 392, in compile
+    sql, params = node.as_sql(self, self.connection)
+  File "/testbed/django/db/models/sql/where.py", line 81, in as_sql
+    sql, params = compiler.compile(child)
+  File "/testbed/django/db/models/sql/compiler.py", line 392, in compile
+    sql, params = node.as_sql(self, self.connection)
+  File "/testbed/django/db/models/lookups.py", line 395, in as_sql
+    return super().as_sql(compiler, connection)
+  File "/testbed/django/db/models/lookups.py", line 179, in as_sql
+    rhs_sql, rhs_params = self.process_rhs(compiler, connection)
+  File "/testbed/django/db/models/lookups.py", line 386, in process_rhs
+    return super().process_rhs(compiler, connection)
+  File "/testbed/django/db/models/lookups.py", line 235, in process_rhs
+    return super().process_rhs(compiler, connection)
+  File "/testbed/django/db/models/lookups.py", line 96, in process_rhs
+    return compiler.compile(value)
+  File "/testbed/django/db/models/sql/compiler.py", line 392, in compile
+    sql, params = node.as_sql(self, self.connection)
+  File "/testbed/django/db/models/expressions.py", line 1062, in as_sql
+    subquery_sql, sql_params = self.query.as_sql(compiler, connection)
+  File "/testbed/django/db/models/sql/query.py", line 1057, in as_sql
+    sql, params = self.get_compiler(connection=connection).as_sql()
+  File "/testbed/django/db/models/sql/compiler.py", line 460, in as_sql
+    extra_select, order_by, group_by = self.pre_sql_setup()
+  File "/testbed/django/db/models/sql/compiler.py", line 60, in pre_sql_setup
+    group_by = self.get_group_by(self.select + extra_select, order_by)
+  File "/testbed/django/db/models/sql/compiler.py", line 90, in get_group_by
+    for col in cols:
+NameError: name 'cols' is not defined
+
+======================================================================
+ERROR: test_uuid_pk_subquery (expressions.tests.BasicExpressionsTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions/tests.py", line 544, in test_uuid_pk_subquery
+    UUID.objects.create(uuid_fk=u)
+  File "/testbed/django/db/models/manager.py", line 85, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 445, in create
+    obj = self.model(**kwargs)
+  File "/testbed/django/db/models/base.py", line 501, in __init__
+    raise TypeError("%s() got an unexpected keyword argument '%s'" % (cls.__name__, kwarg))
+TypeError: UUID() got an unexpected keyword argument 'uuid_fk'
+
+======================================================================
+FAIL: test_empty_group_by (expressions.tests.ExpressionWrapperTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions/tests.py", line 1836, in test_empty_group_by
+    self.assertEqual(expr.get_group_by_cols(alias=None), [])
+AssertionError: Lists differ: [ExpressionWrapper(Value(3))] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+ExpressionWrapper(Value(3))
+
+- [ExpressionWrapper(Value(3))]
++ []
+
+======================================================================
+FAIL: test_non_empty_group_by (expressions.tests.ExpressionWrapperTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions/tests.py", line 1840, in test_non_empty_group_by
+    self.assertEqual(expr.get_group_by_cols(alias=None), [expr.expression])
+AssertionError: Lists differ: [ExpressionWrapper(Lower(Value(f)))] != [Lower(Value(f))]
+
+First differing element 0:
+ExpressionWrapper(Lower(Value(f)))
+Lower(Value(f))
+
+- [ExpressionWrapper(Lower(Value(f)))]
++ [Lower(Value(f))]
+
+----------------------------------------------------------------------
+Ran 141 tests in 0.586s
+
+FAILED (failures=2, errors=4, skipped=2)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application expressions
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, expressions, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table expressions_manager
+    Creating table expressions_employee
+    Creating table expressions_remoteemployee
+    Creating table expressions_company
+    Creating table expressions_number
+    Creating table expressions_ExPeRiMeNt
+    Creating table expressions_result
+    Creating table expressions_time
+    Creating table expressions_simulationrun
+    Creating table expressions_uuidpk
+    Creating table expressions_uuid
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
++ git checkout 22a59c01c00cf9fbefaee0e8e67fab82bbaf1fd2 tests/expressions/tests.py
+Updated 1 path from 03d01a775b

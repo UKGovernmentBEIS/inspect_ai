@@ -1,0 +1,47 @@
+
+diff --git a/django/forms/formsets.py b/django/forms/formsets.py
+index 235aaf844c..02d040ee03 100644
+--- a/django/forms/formsets.py
++++ b/django/forms/formsets.py
+@@ -490,7 +490,7 @@ class BaseFormSet(RenderableFormMixin):
+                     required=False,
+                     widget=self.get_ordering_widget(),
+                 )
+-        if self.can_delete and (self.can_delete_extra or index < initial_form_count):
++        if self.can_delete and (self.can_delete_extra or (index is not None and index < initial_form_count)):
+             form.fields[DELETION_FIELD_NAME] = BooleanField(
+                 label=_("Delete"),
+                 required=False,
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..313c9474c8
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,27 @@
++#!/usr/bin/env python3
++import os
++import django
++from django import forms
++
++class MyForm(forms.Form):
++    my_field = forms.CharField()
++
++if __name__ == "__main__":
++    settings_file = os.path.splitext(os.path.basename(__file__))[0]
++    django.conf.settings.configure(
++        DEBUG=True,
++        MIDDLEWARE_CLASSES=[],
++        ROOT_URLCONF=settings_file,
++    )
++    django.setup()
++    MyFormSet = forms.formset_factory(
++        form=MyForm,
++        can_delete=True,
++        can_delete_extra=False,
++    )
++    my_formset = MyFormSet(
++        initial=None,
++    )
++    print(my_formset.empty_form)
++
++print("Script completed successfully, no errors.")

@@ -1,0 +1,104 @@
+
+diff --git a/django/utils/html.py b/django/utils/html.py
+index 3bc02b8dd3..41fa23be2a 100644
+--- a/django/utils/html.py
++++ b/django/utils/html.py
+@@ -232,6 +232,7 @@ def smart_urlquote(url):
+     return urlunsplit((scheme, netloc, path, query, fragment))
+ 
+ 
++@keep_lazy_text
+ @keep_lazy_text
+ def urlize(text, trim_url_limit=None, nofollow=False, autoescape=False):
+     """
+@@ -283,9 +284,10 @@ def urlize(text, trim_url_limit=None, nofollow=False, autoescape=False):
+             middle_unescaped = html.unescape(middle)
+             stripped = middle_unescaped.rstrip(TRAILING_PUNCTUATION_CHARS)
+             if middle_unescaped != stripped:
+-                trail = middle[len(stripped):] + trail
+-                middle = middle[:len(stripped) - len(middle_unescaped)]
+-                trimmed_something = True
++                if not middle.lower().endswith(('&lt', '&gt', '&amp')):
++                    trail = middle[len(stripped):] + trail
++                    middle = middle[:len(stripped) - len(middle_unescaped) + len(middle)]
++                    trimmed_something = True
+         return lead, middle, trail
+ 
+     def is_email_simple(value):
+@@ -302,7 +304,6 @@ def urlize(text, trim_url_limit=None, nofollow=False, autoescape=False):
+         if '.' not in p2 or p2.startswith('.'):
+             return False
+         return True
+-
+     words = word_split_re.split(str(text))
+     for i, word in enumerate(words):
+         if '.' in word or '@' in word or ':' in word:
+@@ -335,6 +336,22 @@ def urlize(text, trim_url_limit=None, nofollow=False, autoescape=False):
+                 if autoescape and not safe_input:
+                     lead, trail = escape(lead), escape(trail)
+                     trimmed = escape(trimmed)
++
++                # Handle trailing punctuation and HTML entities.
++                punctuation_re = re.compile(r'^(.*?)([.,:;!"\']+)$')
++                entity_re = re.compile(r'&[a-z]+;?$', re.IGNORECASE)
++                match = punctuation_re.match(trimmed)
++                entity_match = entity_re.search(trimmed)
++
++                if entity_match:
++                    if not entity_match.group().endswith(';'):
++                        trimmed = trimmed[:-len(entity_match.group())] + entity_match.group()
++                        if trail.startswith('lt'):
++                            trail = trail[2:]
++                elif match:
++                    trimmed, trailing_punctuation = match.groups()
++                    trail = trailing_punctuation + trail
++
+                 middle = '<a href="%s"%s>%s</a>' % (escape(url), nofollow_attr, trimmed)
+                 words[i] = mark_safe('%s%s%s' % (lead, middle, trail))
+             else:
+@@ -347,32 +364,3 @@ def urlize(text, trim_url_limit=None, nofollow=False, autoescape=False):
+         elif autoescape:
+             words[i] = escape(word)
+     return ''.join(words)
+-
+-
+-def avoid_wrapping(value):
+-    """
+-    Avoid text wrapping in the middle of a phrase by adding non-breaking
+-    spaces where there previously were normal spaces.
+-    """
+-    return value.replace(" ", "\xa0")
+-
+-
+-def html_safe(klass):
+-    """
+-    A decorator that defines the __html__ method. This helps non-Django
+-    templates to detect classes whose __str__ methods return SafeString.
+-    """
+-    if '__html__' in klass.__dict__:
+-        raise ValueError(
+-            "can't apply @html_safe to %s because it defines "
+-            "__html__()." % klass.__name__
+-        )
+-    if '__str__' not in klass.__dict__:
+-        raise ValueError(
+-            "can't apply @html_safe to %s because it doesn't "
+-            "define __str__()." % klass.__name__
+-        )
+-    klass_str = klass.__str__
+-    klass.__str__ = lambda self: mark_safe(klass_str(self))
+-    klass.__html__ = lambda self: str(self)
+-    return klass
+diff --git a/reproduce_urlize.py b/reproduce_urlize.py
+new file mode 100644
+index 0000000000..4edc23d7af
+--- /dev/null
++++ b/reproduce_urlize.py
+@@ -0,0 +1,7 @@
++from django.utils.html import urlize
++
++test_string = 'Search for google.com/?q=1&lt! and see.'
++result = urlize(test_string)
++print("Input:", test_string)
++print("Output:", result)
++print("Expected: Search for <a href=\"http://google.com/?q=1%3C\">google.com/?q=1&lt</a>! and see.")

@@ -1,0 +1,274 @@
+
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index 04e430a42e..d3d0b704d6 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -128,7 +128,7 @@ class SQLCompiler:
+         for expr, (sql, params, is_ref) in order_by:
+             # Skip References to the select clause, as all expressions in the
+             # select clause are already part of the group by.
+-            if not is_ref:
++            if not is_ref and not isinstance(expr.expression, Random):
+                 expressions.extend(expr.get_group_by_cols())
+         having_group_by = self.having.get_group_by_cols() if self.having else ()
+         for expr in having_group_by:
+diff --git a/django_setup.py b/django_setup.py
+new file mode 100644
+index 0000000000..942c1ba067
+--- /dev/null
++++ b/django_setup.py
+@@ -0,0 +1,5 @@
++import os
++import django
++
++os.environ.setdefault("DJANGO_SETTINGS_MODULE", "test_settings")
++django.setup()
+diff --git a/manage.py b/manage.py
+new file mode 100644
+index 0000000000..e45881c734
+--- /dev/null
++++ b/manage.py
+@@ -0,0 +1,15 @@
++#!/usr/bin/env python
++import os
++import sys
++
++if __name__ == "__main__":
++    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "test_settings")
++    try:
++        from django.core.management import execute_from_command_line
++    except ImportError as exc:
++        raise ImportError(
++            "Couldn't import Django. Are you sure it's installed and "
++            "available on your PYTHONPATH environment variable? Did you "
++            "forget to activate a virtual environment?"
++        ) from exc
++    execute_from_command_line(sys.argv)
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..1cfc0a34c7
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,13 @@
++import django_setup
++from django.core.management import call_command
++from test_case import IssueTestCase
++
++def run_tests():
++    call_command('migrate')
++    test_case = IssueTestCase()
++    test_case.setUp()
++    test_case.test_issue()
++    print("\nScript completed successfully, no errors.")
++
++if __name__ == '__main__':
++    run_tests()
+diff --git a/reproduce_issue_combined.py b/reproduce_issue_combined.py
+new file mode 100644
+index 0000000000..6af002ac67
+--- /dev/null
++++ b/reproduce_issue_combined.py
+@@ -0,0 +1,41 @@
++import os
++import django
++
++os.environ.setdefault("DJANGO_SETTINGS_MODULE", "test_settings")
++django.setup()
++
++from django.db.models import Count
++from django.test import TestCase
++from testapp.models import Thing, Related
++from django.core.management import call_command
++
++# Run migrations
++call_command('migrate')
++
++# Define test case
++class IssueTestCase(TestCase):
++    def setUp(self):
++        t = Thing.objects.create()
++        for _ in range(2):
++            Related.objects.create(thing=t)
++
++    def test_issue(self):
++        print("Normal query:")
++        print(Thing.objects.annotate(rc=Count('related')).order_by('rc').values('id', 'rc'))
++
++        print("\nQuery with order_by('related'):")
++        print(Thing.objects.annotate(rc=Count('related')).order_by('related').values('id', 'rc'))
++
++        print("\nQuery with order_by('?'):")
++        print(Thing.objects.annotate(rc=Count('related')).order_by('?').values('id', 'rc'))
++
++        print("\nSQL for order_by('?') query:")
++        print(Thing.objects.annotate(rc=Count('related')).order_by('?').values('id', 'rc').query)
++
++if __name__ == '__main__':
++    from django.test.utils import get_runner
++    from django.conf import settings
++    TestRunner = get_runner(settings)
++    test_runner = TestRunner()
++    failures = test_runner.run_tests(["__main__"])
++    print("\nScript completed successfully, no errors." if failures == 0 else "\nTest failures occurred.")
+diff --git a/run_test.sh b/run_test.sh
+new file mode 100755
+index 0000000000..f92ad8ee95
+--- /dev/null
++++ b/run_test.sh
+@@ -0,0 +1,3 @@
++#!/bin/bash
++export DJANGO_SETTINGS_MODULE=test_settings
++python reproduce_issue_combined.py
+diff --git a/test_case.py b/test_case.py
+new file mode 100644
+index 0000000000..9932a351e3
+--- /dev/null
++++ b/test_case.py
+@@ -0,0 +1,22 @@
++from django.test import TestCase
++from django.db.models import Count
++from test_models import Thing, Related
++
++class IssueTestCase(TestCase):
++    def setUp(self):
++        t = Thing.objects.create()
++        for _ in range(2):
++            Related.objects.create(thing=t)
++
++    def test_issue(self):
++        print("Normal query:")
++        print(Thing.objects.annotate(rc=Count('related')).order_by('rc').values('id', 'rc'))
++
++        print("\nQuery with order_by('related'):")
++        print(Thing.objects.annotate(rc=Count('related')).order_by('related').values('id', 'rc'))
++
++        print("\nQuery with order_by('?'):")
++        print(Thing.objects.annotate(rc=Count('related')).order_by('?').values('id', 'rc'))
++
++        print("\nSQL for order_by('?') query:")
++        print(Thing.objects.annotate(rc=Count('related')).order_by('?').values('id', 'rc').query)
+diff --git a/test_models.py b/test_models.py
+new file mode 100644
+index 0000000000..b79911168d
+--- /dev/null
++++ b/test_models.py
+@@ -0,0 +1,7 @@
++from django.db import models
++
++class Thing(models.Model):
++    pass
++
++class Related(models.Model):
++    thing = models.ForeignKey(Thing, on_delete=models.CASCADE)
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..078f9a96c0
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,15 @@
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'testapp',
++]
++
++SECRET_KEY = 'fake-key'
++
++USE_TZ = True
+diff --git a/testapp/__init__.py b/testapp/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/testapp/admin.py b/testapp/admin.py
+new file mode 100644
+index 0000000000..8c38f3f3da
+--- /dev/null
++++ b/testapp/admin.py
+@@ -0,0 +1,3 @@
++from django.contrib import admin
++
++# Register your models here.
+diff --git a/testapp/apps.py b/testapp/apps.py
+new file mode 100644
+index 0000000000..9806af7f75
+--- /dev/null
++++ b/testapp/apps.py
+@@ -0,0 +1,5 @@
++from django.apps import AppConfig
++
++
++class TestappConfig(AppConfig):
++    name = 'testapp'
+diff --git a/testapp/migrations/0001_initial.py b/testapp/migrations/0001_initial.py
+new file mode 100644
+index 0000000000..c075d76c3e
+--- /dev/null
++++ b/testapp/migrations/0001_initial.py
+@@ -0,0 +1,28 @@
++# Generated by Django 3.2 on 2024-07-07 22:16
++
++from django.db import migrations, models
++import django.db.models.deletion
++
++
++class Migration(migrations.Migration):
++
++    initial = True
++
++    dependencies = [
++    ]
++
++    operations = [
++        migrations.CreateModel(
++            name='Thing',
++            fields=[
++                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
++            ],
++        ),
++        migrations.CreateModel(
++            name='Related',
++            fields=[
++                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
++                ('thing', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='testapp.thing')),
++            ],
++        ),
++    ]
+diff --git a/testapp/migrations/__init__.py b/testapp/migrations/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/testapp/models.py b/testapp/models.py
+new file mode 100644
+index 0000000000..b79911168d
+--- /dev/null
++++ b/testapp/models.py
+@@ -0,0 +1,7 @@
++from django.db import models
++
++class Thing(models.Model):
++    pass
++
++class Related(models.Model):
++    thing = models.ForeignKey(Thing, on_delete=models.CASCADE)
+diff --git a/testapp/tests.py b/testapp/tests.py
+new file mode 100644
+index 0000000000..7ce503c2dd
+--- /dev/null
++++ b/testapp/tests.py
+@@ -0,0 +1,3 @@
++from django.test import TestCase
++
++# Create your tests here.
+diff --git a/testapp/views.py b/testapp/views.py
+new file mode 100644
+index 0000000000..91ea44a218
+--- /dev/null
++++ b/testapp/views.py
+@@ -0,0 +1,3 @@
++from django.shortcuts import render
++
++# Create your views here.

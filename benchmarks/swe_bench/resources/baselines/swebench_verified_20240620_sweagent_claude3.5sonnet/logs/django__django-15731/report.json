@@ -1,0 +1,87 @@
+{
+    "django__django-15731": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "test_manager_method_signature (basic.tests.ManagerTest)"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_autofields_generate_different_values_for_each_instance (basic.tests.ModelInstanceCreationTests)",
+                    "test_can_create_instance_using_kwargs (basic.tests.ModelInstanceCreationTests)",
+                    "You can initialize a model instance using positional arguments,",
+                    "You can leave off the value for an AutoField when creating an",
+                    "test_can_mix_and_match_position_and_kwargs (basic.tests.ModelInstanceCreationTests)",
+                    "test_cannot_create_instance_with_invalid_kwargs (basic.tests.ModelInstanceCreationTests)",
+                    "as much precision in *seconds*",
+                    "test_leaving_off_a_field_with_default_set_the_default_will_be_saved (basic.tests.ModelInstanceCreationTests)",
+                    "test_object_is_not_written_to_database_until_save_was_called (basic.tests.ModelInstanceCreationTests)",
+                    "test_positional_and_keyword_args_for_the_same_field (basic.tests.ModelInstanceCreationTests)",
+                    "test_querysets_checking_for_membership (basic.tests.ModelInstanceCreationTests)",
+                    "test_save_parent_primary_with_default (basic.tests.ModelInstanceCreationTests)",
+                    "test_save_primary_with_default (basic.tests.ModelInstanceCreationTests)",
+                    "test_saving_an_object_again_does_not_create_a_new_object (basic.tests.ModelInstanceCreationTests)",
+                    "test_manager_method_attributes (basic.tests.ManagerTest)",
+                    "This test ensures that the correct set of methods from `QuerySet`",
+                    "test_select_on_save (basic.tests.SelectOnSaveTests)",
+                    "select_on_save works correctly if the database doesn't return correct",
+                    "test_all_lookup (basic.tests.ModelLookupTest)",
+                    "test_does_not_exist (basic.tests.ModelLookupTest)",
+                    "test_equal_lookup (basic.tests.ModelLookupTest)",
+                    "test_lookup_by_primary_key (basic.tests.ModelLookupTest)",
+                    "test_rich_lookup (basic.tests.ModelLookupTest)",
+                    "test_too_many (basic.tests.ModelLookupTest)",
+                    "test_lookup_in_fields (basic.tests.ModelRefreshTests)",
+                    "test_prefetched_cache_cleared (basic.tests.ModelRefreshTests)",
+                    "test_refresh (basic.tests.ModelRefreshTests)",
+                    "test_refresh_clears_one_to_one_field (basic.tests.ModelRefreshTests)",
+                    "refresh_from_db() clear cached reverse relations.",
+                    "test_refresh_fk (basic.tests.ModelRefreshTests)",
+                    "test_refresh_fk_on_delete_set_null (basic.tests.ModelRefreshTests)",
+                    "test_refresh_no_fields (basic.tests.ModelRefreshTests)",
+                    "test_refresh_null_fk (basic.tests.ModelRefreshTests)",
+                    "test_refresh_unsaved (basic.tests.ModelRefreshTests)",
+                    "test_unknown_kwarg (basic.tests.ModelRefreshTests)",
+                    "test_create_method (basic.tests.ModelTest)",
+                    "gettext_lazy objects work when saving model instances",
+                    "test_delete_and_access_field (basic.tests.ModelTest)",
+                    "test_emptyqs (basic.tests.ModelTest)",
+                    "test_emptyqs_customqs (basic.tests.ModelTest)",
+                    "test_emptyqs_values (basic.tests.ModelTest)",
+                    "test_emptyqs_values_order (basic.tests.ModelTest)",
+                    "test_eq (basic.tests.ModelTest)",
+                    "test_extra_method_select_argument_with_dashes (basic.tests.ModelTest)",
+                    "test_extra_method_select_argument_with_dashes_and_values (basic.tests.ModelTest)",
+                    "test_hash (basic.tests.ModelTest)",
+                    "test_hash_function (basic.tests.ModelTest)",
+                    "test_manually_specify_primary_key (basic.tests.ModelTest)",
+                    "test_microsecond_precision (basic.tests.ModelTest)",
+                    "test_missing_hash_not_inherited (basic.tests.ModelTest)",
+                    "test_multiple_objects_max_num_fetched (basic.tests.ModelTest)",
+                    "test_not_equal_and_equal_operators_behave_as_expected_on_instances (basic.tests.ModelTest)",
+                    "test_objects_attribute_is_only_available_on_the_class_itself (basic.tests.ModelTest)",
+                    "test_queryset_delete_removes_all_items_in_that_queryset (basic.tests.ModelTest)",
+                    "test_specified_parent_hash_inherited (basic.tests.ModelTest)",
+                    "test_ticket_20278 (basic.tests.ModelTest)",
+                    "test_unicode_data (basic.tests.ModelTest)",
+                    "test_year_lookup_edge_case (basic.tests.ModelTest)"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

@@ -1,0 +1,1260 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   lib/matplotlib/contour.py
+	modified:   lib/matplotlib/typing.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 2aee6ccd7c7e1f8d282c1e7579f4ee546b838542
+Merge: 50e371718e c753de2888
+Author: Elliott Sales de Andrade <quantum.analyst@gmail.com>
+Date:   Wed Jul 19 03:57:27 2023 -0400
+
+    Merge pull request #26344 from oscargus/mopt
+    
+    Some more micro optimizations
+
++ git diff 2aee6ccd7c7e1f8d282c1e7579f4ee546b838542
+diff --git a/lib/matplotlib/contour.py b/lib/matplotlib/contour.py
+index 3f84250b64..d58afc1799 100644
+--- a/lib/matplotlib/contour.py
++++ b/lib/matplotlib/contour.py
+@@ -943,13 +943,25 @@ class ContourSet(ContourLabeler, mcoll.Collection):
+     alpha = property(lambda self: self.get_alpha())
+     linestyles = property(lambda self: self._orig_linestyles)
+ 
++    def set_paths(self, paths):
++        """
++        Set the paths of the contour set.
++
++        Parameters
++        ----------
++        paths : list of Path
++            The new paths for the contour set.
++        """
++        self._paths = paths
++
+     @_api.deprecated("3.8")
+-    @property
+     def collections(self):
+         # On access, make oneself invisible and instead add the old-style collections
+         # (one PathCollection per level).  We do not try to further split contours into
+         # connected components as we already lost track of what pairs of contours need
+         # to be considered as single units to draw filled regions with holes.
++        # connected components as we already lost track of what pairs of contours need
++        # to be considered as single units to draw filled regions with holes.
+         if not hasattr(self, "_old_style_split_collections"):
+             self.set_visible(False)
+             fcs = self.get_facecolor()
+diff --git a/lib/matplotlib/typing.py b/lib/matplotlib/typing.py
+index 9605504ded..124d079c41 100644
+--- a/lib/matplotlib/typing.py
++++ b/lib/matplotlib/typing.py
+@@ -9,55 +9,43 @@ downstream libraries.
+     The ``typing`` module and type stub files are considered provisional and may change
+     at any time without a deprecation period.
+ """
+-from collections.abc import Hashable, Sequence
+-import pathlib
+-from typing import Any, Literal, Union
+-
+-from . import path
+-from ._enums import JoinStyle, CapStyle
+-from .markers import MarkerStyle
+ 
+ # The following are type aliases. Once python 3.9 is dropped, they should be annotated
+ # using ``typing.TypeAlias`` and Unions should be converted to using ``|`` syntax.
+ 
+-RGBColorType = Union[tuple[float, float, float], str]
+-RGBAColorType = Union[
+-    str,  # "none" or "#RRGGBBAA"/"#RGBA" hex strings
+-    tuple[float, float, float, float],
++RGBColorType = "tuple[float, float, float] | str"
++RGBAColorType = """str |  # "none" or "#RRGGBBAA"/"#RGBA" hex strings
++    tuple[float, float, float, float] |
+     # 2 tuple (color, alpha) representations, not infinitely recursive
+     # RGBColorType includes the (str, float) tuple, even for RGBA strings
+-    tuple[RGBColorType, float],
++    tuple[RGBColorType, float] |
+     # (4-tuple, float) is odd, but accepted as the outer float overriding A of 4-tuple
+-    tuple[tuple[float, float, float, float], float]
+-]
++    tuple[tuple[float, float, float, float], float]"""
+ 
+-ColorType = Union[RGBColorType, RGBAColorType]
++ColorType = "RGBColorType | RGBAColorType"
+ 
+ RGBColourType = RGBColorType
+ RGBAColourType = RGBAColorType
+ ColourType = ColorType
+ 
+-LineStyleType = Union[str, tuple[float, Sequence[float]]]
+-DrawStyleType = Literal["default", "steps", "steps-pre", "steps-mid", "steps-post"]
+-MarkEveryType = Union[
+-    None,
+-    int,
+-    tuple[int, int],
+-    slice,
+-    list[int],
+-    float,
+-    tuple[float, float],
+-    list[bool]
+-]
+-
+-MarkerType = Union[str, path.Path, MarkerStyle]
+-FillStyleType = Literal["full", "left", "right", "bottom", "top", "none"]
+-JoinStyleType = Union[JoinStyle, Literal["miter", "round", "bevel"]]
+-CapStyleType = Union[CapStyle, Literal["butt", "projecting", "round"]]
+-
+-RcStyleType = Union[
+-    str, dict[str, Any], pathlib.Path, list[Union[str, pathlib.Path, dict[str, Any]]]
+-]
+-
+-HashableList = list[Union[Hashable, "HashableList"]]
++LineStyleType = "str | tuple[float, Sequence[float]]"
++DrawStyleType = "Literal['default', 'steps', 'steps-pre', 'steps-mid', 'steps-post']"
++MarkEveryType = """None |
++    int |
++    tuple[int, int] |
++    slice |
++    list[int] |
++    float |
++    tuple[float, float] |
++    list[bool]"""
++
++FillStyleType = "Literal['full', 'left', 'right', 'bottom', 'top', 'none']"
++
++RcStyleType = "str | dict[str, Any] | pathlib.Path | list[str | pathlib.Path | dict[str, Any]]"
++
++HashableList = "list[Hashable | 'HashableList']"
+ """A nested list of Hashable values."""
++
++MarkerType = "str | path.Path | MarkerStyle"
++JoinStyleType = "JoinStyle | Literal['miter', 'round', 'bevel']"
++CapStyleType = "CapStyle | Literal['butt', 'projecting', 'round']"
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval '. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh
+++++ test -n ''
+++++ unset XML_CATALOG_FILES
+++++ unset xml_catalog_files_libxml2
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh
+++++ export GSETTINGS_SCHEMA_DIR=
+++++ GSETTINGS_SCHEMA_DIR=
+++++ unset GSETTINGS_SCHEMA_DIR_CONDA_BACKUP
+++++ '[' -z ']'
+++++ unset GSETTINGS_SCHEMA_DIR
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: contourpy>=1.0.1 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev1565+g2aee6ccd7c.d20240725) (1.1.0)
+Requirement already satisfied: cycler>=0.10 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev1565+g2aee6ccd7c.d20240725) (0.11.0)
+Requirement already satisfied: fonttools>=4.22.0 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev1565+g2aee6ccd7c.d20240725) (4.42.1)
+Requirement already satisfied: kiwisolver>=1.0.1 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev1565+g2aee6ccd7c.d20240725) (1.4.5)
+Requirement already satisfied: numpy>=1.21 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev1565+g2aee6ccd7c.d20240725) (1.25.2)
+Requirement already satisfied: packaging>=20.0 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev1565+g2aee6ccd7c.d20240725) (23.1)
+Requirement already satisfied: pillow>=6.2.0 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev1565+g2aee6ccd7c.d20240725) (10.0.0)
+Requirement already satisfied: pyparsing<3.1,>=2.3.1 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev1565+g2aee6ccd7c.d20240725) (3.0.9)
+Requirement already satisfied: python-dateutil>=2.7 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev1565+g2aee6ccd7c.d20240725) (2.8.2)
+Requirement already satisfied: setuptools-scm>=7 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev1565+g2aee6ccd7c.d20240725) (7.1.0)
+Requirement already satisfied: six>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from python-dateutil>=2.7->matplotlib==3.8.0.dev1565+g2aee6ccd7c.d20240725) (1.16.0)
+Requirement already satisfied: setuptools in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from setuptools-scm>=7->matplotlib==3.8.0.dev1565+g2aee6ccd7c.d20240725) (68.1.2)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from setuptools-scm>=7->matplotlib==3.8.0.dev1565+g2aee6ccd7c.d20240725) (4.7.1)
+Building wheels for collected packages: matplotlib
+  Building editable for matplotlib (pyproject.toml): started
+  Building editable for matplotlib (pyproject.toml): still running...
+  Building editable for matplotlib (pyproject.toml): finished with status 'done'
+  Created wheel for matplotlib: filename=matplotlib-3.8.0.dev1565+g2aee6ccd7c.d20240725-0.editable-cp311-cp311-linux_x86_64.whl size=22571 sha256=b43e7e1b8f1e6f0fe2570dc6a0fb6f0334758b99bd290ba7a2a12d750acbd06d
+  Stored in directory: /tmp/pip-ephem-wheel-cache-_v3xucg2/wheels/49/5f/4f/01b7d31ea6ddac9643da788242d33e5fd3467d95d17b032c6b
+Successfully built matplotlib
+Installing collected packages: matplotlib
+  Attempting uninstall: matplotlib
+    Found existing installation: matplotlib 3.8.0.dev1565+g2aee6ccd7c
+    Uninstalling matplotlib-3.8.0.dev1565+g2aee6ccd7c:
+      Successfully uninstalled matplotlib-3.8.0.dev1565+g2aee6ccd7c
+Successfully installed matplotlib-3.8.0.dev1565+g2aee6ccd7c.d20240725
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 2aee6ccd7c7e1f8d282c1e7579f4ee546b838542 lib/matplotlib/tests/test_contour.py
+Updated 0 paths from 740b5b529d
++ git apply -v -
+Checking patch lib/matplotlib/tests/test_contour.py...
+Applied patch lib/matplotlib/tests/test_contour.py cleanly.
++ pytest -rA lib/matplotlib/tests/test_contour.py
+============================= test session starts ==============================
+platform linux -- Python 3.11.9, pytest-8.3.1, pluggy-1.5.0
+rootdir: /testbed
+configfile: pytest.ini
+plugins: cov-5.0.0, rerunfailures-14.0, timeout-2.3.1, xdist-3.6.1
+collected 87 items
+
+lib/matplotlib/tests/test_contour.py ................F.Fss.Fss.F.F..F... [ 40%]
+.....F.F.F.....F..F.FF..............F..............F                     [100%]
+
+=================================== FAILURES ===================================
+_____________________ test_contour_manual_labels[png-True] _____________________
+
+split_collections = True
+
+    @pytest.mark.parametrize("split_collections", [False, True])
+    @image_comparison(['contour_manual_labels'], remove_text=True, style='mpl20', tol=0.26)
+    def test_contour_manual_labels(split_collections):
+        x, y = np.meshgrid(np.arange(0, 10), np.arange(0, 10))
+        z = np.max(np.dstack([abs(x), abs(y)]), 2)
+    
+        plt.figure(figsize=(6, 2), dpi=200)
+        cs = plt.contour(x, y, z)
+        pts = np.array([(1.0, 3.0), (1.0, 4.4), (1.0, 6.0)])
+        plt.clabel(cs, manual=pts)
+        pts = np.array([(2.0, 3.0), (2.0, 4.4), (2.0, 6.0)])
+        plt.clabel(cs, manual=pts, fontsize='small', colors=('r', 'g'))
+    
+>       _maybe_split_collections(split_collections)
+
+lib/matplotlib/tests/test_contour.py:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+do_split = True
+
+    def _maybe_split_collections(do_split):
+        if not do_split:
+            return
+        for fig in map(plt.figure, plt.get_fignums()):
+            for ax in fig.axes:
+                for coll in ax.collections:
+                    if isinstance(coll, mpl.contour.ContourSet):
+>                       with pytest.warns(mpl._api.MatplotlibDeprecationWarning):
+E                       Failed: DID NOT WARN. No warnings of type (<class 'matplotlib._api.deprecation.MatplotlibDeprecationWarning'>,) were emitted.
+E                        Emitted warnings: [].
+
+lib/matplotlib/tests/test_contour.py:27: Failed
+_____________________ test_contour_manual_labels[pdf-True] _____________________
+
+split_collections = True
+
+    @pytest.mark.parametrize("split_collections", [False, True])
+    @image_comparison(['contour_manual_labels'], remove_text=True, style='mpl20', tol=0.26)
+    def test_contour_manual_labels(split_collections):
+        x, y = np.meshgrid(np.arange(0, 10), np.arange(0, 10))
+        z = np.max(np.dstack([abs(x), abs(y)]), 2)
+    
+        plt.figure(figsize=(6, 2), dpi=200)
+        cs = plt.contour(x, y, z)
+        pts = np.array([(1.0, 3.0), (1.0, 4.4), (1.0, 6.0)])
+        plt.clabel(cs, manual=pts)
+        pts = np.array([(2.0, 3.0), (2.0, 4.4), (2.0, 6.0)])
+        plt.clabel(cs, manual=pts, fontsize='small', colors=('r', 'g'))
+    
+>       _maybe_split_collections(split_collections)
+
+lib/matplotlib/tests/test_contour.py:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+do_split = True
+
+    def _maybe_split_collections(do_split):
+        if not do_split:
+            return
+        for fig in map(plt.figure, plt.get_fignums()):
+            for ax in fig.axes:
+                for coll in ax.collections:
+                    if isinstance(coll, mpl.contour.ContourSet):
+>                       with pytest.warns(mpl._api.MatplotlibDeprecationWarning):
+E                       Failed: DID NOT WARN. No warnings of type (<class 'matplotlib._api.deprecation.MatplotlibDeprecationWarning'>,) were emitted.
+E                        Emitted warnings: [].
+
+lib/matplotlib/tests/test_contour.py:27: Failed
+________________ test_given_colors_levels_and_extends[png-True] ________________
+
+split_collections = True
+
+    @pytest.mark.parametrize("split_collections", [False, True])
+    @image_comparison(['contour_manual_colors_and_levels.png'], remove_text=True)
+    def test_given_colors_levels_and_extends(split_collections):
+        # Remove this line when this test image is regenerated.
+        plt.rcParams['pcolormesh.snap'] = False
+    
+        _, axs = plt.subplots(2, 4)
+    
+        data = np.arange(12).reshape(3, 4)
+    
+        colors = ['red', 'yellow', 'pink', 'blue', 'black']
+        levels = [2, 4, 8, 10]
+    
+        for i, ax in enumerate(axs.flat):
+            filled = i % 2 == 0.
+            extend = ['neither', 'min', 'max', 'both'][i // 2]
+    
+            if filled:
+                # If filled, we have 3 colors with no extension,
+                # 4 colors with one extension, and 5 colors with both extensions
+                first_color = 1 if extend in ['max', 'neither'] else None
+                last_color = -1 if extend in ['min', 'neither'] else None
+                c = ax.contourf(data, colors=colors[first_color:last_color],
+                                levels=levels, extend=extend)
+            else:
+                # If not filled, we have 4 levels and 4 colors
+                c = ax.contour(data, colors=colors[:-1],
+                               levels=levels, extend=extend)
+    
+            plt.colorbar(c, ax=ax)
+    
+>       _maybe_split_collections(split_collections)
+
+lib/matplotlib/tests/test_contour.py:158: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+do_split = True
+
+    def _maybe_split_collections(do_split):
+        if not do_split:
+            return
+        for fig in map(plt.figure, plt.get_fignums()):
+            for ax in fig.axes:
+                for coll in ax.collections:
+                    if isinstance(coll, mpl.contour.ContourSet):
+>                       with pytest.warns(mpl._api.MatplotlibDeprecationWarning):
+E                       Failed: DID NOT WARN. No warnings of type (<class 'matplotlib._api.deprecation.MatplotlibDeprecationWarning'>,) were emitted.
+E                        Emitted warnings: [].
+
+lib/matplotlib/tests/test_contour.py:27: Failed
+_____________________ test_contour_datetime_axis[png-True] _____________________
+
+split_collections = True
+
+    @pytest.mark.parametrize("split_collections", [False, True])
+    @image_comparison(['contour_datetime_axis.png'], style='mpl20')
+    def test_contour_datetime_axis(split_collections):
+        fig = plt.figure()
+        fig.subplots_adjust(hspace=0.4, top=0.98, bottom=.15)
+        base = datetime.datetime(2013, 1, 1)
+        x = np.array([base + datetime.timedelta(days=d) for d in range(20)])
+        y = np.arange(20)
+        z1, z2 = np.meshgrid(np.arange(20), np.arange(20))
+        z = z1 * z2
+        plt.subplot(221)
+        plt.contour(x, y, z)
+        plt.subplot(222)
+        plt.contourf(x, y, z)
+        x = np.repeat(x[np.newaxis], 20, axis=0)
+        y = np.repeat(y[:, np.newaxis], 20, axis=1)
+        plt.subplot(223)
+        plt.contour(x, y, z)
+        plt.subplot(224)
+        plt.contourf(x, y, z)
+        for ax in fig.get_axes():
+            for label in ax.get_xticklabels():
+                label.set_ha('right')
+                label.set_rotation(30)
+    
+>       _maybe_split_collections(split_collections)
+
+lib/matplotlib/tests/test_contour.py:210: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+do_split = True
+
+    def _maybe_split_collections(do_split):
+        if not do_split:
+            return
+        for fig in map(plt.figure, plt.get_fignums()):
+            for ax in fig.axes:
+                for coll in ax.collections:
+                    if isinstance(coll, mpl.contour.ContourSet):
+>                       with pytest.warns(mpl._api.MatplotlibDeprecationWarning):
+E                       Failed: DID NOT WARN. No warnings of type (<class 'matplotlib._api.deprecation.MatplotlibDeprecationWarning'>,) were emitted.
+E                        Emitted warnings: [].
+
+lib/matplotlib/tests/test_contour.py:27: Failed
+____________________________ test_labels[png-True] _____________________________
+
+split_collections = True
+
+    @pytest.mark.parametrize("split_collections", [False, True])
+    @image_comparison(['contour_test_label_transforms.png'],
+                      remove_text=True, style='mpl20', tol=1.1)
+    def test_labels(split_collections):
+        # Adapted from pylab_examples example code: contour_demo.py
+        # see issues #2475, #2843, and #2818 for explanation
+        delta = 0.025
+        x = np.arange(-3.0, 3.0, delta)
+        y = np.arange(-2.0, 2.0, delta)
+        X, Y = np.meshgrid(x, y)
+        Z1 = np.exp(-(X**2 + Y**2) / 2) / (2 * np.pi)
+        Z2 = (np.exp(-(((X - 1) / 1.5)**2 + ((Y - 1) / 0.5)**2) / 2) /
+              (2 * np.pi * 0.5 * 1.5))
+    
+        # difference of Gaussians
+        Z = 10.0 * (Z2 - Z1)
+    
+        fig, ax = plt.subplots(1, 1)
+        CS = ax.contour(X, Y, Z)
+        disp_units = [(216, 177), (359, 290), (521, 406)]
+        data_units = [(-2, .5), (0, -1.5), (2.8, 1)]
+    
+        CS.clabel()
+    
+        for x, y in data_units:
+            CS.add_label_near(x, y, inline=True, transform=None)
+    
+        for x, y in disp_units:
+            CS.add_label_near(x, y, inline=True, transform=False)
+    
+>       _maybe_split_collections(split_collections)
+
+lib/matplotlib/tests/test_contour.py:243: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+do_split = True
+
+    def _maybe_split_collections(do_split):
+        if not do_split:
+            return
+        for fig in map(plt.figure, plt.get_fignums()):
+            for ax in fig.axes:
+                for coll in ax.collections:
+                    if isinstance(coll, mpl.contour.ContourSet):
+>                       with pytest.warns(mpl._api.MatplotlibDeprecationWarning):
+E                       Failed: DID NOT WARN. No warnings of type (<class 'matplotlib._api.deprecation.MatplotlibDeprecationWarning'>,) were emitted.
+E                        Emitted warnings: [].
+
+lib/matplotlib/tests/test_contour.py:27: Failed
+__________________________ test_corner_mask[png-True] __________________________
+
+split_collections = True
+
+    @pytest.mark.parametrize("split_collections", [False, True])
+    @image_comparison(['contour_corner_mask_False.png', 'contour_corner_mask_True.png'],
+                      remove_text=True, tol=1.88)
+    def test_corner_mask(split_collections):
+        n = 60
+        mask_level = 0.95
+        noise_amp = 1.0
+        np.random.seed([1])
+        x, y = np.meshgrid(np.linspace(0, 2.0, n), np.linspace(0, 2.0, n))
+        z = np.cos(7*x)*np.sin(8*y) + noise_amp*np.random.rand(n, n)
+        mask = np.random.rand(n, n) >= mask_level
+        z = np.ma.array(z, mask=mask)
+    
+        for corner_mask in [False, True]:
+            plt.figure()
+            plt.contourf(z, corner_mask=corner_mask)
+    
+>       _maybe_split_collections(split_collections)
+
+lib/matplotlib/tests/test_contour.py:288: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+do_split = True
+
+    def _maybe_split_collections(do_split):
+        if not do_split:
+            return
+        for fig in map(plt.figure, plt.get_fignums()):
+            for ax in fig.axes:
+                for coll in ax.collections:
+                    if isinstance(coll, mpl.contour.ContourSet):
+>                       with pytest.warns(mpl._api.MatplotlibDeprecationWarning):
+E                       Failed: DID NOT WARN. No warnings of type (<class 'matplotlib._api.deprecation.MatplotlibDeprecationWarning'>,) were emitted.
+E                        Emitted warnings: [].
+
+lib/matplotlib/tests/test_contour.py:27: Failed
+____________________ test_contourf_log_extension[png-True] _____________________
+
+split_collections = True
+
+    @pytest.mark.parametrize("split_collections", [False, True])
+    @image_comparison(['contour_log_extension.png'],
+                      remove_text=True, style='mpl20',
+                      tol=1.444)
+    def test_contourf_log_extension(split_collections):
+        # Remove this line when this test image is regenerated.
+        plt.rcParams['pcolormesh.snap'] = False
+    
+        # Test that contourf with lognorm is extended correctly
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(10, 5))
+        fig.subplots_adjust(left=0.05, right=0.95)
+    
+        # make data set with large range e.g. between 1e-8 and 1e10
+        data_exp = np.linspace(-7.5, 9.5, 1200)
+        data = np.power(10, data_exp).reshape(30, 40)
+        # make manual levels e.g. between 1e-4 and 1e-6
+        levels_exp = np.arange(-4., 7.)
+        levels = np.power(10., levels_exp)
+    
+        # original data
+        c1 = ax1.contourf(data,
+                          norm=LogNorm(vmin=data.min(), vmax=data.max()))
+        # just show data in levels
+        c2 = ax2.contourf(data, levels=levels,
+                          norm=LogNorm(vmin=levels.min(), vmax=levels.max()),
+                          extend='neither')
+        # extend data from levels
+        c3 = ax3.contourf(data, levels=levels,
+                          norm=LogNorm(vmin=levels.min(), vmax=levels.max()),
+                          extend='both')
+        cb = plt.colorbar(c1, ax=ax1)
+        assert cb.ax.get_ylim() == (1e-8, 1e10)
+        cb = plt.colorbar(c2, ax=ax2)
+        assert_array_almost_equal_nulp(cb.ax.get_ylim(), np.array((1e-4, 1e6)))
+        cb = plt.colorbar(c3, ax=ax3)
+    
+>       _maybe_split_collections(split_collections)
+
+lib/matplotlib/tests/test_contour.py:380: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+do_split = True
+
+    def _maybe_split_collections(do_split):
+        if not do_split:
+            return
+        for fig in map(plt.figure, plt.get_fignums()):
+            for ax in fig.axes:
+                for coll in ax.collections:
+                    if isinstance(coll, mpl.contour.ContourSet):
+>                       with pytest.warns(mpl._api.MatplotlibDeprecationWarning):
+E                       Failed: DID NOT WARN. No warnings of type (<class 'matplotlib._api.deprecation.MatplotlibDeprecationWarning'>,) were emitted.
+E                        Emitted warnings: [].
+
+lib/matplotlib/tests/test_contour.py:27: Failed
+_______________________ test_contour_addlines[png-True] ________________________
+
+split_collections = True
+
+    @pytest.mark.parametrize("split_collections", [False, True])
+    @image_comparison(
+        ['contour_addlines.png'], remove_text=True, style='mpl20',
+        tol=0.15 if platform.machine() in ('aarch64', 'ppc64le', 's390x')
+            else 0.03)
+    # tolerance is because image changed minutely when tick finding on
+    # colorbars was cleaned up...
+    def test_contour_addlines(split_collections):
+        # Remove this line when this test image is regenerated.
+        plt.rcParams['pcolormesh.snap'] = False
+    
+        fig, ax = plt.subplots()
+        np.random.seed(19680812)
+        X = np.random.rand(10, 10)*10000
+        pcm = ax.pcolormesh(X)
+        # add 1000 to make colors visible...
+        cont = ax.contour(X+1000)
+        cb = fig.colorbar(pcm)
+        cb.add_lines(cont)
+        assert_array_almost_equal(cb.ax.get_ylim(), [114.3091, 9972.30735], 3)
+    
+>       _maybe_split_collections(split_collections)
+
+lib/matplotlib/tests/test_contour.py:404: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+do_split = True
+
+    def _maybe_split_collections(do_split):
+        if not do_split:
+            return
+        for fig in map(plt.figure, plt.get_fignums()):
+            for ax in fig.axes:
+                for coll in ax.collections:
+                    if isinstance(coll, mpl.contour.ContourSet):
+>                       with pytest.warns(mpl._api.MatplotlibDeprecationWarning):
+E                       Failed: DID NOT WARN. No warnings of type (<class 'matplotlib._api.deprecation.MatplotlibDeprecationWarning'>,) were emitted.
+E                        Emitted warnings: [].
+
+lib/matplotlib/tests/test_contour.py:27: Failed
+________________________ test_contour_uneven[png-True] _________________________
+
+split_collections = True
+
+    @pytest.mark.parametrize("split_collections", [False, True])
+    @image_comparison(baseline_images=['contour_uneven'],
+                      extensions=['png'], remove_text=True, style='mpl20')
+    def test_contour_uneven(split_collections):
+        # Remove this line when this test image is regenerated.
+        plt.rcParams['pcolormesh.snap'] = False
+    
+        z = np.arange(24).reshape(4, 6)
+        fig, axs = plt.subplots(1, 2)
+        ax = axs[0]
+        cs = ax.contourf(z, levels=[2, 4, 6, 10, 20])
+        fig.colorbar(cs, ax=ax, spacing='proportional')
+        ax = axs[1]
+        cs = ax.contourf(z, levels=[2, 4, 6, 10, 20])
+        fig.colorbar(cs, ax=ax, spacing='uniform')
+    
+>       _maybe_split_collections(split_collections)
+
+lib/matplotlib/tests/test_contour.py:423: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+do_split = True
+
+    def _maybe_split_collections(do_split):
+        if not do_split:
+            return
+        for fig in map(plt.figure, plt.get_fignums()):
+            for ax in fig.axes:
+                for coll in ax.collections:
+                    if isinstance(coll, mpl.contour.ContourSet):
+>                       with pytest.warns(mpl._api.MatplotlibDeprecationWarning):
+E                       Failed: DID NOT WARN. No warnings of type (<class 'matplotlib._api.deprecation.MatplotlibDeprecationWarning'>,) were emitted.
+E                        Emitted warnings: [].
+
+lib/matplotlib/tests/test_contour.py:27: Failed
+___________________ test_contour_closed_line_loop[png-True] ____________________
+
+split_collections = True
+
+    @pytest.mark.parametrize("split_collections", [False, True])
+    @image_comparison(baseline_images=['contour_closed_line_loop'],
+                      extensions=['png'], remove_text=True)
+    def test_contour_closed_line_loop(split_collections):
+        # github issue 19568.
+        z = [[0, 0, 0], [0, 2, 0], [0, 0, 0], [2, 1, 2]]
+    
+        fig, ax = plt.subplots(figsize=(2, 2))
+        ax.contour(z, [0.5], linewidths=[20], alpha=0.7)
+        ax.set_xlim(-0.1, 2.1)
+        ax.set_ylim(-0.1, 3.1)
+    
+>       _maybe_split_collections(split_collections)
+
+lib/matplotlib/tests/test_contour.py:463: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+do_split = True
+
+    def _maybe_split_collections(do_split):
+        if not do_split:
+            return
+        for fig in map(plt.figure, plt.get_fignums()):
+            for ax in fig.axes:
+                for coll in ax.collections:
+                    if isinstance(coll, mpl.contour.ContourSet):
+>                       with pytest.warns(mpl._api.MatplotlibDeprecationWarning):
+E                       Failed: DID NOT WARN. No warnings of type (<class 'matplotlib._api.deprecation.MatplotlibDeprecationWarning'>,) were emitted.
+E                        Emitted warnings: [].
+
+lib/matplotlib/tests/test_contour.py:27: Failed
+________________________ test_contour_manual[png-True] _________________________
+
+split_collections = True
+
+    @pytest.mark.parametrize("split_collections", [False, True])
+    @image_comparison(baseline_images=['contour_manual'],
+                      extensions=['png'], remove_text=True, tol=0.89)
+    def test_contour_manual(split_collections):
+        # Manually specifying contour lines/polygons to plot.
+        from matplotlib.contour import ContourSet
+    
+        fig, ax = plt.subplots(figsize=(4, 4))
+        cmap = 'viridis'
+    
+        # Segments only (no 'kind' codes).
+        lines0 = [[[2, 0], [1, 2], [1, 3]]]  # Single line.
+        lines1 = [[[3, 0], [3, 2]], [[3, 3], [3, 4]]]  # Two lines.
+        filled01 = [[[0, 0], [0, 4], [1, 3], [1, 2], [2, 0]]]
+        filled12 = [[[2, 0], [3, 0], [3, 2], [1, 3], [1, 2]],  # Two polygons.
+                    [[1, 4], [3, 4], [3, 3]]]
+        ContourSet(ax, [0, 1, 2], [filled01, filled12], filled=True, cmap=cmap)
+        ContourSet(ax, [1, 2], [lines0, lines1], linewidths=3, colors=['r', 'k'])
+    
+        # Segments and kind codes (1 = MOVETO, 2 = LINETO, 79 = CLOSEPOLY).
+        segs = [[[4, 0], [7, 0], [7, 3], [4, 3], [4, 0],
+                 [5, 1], [5, 2], [6, 2], [6, 1], [5, 1]]]
+        kinds = [[1, 2, 2, 2, 79, 1, 2, 2, 2, 79]]  # Polygon containing hole.
+        ContourSet(ax, [2, 3], [segs], [kinds], filled=True, cmap=cmap)
+        ContourSet(ax, [2], [segs], [kinds], colors='k', linewidths=3)
+    
+>       _maybe_split_collections(split_collections)
+
+lib/matplotlib/tests/test_contour.py:505: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+do_split = True
+
+    def _maybe_split_collections(do_split):
+        if not do_split:
+            return
+        for fig in map(plt.figure, plt.get_fignums()):
+            for ax in fig.axes:
+                for coll in ax.collections:
+                    if isinstance(coll, mpl.contour.ContourSet):
+>                       with pytest.warns(mpl._api.MatplotlibDeprecationWarning):
+E                       Failed: DID NOT WARN. No warnings of type (<class 'matplotlib._api.deprecation.MatplotlibDeprecationWarning'>,) were emitted.
+E                        Emitted warnings: [].
+
+lib/matplotlib/tests/test_contour.py:27: Failed
+_______________ test_contour_line_start_on_corner_edge[png-True] _______________
+
+split_collections = True
+
+    @pytest.mark.parametrize("split_collections", [False, True])
+    @image_comparison(baseline_images=['contour_line_start_on_corner_edge'],
+                      extensions=['png'], remove_text=True)
+    def test_contour_line_start_on_corner_edge(split_collections):
+        fig, ax = plt.subplots(figsize=(6, 5))
+    
+        x, y = np.meshgrid([0, 1, 2, 3, 4], [0, 1, 2])
+        z = 1.2 - (x - 2)**2 + (y - 1)**2
+        mask = np.zeros_like(z, dtype=bool)
+        mask[1, 1] = mask[1, 3] = True
+        z = np.ma.array(z, mask=mask)
+    
+        filled = ax.contourf(x, y, z, corner_mask=True)
+        cbar = fig.colorbar(filled)
+        lines = ax.contour(x, y, z, corner_mask=True, colors='k')
+        cbar.add_lines(lines)
+    
+>       _maybe_split_collections(split_collections)
+
+lib/matplotlib/tests/test_contour.py:525: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+do_split = True
+
+    def _maybe_split_collections(do_split):
+        if not do_split:
+            return
+        for fig in map(plt.figure, plt.get_fignums()):
+            for ax in fig.axes:
+                for coll in ax.collections:
+                    if isinstance(coll, mpl.contour.ContourSet):
+>                       with pytest.warns(mpl._api.MatplotlibDeprecationWarning):
+E                       Failed: DID NOT WARN. No warnings of type (<class 'matplotlib._api.deprecation.MatplotlibDeprecationWarning'>,) were emitted.
+E                        Emitted warnings: [].
+
+lib/matplotlib/tests/test_contour.py:27: Failed
+__________________________ test_find_nearest_contour ___________________________
+
+    def test_find_nearest_contour():
+        xy = np.indices((15, 15))
+        img = np.exp(-np.pi * (np.sum((xy - 5)**2, 0)/5.**2))
+        cs = plt.contour(img, 10)
+    
+        with pytest.warns(mpl._api.MatplotlibDeprecationWarning):
+>           nearest_contour = cs.find_nearest_contour(1, 1, pixel=False)
+
+lib/matplotlib/tests/test_contour.py:534: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/_api/deprecation.py:200: in wrapper
+    return func(*args, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.contour.QuadContourSet object at 0x7f09b02f8f10>, x = 1
+y = 1, indices = None, pixel = False
+
+    @_api.deprecated("3.8")
+    def find_nearest_contour(self, x, y, indices=None, pixel=True):
+        """
+        Find the point in the contour plot that is closest to ``(x, y)``.
+    
+        This method does not support filled contours.
+    
+        Parameters
+        ----------
+        x, y : float
+            The reference point.
+        indices : list of int or None, default: None
+            Indices of contour levels to consider.  If None (the default), all
+            levels are considered.
+        pixel : bool, default: True
+            If *True*, measure distance in pixel (screen) space, which is
+            useful for manual contour labeling; else, measure distance in axes
+            space.
+    
+        Returns
+        -------
+        contour : `.Collection`
+            The contour that is closest to ``(x, y)``.
+        segment : int
+            The index of the `.Path` in *contour* that is closest to
+            ``(x, y)``.
+        index : int
+            The index of the path segment in *segment* that is closest to
+            ``(x, y)``.
+        xmin, ymin : float
+            The point in the contour plot that is closest to ``(x, y)``.
+        d2 : float
+            The squared distance from ``(xmin, ymin)`` to ``(x, y)``.
+        """
+    
+        # This function uses a method that is probably quite
+        # inefficient based on converting each contour segment to
+        # pixel coordinates and then comparing the given point to
+        # those coordinates for each contour.  This will probably be
+        # quite slow for complex contours, but for normal use it works
+        # sufficiently well that the time is not noticeable.
+        # Nonetheless, improvements could probably be made.
+    
+        if self.filled:
+            raise ValueError("Method does not support filled contours.")
+    
+        if indices is None:
+>           indices = range(len(self.collections))
+E           TypeError: object of type 'method' has no len()
+
+lib/matplotlib/contour.py:1441: TypeError
+________________________ test_all_algorithms[png-True] _________________________
+
+split_collections = True
+
+    @pytest.mark.parametrize("split_collections", [False, True])
+    @image_comparison(baseline_images=['contour_all_algorithms'],
+                      extensions=['png'], remove_text=True, tol=0.06)
+    def test_all_algorithms(split_collections):
+        algorithms = ['mpl2005', 'mpl2014', 'serial', 'threaded']
+    
+        rng = np.random.default_rng(2981)
+        x, y = np.meshgrid(np.linspace(0.0, 1.0, 10), np.linspace(0.0, 1.0, 6))
+        z = np.sin(15*x)*np.cos(10*y) + rng.normal(scale=0.5, size=(6, 10))
+        mask = np.zeros_like(z, dtype=bool)
+        mask[3, 7] = True
+        z = np.ma.array(z, mask=mask)
+    
+        _, axs = plt.subplots(2, 2)
+        for ax, algorithm in zip(axs.ravel(), algorithms):
+            ax.contourf(x, y, z, algorithm=algorithm)
+            ax.contour(x, y, z, algorithm=algorithm, colors='k')
+            ax.set_title(algorithm)
+    
+>       _maybe_split_collections(split_collections)
+
+lib/matplotlib/tests/test_contour.py:673: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+do_split = True
+
+    def _maybe_split_collections(do_split):
+        if not do_split:
+            return
+        for fig in map(plt.figure, plt.get_fignums()):
+            for ax in fig.axes:
+                for coll in ax.collections:
+                    if isinstance(coll, mpl.contour.ContourSet):
+>                       with pytest.warns(mpl._api.MatplotlibDeprecationWarning):
+E                       Failed: DID NOT WARN. No warnings of type (<class 'matplotlib._api.deprecation.MatplotlibDeprecationWarning'>,) were emitted.
+E                        Emitted warnings: [].
+
+lib/matplotlib/tests/test_contour.py:27: Failed
+_____________________________ test_deprecated_apis _____________________________
+
+    def test_deprecated_apis():
+        cs = plt.contour(np.arange(16).reshape((4, 4)))
+>       with pytest.warns(mpl.MatplotlibDeprecationWarning, match="collections"):
+E       Failed: DID NOT WARN. No warnings of type (<class 'matplotlib._api.deprecation.MatplotlibDeprecationWarning'>,) were emitted.
+E        Emitted warnings: [].
+
+lib/matplotlib/tests/test_contour.py:824: Failed
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_shape_1d_valid
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_shape_2d_valid
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args0-Length of x (9) must match number of columns in z (10)]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args1-Length of y (10) must match number of rows in z (9)]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args2-Number of dimensions of x (2) and y (1) do not match]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args3-Number of dimensions of x (1) and y (2) do not match]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args4-Shapes of x (9, 9) and z (9, 10) do not match]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args5-Shapes of y (9, 9) and z (9, 10) do not match]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args6-Inputs x and y must be 1D or 2D, not 3D]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args7-Input z must be 2D, not 3D]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args8-Input z must be at least a (2, 2) shaped array, but has shape (1, 1)]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_shape_error[args9-Input z must be at least a (2, 2) shaped array, but has shape (1, 1)]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_no_valid_levels
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_Nlevels
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_set_paths[png]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_manual_labels[png-False]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_manual_labels[pdf-False]
+PASSED lib/matplotlib/tests/test_contour.py::test_given_colors_levels_and_extends[png-False]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_datetime_axis[png-False]
+PASSED lib/matplotlib/tests/test_contour.py::test_labels[png-False]
+PASSED lib/matplotlib/tests/test_contour.py::test_label_contour_start
+PASSED lib/matplotlib/tests/test_contour.py::test_corner_mask[png-False]
+PASSED lib/matplotlib/tests/test_contour.py::test_contourf_decreasing_levels
+PASSED lib/matplotlib/tests/test_contour.py::test_contourf_symmetric_locator
+PASSED lib/matplotlib/tests/test_contour.py::test_circular_contour_warning
+PASSED lib/matplotlib/tests/test_contour.py::test_clabel_zorder[True-123-1234]
+PASSED lib/matplotlib/tests/test_contour.py::test_clabel_zorder[False-123-1234]
+PASSED lib/matplotlib/tests/test_contour.py::test_clabel_zorder[True-123-None]
+PASSED lib/matplotlib/tests/test_contour.py::test_clabel_zorder[False-123-None]
+PASSED lib/matplotlib/tests/test_contour.py::test_contourf_log_extension[png-False]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_addlines[png-False]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_uneven[png-False]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_linewidth[1.23-None-None-1.23]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_linewidth[1.23-4.24-None-4.24]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_linewidth[1.23-4.24-5.02-5.02]
+PASSED lib/matplotlib/tests/test_contour.py::test_label_nonagg
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_closed_line_loop[png-False]
+PASSED lib/matplotlib/tests/test_contour.py::test_quadcontourset_reuse
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_manual[png-False]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_line_start_on_corner_edge[png-False]
+PASSED lib/matplotlib/tests/test_contour.py::test_find_nearest_contour_no_filled
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_autolabel_beyond_powerlimits
+PASSED lib/matplotlib/tests/test_contour.py::test_contourf_legend_elements
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_legend_elements
+PASSED lib/matplotlib/tests/test_contour.py::test_algorithm_name[mpl2005-Mpl2005ContourGenerator]
+PASSED lib/matplotlib/tests/test_contour.py::test_algorithm_name[mpl2014-Mpl2014ContourGenerator]
+PASSED lib/matplotlib/tests/test_contour.py::test_algorithm_name[serial-SerialContourGenerator]
+PASSED lib/matplotlib/tests/test_contour.py::test_algorithm_name[threaded-ThreadedContourGenerator]
+PASSED lib/matplotlib/tests/test_contour.py::test_algorithm_name[invalid-None]
+PASSED lib/matplotlib/tests/test_contour.py::test_algorithm_supports_corner_mask[mpl2005]
+PASSED lib/matplotlib/tests/test_contour.py::test_algorithm_supports_corner_mask[mpl2014]
+PASSED lib/matplotlib/tests/test_contour.py::test_algorithm_supports_corner_mask[serial]
+PASSED lib/matplotlib/tests/test_contour.py::test_algorithm_supports_corner_mask[threaded]
+PASSED lib/matplotlib/tests/test_contour.py::test_all_algorithms[png-False]
+PASSED lib/matplotlib/tests/test_contour.py::test_subfigure_clabel
+PASSED lib/matplotlib/tests/test_contour.py::test_linestyles[solid]
+PASSED lib/matplotlib/tests/test_contour.py::test_linestyles[dashed]
+PASSED lib/matplotlib/tests/test_contour.py::test_linestyles[dashdot]
+PASSED lib/matplotlib/tests/test_contour.py::test_linestyles[dotted]
+PASSED lib/matplotlib/tests/test_contour.py::test_negative_linestyles[solid]
+PASSED lib/matplotlib/tests/test_contour.py::test_negative_linestyles[dashed]
+PASSED lib/matplotlib/tests/test_contour.py::test_negative_linestyles[dashdot]
+PASSED lib/matplotlib/tests/test_contour.py::test_negative_linestyles[dotted]
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_remove
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_no_args
+PASSED lib/matplotlib/tests/test_contour.py::test_contour_clip_path
+PASSED lib/matplotlib/tests/test_contour.py::test_bool_autolevel
+PASSED lib/matplotlib/tests/test_contour.py::test_all_nan
+SKIPPED [4] ../opt/miniconda3/envs/testbed/lib/python3.11/contextlib.py:81: Cannot compare svg files because Inkscape is not installed
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_manual_labels[png-True]
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_manual_labels[pdf-True]
+FAILED lib/matplotlib/tests/test_contour.py::test_given_colors_levels_and_extends[png-True]
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_datetime_axis[png-True]
+FAILED lib/matplotlib/tests/test_contour.py::test_labels[png-True] - Failed: ...
+FAILED lib/matplotlib/tests/test_contour.py::test_corner_mask[png-True] - Fai...
+FAILED lib/matplotlib/tests/test_contour.py::test_contourf_log_extension[png-True]
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_addlines[png-True]
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_uneven[png-True] - ...
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_closed_line_loop[png-True]
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_manual[png-True] - ...
+FAILED lib/matplotlib/tests/test_contour.py::test_contour_line_start_on_corner_edge[png-True]
+FAILED lib/matplotlib/tests/test_contour.py::test_find_nearest_contour - Type...
+FAILED lib/matplotlib/tests/test_contour.py::test_all_algorithms[png-True] - ...
+FAILED lib/matplotlib/tests/test_contour.py::test_deprecated_apis - Failed: D...
+================== 15 failed, 68 passed, 4 skipped in 14.52s ===================
++ git checkout 2aee6ccd7c7e1f8d282c1e7579f4ee546b838542 lib/matplotlib/tests/test_contour.py
+Updated 1 path from 740b5b529d

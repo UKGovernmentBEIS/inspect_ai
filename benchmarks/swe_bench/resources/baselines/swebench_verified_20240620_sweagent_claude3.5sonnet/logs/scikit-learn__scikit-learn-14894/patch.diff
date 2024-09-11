@@ -1,0 +1,66 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..92011f34f
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,28 @@
++import numpy as np
++import scipy
++import sklearn
++from sklearn.svm import SVR
++
++x_train = np.array([[0, 1, 0, 0],
++                    [0, 0, 0, 1],
++                    [0, 0, 1, 0],
++                    [0, 0, 0, 1]])
++y_train = np.array([0.04, 0.04, 0.10, 0.16])
++
++model = SVR(C=316.227766017, cache_size=200, coef0=0.0, degree=3, epsilon=0.1,
++            gamma=1.0, kernel='linear', max_iter=15000,
++            shrinking=True, tol=0.001, verbose=False)
++
++# dense x_train has no error
++model.fit(x_train, y_train)
++print("Dense fit completed successfully")
++
++# convert to sparse
++xtrain_sparse = scipy.sparse.csr_matrix(x_train)
++try:
++    model.fit(xtrain_sparse, y_train)
++    print("Sparse fit completed successfully")
++except Exception as e:
++    print(f"Error occurred during sparse fit: {str(e)}")
++
++print("Script completed.")
+diff --git a/sklearn/svm/base.py b/sklearn/svm/base.py
+index 64cebe837..0c96d7441 100644
+--- a/sklearn/svm/base.py
++++ b/sklearn/svm/base.py
+@@ -286,12 +286,20 @@ class BaseLibSVM(BaseEstimator, metaclass=ABCMeta):
+             n_class = 1
+         n_SV = self.support_vectors_.shape[0]
+ 
+-        dual_coef_indices = np.tile(np.arange(n_SV), n_class)
+-        dual_coef_indptr = np.arange(0, dual_coef_indices.size + 1,
+-                                     dual_coef_indices.size / n_class)
+-        self.dual_coef_ = sp.csr_matrix(
+-            (dual_coef_data, dual_coef_indices, dual_coef_indptr),
+-            (n_class, n_SV))
++        # Debug print statements removed
++
++        if n_SV == 0:
++            self.dual_coef_ = sp.csr_matrix((n_class, 0))
++        else:
++            dual_coef_indices = np.tile(np.arange(n_SV), n_class)
++            if n_class > 0:
++                dual_coef_indptr = np.arange(0, dual_coef_indices.size + 1,
++                                             dual_coef_indices.size / n_class)
++            else:
++                dual_coef_indptr = np.array([0, dual_coef_indices.size])
++            self.dual_coef_ = sp.csr_matrix(
++                (dual_coef_data, dual_coef_indices, dual_coef_indptr),
++                (n_class, n_SV))
+ 
+     def predict(self, X):
+         """Perform regression on samples in X.

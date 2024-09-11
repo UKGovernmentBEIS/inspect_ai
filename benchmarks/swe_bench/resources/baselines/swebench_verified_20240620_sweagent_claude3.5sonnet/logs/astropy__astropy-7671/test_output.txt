@@ -1,0 +1,466 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   astropy/utils/introspection.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_issue.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit a7141cd90019b62688d507ae056298507678c058
+Merge: 82d3736841 6a3e140db8
+Author: Brigitta Sipocz <bsipocz@gmail.com>
+Date:   Fri Jul 20 11:08:31 2018 +0100
+
+    Merge pull request #6536 from astrofrog/rebase-policy
+    
+    Added page to developer docs on when to rebase
+
++ git diff a7141cd90019b62688d507ae056298507678c058
+diff --git a/astropy/utils/introspection.py b/astropy/utils/introspection.py
+index 3e784f9fc3..96b713c436 100644
+--- a/astropy/utils/introspection.py
++++ b/astropy/utils/introspection.py
+@@ -7,6 +7,7 @@ import inspect
+ import types
+ import importlib
+ from distutils.version import LooseVersion
++from packaging.version import parse
+ 
+ 
+ __all__ = ['resolve_name', 'minversion', 'find_current_module',
+@@ -140,9 +141,9 @@ def minversion(module, version, inclusive=True, version_path='__version__'):
+         have_version = resolve_name(module.__name__, version_path)
+ 
+     if inclusive:
+-        return LooseVersion(have_version) >= LooseVersion(version)
++        return parse(have_version) >= parse(version)
+     else:
+-        return LooseVersion(have_version) > LooseVersion(version)
++        return parse(have_version) > parse(version)
+ 
+ 
+ def find_current_module(depth=1, finddiff=False):
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e '.[test]' --verbose
+Using pip 21.2.2 from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/pip (python 3.6)
+Obtaining file:///testbed
+    Running command python setup.py egg_info
+    running egg_info
+    creating /tmp/pip-pip-egg-info-a5wf6voj/astropy.egg-info
+    writing /tmp/pip-pip-egg-info-a5wf6voj/astropy.egg-info/PKG-INFO
+    writing dependency_links to /tmp/pip-pip-egg-info-a5wf6voj/astropy.egg-info/dependency_links.txt
+    writing entry points to /tmp/pip-pip-egg-info-a5wf6voj/astropy.egg-info/entry_points.txt
+    writing requirements to /tmp/pip-pip-egg-info-a5wf6voj/astropy.egg-info/requires.txt
+    writing top-level names to /tmp/pip-pip-egg-info-a5wf6voj/astropy.egg-info/top_level.txt
+    writing manifest file '/tmp/pip-pip-egg-info-a5wf6voj/astropy.egg-info/SOURCES.txt'
+    reading manifest file '/tmp/pip-pip-egg-info-a5wf6voj/astropy.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    warning: no files found matching 'ez_setup.py'
+    warning: no files found matching 'astropy/utils/misc/data/.hidden_file.txt'
+    warning: no files found matching '*' under directory 'scripts'
+    warning: no files found matching '*' under directory 'astropy/sphinx/themes'
+    no previously-included directories found matching 'docs/_build'
+    no previously-included directories found matching 'build'
+    warning: no files found matching 'astropy_helpers/ez_setup.py'
+    warning: no files found matching '*.pyx' under directory 'astropy_helpers/astropy_helpers'
+    warning: no files found matching '*.h' under directory 'astropy_helpers/astropy_helpers'
+    no previously-included directories found matching 'astropy_helpers/build'
+    warning: no previously-included files matching '*.o' found anywhere in distribution
+    writing manifest file '/tmp/pip-pip-egg-info-a5wf6voj/astropy.egg-info/SOURCES.txt'
+Requirement already satisfied: numpy>=1.13.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from astropy==3.1.dev22226) (1.16.0)
+Requirement already satisfied: pytest-astropy in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from astropy==3.1.dev22226) (0.2.1)
+Requirement already satisfied: pytest-arraydiff in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev22226) (0.1)
+Requirement already satisfied: pytest>=3.1.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev22226) (3.3.1)
+Requirement already satisfied: pytest-doctestplus>=0.1.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev22226) (0.1.2)
+Requirement already satisfied: pytest-remotedata>=0.2.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev22226) (0.2.0)
+Requirement already satisfied: pytest-openfiles>=0.2.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev22226) (0.2.0)
+Requirement already satisfied: pluggy<0.7,>=0.5 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest>=3.1.0->pytest-astropy->astropy==3.1.dev22226) (0.6.0)
+Requirement already satisfied: attrs>=17.2.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest>=3.1.0->pytest-astropy->astropy==3.1.dev22226) (17.3.0)
+Requirement already satisfied: setuptools in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest>=3.1.0->pytest-astropy->astropy==3.1.dev22226) (38.2.4)
+Requirement already satisfied: py>=1.5.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest>=3.1.0->pytest-astropy->astropy==3.1.dev22226) (1.11.0)
+Requirement already satisfied: six>=1.10.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest>=3.1.0->pytest-astropy->astropy==3.1.dev22226) (1.16.0)
+Requirement already satisfied: psutil in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-openfiles>=0.2.0->pytest-astropy->astropy==3.1.dev22226) (5.4.2)
+Installing collected packages: astropy
+  Attempting uninstall: astropy
+    Found existing installation: astropy 3.1.dev22226
+    Uninstalling astropy-3.1.dev22226:
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fits2bitmap
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fitscheck
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fitsdiff
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fitsheader
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fitsinfo
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/samp_hub
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/showtable
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/volint
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/wcslint
+      Removing file or directory /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/astropy.egg-link
+      Removing pth entries from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/easy-install.pth:
+      Removing entry: /testbed
+      Successfully uninstalled astropy-3.1.dev22226
+  Running setup.py develop for astropy
+    Running command /opt/miniconda3/envs/testbed/bin/python -c 'import io, os, sys, setuptools, tokenize; sys.argv[0] = '"'"'/testbed/setup.py'"'"'; __file__='"'"'/testbed/setup.py'"'"';f = getattr(tokenize, '"'"'open'"'"', open)(__file__) if os.path.exists(__file__) else io.StringIO('"'"'from setuptools import setup; setup()'"'"');code = f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' develop --no-deps
+    running develop
+    running egg_info
+    writing astropy.egg-info/PKG-INFO
+    writing dependency_links to astropy.egg-info/dependency_links.txt
+    writing entry points to astropy.egg-info/entry_points.txt
+    writing requirements to astropy.egg-info/requires.txt
+    writing top-level names to astropy.egg-info/top_level.txt
+    reading manifest file 'astropy.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    warning: no files found matching 'ez_setup.py'
+    warning: no files found matching 'astropy/utils/misc/data/.hidden_file.txt'
+    warning: no files found matching '*' under directory 'scripts'
+    warning: no files found matching '*' under directory 'astropy/sphinx/themes'
+    no previously-included directories found matching 'docs/_build'
+    no previously-included directories found matching 'build'
+    warning: no files found matching 'astropy_helpers/ez_setup.py'
+    warning: no files found matching '*.pyx' under directory 'astropy_helpers/astropy_helpers'
+    warning: no files found matching '*.h' under directory 'astropy_helpers/astropy_helpers'
+    no previously-included directories found matching 'astropy_helpers/build'
+    warning: no previously-included files matching '*.o' found anywhere in distribution
+    writing manifest file 'astropy.egg-info/SOURCES.txt'
+    running build_ext
+    running pre_hook from astropy._erfa.setup_package for build_ext command
+    running pre_hook from astropy.modeling.setup_package for build_ext command
+    building 'astropy._compiler' extension
+    gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC -I/opt/miniconda3/envs/testbed/include/python3.6m -c astropy/_compiler.c -o build/temp.linux-x86_64-3.6/astropy/_compiler.o
+    gcc -pthread -shared -B /opt/miniconda3/envs/testbed/compiler_compat -L/opt/miniconda3/envs/testbed/lib -Wl,-rpath=/opt/miniconda3/envs/testbed/lib -Wl,--no-as-needed -Wl,--sysroot=/ build/temp.linux-x86_64-3.6/astropy/_compiler.o -o /testbed/astropy/_compiler.cpython-36m-x86_64-linux-gnu.so
+    skipping 'astropy/table/_np_utils.c' Cython extension (up-to-date)
+    skipping 'astropy/table/_column_mixins.c' Cython extension (up-to-date)
+    skipping 'astropy/io/ascii/cparser.c' Cython extension (up-to-date)
+    skipping 'astropy/convolution/boundary_extend.c' Cython extension (up-to-date)
+    skipping 'astropy/convolution/boundary_fill.c' Cython extension (up-to-date)
+    skipping 'astropy/convolution/boundary_none.c' Cython extension (up-to-date)
+    skipping 'astropy/convolution/boundary_wrap.c' Cython extension (up-to-date)
+    skipping 'astropy/cosmology/scalar_inv_efuncs.c' Cython extension (up-to-date)
+    skipping 'astropy/stats/lombscargle/implementations/cython_impl.c' Cython extension (up-to-date)
+    Creating /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/astropy.egg-link (link to .)
+    Adding astropy 3.1.dev22226 to easy-install.pth file
+    Installing fits2bitmap script to /opt/miniconda3/envs/testbed/bin
+    Installing fitscheck script to /opt/miniconda3/envs/testbed/bin
+    Installing fitsdiff script to /opt/miniconda3/envs/testbed/bin
+    Installing fitsheader script to /opt/miniconda3/envs/testbed/bin
+    Installing fitsinfo script to /opt/miniconda3/envs/testbed/bin
+    Installing samp_hub script to /opt/miniconda3/envs/testbed/bin
+    Installing showtable script to /opt/miniconda3/envs/testbed/bin
+    Installing volint script to /opt/miniconda3/envs/testbed/bin
+    Installing wcslint script to /opt/miniconda3/envs/testbed/bin
+
+    Installed /testbed
+Successfully installed astropy-3.1.dev22226
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout a7141cd90019b62688d507ae056298507678c058 astropy/utils/tests/test_introspection.py
+Updated 0 paths from 5883d72fd6
++ git apply -v -
+Checking patch astropy/utils/tests/test_introspection.py...
+Applied patch astropy/utils/tests/test_introspection.py cleanly.
++ pytest -rA -vv -o console_output_style=classic --tb=no astropy/utils/tests/test_introspection.py
+Internet access disabled
+============================= test session starts ==============================
+platform linux -- Python 3.6.13, pytest-3.3.1, py-1.11.0, pluggy-0.6.0 -- /opt/miniconda3/envs/testbed/bin/python
+cachedir: .
+
+Running tests with Astropy version 3.1.dev22226.
+Running tests in astropy/utils/tests/test_introspection.py.
+
+Date: 2024-07-24T17:52:25
+
+Platform: Linux-6.1.96-102.177.amzn2023.x86_64-x86_64-with-debian-bookworm-sid
+
+Executable: /opt/miniconda3/envs/testbed/bin/python
+
+Full Python Version: 
+3.6.13 |Anaconda, Inc.| (default, Jun  4 2021, 14:25:59) 
+[GCC 7.5.0]
+
+encodings: sys: utf-8, locale: ANSI_X3.4-1968, filesystem: ascii
+byteorder: little
+float info: dig: 15, mant_dig: 15
+
+Numpy: 1.16.0
+Scipy: not available
+Matplotlib: not available
+h5py: not available
+Pandas: not available
+Cython: 0.27.3
+astropy_helpers: 3.0.2
+Using Astropy options: remote_data: none.
+
+rootdir: /testbed, inifile: setup.cfg
+plugins: xdist-1.20.1, remotedata-0.2.0, openfiles-0.2.0, mock-1.6.3, forked-0.2, filter-subpackage-0.1, doctestplus-0.1.2, cov-2.5.1, astropy-header-0.1, arraydiff-0.1, hypothesis-3.44.2
+collecting ... collected 4 items
+
+astropy/utils/tests/test_introspection.py::test_pkg_finder PASSED
+astropy/utils/tests/test_introspection.py::test_find_current_mod PASSED
+astropy/utils/tests/test_introspection.py::test_find_mod_objs PASSED
+astropy/utils/tests/test_introspection.py::test_minversion PASSED
+
+=============================== warnings summary ===============================
+None
+  Module already imported so cannot be rewritten: astropy.tests.plugins.display
+
+-- Docs: http://doc.pytest.org/en/latest/warnings.html
+===================== 4 passed, 1 warnings in 0.15 seconds =====================
++ git checkout a7141cd90019b62688d507ae056298507678c058 astropy/utils/tests/test_introspection.py
+Updated 1 path from 5883d72fd6

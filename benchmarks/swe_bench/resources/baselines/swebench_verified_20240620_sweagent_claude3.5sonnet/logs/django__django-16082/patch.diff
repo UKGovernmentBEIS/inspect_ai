@@ -1,0 +1,183 @@
+
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index 5e3c7cab82..ee7d77ff67 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -548,6 +548,16 @@ _connector_combinations = [
+             Combinable.BITXOR,
+         )
+     },
++    # MOD operator
++    {
++        Combinable.MOD: [
++            (fields.IntegerField, fields.IntegerField, fields.IntegerField),
++            (fields.DecimalField, fields.IntegerField, fields.DecimalField),
++            (fields.IntegerField, fields.DecimalField, fields.DecimalField),
++            (fields.DecimalField, fields.DecimalField, fields.DecimalField),
++        ]
++    },
++    # Numeric with NULL.
+     # Numeric with NULL.
+     {
+         connector: [
+diff --git a/django/db/models/functions/math.py b/django/db/models/functions/math.py
+index 8b5fd79c3a..e8b1374ca6 100644
+--- a/django/db/models/functions/math.py
++++ b/django/db/models/functions/math.py
+@@ -1,7 +1,7 @@
+ import math
+ 
+ from django.db.models.expressions import Func, Value
+-from django.db.models.fields import FloatField, IntegerField
++from django.db.models.fields import FloatField, IntegerField, DecimalField
+ from django.db.models.functions import Cast
+ from django.db.models.functions.mixins import (
+     FixDecimalInputMixin,
+@@ -125,7 +125,13 @@ class Mod(FixDecimalInputMixin, NumericOutputFieldMixin, Func):
+     function = "MOD"
+     arity = 2
+ 
+-
++    def _resolve_output_field(self):
++        source_fields = self.get_source_expressions()
++        if any(isinstance(getattr(s, 'value', None), DecimalField) for s in source_fields):
++            return DecimalField()
++        elif all(isinstance(getattr(s, 'value', None), IntegerField) for s in source_fields):
++            return IntegerField()
++        return super()._resolve_output_field()
+ class Pi(NumericOutputFieldMixin, Func):
+     function = "PI"
+     arity = 0
+diff --git a/run_test.py b/run_test.py
+new file mode 100644
+index 0000000000..7a07f70827
+--- /dev/null
++++ b/run_test.py
+@@ -0,0 +1,31 @@
++
++import os
++import django
++from django.test.utils import setup_databases, teardown_databases
++from django.test.runner import DiscoverRunner
++from django.apps import apps
++
++os.environ['DJANGO_SETTINGS_MODULE'] = 'test_settings'
++django.setup()
++
++from tests.db_functions.math.test_mod import ModTests
++
++if __name__ == '__main__':
++    runner = DiscoverRunner(verbosity=2, interactive=False)
++    old_config = runner.setup_databases()
++    
++    try:
++        # Ensure the models are set up correctly
++        apps.get_app_config('db_functions').import_models()
++        
++        test = ModTests('test_decimal_and_integer')
++        result = test.run()
++        if result.wasSuccessful():
++            print('Test passed successfully!')
++        else:
++            print('Test failed.')
++            print(result.errors)
++            print(result.failures)
++    finally:
++        runner.teardown_databases(old_config)
++
+diff --git a/run_tests.py b/run_tests.py
+new file mode 100644
+index 0000000000..8dae21d55a
+--- /dev/null
++++ b/run_tests.py
+@@ -0,0 +1,12 @@
++
++import os
++import django
++from django.test.runner import DiscoverRunner
++
++os.environ['DJANGO_SETTINGS_MODULE'] = 'test_settings'
++django.setup()
++
++test_runner = DiscoverRunner(verbosity=2, interactive=False)
++failures = test_runner.run_tests(['django.tests.expressions'])
++exit(failures)
++
+diff --git a/test_mod_function.py b/test_mod_function.py
+new file mode 100644
+index 0000000000..701e44a180
+--- /dev/null
++++ b/test_mod_function.py
+@@ -0,0 +1,28 @@
++
++from django.db.models import DecimalField, IntegerField
++from django.db.models.functions import Mod
++from decimal import Decimal
++
++def test_mod_function():
++    decimal_field = DecimalField(max_digits=10, decimal_places=2)
++    integer_field = IntegerField()
++
++    # Test Decimal MOD Integer
++    result = Mod(decimal_field, integer_field).resolve_expression()
++    assert isinstance(result.output_field, DecimalField), 'Decimal MOD Integer should return DecimalField'
++    
++    # Test Integer MOD Decimal
++    result = Mod(integer_field, decimal_field).resolve_expression()
++    assert isinstance(result.output_field, DecimalField), 'Integer MOD Decimal should return DecimalField'
++    
++    # Test Integer MOD Integer
++    result = Mod(integer_field, integer_field).resolve_expression()
++    assert isinstance(result.output_field, IntegerField), 'Integer MOD Integer should return IntegerField'
++
++    print('All tests passed successfully!')
++
++if __name__ == '__main__':
++    import django
++    django.setup()
++    test_mod_function()
++
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..436987aeb4
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,19 @@
++
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'tests',
++    'tests.db_functions',
++]
++
++SECRET_KEY = 'fake-key'
++USE_TZ = True
++
++DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
++
+diff --git a/tests/db_functions/math/test_mod.py b/tests/db_functions/math/test_mod.py
+index 919b9419d2..04cdf5eb76 100644
+--- a/tests/db_functions/math/test_mod.py
++++ b/tests/db_functions/math/test_mod.py
+@@ -42,3 +42,14 @@ class ModTests(TestCase):
+         self.assertEqual(obj.small_mod, math.fmod(obj.small, obj.normal))
+         self.assertEqual(obj.normal_mod, math.fmod(obj.normal, obj.big))
+         self.assertEqual(obj.big_mod, math.fmod(obj.big, obj.small))
++
++    def test_decimal_and_integer(self):
++        DecimalModel.objects.create(n1=Decimal("10.5"), n2=Decimal("2"))
++        obj = DecimalModel.objects.annotate(
++            mod_with_int=Mod("n1", 3),
++            mod_with_decimal=Mod("n1", "n2"),
++        ).first()
++        self.assertIsInstance(obj.mod_with_int, Decimal)
++        self.assertIsInstance(obj.mod_with_decimal, Decimal)
++        self.assertAlmostEqual(obj.mod_with_int, Decimal("1.5"))
++        self.assertAlmostEqual(obj.mod_with_decimal, Decimal("0.5"))

@@ -1,0 +1,88 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..caaf2a67f6
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,25 @@
++import os
++import django
++from django.conf import settings
++from django.core.management import call_command
++
++# Set up Django environment
++os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'test_project.settings')
++
++# Initialize Django
++django.setup()
++
++# Import the model after Django is set up
++from test_project.test_app.models import FooBar
++
++# Run migrations
++call_command('migrate')
++
++# Test the model
++test_model = FooBar(foo_bar='1')
++print(f'FooBar.__str__() returns: {str(test_model)}')
++print(f'FooBar.get_foo_bar_display() returns: {test_model.get_foo_bar_display()}')
++print(f'FooBar.get_custom_foo_bar_display() returns: {test_model.get_custom_foo_bar_display()}')
++print(f'FooBar.custom_display() returns: {test_model.custom_display()}')
++
++print('Script completed successfully, no errors.')
+diff --git a/test_project/settings.py b/test_project/settings.py
+new file mode 100644
+index 0000000000..6a36bfa5a2
+--- /dev/null
++++ b/test_project/settings.py
+@@ -0,0 +1,13 @@
++SECRET_KEY = 'dummy_secret_key'
++DEBUG = True
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'test_project.test_app',
++]
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++USE_TZ = True
+diff --git a/test_project/test_app/models.py b/test_project/test_app/models.py
+new file mode 100644
+index 0000000000..51006b324c
+--- /dev/null
++++ b/test_project/test_app/models.py
+@@ -0,0 +1,13 @@
++from django.db import models
++
++class FooBar(models.Model):
++    foo_bar = models.CharField('foo', max_length=10, choices=[(1, 'foo'), (2, 'bar')])
++    
++    def __str__(self):
++        return self.custom_display()
++    
++    def custom_display(self):
++        return 'something'
++
++    def get_custom_foo_bar_display(self):
++        return self.custom_display()
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..bc8e2efa8d
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,12 @@
++SECRET_KEY = 'dummy_secret_key'
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'test_app',
++]
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++USE_TZ = True

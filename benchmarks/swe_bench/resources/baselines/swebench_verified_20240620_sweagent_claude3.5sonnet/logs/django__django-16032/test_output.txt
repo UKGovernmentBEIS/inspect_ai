@@ -1,0 +1,617 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   tests/annotations/tests.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	db.sqlite3
+	run_query.py
+	run_test.py
+	test_settings.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 0c3981eb5094419fe200eb46c71b5376a2266166
+Author: Tom Carrick <tom@carrick.eu>
+Date:   Thu Sep 8 13:52:36 2022 +0200
+
+    Used CSS flex and <nav> for ModelAdmin.date_hierarchy.
+
+diff --git a/django/contrib/admin/static/admin/css/changelists.css b/django/contrib/admin/static/admin/css/changelists.css
+index 80498eb2b7..4406dccb93 100644
+--- a/django/contrib/admin/static/admin/css/changelists.css
++++ b/django/contrib/admin/static/admin/css/changelists.css
+@@ -223,27 +223,24 @@
+ 
+ /* DATE DRILLDOWN */
+ 
+-.change-list ul.toplinks {
+-    display: block;
+-    float: left;
+-    padding: 0;
+-    margin: 0;
+-    width: 100%;
++.change-list .toplinks {
++    display: flex;
++    padding-bottom: 5px;
++    flex-wrap: wrap;
++    gap: 3px 17px;
++    font-weight: bold;
+ }
+ 
+-.change-list ul.toplinks li {
+-    padding: 3px 6px;
+-    font-weight: bold;
+-    list-style-type: none;
+-    display: inline-block;
++.change-list .toplinks a {
++    font-size: 0.8125rem;
+ }
+ 
+-.change-list ul.toplinks .date-back a {
++.change-list .toplinks .date-back {
+     color: var(--body-quiet-color);
+ }
+ 
+-.change-list ul.toplinks .date-back a:focus,
+-.change-list ul.toplinks .date-back a:hover {
++.change-list .toplinks .date-back:focus,
++.change-list .toplinks .date-back:hover {
+     color: var(--link-hover-color);
+ }
+ 
+diff --git a/django/contrib/admin/templates/admin/date_hierarchy.html b/django/contrib/admin/templates/admin/date_hierarchy.html
+index 4ff02657a0..c508856428 100644
+--- a/django/contrib/admin/templates/admin/date_hierarchy.html
++++ b/django/contrib/admin/templates/admin/date_hierarchy.html
+@@ -1,16 +1,14 @@
+ {% if show %}
+-<div class="xfull">
+-<ul class="toplinks">
++<nav class="toplinks">
+ {% block date-hierarchy-toplinks %}
+ {% block date-hierarchy-back %}
+-{% if back %}<li class="date-back"><a href="{{ back.link }}">&lsaquo; {{ back.title }}</a></li>{% endif %}
++{% if back %}<a href="{{ back.link }}" class="date-back">&lsaquo; {{ back.title }}</a>{% endif %}
+ {% endblock %}
+ {% block date-hierarchy-choices %}
+ {% for choice in choices %}
+-<li> {% if choice.link %}<a href="{{ choice.link }}">{{ choice.title }}</a>{% else %}{{ choice.title }}{% endif %}</li>
++{% if choice.link %}<a href="{{ choice.link }}">{{ choice.title }}</a>{% else %}{{ choice.title }}{% endif %}
+ {% endfor %}
+ {% endblock %}
+ {% endblock %}
+-</ul><br class="clear">
+-</div>
++</nav>
+ {% endif %}
++ git diff 0c3981eb5094419fe200eb46c71b5376a2266166
+diff --git a/tests/annotations/tests.py b/tests/annotations/tests.py
+index 8de2bf1998..df31f6c103 100644
+--- a/tests/annotations/tests.py
++++ b/tests/annotations/tests.py
+@@ -1382,3 +1382,27 @@ class AliasTests(TestCase):
+         )
+         with self.assertRaisesMessage(ValueError, msg):
+             Book.objects.alias(**{crafted_alias: Value(1)})
++
++    def test_annotation_and_alias_filter_in_subquery(self):
++        long_books_qs = (
++            Book.objects.filter(
++                pages__gt=400,
++            )
++            .annotate(book_annotate=Value(1))
++            .alias(book_alias=Value(1))
++        )
++        publisher_books_qs = (
++            Publisher.objects.filter(
++                book__in=long_books_qs
++            )
++            .values("name")
++        )
++        self.assertCountEqual(
++            publisher_books_qs,
++            [
++                {'name': 'Apress'},
++                {'name': 'Sams'},
++                {'name': 'Prentice Hall'},
++                {'name': 'Morgan Kaufmann'}
++            ]
++        )
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.5.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.2.dev20220908115236) (3.8.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.2.dev20220908115236) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from asgiref>=3.5.2->Django==4.2.dev20220908115236) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.2.dev20220908115236-0.editable-py3-none-any.whl size=27192 sha256=b8cc213a990d5d60fdeb6ecfb2cfc6d6e5443c19cb08df24fbf62c1e9a2d299f
+  Stored in directory: /tmp/pip-ephem-wheel-cache-t__0u5fo/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.2.dev20220908115236
+    Uninstalling Django-4.2.dev20220908115236:
+      Successfully uninstalled Django-4.2.dev20220908115236
+Successfully installed Django-4.2.dev20220908115236
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 0c3981eb5094419fe200eb46c71b5376a2266166 tests/annotations/tests.py
+Updated 1 path from f71fa95690
++ git apply -v -
+Checking patch tests/annotations/tests.py...
+Applied patch tests/annotations/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 annotations.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application annotations
+Found 82 test(s).
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: annotations, auth, contenttypes, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table annotations_author
+    Creating table annotations_publisher
+    Creating table annotations_book
+    Creating table annotations_store
+    Creating table annotations_departmentstore
+    Creating table annotations_employee
+    Creating table annotations_company
+    Creating table annotations_ticket
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+test_aggregate_alias (annotations.tests.AliasTests) ... ok
+test_alias_after_annotation (annotations.tests.AliasTests) ... ok
+test_alias_annotate_with_aggregation (annotations.tests.AliasTests) ... ok
+test_alias_annotation_expression (annotations.tests.AliasTests) ... ok
+test_alias_default_alias_expression (annotations.tests.AliasTests) ... ok
+test_alias_sql_injection (annotations.tests.AliasTests) ... ok
+test_basic_alias (annotations.tests.AliasTests) ... ok
+test_basic_alias_annotation (annotations.tests.AliasTests) ... ok
+test_basic_alias_f_annotation (annotations.tests.AliasTests) ... ok
+test_basic_alias_f_transform_annotation (annotations.tests.AliasTests) ... ok
+test_dates_alias (annotations.tests.AliasTests) ... ok
+test_datetimes_alias (annotations.tests.AliasTests) ... ok
+test_defer_only_alias (annotations.tests.AliasTests) ... ok
+test_distinct_on_alias (annotations.tests.AliasTests) ... skipped "Database doesn't support feature(s): can_distinct_on_fields"
+test_filter_alias_agg_with_double_f (annotations.tests.AliasTests) ... ok
+test_filter_alias_with_double_f (annotations.tests.AliasTests) ... ok
+test_filter_alias_with_f (annotations.tests.AliasTests) ... ok
+test_joined_alias_annotation (annotations.tests.AliasTests) ... ok
+test_order_by_alias (annotations.tests.AliasTests) ... ok
+test_order_by_alias_aggregate (annotations.tests.AliasTests) ... ok
+test_overwrite_alias_with_annotation (annotations.tests.AliasTests) ... ok
+test_overwrite_annotation_with_alias (annotations.tests.AliasTests) ... ok
+test_update_with_alias (annotations.tests.AliasTests) ... ok
+test_values_alias (annotations.tests.AliasTests) ... ok
+test_aggregate_over_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_aggregate_over_full_expression_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_alias_forbidden_chars (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_alias_sql_injection (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_annotate_exists (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_annotate_with_aggregation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_annotation_aggregate_with_m2o (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_annotation_and_alias_filter_in_subquery (annotations.tests.NonAggregateAnnotationTestCase) ... ERROR
+test_annotation_and_alias_filter_related_in_subquery (annotations.tests.NonAggregateAnnotationTestCase) ... ERROR
+test_annotation_exists_aggregate_values_chaining (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_annotation_filter_with_subquery (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_annotation_in_f_grouped_by_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_annotation_reverse_m2m (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_annotation_subquery_and_aggregate_values_chaining (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_annotation_subquery_outerref_transform (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_annotation_with_m2m (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_arguments_must_be_expressions (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_basic_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_basic_f_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_boolean_value_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_chaining_annotation_filter_with_m2m (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_chaining_transforms (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_column_field_ordering (annotations.tests.NonAggregateAnnotationTestCase)
+Columns are aligned in the correct order for resolve_columns. This test ... ok
+test_column_field_ordering_with_deferred (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_combined_annotation_commutative (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_combined_expression_annotation_with_aggregation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_combined_f_expression_annotation_with_aggregation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_custom_functions (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_custom_functions_can_ref_other_functions (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_custom_transform_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_decimal_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_defer_annotation (annotations.tests.NonAggregateAnnotationTestCase)
+Deferred attributes can be referenced by an annotation, ... ok
+test_distinct_on_with_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... skipped "Database doesn't support feature(s): can_distinct_on_fields"
+test_empty_expression_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_empty_queryset_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_filter_agg_with_double_f (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_filter_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_filter_annotation_with_double_f (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_filter_annotation_with_f (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_filter_decimal_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_filter_wrong_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_full_expression_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_full_expression_annotation_with_aggregation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_grouping_by_q_expression_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_joined_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_joined_transformed_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_mixed_type_annotation_date_interval (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_mixed_type_annotation_numbers (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_mti_annotations (annotations.tests.NonAggregateAnnotationTestCase)
+Fields on an inherited model can be referenced by an ... ok
+test_null_annotation (annotations.tests.NonAggregateAnnotationTestCase)
+Annotating None onto a model round-trips ... ok
+test_order_by_aggregate (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_order_by_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_q_expression_annotation_with_aggregation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_raw_sql_with_inherited_field (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_rawsql_group_by_collapse (annotations.tests.NonAggregateAnnotationTestCase) ... skipped "Database doesn't support feature(s): allows_group_by_pk"
+test_update_with_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+test_values_annotation (annotations.tests.NonAggregateAnnotationTestCase)
+Annotations can reference fields in a values clause, ... ok
+test_values_with_pk_annotation (annotations.tests.NonAggregateAnnotationTestCase) ... ok
+
+======================================================================
+ERROR: test_annotation_and_alias_filter_in_subquery (annotations.tests.NonAggregateAnnotationTestCase)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/backends/sqlite3/base.py", line 369, in execute
+    return Database.Cursor.execute(self, query, params)
+sqlite3.OperationalError: sub-select returns 4 columns - expected 1
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/testbed/tests/annotations/tests.py", line 999, in test_annotation_and_alias_filter_in_subquery
+    self.assertCountEqual(qs, [self.p3, self.p4])
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/unittest/case.py", line 1179, in assertCountEqual
+    first_seq, second_seq = list(first), list(second)
+  File "/testbed/django/db/models/query.py", line 376, in __len__
+    self._fetch_all()
+  File "/testbed/django/db/models/query.py", line 1876, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+  File "/testbed/django/db/models/query.py", line 87, in __iter__
+    results = compiler.execute_sql(
+  File "/testbed/django/db/models/sql/compiler.py", line 1476, in execute_sql
+    cursor.execute(sql, params)
+  File "/testbed/django/db/backends/utils.py", line 67, in execute
+    return self._execute_with_wrappers(
+  File "/testbed/django/db/backends/utils.py", line 80, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "/testbed/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/testbed/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/backends/sqlite3/base.py", line 369, in execute
+    return Database.Cursor.execute(self, query, params)
+django.db.utils.OperationalError: sub-select returns 4 columns - expected 1
+
+======================================================================
+ERROR: test_annotation_and_alias_filter_related_in_subquery (annotations.tests.NonAggregateAnnotationTestCase)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/backends/sqlite3/base.py", line 369, in execute
+    return Database.Cursor.execute(self, query, params)
+sqlite3.OperationalError: sub-select returns 10 columns - expected 1
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/testbed/tests/annotations/tests.py", line 1010, in test_annotation_and_alias_filter_related_in_subquery
+    self.assertCountEqual(
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/unittest/case.py", line 1179, in assertCountEqual
+    first_seq, second_seq = list(first), list(second)
+  File "/testbed/django/db/models/query.py", line 376, in __len__
+    self._fetch_all()
+  File "/testbed/django/db/models/query.py", line 1876, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+  File "/testbed/django/db/models/query.py", line 204, in __iter__
+    for row in compiler.results_iter(
+  File "/testbed/django/db/models/sql/compiler.py", line 1427, in results_iter
+    results = self.execute_sql(
+  File "/testbed/django/db/models/sql/compiler.py", line 1476, in execute_sql
+    cursor.execute(sql, params)
+  File "/testbed/django/db/backends/utils.py", line 67, in execute
+    return self._execute_with_wrappers(
+  File "/testbed/django/db/backends/utils.py", line 80, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+  File "/testbed/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/testbed/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+  File "/testbed/django/db/backends/sqlite3/base.py", line 369, in execute
+    return Database.Cursor.execute(self, query, params)
+django.db.utils.OperationalError: sub-select returns 10 columns - expected 1
+
+----------------------------------------------------------------------
+Ran 82 tests in 0.285s
+
+FAILED (errors=2, skipped=3)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout 0c3981eb5094419fe200eb46c71b5376a2266166 tests/annotations/tests.py
+Updated 1 path from f71fa95690

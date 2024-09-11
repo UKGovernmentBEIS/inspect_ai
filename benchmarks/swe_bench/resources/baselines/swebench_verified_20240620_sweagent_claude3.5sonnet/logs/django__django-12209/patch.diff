@@ -1,0 +1,185 @@
+
+diff --git a/docs/topics/db/custom_model_example.py b/docs/topics/db/custom_model_example.py
+new file mode 100644
+index 0000000000..f7d9c483fb
+--- /dev/null
++++ b/docs/topics/db/custom_model_example.py
+@@ -0,0 +1,36 @@
++"""
++Example of how to handle saving objects with existing primary keys.
++
++This example demonstrates how to modify the save() method of a model
++to update existing objects when saving with an existing primary key,
++instead of raising an IntegrityError.
++"""
++
++from django.db import models
++import uuid
++
++class Sample(models.Model):
++    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
++    name = models.CharField(blank=True, max_length=100)
++
++    def save(self, *args, **kwargs):
++        try:
++            existing = Sample.objects.get(pk=self.pk)
++            for field in self._meta.fields:
++                if field.name != 'id':
++                    setattr(existing, field.name, getattr(self, field.name))
++            super(Sample, existing).save(*args, **kwargs)
++        except Sample.DoesNotExist:
++            super().save(*args, **kwargs)
++
++"""
++Usage:
++
++s0 = Sample.objects.create()
++s1 = Sample(pk=s0.pk, name='Test 1')
++s1.save()  # This will update the existing object instead of raising an IntegrityError
++
++# To verify:
++s0.refresh_from_db()
++print(s0.name)  # This will print 'Test 1'
++"""
+diff --git a/docs/topics/db/models.txt b/docs/topics/db/models.txt
+index a047f58b78..d5041c6d7b 100644
+--- a/docs/topics/db/models.txt
++++ b/docs/topics/db/models.txt
+@@ -98,11 +98,27 @@ Example::
+         last_name = models.CharField(max_length=50)
+         instrument = models.CharField(max_length=100)
+ 
+-    class Album(models.Model):
+-        artist = models.ForeignKey(Musician, on_delete=models.CASCADE)
+-        name = models.CharField(max_length=100)
+-        release_date = models.DateField()
+-        num_stars = models.IntegerField()
++Custom save() method
++--------------------
++
++In some cases, you might want to customize the behavior of the ``save()`` method,
++for example, to handle saving objects with existing primary keys. Here's an
++example of how to modify the ``save()`` method to update existing objects
++instead of raising an ``IntegrityError``:
++
++.. literalinclude:: custom_model_example.py
++   :language: python
++   :lines: 9-24
++
++This custom ``save()`` method will update the existing object if one with the
++same primary key exists, or create a new object if it doesn't. You can find
++more details and usage examples in the :file:`custom_model_example.py` file.
++
++class Album(models.Model):
++    artist = models.ForeignKey(Musician, on_delete=models.CASCADE)
++    name = models.CharField(max_length=100)
++    release_date = models.DateField()
++    num_stars = models.IntegerField()
+ 
+ Field types
+ -----------
+@@ -134,6 +150,7 @@ Each field takes a certain set of field-specific arguments (documented in the
+ :attr:`~django.db.models.CharField.max_length` argument which specifies the size
+ of the ``VARCHAR`` database field used to store the data.
+ 
++There's also a set of common arguments available to all field types. All are
+ There's also a set of common arguments available to all field types. All are
+ optional. They're fully explained in the :ref:`reference
+ <common-model-field-options>`, but here's a quick summary of the most often-used
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..810a13c9fb
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,91 @@
++import os
++import django
++from django.conf import settings
++import uuid
++import unittest
++
++# Set up Django configuration
++if not settings.configured:
++    settings.configure(
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++        ],
++    )
++    django.setup()
++
++from django.db import models, connection
++from django.test import TestCase
++from django.test.runner import DiscoverRunner
++
++class Sample(models.Model):
++    id = models.UUIDField(primary_key=True, default=uuid.uuid4)
++    name = models.CharField(blank=True, max_length=100)
++
++    class Meta:
++        app_label = 'test_app'
++
++    def save(self, *args, **kwargs):
++        try:
++            existing = Sample.objects.get(pk=self.pk)
++            for field in self._meta.fields:
++                if field.name != 'id':
++                    setattr(existing, field.name, getattr(self, field.name))
++            super(Sample, existing).save(*args, **kwargs)
++        except Sample.DoesNotExist:
++            super().save(*args, **kwargs)
++class IssueTestCase(TestCase):
++    @classmethod
++    def setUpClass(cls):
++        super().setUpClass()
++        with connection.cursor() as cursor:
++            cursor.execute('''
++                CREATE TABLE test_app_sample (
++                    id CHAR(32) PRIMARY KEY,
++                    name VARCHAR(100) NOT NULL
++                )
++            ''')
++
++    def test_issue(self):
++        s0 = Sample.objects.create()
++        s1 = Sample(pk=s0.pk, name='Test 1')
++        
++        print("Before save:")
++        print(f"s0 id: {s0.id}, name: {s0.name}")
++        print(f"s1 id: {s1.id}, name: {s1.name}")
++        
++        s1.save()
++        
++        print("\nAfter save:")
++        print(f"s0 id: {s0.id}, name: {s0.name}")
++        print(f"s1 id: {s1.id}, name: {s1.name}")
++        
++        # Refresh from database
++        s0.refresh_from_db()
++        s1.refresh_from_db()
++        
++        print("\nAfter refresh from database:")
++        print(f"s0 id: {s0.id}, name: {s0.name}")
++        print(f"s1 id: {s1.id}, name: {s1.name}")
++
++    @classmethod
++    def tearDownClass(cls):
++        with connection.cursor() as cursor:
++            cursor.execute('DROP TABLE IF EXISTS test_app_sample')
++        super().tearDownClass()
++
++class CustomTestRunner(DiscoverRunner):
++    def run_tests(self, test_labels, extra_tests=None, **kwargs):
++        suite = unittest.TestLoader().loadTestsFromTestCase(IssueTestCase)
++        result = self.run_suite(suite)
++        return self.suite_result(suite, result)
++
++if __name__ == '__main__':
++    runner = CustomTestRunner()
++    runner.run_tests([])

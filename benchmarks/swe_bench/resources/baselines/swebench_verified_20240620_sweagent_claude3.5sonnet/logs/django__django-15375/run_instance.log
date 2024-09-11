@@ -1,0 +1,32 @@
+2024-07-25 22:12:52,922 - INFO - Environment image sweb.env.x86_64.934a137824256b612e9dc5:latest found for django__django-15375
+Building instance image sweb.eval.x86_64.django__django-15375:latest for django__django-15375
+2024-07-25 22:13:36,655 - INFO - Creating container for django__django-15375...
+2024-07-25 22:13:36,689 - INFO - Container for django__django-15375 created: 8740308c186a4207990060e48ea15c2a0f90ef665f5658e71bcd63198317ef19
+2024-07-25 22:13:37,198 - INFO - Container for django__django-15375 started: 8740308c186a4207990060e48ea15c2a0f90ef665f5658e71bcd63198317ef19
+2024-07-25 22:13:37,199 - INFO - Intermediate patch for django__django-15375 written to logs/run_evaluation/claude-3-5-run1/claude-3-5-sonnet-20240620__swe-bench-test-split-all__default_xml__t-0.00__p-0.95__c-4.00__install-1__2024-06-20/django__django-15375/patch.diff, now applying to container...
+2024-07-25 22:13:37,608 - INFO - Failed to apply patch to container, trying again...
+2024-07-25 22:13:37,667 - INFO - >>>>> Applied Patch:
+patching file reproduce_bug.py
+patching file settings.py
+
+2024-07-25 22:13:38,979 - INFO - Git diff before:
+
+2024-07-25 22:13:38,979 - INFO - Eval script for django__django-15375 written to logs/run_evaluation/claude-3-5-run1/claude-3-5-sonnet-20240620__swe-bench-test-split-all__default_xml__t-0.00__p-0.95__c-4.00__install-1__2024-06-20/django__django-15375/eval.sh; copying to container...
+2024-07-25 22:13:39,790 - ERROR - Error in evaluating model for django__django-15375: 'utf-8' codec can't decode byte 0xd1 in position 8191: unexpected end of data
+Traceback (most recent call last):
+  File "/home/ec2-user/miniconda3/lib/python3.12/site-packages/swebench/harness/run_evaluation.py", line 158, in run_instance
+    test_output, timed_out, total_runtime = exec_run_with_timeout(container, "/bin/bash /eval.sh", timeout)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ec2-user/miniconda3/lib/python3.12/site-packages/swebench/harness/docker_utils.py", line 208, in exec_run_with_timeout
+    raise exception
+  File "/home/ec2-user/miniconda3/lib/python3.12/site-packages/swebench/harness/docker_utils.py", line 197, in run_command
+    exec_result += chunk.decode()
+                   ^^^^^^^^^^^^^^
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0xd1 in position 8191: unexpected end of data
+
+Check (logs/run_evaluation/claude-3-5-run1/claude-3-5-sonnet-20240620__swe-bench-test-split-all__default_xml__t-0.00__p-0.95__c-4.00__install-1__2024-06-20/django__django-15375/run_instance.log) for more information.
+2024-07-25 22:13:39,790 - INFO - Attempting to stop container sweb.eval.django__django-15375.claude-3-5-run1...
+2024-07-25 22:13:55,551 - INFO - Attempting to remove container sweb.eval.django__django-15375.claude-3-5-run1...
+2024-07-25 22:13:55,589 - INFO - Container sweb.eval.django__django-15375.claude-3-5-run1 removed.
+2024-07-25 22:13:55,589 - INFO - Attempting to remove image sweb.eval.x86_64.django__django-15375:latest...
+2024-07-25 22:13:56,508 - INFO - Image sweb.eval.x86_64.django__django-15375:latest removed.

@@ -1,0 +1,87 @@
+
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 9735ce10c8..179877f331 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -550,12 +550,45 @@ class Query(BaseExpression):
+         Perform a COUNT() query using the current filter constraints.
+         """
+         obj = self.clone()
++        # Remove unused annotations
++        used_annotations = set()
++        used_annotations.update(self._get_used_annotations_in_filters())
++        used_annotations.update(self._get_used_annotations_in_annotations())
++        used_annotations.update(self._get_used_annotations_in_ordering())
++        obj.annotation_select = {k: v for k, v in obj.annotation_select.items() if k in used_annotations}
+         obj.add_annotation(Count("*"), alias="__count", is_summary=True)
+         return obj.get_aggregation(using, ["__count"])["__count"]
+ 
+     def has_filters(self):
+         return self.where
+ 
++    def _get_used_annotations_in_filters(self):
++        used = set()
++        for node in self.where.children:
++            if hasattr(node, 'lhs') and isinstance(node.lhs, F):
++                used.add(node.lhs.name)
++        return used
++
++    def _get_used_annotations_in_annotations(self):
++        used = set()
++        for annotation in self.annotation_select.values():
++            if isinstance(annotation, F):
++                used.add(annotation.name)
++            elif hasattr(annotation, 'get_source_expressions'):
++                for expr in annotation.get_source_expressions():
++                    if isinstance(expr, F):
++                        used.add(expr.name)
++        return used
++
++    def _get_used_annotations_in_ordering(self):
++        used = set()
++        for ordering in self.order_by:
++            if isinstance(ordering, F):
++                used.add(ordering.name)
++            elif isinstance(ordering, str) and ordering.lstrip('-') in self.annotation_select:
++                used.add(ordering.lstrip('-'))
++        return used
++
+     def exists(self, limit=True):
+         q = self.clone()
+         if not (q.distinct and q.is_sliced):
+diff --git a/tests/queries/test_query.py b/tests/queries/test_query.py
+index b0a5058f6c..3432914424 100644
+--- a/tests/queries/test_query.py
++++ b/tests/queries/test_query.py
+@@ -2,7 +2,7 @@ from datetime import datetime
+ 
+ from django.core.exceptions import FieldError
+ from django.db import DEFAULT_DB_ALIAS, connection
+-from django.db.models import BooleanField, CharField, F, Q
++from django.db.models import BooleanField, CharField, Count, F, Q
+ from django.db.models.expressions import (
+     Col,
+     Exists,
+@@ -20,7 +20,7 @@ from django.db.models.sql.where import AND, OR
+ from django.test import SimpleTestCase, TestCase, skipUnlessDBFeature
+ from django.test.utils import register_lookup
+ 
+-from .models import Author, Item, ObjectC, Ranking
++from .models import Author, Book, Item, ObjectC, Ranking
+ 
+ 
+ class TestQuery(SimpleTestCase):
+@@ -160,6 +160,13 @@ class TestQuery(SimpleTestCase):
+         with self.assertRaisesMessage(TypeError, msg):
+             query.build_where(Func(output_field=CharField()))
+ 
++    def test_unused_annotation_removal(self):
++        query = Query(Book)
++        query.add_annotation(Count('chapters'), 'chapter_count')
++        sql, params = query.get_compiler().as_sql()
++        self.assertNotIn('chapter_count', sql)
++        self.assertNotIn('COUNT', sql)
++
+ 
+ class TestQueryNoModel(TestCase):
+     def test_rawsql_annotation(self):

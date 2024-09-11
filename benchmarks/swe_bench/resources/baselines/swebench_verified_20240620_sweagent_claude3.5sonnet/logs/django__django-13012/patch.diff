@@ -1,0 +1,265 @@
+
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index abbb1e37cb..d9bfbe4d03 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -6,9 +6,9 @@ from itertools import chain
+ from django.core.exceptions import EmptyResultSet, FieldError
+ from django.db import DatabaseError, NotSupportedError
+ from django.db.models.constants import LOOKUP_SEP
+-from django.db.models.expressions import F, OrderBy, Random, RawSQL, Ref, Value
+-from django.db.models.functions import Cast
+-from django.db.models.query_utils import Q, select_related_descend
++from django.db.models.expressions import (
++    F, OrderBy, Random, RawSQL, Ref, Value, ExpressionWrapper
++)
+ from django.db.models.sql.constants import (
+     CURSOR, GET_ITERATOR_CHUNK_SIZE, MULTI, NO_RESULTS, ORDER_DIR, SINGLE,
+ )
+@@ -68,66 +68,28 @@ class SQLCompiler:
+         to describe in other words than "if it passes the test suite,
+         then it is correct".
+         """
+-        # Some examples:
+-        #     SomeModel.objects.annotate(Count('somecol'))
+-        #     GROUP BY: all fields of the model
+-        #
+-        #    SomeModel.objects.values('name').annotate(Count('somecol'))
+-        #    GROUP BY: name
+-        #
+-        #    SomeModel.objects.annotate(Count('somecol')).values('name')
+-        #    GROUP BY: all cols of the model
+-        #
+-        #    SomeModel.objects.values('name', 'pk').annotate(Count('somecol')).values('pk')
+-        #    GROUP BY: name, pk
+-        #
+-        #    SomeModel.objects.values('name').annotate(Count('somecol')).values('pk')
+-        #    GROUP BY: name, pk
+-        #
+-        # In fact, the self.query.group_by is the minimal set to GROUP BY. It
+-        # can't be ever restricted to a smaller set, but additional columns in
+-        # HAVING, ORDER BY, and SELECT clauses are added to it. Unfortunately
+-        # the end result is that it is impossible to force the query to have
+-        # a chosen GROUP BY clause - you can almost do this by using the form:
+-        #     .values(*wanted_cols).annotate(AnAggregate())
+-        # but any later annotations, extra selects, values calls that
+-        # refer some column outside of the wanted_cols, order_by, or even
+-        # filter calls can alter the GROUP BY clause.
+-
+-        # The query.group_by is either None (no GROUP BY at all), True
+-        # (group by select fields), or a list of expressions to be added
+-        # to the group by.
+         if self.query.group_by is None:
+             return []
+         expressions = []
+         if self.query.group_by is not True:
+-            # If the group by is set to a list (by .values() call most likely),
+-            # then we need to add everything in it to the GROUP BY clause.
+-            # Backwards compatibility hack for setting query.group_by. Remove
+-            # when  we have public API way of forcing the GROUP BY clause.
+-            # Converts string references to expressions.
+             for expr in self.query.group_by:
+                 if not hasattr(expr, 'as_sql'):
+                     expressions.append(self.query.resolve_ref(expr))
+                 else:
+                     expressions.append(expr)
+-        # Note that even if the group_by is set, it is only the minimal
+-        # set to group by. So, we need to add cols in select, order_by, and
+-        # having into the select in any case.
+         ref_sources = {
+             expr.source for expr in expressions if isinstance(expr, Ref)
+         }
+         for expr, _, _ in select:
+-            # Skip members of the select clause that are already included
+-            # by reference.
+             if expr in ref_sources:
+                 continue
+-            cols = expr.get_group_by_cols()
++            # Skip constant expressions wrapped in ExpressionWrapper
++            # Skip constant expressions wrapped in ExpressionWrapper
++            if isinstance(expr, Value) or (isinstance(expr, ExpressionWrapper) and isinstance(expr.expression, Value)):
++                continue
+             for col in cols:
+                 expressions.append(col)
+         for expr, (sql, params, is_ref) in order_by:
+-            # Skip References to the select clause, as all expressions in the
+-            # select clause are already part of the group by.
+             if not is_ref:
+                 expressions.extend(expr.get_group_by_cols())
+         having_group_by = self.having.get_group_by_cols() if self.having else ()
+diff --git a/tests/expressions/models.py b/tests/expressions/models.py
+index 02836e653e..33cab789b9 100644
+--- a/tests/expressions/models.py
++++ b/tests/expressions/models.py
+@@ -9,6 +9,9 @@ from django.db import models
+ class Manager(models.Model):
+     name = models.CharField(max_length=50)
+ 
++    class Meta:
++        app_label = 'expressions'
++
+ 
+ class Employee(models.Model):
+     firstname = models.CharField(max_length=50)
+@@ -19,10 +22,16 @@ class Employee(models.Model):
+     def __str__(self):
+         return '%s %s' % (self.firstname, self.lastname)
+ 
++    class Meta:
++        app_label = 'expressions'
++
+ 
+ class RemoteEmployee(Employee):
+     adjusted_salary = models.IntegerField()
+ 
++    class Meta:
++        app_label = 'expressions'
++
+ 
+ class Company(models.Model):
+     name = models.CharField(max_length=100)
+@@ -44,6 +53,9 @@ class Company(models.Model):
+     def __str__(self):
+         return self.name
+ 
++    class Meta:
++        app_label = 'expressions'
++
+ 
+ class Number(models.Model):
+     integer = models.BigIntegerField(db_column='the_integer')
+@@ -52,6 +64,9 @@ class Number(models.Model):
+     def __str__(self):
+         return '%i, %.3f' % (self.integer, self.float)
+ 
++    class Meta:
++        app_label = 'expressions'
++
+ 
+ class Experiment(models.Model):
+     name = models.CharField(max_length=24)
+@@ -64,6 +79,7 @@ class Experiment(models.Model):
+     class Meta:
+         db_table = 'expressions_ExPeRiMeNt'
+         ordering = ('name',)
++        app_label = 'expressions'
+ 
+     def duration(self):
+         return self.end - self.start
+@@ -76,6 +92,9 @@ class Result(models.Model):
+     def __str__(self):
+         return "Result at %s" % self.result_time
+ 
++    class Meta:
++        app_label = 'expressions'
++
+ 
+ class Time(models.Model):
+     time = models.TimeField(null=True)
+@@ -83,6 +102,9 @@ class Time(models.Model):
+     def __str__(self):
+         return str(self.time)
+ 
++    class Meta:
++        app_label = 'expressions'
++
+ 
+ class SimulationRun(models.Model):
+     start = models.ForeignKey(Time, models.CASCADE, null=True, related_name='+')
+@@ -92,11 +114,19 @@ class SimulationRun(models.Model):
+     def __str__(self):
+         return "%s (%s to %s)" % (self.midpoint, self.start, self.end)
+ 
++    class Meta:
++        app_label = 'expressions'
++
+ 
+ class UUIDPK(models.Model):
+     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
+ 
++    class Meta:
++        app_label = 'expressions'
++
+ 
+ class UUID(models.Model):
+     uuid = models.UUIDField(null=True)
+-    uuid_fk = models.ForeignKey(UUIDPK, models.CASCADE, null=True)
++
++    class Meta:
++        app_label = 'expressions'
+diff --git a/tests/expressions/test_constant_expressions.py b/tests/expressions/test_constant_expressions.py
+new file mode 100644
+index 0000000000..f265430e1f
+--- /dev/null
++++ b/tests/expressions/test_constant_expressions.py
+@@ -0,0 +1,70 @@
++from django.db.models import Value, ExpressionWrapper, IntegerField, Sum
++from django.test import TransactionTestCase, override_settings
++from django.db import connection
++
++from .models import Company, Employee, Manager
++
++
++@override_settings(INSTALLED_APPS=['tests.expressions'])
++class ConstantExpressionsTests(TransactionTestCase):
++    available_apps = ['tests.expressions']
++
++    @classmethod
++    def setUpClass(cls):
++        super().setUpClass()
++        # Ensure the models are created in the test database
++        with connection.schema_editor() as schema_editor:
++            schema_editor.create_model(Manager)
++            schema_editor.create_model(Employee)
++            schema_editor.create_model(Company)
++
++    def setUp(self):
++        # Create Manager instances first
++        manager1 = Manager.objects.create(name='Manager 1')
++        manager2 = Manager.objects.create(name='Manager 2')
++        manager3 = Manager.objects.create(name='Manager 3')
++
++        # Create Employee instances
++        employee1 = Employee.objects.create(firstname='John', lastname='Doe', manager=manager1)
++        employee2 = Employee.objects.create(firstname='Jane', lastname='Smith', manager=manager2)
++        employee3 = Employee.objects.create(firstname='Bob', lastname='Johnson', manager=manager3)
++
++        # Now create Company instances with valid employee IDs
++        Company.objects.create(name='Example Inc.', num_employees=2300, num_chairs=5, ceo=employee1)
++        Company.objects.create(name='Foobar Ltd.', num_employees=3, num_chairs=4, ceo=employee2)
++        Company.objects.create(name='Test GmbH', num_employees=32, num_chairs=1, ceo=employee3)
++
++    def test_constant_expression_in_group_by(self):
++        # This query should not include the constant expression in the GROUP BY clause
++        expr = ExpressionWrapper(Value(3), output_field=IntegerField())
++        qs = Company.objects.annotate(
++            const=expr
++        ).values('const', 'name').annotate(
++            total_employees=Sum('num_employees')
++        )
++
++        # Check that the query executes without error
++        result = list(qs)
++
++        # Verify the results
++        expected = [
++            {'const': 3, 'name': 'Example Inc.', 'total_employees': 2300},
++            {'const': 3, 'name': 'Foobar Ltd.', 'total_employees': 3},
++            {'const': 3, 'name': 'Test GmbH', 'total_employees': 32},
++        ]
++        self.assertEqual(result, expected)
++
++        # Print the SQL query for debugging
++        sql = str(qs.query)
++        print(f"Generated SQL: {sql}")
++
++        # Check that the constant expression is not in the GROUP BY clause
++        self.assertNotIn('3', sql[sql.index('GROUP BY'):])
++    @classmethod
++    def tearDownClass(cls):
++        # Clean up the created tables
++        with connection.schema_editor() as schema_editor:
++            schema_editor.delete_model(Company)
++            schema_editor.delete_model(Employee)
++            schema_editor.delete_model(Manager)
++        super().tearDownClass()

@@ -1,0 +1,55 @@
+
+diff --git a/astropy/coordinates/sky_coordinate.py b/astropy/coordinates/sky_coordinate.py
+index ab475f7d0..733c0f12f 100644
+--- a/astropy/coordinates/sky_coordinate.py
++++ b/astropy/coordinates/sky_coordinate.py
+@@ -896,7 +896,8 @@ class SkyCoord(ShapedLikeNDArray):
+ 
+         # Fail
+         raise AttributeError(
+-            f"'{self.__class__.__name__}' object has no attribute '{attr}'"
++            f"'{self.__class__.__name__}' object has no attribute '{attr}'. "
++            f"The error occurred while accessing '{attr}'."
+         )
+ 
+     def __setattr__(self, attr, val):
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..530626eee
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,14 @@
++from astropy.coordinates import SkyCoord
++
++class custom_coord(SkyCoord):
++    @property
++    def prop(self):
++        return self.random_attr
++
++c = custom_coord('00h42m30s', '+41d12m00s', frame='icrs')
++try:
++    c.prop
++except AttributeError as e:
++    print(f"AttributeError: {str(e)}")
++
++print("Script completed successfully.")
+diff --git a/test_skycoord.py b/test_skycoord.py
+new file mode 100644
+index 000000000..530626eee
+--- /dev/null
++++ b/test_skycoord.py
+@@ -0,0 +1,14 @@
++from astropy.coordinates import SkyCoord
++
++class custom_coord(SkyCoord):
++    @property
++    def prop(self):
++        return self.random_attr
++
++c = custom_coord('00h42m30s', '+41d12m00s', frame='icrs')
++try:
++    c.prop
++except AttributeError as e:
++    print(f"AttributeError: {str(e)}")
++
++print("Script completed successfully.")

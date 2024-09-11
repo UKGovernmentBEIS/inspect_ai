@@ -1,0 +1,58 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 00000000..db53b7d5
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,16 @@
++import xarray as xr
++import numpy as np
++
++# Test case 1: All values present
++da1 = xr.DataArray([[1., 2, 3], [4, 5, 6]])
++result1 = da1.sum(["dim_0", "dim_1"], min_count=1)
++print("Test 1 - Sum result:", result1.values)
++print("Test 1 - Expected result:", np.sum([[1., 2, 3], [4, 5, 6]]))
++
++# Test case 2: Some NaN values
++da2 = xr.DataArray([[1., np.nan, 3], [np.nan, 5, np.nan]])
++result2 = da2.sum(["dim_0", "dim_1"], min_count=1)
++print("Test 2 - Sum result:", result2.values)
++print("Test 2 - Expected result:", np.nansum([[1., np.nan, 3], [np.nan, 5, np.nan]]))
++
++print("Script completed.")
+diff --git a/xarray/core/nanops.py b/xarray/core/nanops.py
+index 41c8d258..1e891eaa 100644
+--- a/xarray/core/nanops.py
++++ b/xarray/core/nanops.py
+@@ -26,19 +26,22 @@ def _maybe_null_out(result, axis, mask, min_count=1):
+     """
+     xarray version of pandas.core.nanops._maybe_null_out
+     """
+-    if hasattr(axis, "__len__"):  # if tuple or list
+-        raise ValueError(
+-            "min_count is not available for reduction with more than one dimensions."
+-        )
+-
+-    if axis is not None and getattr(result, "ndim", False):
+-        null_mask = (mask.shape[axis] - mask.sum(axis) - min_count) < 0
++    import numpy as np
++
++    if axis is not None and getattr(result, 'ndim', False):
++        if isinstance(axis, (tuple, list)):
++            # Handle multiple dimensions
++            valid_count = np.prod([mask.shape[ax] for ax in axis]) - mask.sum(axis=axis)
++        else:
++            valid_count = mask.shape[axis] - mask.sum(axis=axis)
++        
++        null_mask = (valid_count - min_count) < 0
+         if null_mask.any():
+             dtype, fill_value = dtypes.maybe_promote(result.dtype)
+             result = result.astype(dtype)
+             result[null_mask] = fill_value
+ 
+-    elif getattr(result, "dtype", None) not in dtypes.NAT_TYPES:
++    elif getattr(result, 'dtype', None) not in dtypes.NAT_TYPES:
+         null_mask = mask.size - mask.sum()
+         if null_mask < min_count:
+             result = np.nan

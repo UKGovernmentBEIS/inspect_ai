@@ -1,0 +1,40 @@
+{
+    "sympy__sympy-17318": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "test_issue_12420"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_subsets"
+                ],
+                "failure": [
+                    "test_sqrtdenest",
+                    "test_sqrtdenest2",
+                    "test_sqrtdenest_rec",
+                    "test_issue_6241",
+                    "test_sqrtdenest3",
+                    "test_sqrtdenest4",
+                    "test_sqrt_symbolic_denest",
+                    "test_issue_5857",
+                    "test_issue_5653"
+                ]
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

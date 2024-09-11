@@ -1,0 +1,1065 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sympy/sets/handlers/intersection.py
+	modified:   sympy/sets/sets.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_bug.py
+	test_imageset_intersection.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 110997fe18b9f7d5ba7d22f624d156a29bf40759
+Merge: a3733e1bfc 0a60363793
+Author: Oscar Benjamin <oscar.j.benjamin@gmail.com>
+Date:   Wed Jun 9 13:56:04 2021 +0100
+
+    Merge pull request #21510 from migueltorrescosta/master
+    
+    Add Minisat22 solver to Sympy's satisfiable algorithms
+
++ git diff 110997fe18b9f7d5ba7d22f624d156a29bf40759
+diff --git a/sympy/sets/handlers/intersection.py b/sympy/sets/handlers/intersection.py
+index c54dc8f72a..1df21acb17 100644
+--- a/sympy/sets/handlers/intersection.py
++++ b/sympy/sets/handlers/intersection.py
+@@ -278,48 +278,22 @@ def intersection_sets(self, other): # noqa:F811
+ 
+     if other == S.Reals:
+         from sympy.core.function import expand_complex
+-        from sympy.solvers.solvers import denoms, solve_linear
++        from sympy.solvers.solvers import solve
+         from sympy.core.relational import Eq
+         f = self.lamda.expr
+         n = self.lamda.variables[0]
+ 
+-        n_ = Dummy(n.name, real=True)
+-        f_ = f.subs(n, n_)
+-
+-        re, im = f_.as_real_imag()
+-        im = expand_complex(im)
+-
+-        re = re.subs(n_, n)
+-        im = im.subs(n_, n)
+-        ifree = im.free_symbols
+-        lam = Lambda(n, re)
+-        if im.is_zero:
+-            # allow re-evaluation
+-            # of self in this case to make
+-            # the result canonical
+-            pass
+-        elif im.is_zero is False:
+-            return S.EmptySet
+-        elif ifree != {n}:
+-            return None
+-        else:
+-            # univarite imaginary part in same variable
+-            x, xis = zip(*[solve_linear(i, 0) for i in Mul.make_args(im) if n in i.free_symbols])
+-            if x and all(i == n for i in x):
+-                base_set -= FiniteSet(xis)
+-            else:
+-                base_set -= ConditionSet(n, Eq(im, 0), S.Integers)
+-        # exclude values that make denominators 0
+-        for i in denoms(f):
+-            if i.has(n):
+-                sol = list(zip(*[solve_linear(i, 0) for i in Mul.make_args(im) if n in i.free_symbols]))
+-                if sol != []:
+-                    x, xis = sol
+-                    if x and all(i == n for i in x):
+-                        base_set -= FiniteSet(xis)
+-                else:
+-                    base_set -= ConditionSet(n, Eq(i, 0), S.Integers)
+-        return imageset(lam, base_set)
++        # Check if the ImageSet contains only real numbers
++        if f.is_real:
++            return self
++        elif f.is_complex:
++            # If the ImageSet contains complex numbers, intersect with Reals
++            real_part, imag_part = f.as_real_imag()
++            real_solutions = solve(Eq(imag_part, 0), n)
++            result = FiniteSet(*[f.subs(n, sol) for sol in real_solutions if sol.is_integer])
++            return result if result else EmptySet
++
++        return None  # Return None if we can't determine the intersection
+ 
+     elif isinstance(other, Interval):
+         from sympy.solvers.solveset import (invert_real, invert_complex,
+diff --git a/sympy/sets/sets.py b/sympy/sets/sets.py
+index 9f19ecf2ab..7171e5931c 100644
+--- a/sympy/sets/sets.py
++++ b/sympy/sets/sets.py
+@@ -26,6 +26,8 @@
+ from sympy.utilities.iterables import iproduct, sift, roundrobin
+ from sympy.utilities.misc import func_name, filldedent
+ from mpmath import mpi, mpf
++# Remove the following line to avoid circular import
++# from sympy.sets.fancysets import ImageSet
+ 
+ 
+ tfn = defaultdict(lambda: None, {
+@@ -1313,43 +1315,13 @@ def is_iterable(self):
+     def __iter__(self):
+         return roundrobin(*(iter(arg) for arg in self.args))
+ 
+-
+ class Intersection(Set, LatticeOp):
+     """
+-    Represents an intersection of sets as a :class:`Set`.
+-
+-    Examples
+-    ========
+-
+-    >>> from sympy import Intersection, Interval
+-    >>> Intersection(Interval(1, 3), Interval(2, 4))
+-    Interval(2, 3)
+-
+-    We often use the .intersect method
++    Represents an intersection of sets as a Set.
+ 
+-    >>> Interval(1,3).intersect(Interval(2,4))
+-    Interval(2, 3)
+-
+-    See Also
+-    ========
+-
+-    Union
+-
+-    References
+-    ==========
+-
+-    .. [1] https://en.wikipedia.org/wiki/Intersection_%28set_theory%29
+     """
+     is_Intersection = True
+ 
+-    @property
+-    def identity(self):
+-        return S.UniversalSet
+-
+-    @property
+-    def zero(self):
+-        return S.EmptySet
+-
+     def __new__(cls, *args, **kwargs):
+         evaluate = kwargs.get('evaluate', global_parameters.evaluate)
+ 
+@@ -1359,6 +1331,14 @@ def __new__(cls, *args, **kwargs):
+         # Reduce sets using known rules
+         if evaluate:
+             args = list(cls._new_args_filter(args))
++            # Check for ImageSet and Reals intersection
++            if len(args) == 2 and args[1] == S.Reals:
++                arg0 = args[0]
++                if arg0.__class__.__name__ == 'ImageSet':
++                    from sympy.sets.handlers.intersection import intersection_sets
++                    result = intersection_sets(arg0, args[1])
++                    if result is not None:
++                        return result
+             return simplify_intersection(args)
+ 
+         args = list(ordered(args, Set._infimum_key))
+@@ -1383,7 +1363,6 @@ def is_finite_set(self):
+     @property
+     def _inf(self):
+         raise NotImplementedError()
+-
+     @property
+     def _sup(self):
+         raise NotImplementedError()
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: mpmath>=0.19 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from sympy==1.9.dev0) (1.3.0)
+Installing collected packages: sympy
+  Attempting uninstall: sympy
+    Found existing installation: sympy 1.9.dev0
+    Uninstalling sympy-1.9.dev0:
+      Successfully uninstalled sympy-1.9.dev0
+  Running setup.py develop for sympy
+Successfully installed sympy-1.9.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 110997fe18b9f7d5ba7d22f624d156a29bf40759 sympy/sets/tests/test_fancysets.py
+Updated 0 paths from 63d177592d
++ git apply -v -
+Checking patch sympy/sets/tests/test_fancysets.py...
+Applied patch sympy/sets/tests/test_fancysets.py cleanly.
++ PYTHONWARNINGS=ignore::UserWarning,ignore::SyntaxWarning
++ bin/test -C --verbose sympy/sets/tests/test_fancysets.py
+============================= test process starts ==============================
+executable:         /opt/miniconda3/envs/testbed/bin/python  (3.9.19-final-0) [CPython]
+architecture:       64-bit
+cache:              no
+ground types:       python 
+numpy:              None
+random seed:        17588180
+hash randomization: on (PYTHONHASHSEED=4254955087)
+
+sympy/sets/tests/test_fancysets.py[49] 
+test_naturals E
+test_naturals0 ok
+test_integers E
+test_ImageSet E
+test_image_is_ImageSet ok
+test_halfcircle E
+test_ImageSet_iterator_not_injective ok
+test_inf_Range_len ok
+test_Range_set E
+test_Range_symbolic E
+test_range_range_intersection E
+test_range_interval_intersection E
+test_range_is_finite_set ok
+test_Integers_eval_imageset E
+test_Range_eval_imageset ok
+test_fun ok
+test_Reals E
+test_Complex E
+test_intersections E
+test_infinitely_indexed_set_1 E
+test_infinitely_indexed_set_2 ok
+test_imageset_intersect_real E
+test_imageset_intersect_interval E
+test_imageset_intersect_diophantine E
+test_infinitely_indexed_set_3 E
+test_ImageSet_simplification ok
+test_ImageSet_contains E
+test_ComplexRegion_contains E
+test_ComplexRegion_intersect E
+test_ComplexRegion_union E
+test_ComplexRegion_from_real E
+test_ComplexRegion_measure E
+test_normalize_theta_set ok
+test_ComplexRegion_FiniteSet ok
+test_union_RealSubSet E
+test_issue_9980 E
+test_issue_11732 ok
+test_issue_11730 E
+test_issue_11938 E
+test_issue_11914 E
+test_issue_9543 E
+test_issue_16871 E
+test_issue_16871b f
+test_issue_18050 ok
+test_Rationals E
+test_NZQRC_unions E
+test_imageset_intersection E
+test_issue_17858 ok
+test_issue_17859 ok                                                       [FAIL]
+
+
+________________________________________________________________________________
+_______________ sympy/sets/tests/test_fancysets.py:test_naturals _______________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 30, in test_naturals
+    assert N.intersect(Interval(-5, 5)) == Range(1, 6)
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+_______________ sympy/sets/tests/test_fancysets.py:test_integers _______________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 69, in test_integers
+    assert Z.intersect(Interval(-5, 5)) == Range(-5, 6)
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+_______________ sympy/sets/tests/test_fancysets.py:test_ImageSet _______________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 89, in test_ImageSet
+    empty = Intersection(FiniteSet(log(2)/pi), S.Integers)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+______________ sympy/sets/tests/test_fancysets.py:test_halfcircle ______________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 155, in test_halfcircle
+    assert (1, 0) in halfcircle
+  File "/testbed/sympy/sets/sets.py", line 689, in __contains__
+    c = self._contains(other)
+  File "/testbed/sympy/sets/fancysets.py", line 486, in _contains
+    solnset = _solveset_multi(equations, variables, base_sets)
+  File "/testbed/sympy/solvers/solveset.py", line 2281, in _solveset_multi
+    sol = solveset(eqs[n], sym, domains[syms.index(sym)])
+  File "/testbed/sympy/solvers/solveset.py", line 2213, in solveset
+    x = _rc[0] if domain.is_subset(S.Reals) else _rc[1]
+  File "/testbed/sympy/sets/sets.py", line 398, in is_subset
+    if self.intersect(other) == self:
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+______________ sympy/sets/tests/test_fancysets.py:test_Range_set _______________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 242, in test_Range_set
+    assert empty.intersect(S.Integers) == empty
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+____________ sympy/sets/tests/test_fancysets.py:test_Range_symbolic ____________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 382, in test_Range_symbolic
+    assert sr.intersect(S.Integers) == sr
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+_______ sympy/sets/tests/test_fancysets.py:test_range_range_intersection _______
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 486, in test_range_range_intersection
+    assert a.intersect(b) == r
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+_____ sympy/sets/tests/test_fancysets.py:test_range_interval_intersection ______
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 499, in test_range_interval_intersection
+    assert isinstance(Range(3).intersect(Interval(p, p + 2)), Intersection)
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+________ sympy/sets/tests/test_fancysets.py:test_Integers_eval_imageset ________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 544, in test_Integers_eval_imageset
+    assert y + 4 in L
+  File "/testbed/sympy/sets/sets.py", line 689, in __contains__
+    c = self._contains(other)
+  File "/testbed/sympy/sets/fancysets.py", line 486, in _contains
+    solnset = _solveset_multi(equations, variables, base_sets)
+  File "/testbed/sympy/solvers/solveset.py", line 2269, in _solveset_multi
+    solsets = [solveset(eq, sym, domain) for eq in eqs]
+  File "/testbed/sympy/solvers/solveset.py", line 2269, in <listcomp>
+    solsets = [solveset(eq, sym, domain) for eq in eqs]
+  File "/testbed/sympy/solvers/solveset.py", line 2214, in solveset
+    rv = solveset(f.xreplace({symbol: x}), x, domain)
+  File "/testbed/sympy/solvers/solveset.py", line 2238, in solveset
+    return _solveset(f, symbol, domain, _check=True)
+  File "/testbed/sympy/solvers/solveset.py", line 1038, in _solveset
+    result = solver(Add(f.lhs, - f.rhs, evaluate=False), symbol, domain)
+  File "/testbed/sympy/solvers/solveset.py", line 1006, in <lambda>
+    solver = lambda f, x, domain=domain: _solveset(f, x, domain)
+  File "/testbed/sympy/solvers/solveset.py", line 1050, in _solveset
+    lhs, rhs_s = inverter(f, 0, symbol)
+  File "/testbed/sympy/solvers/solveset.py", line 1007, in <lambda>
+    inverter = lambda f, rhs, symbol: _invert(f, rhs, symbol, domain)
+  File "/testbed/sympy/solvers/solveset.py", line 183, in _invert
+    return x1, s.intersection(domain)
+  File "/testbed/sympy/sets/sets.py", line 143, in intersection
+    return self.intersect(other)
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+________________ sympy/sets/tests/test_fancysets.py:test_Reals _________________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 586, in test_Reals
+    assert S.Reals.intersect(Range(-oo, oo)) == Range(-oo, oo)
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+_______________ sympy/sets/tests/test_fancysets.py:test_Complex ________________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 596, in test_Complex
+    assert S.Complexes.intersect(S.Reals) == S.Reals
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+____________ sympy/sets/tests/test_fancysets.py:test_intersections _____________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 610, in test_intersections
+    assert S.Integers.intersect(S.Reals) == S.Integers
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+_______ sympy/sets/tests/test_fancysets.py:test_infinitely_indexed_set_1 _______
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 625, in test_infinitely_indexed_set_1
+    assert imageset(Lambda(n, 2*n), S.Integers).intersect(
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+_______ sympy/sets/tests/test_fancysets.py:test_imageset_intersect_real ________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 661, in test_imageset_intersect_real
+    assert imageset(Lambda(n, n + (n - 1)*(n + 1)*I), S.Integers).intersect(S.Reals) == FiniteSet(-1, 1)
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+_____ sympy/sets/tests/test_fancysets.py:test_imageset_intersect_interval ______
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 702, in test_imageset_intersect_interval
+    assert f1.intersect(Interval(-1, 1)) == FiniteSet(0)
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+____ sympy/sets/tests/test_fancysets.py:test_imageset_intersect_diophantine ____
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 721, in test_imageset_intersect_diophantine
+    assert img1.intersect(img2) == img2
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+_______ sympy/sets/tests/test_fancysets.py:test_infinitely_indexed_set_3 _______
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 762, in test_infinitely_indexed_set_3
+    assert imageset(Lambda(m, 2*pi*m), S.Integers).intersect(
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+__________ sympy/sets/tests/test_fancysets.py:test_ImageSet_contains ___________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 784, in test_ImageSet_contains
+    assert (2, S.Half) in imageset(x, (x, 1/x), S.Integers)
+  File "/testbed/sympy/sets/sets.py", line 689, in __contains__
+    c = self._contains(other)
+  File "/testbed/sympy/sets/fancysets.py", line 486, in _contains
+    solnset = _solveset_multi(equations, variables, base_sets)
+  File "/testbed/sympy/solvers/solveset.py", line 2269, in _solveset_multi
+    solsets = [solveset(eq, sym, domain) for eq in eqs]
+  File "/testbed/sympy/solvers/solveset.py", line 2269, in <listcomp>
+    solsets = [solveset(eq, sym, domain) for eq in eqs]
+  File "/testbed/sympy/solvers/solveset.py", line 2214, in solveset
+    rv = solveset(f.xreplace({symbol: x}), x, domain)
+  File "/testbed/sympy/solvers/solveset.py", line 2238, in solveset
+    return _solveset(f, symbol, domain, _check=True)
+  File "/testbed/sympy/solvers/solveset.py", line 1038, in _solveset
+    result = solver(Add(f.lhs, - f.rhs, evaluate=False), symbol, domain)
+  File "/testbed/sympy/solvers/solveset.py", line 1006, in <lambda>
+    solver = lambda f, x, domain=domain: _solveset(f, x, domain)
+  File "/testbed/sympy/solvers/solveset.py", line 1050, in _solveset
+    lhs, rhs_s = inverter(f, 0, symbol)
+  File "/testbed/sympy/solvers/solveset.py", line 1007, in <lambda>
+    inverter = lambda f, rhs, symbol: _invert(f, rhs, symbol, domain)
+  File "/testbed/sympy/solvers/solveset.py", line 183, in _invert
+    return x1, s.intersection(domain)
+  File "/testbed/sympy/sets/sets.py", line 143, in intersection
+    return self.intersect(other)
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+________ sympy/sets/tests/test_fancysets.py:test_ComplexRegion_contains ________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 804, in test_ComplexRegion_contains
+    c2 = ComplexRegion(Union(a*b, c*a))
+  File "/testbed/sympy/sets/sets.py", line 1200, in __new__
+    return simplify_union(args)
+  File "/testbed/sympy/sets/sets.py", line 2355, in simplify_union
+    new_set = union_sets(s, t)
+  File "/testbed/sympy/multipledispatch/dispatcher.py", line 243, in __call__
+    return func(*args, **kwargs)
+  File "/testbed/sympy/sets/handlers/union.py", line 67, in union_sets
+    if b.is_subset(a):
+  File "/testbed/sympy/sets/sets.py", line 398, in is_subset
+    if self.intersect(other) == self:
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+_______ sympy/sets/tests/test_fancysets.py:test_ComplexRegion_intersect ________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 862, in test_ComplexRegion_intersect
+    assert upper_half_disk.intersect(unit_disk) == upper_half_unit_disk
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+_________ sympy/sets/tests/test_fancysets.py:test_ComplexRegion_union __________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 905, in test_ComplexRegion_union
+    p1 = Union(Interval(0, 1)*Interval(0, 2*S.Pi), Interval(0, 1)*Interval(0, S.Pi))
+  File "/testbed/sympy/sets/sets.py", line 1200, in __new__
+    return simplify_union(args)
+  File "/testbed/sympy/sets/sets.py", line 2355, in simplify_union
+    new_set = union_sets(s, t)
+  File "/testbed/sympy/multipledispatch/dispatcher.py", line 243, in __call__
+    return func(*args, **kwargs)
+  File "/testbed/sympy/sets/handlers/union.py", line 67, in union_sets
+    if b.is_subset(a):
+  File "/testbed/sympy/sets/sets.py", line 398, in is_subset
+    if self.intersect(other) == self:
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+_______ sympy/sets/tests/test_fancysets.py:test_ComplexRegion_from_real ________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 930, in test_ComplexRegion_from_real
+    raises(ValueError, lambda: c1.from_real(c1))
+  File "/testbed/sympy/testing/pytest.py", line 101, in raises
+    code()
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 930, in <lambda>
+    raises(ValueError, lambda: c1.from_real(c1))
+  File "/testbed/sympy/sets/fancysets.py", line 1306, in from_real
+    if not sets.is_subset(S.Reals):
+  File "/testbed/sympy/sets/sets.py", line 398, in is_subset
+    if self.intersect(other) == self:
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+________ sympy/sets/tests/test_fancysets.py:test_ComplexRegion_measure _________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 938, in test_ComplexRegion_measure
+    c2 = ComplexRegion(Union(a*theta1, b*theta2), polar=True)
+  File "/testbed/sympy/sets/sets.py", line 1200, in __new__
+    return simplify_union(args)
+  File "/testbed/sympy/sets/sets.py", line 2355, in simplify_union
+    new_set = union_sets(s, t)
+  File "/testbed/sympy/multipledispatch/dispatcher.py", line 243, in __call__
+    return func(*args, **kwargs)
+  File "/testbed/sympy/sets/handlers/union.py", line 67, in union_sets
+    if b.is_subset(a):
+  File "/testbed/sympy/sets/sets.py", line 398, in is_subset
+    if self.intersect(other) == self:
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+___________ sympy/sets/tests/test_fancysets.py:test_union_RealSubSet ___________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 1010, in test_union_RealSubSet
+    assert (S.Complexes).union(Interval(1, 2)) == S.Complexes
+  File "/testbed/sympy/sets/sets.py", line 116, in union
+    return Union(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1200, in __new__
+    return simplify_union(args)
+  File "/testbed/sympy/sets/sets.py", line 2355, in simplify_union
+    new_set = union_sets(s, t)
+  File "/testbed/sympy/multipledispatch/dispatcher.py", line 243, in __call__
+    return func(*args, **kwargs)
+  File "/testbed/sympy/sets/handlers/union.py", line 43, in union_sets
+    if b.is_subset(S.Reals):
+  File "/testbed/sympy/sets/sets.py", line 398, in is_subset
+    if self.intersect(other) == self:
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+______________ sympy/sets/tests/test_fancysets.py:test_issue_9980 ______________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 1017, in test_issue_9980
+    R = Union(c1, c2)
+  File "/testbed/sympy/sets/sets.py", line 1200, in __new__
+    return simplify_union(args)
+  File "/testbed/sympy/sets/sets.py", line 2355, in simplify_union
+    new_set = union_sets(s, t)
+  File "/testbed/sympy/multipledispatch/dispatcher.py", line 243, in __call__
+    return func(*args, **kwargs)
+  File "/testbed/sympy/sets/handlers/union.py", line 43, in union_sets
+    if b.is_subset(S.Reals):
+  File "/testbed/sympy/sets/sets.py", line 398, in is_subset
+    if self.intersect(other) == self:
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+_____________ sympy/sets/tests/test_fancysets.py:test_issue_11730 ______________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 1051, in test_issue_11730
+    assert Union(unit, square) == square
+  File "/testbed/sympy/sets/sets.py", line 1200, in __new__
+    return simplify_union(args)
+  File "/testbed/sympy/sets/sets.py", line 2355, in simplify_union
+    new_set = union_sets(s, t)
+  File "/testbed/sympy/multipledispatch/dispatcher.py", line 243, in __call__
+    return func(*args, **kwargs)
+  File "/testbed/sympy/sets/handlers/union.py", line 43, in union_sets
+    if b.is_subset(S.Reals):
+  File "/testbed/sympy/sets/sets.py", line 398, in is_subset
+    if self.intersect(other) == self:
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+_____________ sympy/sets/tests/test_fancysets.py:test_issue_11938 ______________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 1060, in test_issue_11938
+    assert Intersection(cr1, S.Reals) == ival
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+_____________ sympy/sets/tests/test_fancysets.py:test_issue_11914 ______________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 1081, in test_issue_11914
+    assert -3 in cp1.union(cp2)
+  File "/testbed/sympy/sets/sets.py", line 116, in union
+    return Union(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1200, in __new__
+    return simplify_union(args)
+  File "/testbed/sympy/sets/sets.py", line 2355, in simplify_union
+    new_set = union_sets(s, t)
+  File "/testbed/sympy/multipledispatch/dispatcher.py", line 243, in __call__
+    return func(*args, **kwargs)
+  File "/testbed/sympy/sets/handlers/union.py", line 43, in union_sets
+    if b.is_subset(S.Reals):
+  File "/testbed/sympy/sets/sets.py", line 398, in is_subset
+    if self.intersect(other) == self:
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+______________ sympy/sets/tests/test_fancysets.py:test_issue_9543 ______________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 1087, in test_issue_9543
+    assert ImageSet(Lambda(x, x**2), S.Naturals).is_subset(S.Reals)
+  File "/testbed/sympy/sets/sets.py", line 398, in is_subset
+    if self.intersect(other) == self:
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+_____________ sympy/sets/tests/test_fancysets.py:test_issue_16871 ______________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 1092, in test_issue_16871
+    assert ImageSet(Lambda(x, x - 3), S.Integers
+  File "/testbed/sympy/sets/sets.py", line 143, in intersection
+    return self.intersect(other)
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+______________ sympy/sets/tests/test_fancysets.py:test_Rationals _______________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 1118, in test_Rationals
+    assert S.Integers.is_subset(S.Rationals)
+  File "/testbed/sympy/sets/sets.py", line 381, in is_subset
+    ret = self._eval_is_subset(other)
+  File "/testbed/sympy/sets/fancysets.py", line 223, in _eval_is_subset
+    return Range(-oo, oo).is_subset(other)
+  File "/testbed/sympy/sets/sets.py", line 398, in is_subset
+    if self.intersect(other) == self:
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+_____________ sympy/sets/tests/test_fancysets.py:test_NZQRC_unions _____________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 1147, in test_NZQRC_unions
+    assert all(u.is_Union is False for u in unions)
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 1147, in <genexpr>
+    assert all(u.is_Union is False for u in unions)
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 1146, in <genexpr>
+    unions = (Union(a, b) for a in nbrsets for b in nbrsets)
+  File "/testbed/sympy/sets/sets.py", line 1200, in __new__
+    return simplify_union(args)
+  File "/testbed/sympy/sets/sets.py", line 2355, in simplify_union
+    new_set = union_sets(s, t)
+  File "/testbed/sympy/multipledispatch/dispatcher.py", line 243, in __call__
+    return func(*args, **kwargs)
+  File "/testbed/sympy/sets/handlers/union.py", line 35, in union_sets
+    intersect = Intersection(a, b)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+________________________________________________________________________________
+________ sympy/sets/tests/test_fancysets.py:test_imageset_intersection _________
+Traceback (most recent call last):
+  File "/testbed/sympy/sets/tests/test_fancysets.py", line 1154, in test_imageset_intersection
+    assert s.intersect(S.Reals) == ImageSet(
+  File "/testbed/sympy/sets/sets.py", line 137, in intersect
+    return Intersection(self, other)
+  File "/testbed/sympy/sets/sets.py", line 1333, in __new__
+    args = list(cls._new_args_filter(args))
+  File "/testbed/sympy/core/operations.py", line 508, in _new_args_filter
+    if arg == ncls.zero:
+AttributeError: type object 'Intersection' has no attribute 'zero'
+
+ tests finished: 15 passed, 1 expected to fail, 33 exceptions, in 2.97 seconds =
+DO *NOT* COMMIT!
++ git checkout 110997fe18b9f7d5ba7d22f624d156a29bf40759 sympy/sets/tests/test_fancysets.py
+Updated 1 path from 63d177592d

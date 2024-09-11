@@ -1,0 +1,42 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..e554c509e1
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,18 @@
++from sympy import Eq, S, rf, lambdify, Float, nsolve, Symbol
++import inspect
++
++x = Symbol('x')
++eqn = Eq(rf(18,x), 77 + S(1)/3)
++f = lambdify(x, eqn.lhs - eqn.rhs, 'mpmath')
++
++print("Lambdified function source:")
++print(inspect.getsource(f))
++
++print("\nNsolve result:")
++x0 = nsolve(eqn, Float('1.5', 64), prec=64)
++print(x0)
++
++print("\nEvaluated result:")
++print(rf(18, x0).evalf(64))
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sympy/printing/pycode.py b/sympy/printing/pycode.py
+index d06901425d..0ec0ba4710 100644
+--- a/sympy/printing/pycode.py
++++ b/sympy/printing/pycode.py
+@@ -330,6 +330,12 @@ def _print_Float(self, e):
+         # Remove 'mpz' if gmpy is installed.
+         args = str(tuple(map(int, e._mpf_)))
+         return '{func}({args})'.format(func=self._module_format('mpmath.mpf'), args=args)
++    def _print_Rational(self, expr):
++        return '{0}({1})/{0}({2})'.format(
++            self._module_format('mpmath.mpf'),
++            self._print(expr.p),
++            self._print(expr.q)
++        )
+ 
+ 
+     def _print_uppergamma(self, e):

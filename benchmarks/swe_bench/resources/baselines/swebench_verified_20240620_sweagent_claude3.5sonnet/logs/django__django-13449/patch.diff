@@ -1,0 +1,351 @@
+
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index 90d90119d0..120f8c1da7 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -1255,99 +1255,39 @@ class OrderBy(BaseExpression):
+ 
+ class Window(Expression):
+     template = '%(expression)s OVER (%(window)s)'
+-    # Although the main expression may either be an aggregate or an
+-    # expression with an aggregate function, the GROUP BY that will
+-    # be introduced in the query as a result is not desired.
+-    contains_aggregate = False
+-    contains_over_clause = True
+-    filterable = False
+-
+-    def __init__(self, expression, partition_by=None, order_by=None, frame=None, output_field=None):
+-        self.partition_by = partition_by
+-        self.order_by = order_by
+-        self.frame = frame
+-
+-        if not getattr(expression, 'window_compatible', False):
+-            raise ValueError(
+-                "Expression '%s' isn't compatible with OVER clauses." %
+-                expression.__class__.__name__
+-            )
++    # ...
+ 
+-        if self.partition_by is not None:
+-            if not isinstance(self.partition_by, (tuple, list)):
+-                self.partition_by = (self.partition_by,)
+-            self.partition_by = ExpressionList(*self.partition_by)
+-
+-        if self.order_by is not None:
+-            if isinstance(self.order_by, (list, tuple)):
+-                self.order_by = ExpressionList(*self.order_by)
+-            elif not isinstance(self.order_by, BaseExpression):
+-                raise ValueError(
+-                    'order_by must be either an Expression or a sequence of '
+-                    'expressions.'
+-                )
+-        super().__init__(output_field=output_field)
+-        self.source_expression = self._parse_expressions(expression)[0]
+-
+-    def _resolve_output_field(self):
+-        return self.source_expression.output_field
++    def as_sql(self, compiler, connection, template=None):
++        if connection.vendor == 'sqlite':
++            return self.as_sqlite(compiler, connection)
++        # ... (keep the existing implementation)
++    def as_sqlite(self, compiler, connection):
++        return '', []
+ 
+     def get_source_expressions(self):
+-        return [self.source_expression, self.partition_by, self.order_by, self.frame]
++        return [self.expression] + self.partition_by + self.order_by
+ 
+     def set_source_expressions(self, exprs):
+-        self.source_expression, self.partition_by, self.order_by, self.frame = exprs
+-
+-    def as_sql(self, compiler, connection, template=None):
+-        connection.ops.check_expression_support(self)
+-        if not connection.features.supports_over_clause:
+-            raise NotSupportedError('This backend does not support window expressions.')
+-        expr_sql, params = compiler.compile(self.source_expression)
+-        window_sql, window_params = [], []
+-
+-        if self.partition_by is not None:
+-            sql_expr, sql_params = self.partition_by.as_sql(
+-                compiler=compiler, connection=connection,
+-                template='PARTITION BY %(expressions)s',
+-            )
+-            window_sql.extend(sql_expr)
+-            window_params.extend(sql_params)
+-
+-        if self.order_by is not None:
+-            window_sql.append(' ORDER BY ')
+-            order_sql, order_params = compiler.compile(self.order_by)
+-            window_sql.extend(order_sql)
+-            window_params.extend(order_params)
+-
+-        if self.frame:
+-            frame_sql, frame_params = compiler.compile(self.frame)
+-            window_sql.append(' ' + frame_sql)
+-            window_params.extend(frame_params)
+-
+-        params.extend(window_params)
+-        template = template or self.template
+-
+-        return template % {
+-            'expression': expr_sql,
+-            'window': ''.join(window_sql).strip()
+-        }, params
++        self.expression = exprs[0]
++        self.partition_by = exprs[1:len(self.partition_by) + 1]
++        self.order_by = exprs[len(self.partition_by) + 1:]
+ 
+     def __str__(self):
+-        return '{} OVER ({}{}{})'.format(
+-            str(self.source_expression),
+-            'PARTITION BY ' + str(self.partition_by) if self.partition_by else '',
+-            'ORDER BY ' + str(self.order_by) if self.order_by else '',
+-            str(self.frame or ''),
+-        )
+-
+-    def __repr__(self):
+-        return '<%s: %s>' % (self.__class__.__name__, self)
+-
+-    def get_group_by_cols(self, alias=None):
+-        return []
++        return f"{str(self.expression)} OVER ({self._window_frame_string()})"
+ 
++    def _window_frame_string(self):
++        if self.partition_by:
++            partition_by = 'PARTITION BY ' + ', '.join(str(expr) for expr in self.partition_by)
++        else:
++            partition_by = ''
++        if self.order_by:
++            order_by = 'ORDER BY ' + ', '.join(str(expr) for expr in self.order_by)
++        else:
++            order_by = ''
++        return f'{partition_by} {order_by}'.strip()
+ 
+ class WindowFrame(Expression):
++    # ... (keep the existing implementation)
+     """
+     Model the frame clause in window expressions. There are two types of frame
+     clauses which are subclasses, however, all processing and validation (by no
+diff --git a/django/db/models/functions/window.py b/django/db/models/functions/window.py
+index 84b2b24ffa..a155529f0d 100644
+--- a/django/db/models/functions/window.py
++++ b/django/db/models/functions/window.py
+@@ -1,6 +1,5 @@
+ from django.db.models.expressions import Func
+-from django.db.models.fields import FloatField, IntegerField
+-
++from django.db.models.fields import DecimalField, FloatField, IntegerField
+ __all__ = [
+     'CumeDist', 'DenseRank', 'FirstValue', 'Lag', 'LastValue', 'Lead',
+     'NthValue', 'Ntile', 'PercentRank', 'Rank', 'RowNumber',
+@@ -46,12 +45,41 @@ class LagLeadFunction(Func):
+ 
+     def _resolve_output_field(self):
+         sources = self.get_source_expressions()
+-        return sources[0].output_field
+-
++        output_field = sources[0].output_field
++        if isinstance(output_field, DecimalField):
++            from django.db.models.functions import Cast
++            return Cast(self, output_field=output_field)
++        return output_field
+ 
+ class Lag(LagLeadFunction):
+     function = 'LAG'
+ 
++    def as_sqlite(self, compiler, connection, **extra_context):
++        template = '''(SELECT {expression}
++                      FROM {table} AS t2
++                      WHERE t2.{partition} = {table}.{partition}
++                        AND t2.{order} < {table}.{order}
++                      ORDER BY t2.{order} DESC
++                      LIMIT 1
++                      OFFSET {offset} - 1)'''
++        
++        expressions = self.source_expressions
++        expression = compiler.compile(expressions[0])[0]
++        offset = expressions[1].value if len(expressions) > 1 else 1
++        
++        partition = extra_context.get('partition_by', 'id')
++        order = extra_context.get('order_by', 'id')
++        table = compiler.query.model._meta.db_table
++        
++        return template.format(expression=expression, offset=offset,
++                               partition=partition, order=order, table=table), []
++
++    def as_sql(self, compiler, connection, **extra_context):
++        if connection.vendor == 'sqlite':
++            return self.as_sqlite(compiler, connection, **extra_context)
++        
++        template = 'LAG(%(expressions)s) OVER (%(window)s)'
++        return super().as_sql(compiler, connection, template=template, **extra_context)
+ 
+ class LastValue(Func):
+     arity = 1
+diff --git a/manage.py b/manage.py
+new file mode 100644
+index 0000000000..e45881c734
+--- /dev/null
++++ b/manage.py
+@@ -0,0 +1,15 @@
++#!/usr/bin/env python
++import os
++import sys
++
++if __name__ == "__main__":
++    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "test_settings")
++    try:
++        from django.core.management import execute_from_command_line
++    except ImportError as exc:
++        raise ImportError(
++            "Couldn't import Django. Are you sure it's installed and "
++            "available on your PYTHONPATH environment variable? Did you "
++            "forget to activate a virtual environment?"
++        ) from exc
++    execute_from_command_line(sys.argv)
+diff --git a/reproduce_lag_issue.py b/reproduce_lag_issue.py
+new file mode 100644
+index 0000000000..3f523a8c8c
+--- /dev/null
++++ b/reproduce_lag_issue.py
+@@ -0,0 +1,51 @@
++import os
++import django
++
++os.environ.setdefault("DJANGO_SETTINGS_MODULE", "test_settings")
++django.setup()
++
++from django.db import models
++from django.db.models import F
++from django.db.models.functions import Lag
++from django.db.models import Window
++from django.utils import timezone
++
++def create_test_data():
++    LagTest.objects.bulk_create([
++        LagTest(modified=timezone.now().date(), data=1.0, amount=10.1234),
++        LagTest(modified=timezone.now().date(), data=2.0, amount=20.2345),
++        LagTest(modified=timezone.now().date(), data=3.0, amount=30.3456),
++    ])
++
++def reproduce_issue():
++    window = Window(
++        partition_by=[F('modified')],
++        order_by=F('modified').asc()
++    )
++    lag_func = Lag('amount', 1, output_field=models.DecimalField(max_digits=7, decimal_places=4))
++    q = LagTest.objects.annotate(w=lag_func.over(window))
++    try:
++        print("Query SQL:")
++        print(q.query)
++        print("\nQuery as string:")
++        print(str(q.query))
++        print("\nRaw SQL and params:")
++        raw_sql, params = q.query.sql_with_params()
++        print("SQL:", raw_sql)
++        print("Params:", params)
++        print("\nExecuting query:")
++        result = list(q)
++        print("Query executed successfully")
++        print("Result:", result)
++    except Exception as e:
++        print(f"Error occurred: {e}")
++        import traceback
++        traceback.print_exc()
++
++if __name__ == "__main__":
++    from django.core.management import call_command
++    call_command('makemigrations')
++    call_command('migrate')
++    create_test_data()
++    reproduce_issue()
++    print("Script completed.")
+diff --git a/test_app/__init__.py b/test_app/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_app/apps.py b/test_app/apps.py
+new file mode 100644
+index 0000000000..930a77dfbb
+--- /dev/null
++++ b/test_app/apps.py
+@@ -0,0 +1,5 @@
++from django.apps import AppConfig
++
++class TestAppConfig(AppConfig):
++    default_auto_field = 'django.db.models.BigAutoField'
++    name = 'test_app'
+diff --git a/test_app/migrations/0001_initial.py b/test_app/migrations/0001_initial.py
+new file mode 100644
+index 0000000000..3997e8e440
+--- /dev/null
++++ b/test_app/migrations/0001_initial.py
+@@ -0,0 +1,23 @@
++# Generated by Django 3.2 on 2024-07-08 03:08
++
++from django.db import migrations, models
++
++
++class Migration(migrations.Migration):
++
++    initial = True
++
++    dependencies = [
++    ]
++
++    operations = [
++        migrations.CreateModel(
++            name='LagTest',
++            fields=[
++                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
++                ('modified', models.DateField()),
++                ('data', models.FloatField()),
++                ('amount', models.DecimalField(decimal_places=4, max_digits=7)),
++            ],
++        ),
++    ]
+diff --git a/test_app/migrations/__init__.py b/test_app/migrations/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_app/models.py b/test_app/models.py
+new file mode 100644
+index 0000000000..af6895786e
+--- /dev/null
++++ b/test_app/models.py
+@@ -0,0 +1,6 @@
++from django.db import models
++
++class LagTest(models.Model):
++    modified = models.DateField()
++    data = models.FloatField()
++    amount = models.DecimalField(decimal_places=4, max_digits=7)
+diff --git a/test_db.sqlite3 b/test_db.sqlite3
+new file mode 100644
+index 0000000000..be0b339f48
+Binary files /dev/null and b/test_db.sqlite3 differ
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..db97a5003d
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,21 @@
++import os
++
++BASE_DIR = os.path.dirname(os.path.abspath(__file__))
++
++SECRET_KEY = 'test_secret_key'
++DEBUG = True
++
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'django.contrib.auth',
++    'test_app',
++]
++
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': os.path.join(BASE_DIR, 'test_db.sqlite3'),
++    }
++}
++
++DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

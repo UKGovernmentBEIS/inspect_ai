@@ -1,0 +1,76 @@
+
+diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py
+index 5e7b23f9a0..25051c3dbc 100644
+--- a/django/contrib/admin/options.py
++++ b/django/contrib/admin/options.py
+@@ -582,7 +582,7 @@ class ModelAdmin(BaseModelAdmin):
+ 
+     def get_inline_instances(self, request, obj=None):
+         inline_instances = []
+-        for inline_class in self.inlines:
++        for inline_class in self.get_inlines(request, obj):
+             inline = inline_class(self.model, self.admin_site)
+             if request:
+                 if not (inline.has_view_or_change_permission(request, obj) or
+@@ -595,6 +595,16 @@ class ModelAdmin(BaseModelAdmin):
+ 
+         return inline_instances
+ 
++    def get_inlines(self, request, obj=None):
++        """
++        Hook for specifying inline classes. By default, returns `self.inlines`.
++        
++        This method can be overridden to dynamically change the inlines
++        based on the request or model instance.
++        """
++        return self.inlines
++
++
+     def get_urls(self):
+         from django.urls import path
+ 
+diff --git a/tests/admin_views/test_adminsite.py b/tests/admin_views/test_adminsite.py
+index efee6f39c6..4b81c2a447 100644
+--- a/tests/admin_views/test_adminsite.py
++++ b/tests/admin_views/test_adminsite.py
+@@ -98,4 +98,39 @@ class SiteActionsTests(SimpleTestCase):
+         action_name = 'delete_selected'
+         self.assertEqual(self.site.get_action(action_name), delete_selected)
+         self.site.disable_action(action_name)
+-        self.assertEqual(self.site.get_action(action_name), delete_selected)
++
++class GetInlinesTest(TestCase):
++    def setUp(self):
++        self.site = admin.AdminSite()
++
++    def test_get_inlines_returns_inlines(self):
++        class TestModelAdmin(admin.ModelAdmin):
++            inlines = ['test_inline']
++
++        model_admin = TestModelAdmin(model=User, admin_site=self.site)
++        request = RequestFactory().get('/')
++        self.assertEqual(model_admin.get_inlines(request), ['test_inline'])
++
++    def test_get_inlines_can_be_overridden(self):
++        class TestModelAdmin(admin.ModelAdmin):
++            inlines = ['default_inline']
++
++            def get_inlines(self, request, obj=None):
++                if obj and obj.username == 'special_user':
++                    return ['special_inline']
++                return super().get_inlines(request, obj)
++
++        model_admin = TestModelAdmin(model=User, admin_site=self.site)
++        request = RequestFactory().get('/')
++
++        # Test with no object (add view)
++        self.assertEqual(model_admin.get_inlines(request), ['default_inline'])
++
++        # Test with regular object
++        regular_user = User(username='regular_user')
++        self.assertEqual(model_admin.get_inlines(request, regular_user), ['default_inline'])
++
++        # Test with special object
++        special_user = User(username='special_user')
++        self.assertEqual(model_admin.get_inlines(request, special_user), ['special_inline'])
++

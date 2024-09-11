@@ -1,0 +1,89 @@
+
+diff --git a/doc/en/changelog.rst b/doc/en/changelog.rst
+index 2ad8de212..8c476687c 100644
+--- a/doc/en/changelog.rst
++++ b/doc/en/changelog.rst
+@@ -28,8 +28,17 @@ with advance notice in the **Deprecations** section of releases.
+ 
+ .. towncrier release notes start
+ 
++pytest 6.0.1 (unreleased)
++=========================
++
++Bug Fixes
++---------
++
++- `#7654 <https://github.com/pytest-dev/pytest/issues/7654>`_: Fixed an issue where the caplog fixture was not resetting the log level between tests.
++
+ pytest 6.0.0 (2020-07-28)
+ =========================
++=========================
+ 
+ (**Please see the full set of changes for this release also in the 6.0.0rc1 notes below**)
+ 
+diff --git a/src/_pytest/logging.py b/src/_pytest/logging.py
+index 11031f2f2..c430480e4 100644
+--- a/src/_pytest/logging.py
++++ b/src/_pytest/logging.py
+@@ -423,19 +423,23 @@ class LogCaptureFixture:
+         """Sets the level for capturing of logs. The level will be restored to its previous value at the end of
+         the test.
+ 
+-        :param int level: the logger to level.
+-        :param str logger: the logger to update the level. If not given, the root logger level is updated.
+-
+-        .. versionchanged:: 3.4
+-            The levels of the loggers changed by this function will be restored to their initial values at the
+-            end of the test.
++        :param int level: the level.
++        :param str logger: the logger to update. If not given, the root logger.
+         """
+         logger_obj = logging.getLogger(logger)
+-        # save the original log-level to restore it during teardown
+-        self._initial_logger_levels.setdefault(logger, logger_obj.level)
++        # Store the original level if not already stored
++        if logger not in self._initial_logger_levels:
++            self._initial_logger_levels[logger] = logger_obj.level
+         logger_obj.setLevel(level)
+         self.handler.setLevel(level)
+ 
++    def reset_level(self, logger: Optional[str] = None) -> None:
++        """Resets the logger level to its original value."""
++        logger_obj = logging.getLogger(logger)
++        if logger in self._initial_logger_levels:
++            logger_obj.setLevel(self._initial_logger_levels[logger])
++            del self._initial_logger_levels[logger]
++        self.handler.setLevel(logging.NOTSET)
+     @contextmanager
+     def at_level(
+         self, level: int, logger: Optional[str] = None
+@@ -472,6 +476,7 @@ def caplog(request: FixtureRequest) -> Generator[LogCaptureFixture, None, None]:
+     """
+     result = LogCaptureFixture(request.node)
+     yield result
++    result.reset_level()  # Reset the log level after the test
+     result._finalize()
+ 
+ 
+diff --git a/test_caplog_issue.py b/test_caplog_issue.py
+new file mode 100644
+index 000000000..d543054aa
+--- /dev/null
++++ b/test_caplog_issue.py
+@@ -0,0 +1,16 @@
++import pytest
++import logging
++
++def test_foo(caplog):
++    print("Starting test_foo")
++    caplog.set_level(logging.DEBUG)
++    logging.debug("This is a debug message")
++    assert caplog.records[0].levelno == logging.DEBUG
++
++def test_bar(caplog):
++    print("Starting test_bar")
++    print(f"Current log level: {caplog.handler.level}")
++    assert caplog.handler.level == logging.NOTSET
++
++if __name__ == "__main__":
++    pytest.main([__file__, "-v"])

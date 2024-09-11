@@ -1,0 +1,48 @@
+{
+    "django__django-11095": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "test_get_inline_instances_override_get_inlines (generic_inline_admin.tests.GenericInlineModelAdminTest)"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_no_deletion (generic_inline_admin.tests.NoInlineDeletionTest)",
+                    "test_custom_form_meta_exclude (generic_inline_admin.tests.GenericInlineModelAdminTest)",
+                    "test_custom_form_meta_exclude_with_readonly (generic_inline_admin.tests.GenericInlineModelAdminTest)",
+                    "test_get_fieldsets (generic_inline_admin.tests.GenericInlineModelAdminTest)",
+                    "test_get_formset_kwargs (generic_inline_admin.tests.GenericInlineModelAdminTest)",
+                    "test_get_formsets_with_inlines_returns_tuples (generic_inline_admin.tests.GenericInlineModelAdminTest)",
+                    "test_extra_param (generic_inline_admin.tests.GenericInlineAdminParametersTest)",
+                    "test_get_extra (generic_inline_admin.tests.GenericInlineAdminParametersTest)",
+                    "test_get_max_num (generic_inline_admin.tests.GenericInlineAdminParametersTest)",
+                    "test_get_min_num (generic_inline_admin.tests.GenericInlineAdminParametersTest)",
+                    "test_max_num_param (generic_inline_admin.tests.GenericInlineAdminParametersTest)",
+                    "test_min_num_param (generic_inline_admin.tests.GenericInlineAdminParametersTest)",
+                    "test_no_param (generic_inline_admin.tests.GenericInlineAdminParametersTest)",
+                    "test_add (generic_inline_admin.tests.GenericInlineAdminWithUniqueTogetherTest)",
+                    "test_delete (generic_inline_admin.tests.GenericInlineAdminWithUniqueTogetherTest)",
+                    "test_basic_add_GET (generic_inline_admin.tests.GenericAdminViewTest)",
+                    "test_basic_add_POST (generic_inline_admin.tests.GenericAdminViewTest)",
+                    "test_basic_edit_GET (generic_inline_admin.tests.GenericAdminViewTest)",
+                    "test_basic_edit_POST (generic_inline_admin.tests.GenericAdminViewTest)"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

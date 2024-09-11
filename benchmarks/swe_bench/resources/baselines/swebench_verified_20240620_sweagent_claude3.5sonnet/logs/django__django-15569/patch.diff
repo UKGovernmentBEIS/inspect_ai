@@ -1,0 +1,19 @@
+
+diff --git a/django/db/models/query_utils.py b/django/db/models/query_utils.py
+index 0caa165e15..04bce2e94c 100644
+--- a/django/db/models/query_utils.py
++++ b/django/db/models/query_utils.py
+@@ -216,9 +216,10 @@ class RegisterLookupMixin:
+         """
+         if lookup_name is None:
+             lookup_name = lookup.lookup_name
+-        del cls.class_lookups[lookup_name]
+-
+-
++        if lookup_name in cls.class_lookups:
++            del cls.class_lookups[lookup_name]
++            if hasattr(cls, 'get_lookups'):
++                cls._clear_cached_lookups()
+ def select_related_descend(field, restricted, requested, load_fields, reverse=False):
+     """
+     Return True if this field should be used to descend deeper for

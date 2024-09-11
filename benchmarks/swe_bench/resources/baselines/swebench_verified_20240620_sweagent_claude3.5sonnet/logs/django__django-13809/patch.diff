@@ -1,0 +1,43 @@
+
+diff --git a/django/core/management/commands/runserver.py b/django/core/management/commands/runserver.py
+index d9fb088350..27dced54d5 100644
+--- a/django/core/management/commands/runserver.py
++++ b/django/core/management/commands/runserver.py
+@@ -25,7 +25,7 @@ class Command(BaseCommand):
+     help = "Starts a lightweight Web server for development."
+ 
+     # Validation is called explicitly each time the server is reloaded.
+-    requires_system_checks = []
++    requires_system_checks = '__all__'
+     stealth_options = ('shutdown_message',)
+ 
+     default_addr = '127.0.0.1'
+@@ -51,6 +51,10 @@ class Command(BaseCommand):
+             '--noreload', action='store_false', dest='use_reloader',
+             help='Tells Django to NOT use the auto-reloader.',
+         )
++        parser.add_argument(
++            '--skip-checks', action='store_true', dest='skip_checks',
++            help='Tells Django to skip system checks.',
++        )
+ 
+     def execute(self, *args, **options):
+         if options['no_color']:
+@@ -114,11 +118,12 @@ class Command(BaseCommand):
+         shutdown_message = options.get('shutdown_message', '')
+         quit_command = 'CTRL-BREAK' if sys.platform == 'win32' else 'CONTROL-C'
+ 
+-        self.stdout.write("Performing system checks...\n\n")
+-        self.check(display_num_errors=True)
+-        # Need to check migrations here, so can't use the
+-        # requires_migrations_check attribute.
+-        self.check_migrations()
++        if not options['skip_checks']:
++            self.stdout.write("Performing system checks...\n\n")
++            self.check(display_num_errors=True)
++            # Need to check migrations here, so can't use the
++            # requires_migrations_check attribute.
++            self.check_migrations()
+         now = datetime.now().strftime('%B %d, %Y - %X')
+         self.stdout.write(now)
+         self.stdout.write((

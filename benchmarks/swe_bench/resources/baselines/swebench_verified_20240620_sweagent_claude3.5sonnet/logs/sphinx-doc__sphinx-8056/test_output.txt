@@ -1,0 +1,1272 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sphinx/ext/napoleon/docstring.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	setup.py.orig
+	tests/test_napoleon_multiple_params.py
+	tox.ini.orig
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit e188d56ed1248dead58f3f8018c0e9a3f99193f7
+Author: Takeshi KOMIYA <i.tkomiya@gmail.com>
+Date:   Fri Aug 7 23:39:39 2020 +0900
+
+    Update CHANGES for PR #8049
+
+diff --git a/CHANGES b/CHANGES
+index 16e103ec7..235e34852 100644
+--- a/CHANGES
++++ b/CHANGES
+@@ -32,6 +32,8 @@ Features added
+ * #7888: napoleon: Add aliases Warn and Raise.
+ * #7690: napoleon: parse type strings and make them hyperlinks as possible.  The
+   conversion rule can be updated via :confval:`napoleon_type_aliases`
++* #8049: napoleon: Create a hyperlink for each the type of parameter when
++  :confval:`napoleon_use_params` is False
+ * C, added :rst:dir:`c:alias` directive for inserting copies
+   of existing declarations.
+ * #7745: html: inventory is broken if the docname contains a space
++ git diff e188d56ed1248dead58f3f8018c0e9a3f99193f7
+diff --git a/sphinx/ext/napoleon/docstring.py b/sphinx/ext/napoleon/docstring.py
+index b3daa06f1..72a73e278 100644
+--- a/sphinx/ext/napoleon/docstring.py
++++ b/sphinx/ext/napoleon/docstring.py
+@@ -245,35 +245,37 @@ class GoogleDocstring:
+         return lines
+ 
+     def _consume_field(self, parse_type: bool = True, prefer_type: bool = False
+-                       ) -> Tuple[str, str, List[str]]:
++                       ) -> List[Tuple[str, str, List[str]]]:
+         line = next(self._line_iter)
+ 
+         before, colon, after = self._partition_field_on_colon(line)
+-        _name, _type, _desc = before, '', after
++        names = [name.strip() for name in before.split(',')]
++        _type, _desc = '', after
+ 
+         if parse_type:
+             match = _google_typed_arg_regex.match(before)
+             if match:
+-                _name = match.group(1)
++                names = [name.strip() for name in match.group(1).split(',')]
+                 _type = match.group(2)
+ 
+-        _name = self._escape_args_and_kwargs(_name)
++        names = [self._escape_args_and_kwargs(name) for name in names]
+ 
+         if prefer_type and not _type:
+-            _type, _name = _name, _type
++            _type, names[0] = names[0], _type
++
+         indent = self._get_indent(line) + 1
+         _descs = [_desc] + self._dedent(self._consume_indented_block(indent))
+         _descs = self.__class__(_descs, self._config).lines()
+-        return _name, _type, _descs
++
++        return [(name, _type, _descs) for name in names]
+ 
+     def _consume_fields(self, parse_type: bool = True, prefer_type: bool = False
+                         ) -> List[Tuple[str, str, List[str]]]:
+         self._consume_empty()
+         fields = []
+         while not self._is_section_break():
+-            _name, _type, _desc = self._consume_field(parse_type, prefer_type)
+-            if _name or _type or _desc:
+-                fields.append((_name, _type, _desc,))
++            field_list = self._consume_field(parse_type, prefer_type)
++            fields.extend(field_list)
+         return fields
+ 
+     def _consume_inline_attribute(self) -> Tuple[str, List[str]]:
+@@ -391,16 +393,18 @@ class GoogleDocstring:
+                                 ) -> List[str]:
+         lines = []
+         for _name, _type, _desc in fields:
++            names = [name.strip() for name in _name.split(',')]
+             _desc = self._strip_empty(_desc)
+-            if any(_desc):
+-                _desc = self._fix_field_desc(_desc)
+-                field = ':%s %s: ' % (field_role, _name)
+-                lines.extend(self._format_block(field, _desc))
+-            else:
+-                lines.append(':%s %s:' % (field_role, _name))
++            for name in names:
++                if any(_desc):
++                    _desc = self._fix_field_desc(_desc)
++                    field = ':%s %s: ' % (field_role, name)
++                    lines.extend(self._format_block(field, _desc))
++                else:
++                    lines.append(':%s %s:' % (field_role, name))
+ 
+-            if _type:
+-                lines.append(':%s %s: %s' % (type_role, _name, _type))
++                if _type:
++                    lines.append(':%s %s: %s' % (type_role, name, _type))
+         return lines + ['']
+ 
+     def _format_field(self, _name: str, _type: str, _desc: List[str]) -> List[str]:
+@@ -436,17 +440,14 @@ class GoogleDocstring:
+                        ) -> List[str]:
+         field_type = ':%s:' % field_type.strip()
+         padding = ' ' * len(field_type)
+-        multi = len(fields) > 1
+         lines = []  # type: List[str]
+         for _name, _type, _desc in fields:
+-            field = self._format_field(_name, _type, _desc)
+-            if multi:
+-                if lines:
+-                    lines.extend(self._format_block(padding + ' * ', field))
+-                else:
+-                    lines.extend(self._format_block(field_type + ' * ', field))
+-            else:
+-                lines.extend(self._format_block(field_type + ' ', field))
++            names = [name.strip() for name in _name.split(',')]
++            for i, name in enumerate(names):
++                field = self._format_field(name, _type, _desc if i == len(names) - 1 else [])
++                lines.extend(self._format_block(field_type + ' ' if not lines else padding + ' ', field))
++                if i < len(names) - 1:  # Add an empty line between parameters
++                    lines.append('')
+         if lines and lines[-1]:
+             lines.append('')
+         return lines
+@@ -1088,14 +1089,15 @@ class NumpyDocstring(GoogleDocstring):
+             return func(name)
+ 
+     def _consume_field(self, parse_type: bool = True, prefer_type: bool = False
+-                       ) -> Tuple[str, str, List[str]]:
++                       ) -> List[Tuple[str, str, List[str]]]:
+         line = next(self._line_iter)
+         if parse_type:
+-            _name, _, _type = self._partition_field_on_colon(line)
++            before, _, _type = self._partition_field_on_colon(line)
+         else:
+-            _name, _type = line, ''
+-        _name, _type = _name.strip(), _type.strip()
+-        _name = self._escape_args_and_kwargs(_name)
++            before, _type = line, ''
++        names = [name.strip() for name in before.split(',')]
++        _type = _type.strip()
++        names = [self._escape_args_and_kwargs(name) for name in names]
+         _type = _convert_numpy_type_spec(
+             _type,
+             location=self._get_location(),
+@@ -1103,11 +1105,11 @@ class NumpyDocstring(GoogleDocstring):
+         )
+ 
+         if prefer_type and not _type:
+-            _type, _name = _name, _type
++            _type, names[0] = names[0], _type
+         indent = self._get_indent(line) + 1
+         _desc = self._dedent(self._consume_indented_block(indent))
+         _desc = self.__class__(_desc, self._config).lines()
+-        return _name, _type, _desc
++        return [(name, _type, _desc) for name in names]
+ 
+     def _consume_returns_section(self) -> List[Tuple[str, str, List[str]]]:
+         return self._consume_fields(prefer_type=True)
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e '.[test]'
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: sphinxcontrib-applehelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (1.0.4)
+Requirement already satisfied: sphinxcontrib-devhelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (1.0.2)
+Requirement already satisfied: sphinxcontrib-jsmath in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (1.0.1)
+Requirement already satisfied: sphinxcontrib-htmlhelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (2.0.1)
+Requirement already satisfied: sphinxcontrib-serializinghtml in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (1.1.5)
+Requirement already satisfied: sphinxcontrib-qthelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (1.0.3)
+Requirement already satisfied: Jinja2>=2.3 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (2.11.3)
+Requirement already satisfied: Pygments>=2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (2.18.0)
+Requirement already satisfied: docutils>=0.12 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (0.21.2)
+Requirement already satisfied: snowballstemmer>=1.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (2.2.0)
+Requirement already satisfied: babel>=1.3 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (2.15.0)
+Requirement already satisfied: alabaster<0.8,>=0.7 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (0.7.11)
+Requirement already satisfied: imagesize in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (1.4.1)
+Requirement already satisfied: requests>=2.5.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (2.32.3)
+Requirement already satisfied: setuptools in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (69.5.1)
+Requirement already satisfied: packaging in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (24.1)
+Requirement already satisfied: pytest in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (8.3.2)
+Requirement already satisfied: pytest-cov in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (5.0.0)
+Requirement already satisfied: html5lib in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (1.1)
+Requirement already satisfied: typed_ast in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (1.5.5)
+Requirement already satisfied: cython in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.2.0.dev20240725) (3.0.10)
+Requirement already satisfied: MarkupSafe>=0.23 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Jinja2>=2.3->Sphinx==3.2.0.dev20240725) (2.0.1)
+Requirement already satisfied: charset-normalizer<4,>=2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.2.0.dev20240725) (3.3.2)
+Requirement already satisfied: idna<4,>=2.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.2.0.dev20240725) (3.7)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.2.0.dev20240725) (2.2.2)
+Requirement already satisfied: certifi>=2017.4.17 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.2.0.dev20240725) (2024.7.4)
+Requirement already satisfied: six>=1.9 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from html5lib->Sphinx==3.2.0.dev20240725) (1.16.0)
+Requirement already satisfied: webencodings in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from html5lib->Sphinx==3.2.0.dev20240725) (0.5.1)
+Requirement already satisfied: iniconfig in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.2.0.dev20240725) (2.0.0)
+Requirement already satisfied: pluggy<2,>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.2.0.dev20240725) (1.5.0)
+Requirement already satisfied: exceptiongroup>=1.0.0rc8 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.2.0.dev20240725) (1.2.2)
+Requirement already satisfied: tomli>=1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.2.0.dev20240725) (2.0.1)
+Requirement already satisfied: coverage>=5.2.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from coverage[toml]>=5.2.1->pytest-cov->Sphinx==3.2.0.dev20240725) (7.6.0)
+Installing collected packages: Sphinx
+  Attempting uninstall: Sphinx
+    Found existing installation: Sphinx 3.2.0.dev20240725
+    Uninstalling Sphinx-3.2.0.dev20240725:
+      Successfully uninstalled Sphinx-3.2.0.dev20240725
+  Running setup.py develop for Sphinx
+Successfully installed Sphinx-3.2.0.dev20240725
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout e188d56ed1248dead58f3f8018c0e9a3f99193f7 tests/test_ext_napoleon_docstring.py
+Updated 0 paths from 83fce7094
++ git apply -v -
+Checking patch tests/test_ext_napoleon_docstring.py...
+Applied patch tests/test_ext_napoleon_docstring.py cleanly.
++ tox --current-env -epy39 -v -- tests/test_ext_napoleon_docstring.py
+py39: commands[0]> pytest --durations 25 tests/test_ext_napoleon_docstring.py
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-8.3.2, pluggy-1.5.0
+cachedir: .tox/py39/.pytest_cache
+libraries: Sphinx-3.2.0, docutils-0.21.2
+base tempdir: /tmp/pytest-of-root/pytest-0
+rootdir: /testbed
+configfile: setup.cfg
+plugins: cov-5.0.0
+collected 42 items
+
+tests/test_ext_napoleon_docstring.py .........F..FF.......FFF........... [ 83%]
+...F...                                                                  [100%]
+
+=================================== FAILURES ===================================
+_____________________ GoogleDocstringTest.test_docstrings ______________________
+
+self = <test_ext_napoleon_docstring.GoogleDocstringTest testMethod=test_docstrings>
+
+    def test_docstrings(self):
+        config = Config(
+            napoleon_use_param=False,
+            napoleon_use_rtype=False,
+            napoleon_use_keyword=False
+        )
+        for docstring, expected in self.docstrings:
+            actual = str(GoogleDocstring(dedent(docstring), config))
+            expected = dedent(expected)
+>           self.assertEqual(expected, actual)
+E           AssertionError: '\nSi[30 chars]rs: * **arg1** (*str*) -- Extended\n          [303 chars]g2\n' != '\nSi[30 chars]rs: **arg1** (*str*) -- Extended\n            [287 chars]g2\n'
+E           Diff is 856 characters long. Set self.maxDiff to None to see it.
+
+tests/test_ext_napoleon_docstring.py:378: AssertionError
+____________ GoogleDocstringTest.test_list_in_parameter_description ____________
+
+self = <test_ext_napoleon_docstring.GoogleDocstringTest testMethod=test_list_in_parameter_description>
+
+        def test_list_in_parameter_description(self):
+            docstring = """One line summary.
+    
+    Parameters:
+        no_list (int):
+        one_bullet_empty (int):
+            *
+        one_bullet_single_line (int):
+            - first line
+        one_bullet_two_lines (int):
+            +   first line
+                continued
+        two_bullets_single_line (int):
+            -  first line
+            -  second line
+        two_bullets_two_lines (int):
+            * first line
+              continued
+            * second line
+              continued
+        one_enumeration_single_line (int):
+            1.  first line
+        one_enumeration_two_lines (int):
+            1)   first line
+                 continued
+        two_enumerations_one_line (int):
+            (iii) first line
+            (iv) second line
+        two_enumerations_two_lines (int):
+            a. first line
+               continued
+            b. second line
+               continued
+        one_definition_one_line (int):
+            item 1
+                first line
+        one_definition_two_lines (int):
+            item 1
+                first line
+                continued
+        two_definitions_one_line (int):
+            item 1
+                first line
+            item 2
+                second line
+        two_definitions_two_lines (int):
+            item 1
+                first line
+                continued
+            item 2
+                second line
+                continued
+        one_definition_blank_line (int):
+            item 1
+    
+                first line
+    
+                extra first line
+    
+        two_definitions_blank_lines (int):
+            item 1
+    
+                first line
+    
+                extra first line
+    
+            item 2
+    
+                second line
+    
+                extra second line
+    
+        definition_after_inline_text (int): text line
+    
+            item 1
+                first line
+    
+        definition_after_normal_text (int):
+            text line
+    
+            item 1
+                first line
+    """
+    
+            expected = """One line summary.
+    
+    :param no_list:
+    :type no_list: int
+    :param one_bullet_empty:
+                             *
+    :type one_bullet_empty: int
+    :param one_bullet_single_line:
+                                   - first line
+    :type one_bullet_single_line: int
+    :param one_bullet_two_lines:
+                                 +   first line
+                                     continued
+    :type one_bullet_two_lines: int
+    :param two_bullets_single_line:
+                                    -  first line
+                                    -  second line
+    :type two_bullets_single_line: int
+    :param two_bullets_two_lines:
+                                  * first line
+                                    continued
+                                  * second line
+                                    continued
+    :type two_bullets_two_lines: int
+    :param one_enumeration_single_line:
+                                        1.  first line
+    :type one_enumeration_single_line: int
+    :param one_enumeration_two_lines:
+                                      1)   first line
+                                           continued
+    :type one_enumeration_two_lines: int
+    :param two_enumerations_one_line:
+                                      (iii) first line
+                                      (iv) second line
+    :type two_enumerations_one_line: int
+    :param two_enumerations_two_lines:
+                                       a. first line
+                                          continued
+                                       b. second line
+                                          continued
+    :type two_enumerations_two_lines: int
+    :param one_definition_one_line:
+                                    item 1
+                                        first line
+    :type one_definition_one_line: int
+    :param one_definition_two_lines:
+                                     item 1
+                                         first line
+                                         continued
+    :type one_definition_two_lines: int
+    :param two_definitions_one_line:
+                                     item 1
+                                         first line
+                                     item 2
+                                         second line
+    :type two_definitions_one_line: int
+    :param two_definitions_two_lines:
+                                      item 1
+                                          first line
+                                          continued
+                                      item 2
+                                          second line
+                                          continued
+    :type two_definitions_two_lines: int
+    :param one_definition_blank_line:
+                                      item 1
+    
+                                          first line
+    
+                                          extra first line
+    :type one_definition_blank_line: int
+    :param two_definitions_blank_lines:
+                                        item 1
+    
+                                            first line
+    
+                                            extra first line
+    
+                                        item 2
+    
+                                            second line
+    
+                                            extra second line
+    :type two_definitions_blank_lines: int
+    :param definition_after_inline_text: text line
+    
+                                         item 1
+                                             first line
+    :type definition_after_inline_text: int
+    :param definition_after_normal_text: text line
+    
+                                         item 1
+                                             first line
+    :type definition_after_normal_text: int
+    """
+            config = Config(napoleon_use_param=True)
+            actual = str(GoogleDocstring(docstring, config))
+            self.assertEqual(expected, actual)
+    
+            expected = """One line summary.
+    
+    :Parameters: * **no_list** (*int*)
+                 * **one_bullet_empty** (*int*) --
+    
+                   *
+                 * **one_bullet_single_line** (*int*) --
+    
+                   - first line
+                 * **one_bullet_two_lines** (*int*) --
+    
+                   +   first line
+                       continued
+                 * **two_bullets_single_line** (*int*) --
+    
+                   -  first line
+                   -  second line
+                 * **two_bullets_two_lines** (*int*) --
+    
+                   * first line
+                     continued
+                   * second line
+                     continued
+                 * **one_enumeration_single_line** (*int*) --
+    
+                   1.  first line
+                 * **one_enumeration_two_lines** (*int*) --
+    
+                   1)   first line
+                        continued
+                 * **two_enumerations_one_line** (*int*) --
+    
+                   (iii) first line
+                   (iv) second line
+                 * **two_enumerations_two_lines** (*int*) --
+    
+                   a. first line
+                      continued
+                   b. second line
+                      continued
+                 * **one_definition_one_line** (*int*) --
+    
+                   item 1
+                       first line
+                 * **one_definition_two_lines** (*int*) --
+    
+                   item 1
+                       first line
+                       continued
+                 * **two_definitions_one_line** (*int*) --
+    
+                   item 1
+                       first line
+                   item 2
+                       second line
+                 * **two_definitions_two_lines** (*int*) --
+    
+                   item 1
+                       first line
+                       continued
+                   item 2
+                       second line
+                       continued
+                 * **one_definition_blank_line** (*int*) --
+    
+                   item 1
+    
+                       first line
+    
+                       extra first line
+                 * **two_definitions_blank_lines** (*int*) --
+    
+                   item 1
+    
+                       first line
+    
+                       extra first line
+    
+                   item 2
+    
+                       second line
+    
+                       extra second line
+                 * **definition_after_inline_text** (*int*) -- text line
+    
+                   item 1
+                       first line
+                 * **definition_after_normal_text** (*int*) -- text line
+    
+                   item 1
+                       first line
+    """
+            config = Config(napoleon_use_param=False)
+            actual = str(GoogleDocstring(docstring, config))
+>           self.assertEqual(expected, actual)
+E           AssertionError: 'One [26 chars]rs: * **no_list** (*int*)\n             * **on[2360 chars]ne\n' != 'One [26 chars]rs: **no_list** (*int*)\n             **one_bu[2230 chars]ne\n'
+E           Diff is 5316 characters long. Set self.maxDiff to None to see it.
+
+tests/test_ext_napoleon_docstring.py:1031: AssertionError
+_______________________ GoogleDocstringTest.test_noindex _______________________
+
+self = <test_ext_napoleon_docstring.GoogleDocstringTest testMethod=test_noindex>
+
+        def test_noindex(self):
+            docstring = """
+    Attributes:
+        arg
+            description
+    
+    Methods:
+        func(i, j)
+            description
+    """
+    
+            expected = """
+    .. attribute:: arg
+       :noindex:
+    
+       description
+    
+    .. method:: func(i, j)
+       :noindex:
+    
+    
+       description
+    """
+            config = Config()
+            actual = str(GoogleDocstring(docstring, config=config, app=None, what='module',
+                                         options={'noindex': True}))
+>           self.assertEqual(expected, actual)
+E           AssertionError: '\n..[65 chars]unc(i, j)\n   :noindex:\n\n   \n   description\n' != '\n..[65 chars]unc(i\n   :noindex:\n\n   \n   description\n\n[49 chars]on\n'
+E             
+E             .. attribute:: arg
+E                :noindex:
+E             
+E                description
+E             
+E           - .. method:: func(i, j)
+E           ?                   ----
+E           + .. method:: func(i
+E                :noindex:
+E             
+E                
+E                description
+E           + 
+E           + .. method:: j)
+E           +    :noindex:
+E           + 
+E           +    
+E           +    description
+
+tests/test_ext_napoleon_docstring.py:1081: AssertionError
+______________________ NumpyDocstringTest.test_docstrings ______________________
+
+self = <test_ext_napoleon_docstring.NumpyDocstringTest testMethod=test_docstrings>
+
+    def test_docstrings(self):
+        config = Config(
+            napoleon_use_param=False,
+            napoleon_use_rtype=False,
+            napoleon_use_keyword=False)
+        for docstring, expected in self.docstrings:
+            actual = str(NumpyDocstring(dedent(docstring), config))
+            expected = dedent(expected)
+>           self.assertEqual(expected, actual)
+E           AssertionError: '\nSi[30 chars]rs: * **arg1** (:class:`str`) -- Extended\n   [331 chars]g2\n' != '\nSi[30 chars]rs: **arg1** (:class:`str`) -- Extended\n     [315 chars]g2\n'
+E           Diff is 912 characters long. Set self.maxDiff to None to see it.
+
+tests/test_ext_napoleon_docstring.py:1318: AssertionError
+____________ NumpyDocstringTest.test_list_in_parameter_description _____________
+
+self = <test_ext_napoleon_docstring.NumpyDocstringTest testMethod=test_list_in_parameter_description>
+
+        def test_list_in_parameter_description(self):
+            docstring = """One line summary.
+    
+    Parameters
+    ----------
+    no_list : int
+    one_bullet_empty : int
+        *
+    one_bullet_single_line : int
+        - first line
+    one_bullet_two_lines : int
+        +   first line
+            continued
+    two_bullets_single_line : int
+        -  first line
+        -  second line
+    two_bullets_two_lines : int
+        * first line
+          continued
+        * second line
+          continued
+    one_enumeration_single_line : int
+        1.  first line
+    one_enumeration_two_lines : int
+        1)   first line
+             continued
+    two_enumerations_one_line : int
+        (iii) first line
+        (iv) second line
+    two_enumerations_two_lines : int
+        a. first line
+           continued
+        b. second line
+           continued
+    one_definition_one_line : int
+        item 1
+            first line
+    one_definition_two_lines : int
+        item 1
+            first line
+            continued
+    two_definitions_one_line : int
+        item 1
+            first line
+        item 2
+            second line
+    two_definitions_two_lines : int
+        item 1
+            first line
+            continued
+        item 2
+            second line
+            continued
+    one_definition_blank_line : int
+        item 1
+    
+            first line
+    
+            extra first line
+    
+    two_definitions_blank_lines : int
+        item 1
+    
+            first line
+    
+            extra first line
+    
+        item 2
+    
+            second line
+    
+            extra second line
+    
+    definition_after_normal_text : int
+        text line
+    
+        item 1
+            first line
+    """
+    
+            expected = """One line summary.
+    
+    :param no_list:
+    :type no_list: :class:`int`
+    :param one_bullet_empty:
+                             *
+    :type one_bullet_empty: :class:`int`
+    :param one_bullet_single_line:
+                                   - first line
+    :type one_bullet_single_line: :class:`int`
+    :param one_bullet_two_lines:
+                                 +   first line
+                                     continued
+    :type one_bullet_two_lines: :class:`int`
+    :param two_bullets_single_line:
+                                    -  first line
+                                    -  second line
+    :type two_bullets_single_line: :class:`int`
+    :param two_bullets_two_lines:
+                                  * first line
+                                    continued
+                                  * second line
+                                    continued
+    :type two_bullets_two_lines: :class:`int`
+    :param one_enumeration_single_line:
+                                        1.  first line
+    :type one_enumeration_single_line: :class:`int`
+    :param one_enumeration_two_lines:
+                                      1)   first line
+                                           continued
+    :type one_enumeration_two_lines: :class:`int`
+    :param two_enumerations_one_line:
+                                      (iii) first line
+                                      (iv) second line
+    :type two_enumerations_one_line: :class:`int`
+    :param two_enumerations_two_lines:
+                                       a. first line
+                                          continued
+                                       b. second line
+                                          continued
+    :type two_enumerations_two_lines: :class:`int`
+    :param one_definition_one_line:
+                                    item 1
+                                        first line
+    :type one_definition_one_line: :class:`int`
+    :param one_definition_two_lines:
+                                     item 1
+                                         first line
+                                         continued
+    :type one_definition_two_lines: :class:`int`
+    :param two_definitions_one_line:
+                                     item 1
+                                         first line
+                                     item 2
+                                         second line
+    :type two_definitions_one_line: :class:`int`
+    :param two_definitions_two_lines:
+                                      item 1
+                                          first line
+                                          continued
+                                      item 2
+                                          second line
+                                          continued
+    :type two_definitions_two_lines: :class:`int`
+    :param one_definition_blank_line:
+                                      item 1
+    
+                                          first line
+    
+                                          extra first line
+    :type one_definition_blank_line: :class:`int`
+    :param two_definitions_blank_lines:
+                                        item 1
+    
+                                            first line
+    
+                                            extra first line
+    
+                                        item 2
+    
+                                            second line
+    
+                                            extra second line
+    :type two_definitions_blank_lines: :class:`int`
+    :param definition_after_normal_text: text line
+    
+                                         item 1
+                                             first line
+    :type definition_after_normal_text: :class:`int`
+    """
+            config = Config(napoleon_use_param=True)
+            actual = str(NumpyDocstring(docstring, config))
+            self.assertEqual(expected, actual)
+    
+            expected = """One line summary.
+    
+    :Parameters: * **no_list** (:class:`int`)
+                 * **one_bullet_empty** (:class:`int`) --
+    
+                   *
+                 * **one_bullet_single_line** (:class:`int`) --
+    
+                   - first line
+                 * **one_bullet_two_lines** (:class:`int`) --
+    
+                   +   first line
+                       continued
+                 * **two_bullets_single_line** (:class:`int`) --
+    
+                   -  first line
+                   -  second line
+                 * **two_bullets_two_lines** (:class:`int`) --
+    
+                   * first line
+                     continued
+                   * second line
+                     continued
+                 * **one_enumeration_single_line** (:class:`int`) --
+    
+                   1.  first line
+                 * **one_enumeration_two_lines** (:class:`int`) --
+    
+                   1)   first line
+                        continued
+                 * **two_enumerations_one_line** (:class:`int`) --
+    
+                   (iii) first line
+                   (iv) second line
+                 * **two_enumerations_two_lines** (:class:`int`) --
+    
+                   a. first line
+                      continued
+                   b. second line
+                      continued
+                 * **one_definition_one_line** (:class:`int`) --
+    
+                   item 1
+                       first line
+                 * **one_definition_two_lines** (:class:`int`) --
+    
+                   item 1
+                       first line
+                       continued
+                 * **two_definitions_one_line** (:class:`int`) --
+    
+                   item 1
+                       first line
+                   item 2
+                       second line
+                 * **two_definitions_two_lines** (:class:`int`) --
+    
+                   item 1
+                       first line
+                       continued
+                   item 2
+                       second line
+                       continued
+                 * **one_definition_blank_line** (:class:`int`) --
+    
+                   item 1
+    
+                       first line
+    
+                       extra first line
+                 * **two_definitions_blank_lines** (:class:`int`) --
+    
+                   item 1
+    
+                       first line
+    
+                       extra first line
+    
+                   item 2
+    
+                       second line
+    
+                       extra second line
+                 * **definition_after_normal_text** (:class:`int`) -- text line
+    
+                   item 1
+                       first line
+    """
+            config = Config(napoleon_use_param=False)
+            actual = str(NumpyDocstring(docstring, config))
+>           self.assertEqual(expected, actual)
+E           AssertionError: 'One [26 chars]rs: * **no_list** (:class:`int`)\n            [2353 chars]ne\n' != 'One [26 chars]rs: **no_list** (:class:`int`)\n             *[2229 chars]ne\n'
+E           Diff is 5293 characters long. Set self.maxDiff to None to see it.
+
+tests/test_ext_napoleon_docstring.py:2046: AssertionError
+_________________ NumpyDocstringTest.test_multiple_parameters __________________
+
+self = <test_ext_napoleon_docstring.NumpyDocstringTest testMethod=test_multiple_parameters>
+
+        def test_multiple_parameters(self):
+            docstring = """\
+    Parameters
+    ----------
+    x1, x2 : array_like
+        Input arrays, description of ``x1``, ``x2``.
+    
+    """
+    
+            config = Config(napoleon_use_param=False)
+            actual = str(NumpyDocstring(docstring, config))
+            expected = """\
+    :Parameters: **x1, x2** (:class:`array_like`) -- Input arrays, description of ``x1``, ``x2``.
+    """
+>           self.assertEqual(expected, actual)
+E           AssertionError: ':Parameters: **x1, x2** (:class:`array_like`) -- Input arr[33 chars]`.\n' != ':Parameters: **x1** (:class:`array_like`) -- Input arrays,[120 chars]`.\n'
+E           - :Parameters: **x1, x2** (:class:`array_like`) -- Input arrays, description of ``x1``, ``x2``.
+E           ?                  ----
+E           + :Parameters: **x1** (:class:`array_like`) -- Input arrays, description of ``x1``, ``x2``.
+E           +              **x2** (:class:`array_like`) -- Input arrays, description of ``x1``, ``x2``.
+
+tests/test_ext_napoleon_docstring.py:1357: AssertionError
+__________________ TestNumpyDocstring.test_token_type_invalid __________________
+
+self = <test_ext_napoleon_docstring.TestNumpyDocstring object at 0x7f58a5fa1fd0>
+warning = <_io.StringIO object at 0x7f58a5f72e50>
+
+    def test_token_type_invalid(self, warning):
+        tokens = (
+            "{1, 2",
+            "}",
+            "'abc",
+            "def'",
+            '"ghi',
+            'jkl"',
+        )
+        errors = (
+            r".+: invalid value set \(missing closing brace\):",
+            r".+: invalid value set \(missing opening brace\):",
+            r".+: malformed string literal \(missing closing quote\):",
+            r".+: malformed string literal \(missing opening quote\):",
+            r".+: malformed string literal \(missing closing quote\):",
+            r".+: malformed string literal \(missing opening quote\):",
+        )
+        for token, error in zip(tokens, errors):
+            with warns(warning, match=error):
+>               _token_type(token)
+
+tests/test_ext_napoleon_docstring.py:2264: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/miniconda3/envs/testbed/lib/python3.9/contextlib.py:126: in __exit__
+    next(self.gen)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+warning = <_io.StringIO object at 0x7f58a5f72e50>
+match = '.+: invalid value set \\(missing closing brace\\):'
+
+    @contextmanager
+    def warns(warning, match):
+        match_re = re.compile(match)
+        try:
+            yield warning
+        finally:
+            raw_warnings = warning.getvalue()
+            warnings = [w for w in raw_warnings.split("\n") if w.strip()]
+    
+>           assert len(warnings) == 1 and all(match_re.match(w) for w in warnings)
+E           assert (2 == 1)
+E            +  where 2 = len(["\x1b[91mWARNING: while setting up extension sphinx.addnodes: node class 'meta' is already registered, its visitors will be overridden\x1b[39;49;00m", '\x1b[91mWARNING: invalid value set (missing closing brace): {1, 2\x1b[39;49;00m'])
+
+tests/test_ext_napoleon_docstring.py:2240: AssertionError
+--------------------------- Captured stdout teardown ---------------------------
+# testroot: root
+# builder: html
+# srcdir: /tmp/pytest-of-root/pytest-0/root
+# outdir: /tmp/pytest-of-root/pytest-0/root/_build/html
+# status: 
+[01mRunning Sphinx v3.2.0[39;49;00m
+
+# warning: 
+[91mWARNING: while setting up extension sphinx.addnodes: node class 'meta' is already registered, its visitors will be overridden[39;49;00m
+[91mWARNING: invalid value set (missing closing brace): {1, 2[39;49;00m
+
+=============================== warnings summary ===============================
+sphinx/util/docutils.py:45
+  /testbed/sphinx/util/docutils.py:45: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    __version_info__ = tuple(LooseVersion(docutils.__version__).version)
+
+sphinx/registry.py:22
+  /testbed/sphinx/registry.py:22: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+    from pkg_resources import iter_entry_points
+
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('sphinxcontrib')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+sphinx/directives/patches.py:15
+  /testbed/sphinx/directives/patches.py:15: DeprecationWarning: The `docutils.parsers.rst.directive.html` module will be removed in Docutils 2.0. Since Docutils 0.18, the "Meta" node is defined in `docutils.parsers.rst.directives.misc`.
+    from docutils.parsers.rst.directives import images, html, tables
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================= slowest 25 durations =============================
+0.66s setup    tests/test_ext_napoleon_docstring.py::TestNumpyDocstring::test_token_type_invalid
+0.02s call     tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_list_in_parameter_description
+0.02s call     tests/test_ext_napoleon_docstring.py::GoogleDocstringTest::test_list_in_parameter_description
+0.01s call     tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_raises_types
+0.01s call     tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_docstrings
+
+(20 durations < 0.005s hidden.  Use -vv to show these durations.)
+=========================== short test summary info ============================
+FAILED tests/test_ext_napoleon_docstring.py::GoogleDocstringTest::test_docstrings
+FAILED tests/test_ext_napoleon_docstring.py::GoogleDocstringTest::test_list_in_parameter_description
+FAILED tests/test_ext_napoleon_docstring.py::GoogleDocstringTest::test_noindex
+FAILED tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_docstrings
+FAILED tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_list_in_parameter_description
+FAILED tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_multiple_parameters
+FAILED tests/test_ext_napoleon_docstring.py::TestNumpyDocstring::test_token_type_invalid
+=================== 7 failed, 35 passed, 7 warnings in 1.19s ===================
+py39: exit 1 (2.50 seconds) /testbed> pytest --durations 25 tests/test_ext_napoleon_docstring.py pid=105
+  py39: FAIL code 1 (2.54=setup[0.04]+cmd[2.50] seconds)
+  evaluation failed :( (2.88 seconds)
++ git checkout e188d56ed1248dead58f3f8018c0e9a3f99193f7 tests/test_ext_napoleon_docstring.py
+Updated 1 path from 83fce7094

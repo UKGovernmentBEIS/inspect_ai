@@ -1,0 +1,709 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/contrib/admin/options.py
+	modified:   docs/releases/5.0.txt
+	modified:   tests/modeladmin/tests.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit d687febce5868545f99974d2499a91f81a32fef5
+Author: Tom Carrick <tom@carrick.eu>
+Date:   Thu Mar 23 12:53:06 2023 +0100
+
+    Fixed #34383 -- Fixed layout of admin fieldsets with multiple fields on the same line.
+    
+    Thanks Antonio Candido Nazareth junior for the report.
+    
+    Regression in 96a598356a9ea8c2c05b22cadc12e256a3b295fd.
+    
+    Co-authored-by: Mariusz Felisiak <felisiak.mariusz@gmail.com>
+
+diff --git a/django/contrib/admin/static/admin/css/forms.css b/django/contrib/admin/static/admin/css/forms.css
+index 3cd87ef476..88a74441a0 100644
+--- a/django/contrib/admin/static/admin/css/forms.css
++++ b/django/contrib/admin/static/admin/css/forms.css
+@@ -22,11 +22,15 @@ form .form-row p {
+     padding-left: 0;
+ }
+ 
+-.form-row > div {
++.flex-container {
+     display: flex;
+     flex-wrap: wrap;
+ }
+ 
++.form-multiline > div {
++    padding-bottom: 10px;
++}
++
+ /* FORM LABELS */
+ 
+ label {
+@@ -191,7 +195,6 @@ form .aligned table p {
+ }
+ 
+ fieldset .fieldBox {
+-    float: left;
+     margin-right: 20px;
+ }
+ 
+diff --git a/django/contrib/admin/static/admin/css/responsive.css b/django/contrib/admin/static/admin/css/responsive.css
+index dde679bd7c..3facdcd0a9 100644
+--- a/django/contrib/admin/static/admin/css/responsive.css
++++ b/django/contrib/admin/static/admin/css/responsive.css
+@@ -390,10 +390,6 @@ input[type="submit"], button {
+         display: none;
+     }
+ 
+-    form .form-row p.datetime {
+-        width: 100%;
+-    }
+-
+     .datetime input {
+         width: 50%;
+         max-width: 120px;
+@@ -564,8 +560,6 @@ input[type="submit"], button {
+ 
+     .aligned .form-row,
+     .aligned .form-row > div {
+-        display: flex;
+-        flex-wrap: wrap;
+         max-width: 100vw;
+     }
+ 
+@@ -573,6 +567,10 @@ input[type="submit"], button {
+         width: calc(100vw - 30px);
+     }
+ 
++    .flex-container {
++        flex-flow: column;
++    }
++
+     textarea {
+         max-width: none;
+     }
+diff --git a/django/contrib/admin/static/admin/css/rtl.css b/django/contrib/admin/static/admin/css/rtl.css
+index 7d69de944f..dcc12d745b 100644
+--- a/django/contrib/admin/static/admin/css/rtl.css
++++ b/django/contrib/admin/static/admin/css/rtl.css
+@@ -170,7 +170,6 @@ form .wide input + div.help {
+ }
+ 
+ fieldset .fieldBox {
+-    float: right;
+     margin-left: 20px;
+     margin-right: 0;
+ }
+diff --git a/django/contrib/admin/templates/admin/auth/user/change_password.html b/django/contrib/admin/templates/admin/auth/user/change_password.html
+index f9681ba2d2..5a5cc2ef27 100644
+--- a/django/contrib/admin/templates/admin/auth/user/change_password.html
++++ b/django/contrib/admin/templates/admin/auth/user/change_password.html
+@@ -32,7 +32,7 @@
+ 
+ <div class="form-row">
+   {{ form.password1.errors }}
+-  <div>{{ form.password1.label_tag }} {{ form.password1 }}</div>
++  <div class="flex-container">{{ form.password1.label_tag }} {{ form.password1 }}</div>
+   {% if form.password1.help_text %}
+   <div class="help"{% if form.password1.id_for_label %} id="{{ form.password1.id_for_label }}_helptext">{% endif %}{{ form.password1.help_text|safe }}</div>
+   {% endif %}
+@@ -40,7 +40,7 @@
+ 
+ <div class="form-row">
+   {{ form.password2.errors }}
+-  <div>{{ form.password2.label_tag }} {{ form.password2 }}</div>
++  <div class="flex-container">{{ form.password2.label_tag }} {{ form.password2 }}</div>
+   {% if form.password2.help_text %}
+   <div class="help"{% if form.password2.id_for_label %} id="{{ form.password2.id_for_label }}_helptext"{% endif %}>{{ form.password2.help_text|safe }}</div>
+   {% endif %}
+diff --git a/django/contrib/admin/templates/admin/includes/fieldset.html b/django/contrib/admin/templates/admin/includes/fieldset.html
+index 5953a5ad3d..9a4372f791 100644
+--- a/django/contrib/admin/templates/admin/includes/fieldset.html
++++ b/django/contrib/admin/templates/admin/includes/fieldset.html
+@@ -5,27 +5,30 @@
+     {% endif %}
+     {% for line in fieldset %}
+         <div class="form-row{% if line.fields|length == 1 and line.errors %} errors{% endif %}{% if not line.has_visible_field %} hidden{% endif %}{% for field in line %}{% if field.field.name %} field-{{ field.field.name }}{% endif %}{% endfor %}">
+-            {% if line.fields|length == 1 %}{{ line.errors }}{% endif %}
++            {% if line.fields|length == 1 %}{{ line.errors }}{% else %}<div class="flex-container form-multiline">{% endif %}
+             {% for field in line %}
+-                <div{% if not line.fields|length == 1 %} class="fieldBox{% if field.field.name %} field-{{ field.field.name }}{% endif %}{% if not field.is_readonly and field.errors %} errors{% endif %}{% if field.field.is_hidden %} hidden{% endif %}"{% elif field.is_checkbox %} class="checkbox-row"{% endif %}>
++                <div>
+                     {% if not line.fields|length == 1 and not field.is_readonly %}{{ field.errors }}{% endif %}
+-                    {% if field.is_checkbox %}
+-                        {{ field.field }}{{ field.label_tag }}
+-                    {% else %}
+-                        {{ field.label_tag }}
+-                        {% if field.is_readonly %}
+-                            <div class="readonly">{{ field.contents }}</div>
+-                        {% else %}
+-                            {{ field.field }}
+-                        {% endif %}
++                        <div class="flex-container{% if not line.fields|length == 1 %} fieldBox{% if field.field.name %} field-{{ field.field.name }}{% endif %}{% if not field.is_readonly and field.errors %} errors{% endif %}{% if field.field.is_hidden %} hidden{% endif %}{% elif field.is_checkbox %} checkbox-row{% endif %}">
++                            {% if field.is_checkbox %}
++                                {{ field.field }}{{ field.label_tag }}
++                            {% else %}
++                                {{ field.label_tag }}
++                                {% if field.is_readonly %}
++                                    <div class="readonly">{{ field.contents }}</div>
++                                {% else %}
++                                    {{ field.field }}
++                                {% endif %}
++                            {% endif %}
++                        </div>
++                    {% if field.field.help_text %}
++                        <div class="help"{% if field.field.id_for_label %} id="{{ field.field.id_for_label }}_helptext"{% endif %}>
++                            <div>{{ field.field.help_text|safe }}</div>
++                        </div>
+                     {% endif %}
+                 </div>
+-                {% if field.field.help_text %}
+-                    <div class="help"{% if field.field.id_for_label %} id="{{ field.field.id_for_label }}_helptext"{% endif %}>
+-                        <div>{{ field.field.help_text|safe }}</div>
+-                    </div>
+-                {% endif %}
+             {% endfor %}
++            {% if not line.fields|length == 1 %}</div>{% endif %}
+         </div>
+     {% endfor %}
+ </fieldset>
+diff --git a/django/contrib/admin/templates/registration/password_change_form.html b/django/contrib/admin/templates/registration/password_change_form.html
+index 73bafbb4ac..fde2373e08 100644
+--- a/django/contrib/admin/templates/registration/password_change_form.html
++++ b/django/contrib/admin/templates/registration/password_change_form.html
+@@ -33,12 +33,12 @@
+ 
+ <div class="form-row">
+     {{ form.old_password.errors }}
+-    <div>{{ form.old_password.label_tag }} {{ form.old_password }}</div>
++    <div class="flex-container">{{ form.old_password.label_tag }} {{ form.old_password }}</div>
+ </div>
+ 
+ <div class="form-row">
+     {{ form.new_password1.errors }}
+-    <div>{{ form.new_password1.label_tag }} {{ form.new_password1 }}</div>
++    <div class="flex-container">{{ form.new_password1.label_tag }} {{ form.new_password1 }}</div>
+     {% if form.new_password1.help_text %}
+     <div class="help"{% if form.new_password1.id_for_label %} id="{{ form.new_password1.id_for_label }}_helptext"{% endif %}>{{ form.new_password1.help_text|safe }}</div>
+     {% endif %}
+@@ -46,7 +46,7 @@
+ 
+ <div class="form-row">
+     {{ form.new_password2.errors }}
+-    <div>{{ form.new_password2.label_tag }} {{ form.new_password2 }}</div>
++    <div class="flex-container">{{ form.new_password2.label_tag }} {{ form.new_password2 }}</div>
+     {% if form.new_password2.help_text %}
+     <div class="help"{% if form.new_password2.id_for_label %} id="{{ form.new_password2.id_for_label }}_helptext"{% endif %}>{{ form.new_password2.help_text|safe }}</div>
+     {% endif %}
+diff --git a/tests/admin_inlines/tests.py b/tests/admin_inlines/tests.py
+index 2d76509515..0be8d665d1 100644
+--- a/tests/admin_inlines/tests.py
++++ b/tests/admin_inlines/tests.py
+@@ -353,13 +353,13 @@ class TestInline(TestDataMixin, TestCase):
+         )
+         # The div containing the position field is hidden.
+         self.assertInHTML(
+-            '<div class="fieldBox field-position hidden">'
++            '<div class="flex-container fieldBox field-position hidden">'
+             '<label class="inline">Position:</label>'
+             '<div class="readonly">0</div></div>',
+             response.rendered_content,
+         )
+         self.assertInHTML(
+-            '<div class="fieldBox field-position hidden">'
++            '<div class="flex-container fieldBox field-position hidden">'
+             '<label class="inline">Position:</label>'
+             '<div class="readonly">1</div></div>',
+             response.rendered_content,
+@@ -382,14 +382,14 @@ class TestInline(TestDataMixin, TestCase):
+         # The whole line containing position field is hidden.
+         self.assertInHTML(
+             '<div class="form-row hidden field-position">'
+-            "<div><label>Position:</label>"
+-            '<div class="readonly">0</div></div></div>',
++            '<div><div class="flex-container"><label>Position:</label>'
++            '<div class="readonly">0</div></div></div></div>',
+             response.rendered_content,
+         )
+         self.assertInHTML(
+             '<div class="form-row hidden field-position">'
+-            "<div><label>Position:</label>"
+-            '<div class="readonly">1</div></div></div>',
++            '<div><div class="flex-container"><label>Position:</label>'
++            '<div class="readonly">1</div></div></div></div>',
+             response.rendered_content,
+         )
+ 
+diff --git a/tests/admin_views/tests.py b/tests/admin_views/tests.py
+index 30207ee4b0..ea38b62a72 100644
+--- a/tests/admin_views/tests.py
++++ b/tests/admin_views/tests.py
+@@ -8105,11 +8105,13 @@ class TestLabelVisibility(TestCase):
+         self.assert_field_visible(response, "second")
+ 
+     def assert_field_visible(self, response, field_name):
+-        self.assertContains(response, '<div class="fieldBox field-%s">' % field_name)
++        self.assertContains(
++            response, f'<div class="flex-container fieldBox field-{field_name}">'
++        )
+ 
+     def assert_field_hidden(self, response, field_name):
+         self.assertContains(
+-            response, '<div class="fieldBox field-%s hidden">' % field_name
++            response, f'<div class="flex-container fieldBox field-{field_name} hidden">'
+         )
+ 
+     def assert_fieldline_visible(self, response):
++ git diff d687febce5868545f99974d2499a91f81a32fef5
+diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py
+index 5240b07cd6..04d337431e 100644
+--- a/django/contrib/admin/options.py
++++ b/django/contrib/admin/options.py
+@@ -461,6 +461,10 @@ class BaseModelAdmin(metaclass=forms.MediaDefiningClass):
+                 # Lookups on nonexistent fields are ok, since they're ignored
+                 # later.
+                 break
++            # Allow lookups on foreign keys that are used as primary keys
++            # This fixes an issue where such lookups were incorrectly disallowed
++            if isinstance(field, models.ForeignKey) and field.primary_key:
++                return True
+             # It is allowed to filter on values that would be found from local
+             # model anyways. For example, if you filter on employee__department__id,
+             # then the id value would be found already from employee__department_id.
+@@ -511,6 +515,11 @@ class BaseModelAdmin(metaclass=forms.MediaDefiningClass):
+         if field.primary_key:
+             return True
+ 
++        # Allow lookups on foreign keys that are used as primary keys
++        if isinstance(field, models.ForeignKey) and field.primary_key:
++            return True
++
++
+         # Allow reverse relationships to models defining m2m fields if they
+         # target the specified field.
+         for many_to_many in self.opts.many_to_many:
+diff --git a/docs/releases/5.0.txt b/docs/releases/5.0.txt
+index 08de2a3740..3fac7fa079 100644
+--- a/docs/releases/5.0.txt
++++ b/docs/releases/5.0.txt
+@@ -481,3 +481,10 @@ to remove usage of these features.
+ * Passing ``nulls_first=False`` or ``nulls_last=False`` to ``Expression.asc()``
+   and ``Expression.desc()`` methods, and the ``OrderBy`` expression is no
+   longer allowed.
++
++Bug fixes
++---------
++
++* Fixed an issue in ``ModelAdmin.lookup_allowed()`` where lookups on foreign keys
++  used as primary keys were incorrectly disallowed.
++
+diff --git a/tests/modeladmin/tests.py b/tests/modeladmin/tests.py
+index c6b4a565c8..9ae592c1f7 100644
+--- a/tests/modeladmin/tests.py
++++ b/tests/modeladmin/tests.py
+@@ -807,6 +807,23 @@ class ModelAdminTests(TestCase):
+         )
+ 
+ 
++    @isolate_apps('modeladmin')
++    def test_lookup_allowed_foreign_primary(self):  # Test for foreign key as primary key
++        class Country(models.Model):
++            name = models.CharField(max_length=256)
++        class Place(models.Model):
++            country = models.ForeignKey(Country, models.CASCADE)
++        class Restaurant(models.Model):
++            place = models.OneToOneField(Place, models.CASCADE, primary_key=True)
++        class Waiter(models.Model):
++            restaurant = models.ForeignKey(Restaurant, models.CASCADE)
++        class WaiterAdmin(ModelAdmin):
++            list_filter = [
++                'restaurant__place__country',
++            ]
++        ma = WaiterAdmin(Waiter, self.site)
++        self.assertIs(ma.lookup_allowed('restaurant__place__country', 'test_value'), True)
++
+ class ModelAdminPermissionTests(SimpleTestCase):
+     class MockUser:
+         def has_module_perms(self, app_label):
+@@ -940,3 +957,5 @@ class ModelAdminPermissionTests(SimpleTestCase):
+             self.assertFalse(ma.has_module_permission(request))
+         finally:
+             ma.opts.app_label = original_app_label
++
++
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.6.0 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from Django==5.0.dev20230327120524) (3.8.1)
+Requirement already satisfied: sqlparse>=0.3.1 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from Django==5.0.dev20230327120524) (0.5.1)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-5.0.dev20230327120524-0.editable-py3-none-any.whl size=27365 sha256=5948cf51afa2a2e1dd2b92864f086c935afd7ea201fdc119d445008674d547ed
+  Stored in directory: /tmp/pip-ephem-wheel-cache-xqv5l5mz/wheels/49/5f/4f/01b7d31ea6ddac9643da788242d33e5fd3467d95d17b032c6b
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 5.0.dev20230327120524
+    Uninstalling Django-5.0.dev20230327120524:
+      Successfully uninstalled Django-5.0.dev20230327120524
+Successfully installed Django-5.0.dev20230327120524
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout d687febce5868545f99974d2499a91f81a32fef5 tests/modeladmin/tests.py
+Updated 1 path from 38b2ae4d42
++ git apply -v -
+Checking patch tests/modeladmin/tests.py...
+Applied patch tests/modeladmin/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 modeladmin.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application modeladmin
+Found 37 test(s).
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, modeladmin, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table modeladmin_band
+    Creating table modeladmin_song
+    Creating table modeladmin_concert
+    Creating table modeladmin_validationtestmodel
+    Creating table modeladmin_validationtestinlinemodel
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+test_custom_form_meta_exclude (modeladmin.tests.ModelAdminTests.test_custom_form_meta_exclude)
+The custom ModelForm's `Meta.exclude` is overridden if ... ok
+test_custom_form_meta_exclude_with_readonly (modeladmin.tests.ModelAdminTests.test_custom_form_meta_exclude_with_readonly)
+The custom ModelForm's `Meta.exclude` is respected when used in ... ok
+test_custom_form_validation (modeladmin.tests.ModelAdminTests.test_custom_form_validation) ... ok
+test_custom_formfield_override_readonly (modeladmin.tests.ModelAdminTests.test_custom_formfield_override_readonly) ... ok
+test_default_attributes (modeladmin.tests.ModelAdminTests.test_default_attributes) ... ok
+test_default_fields (modeladmin.tests.ModelAdminTests.test_default_fields) ... ok
+test_default_fieldsets (modeladmin.tests.ModelAdminTests.test_default_fieldsets) ... ok
+test_default_foreign_key_widget (modeladmin.tests.ModelAdminTests.test_default_foreign_key_widget) ... ok
+test_field_arguments (modeladmin.tests.ModelAdminTests.test_field_arguments) ... ok
+test_field_arguments_restricted_on_form (modeladmin.tests.ModelAdminTests.test_field_arguments_restricted_on_form) ... ok
+test_foreign_key_as_radio_field (modeladmin.tests.ModelAdminTests.test_foreign_key_as_radio_field) ... ok
+test_form_exclude_kwarg_override (modeladmin.tests.ModelAdminTests.test_form_exclude_kwarg_override)
+The `exclude` kwarg passed to `ModelAdmin.get_form()` overrides all ... ok
+test_formset_exclude_kwarg_override (modeladmin.tests.ModelAdminTests.test_formset_exclude_kwarg_override)
+The `exclude` kwarg passed to `InlineModelAdmin.get_formset()` ... ok
+test_formset_overriding_get_exclude_with_form_exclude (modeladmin.tests.ModelAdminTests.test_formset_overriding_get_exclude_with_form_exclude) ... ok
+test_formset_overriding_get_exclude_with_form_fields (modeladmin.tests.ModelAdminTests.test_formset_overriding_get_exclude_with_form_fields) ... ok
+test_get_autocomplete_fields (modeladmin.tests.ModelAdminTests.test_get_autocomplete_fields) ... ok
+test_get_deleted_objects (modeladmin.tests.ModelAdminTests.test_get_deleted_objects) ... ok
+test_get_deleted_objects_with_custom_has_delete_permission (modeladmin.tests.ModelAdminTests.test_get_deleted_objects_with_custom_has_delete_permission)
+ModelAdmin.get_deleted_objects() uses ModelAdmin.has_delete_permission() ... ok
+test_get_exclude_overrides_exclude (modeladmin.tests.ModelAdminTests.test_get_exclude_overrides_exclude) ... ok
+test_get_exclude_takes_obj (modeladmin.tests.ModelAdminTests.test_get_exclude_takes_obj) ... ok
+test_get_fieldsets (modeladmin.tests.ModelAdminTests.test_get_fieldsets) ... ok
+test_log_actions (modeladmin.tests.ModelAdminTests.test_log_actions) ... ok
+test_lookup_allowed_allows_nonexistent_lookup (modeladmin.tests.ModelAdminTests.test_lookup_allowed_allows_nonexistent_lookup)
+A lookup_allowed allows a parameter whose field lookup doesn't exist. ... ok
+test_lookup_allowed_foreign_primary (modeladmin.tests.ModelAdminTests.test_lookup_allowed_foreign_primary) ... ok
+test_lookup_allowed_onetoone (modeladmin.tests.ModelAdminTests.test_lookup_allowed_onetoone) ... ok
+test_modeladmin_repr (modeladmin.tests.ModelAdminTests.test_modeladmin_repr) ... ok
+test_modeladmin_str (modeladmin.tests.ModelAdminTests.test_modeladmin_str) ... ok
+test_overriding_get_exclude (modeladmin.tests.ModelAdminTests.test_overriding_get_exclude) ... ok
+test_queryset_override (modeladmin.tests.ModelAdminTests.test_queryset_override) ... ok
+test_raw_id_fields_widget_override (modeladmin.tests.ModelAdminTests.test_raw_id_fields_widget_override)
+The autocomplete_fields, raw_id_fields, and radio_fields widgets may ... ok
+test_regression_for_ticket_15820 (modeladmin.tests.ModelAdminTests.test_regression_for_ticket_15820)
+`obj` is passed from `InlineModelAdmin.get_fieldsets()` to ... ok
+test_has_add_permission (modeladmin.tests.ModelAdminPermissionTests.test_has_add_permission)
+has_add_permission returns True for users who can add objects and ... ok
+test_has_change_permission (modeladmin.tests.ModelAdminPermissionTests.test_has_change_permission)
+has_change_permission returns True for users who can edit objects and ... ok
+test_has_delete_permission (modeladmin.tests.ModelAdminPermissionTests.test_has_delete_permission)
+has_delete_permission returns True for users who can delete objects and ... ok
+test_has_module_permission (modeladmin.tests.ModelAdminPermissionTests.test_has_module_permission)
+as_module_permission returns True for users who have any permission ... ok
+test_has_view_permission (modeladmin.tests.ModelAdminPermissionTests.test_has_view_permission)
+has_view_permission() returns True for users who can view objects and ... ok
+test_inline_has_add_permission_uses_obj (modeladmin.tests.ModelAdminPermissionTests.test_inline_has_add_permission_uses_obj) ... ok
+
+----------------------------------------------------------------------
+Ran 37 tests in 0.121s
+
+OK
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout d687febce5868545f99974d2499a91f81a32fef5 tests/modeladmin/tests.py
+Updated 1 path from 38b2ae4d42

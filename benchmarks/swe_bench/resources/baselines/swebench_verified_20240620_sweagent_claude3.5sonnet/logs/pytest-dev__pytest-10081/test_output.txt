@@ -1,0 +1,1821 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   doc/en/changelog.rst
+	modified:   src/_pytest/debugging.py
+	modified:   testing/test_debugging.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	changelog/9988.bugfix.rst
+	test_repro_skip_class.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit da9a2b584eb7a6c7e924b2621ed0ddaeca0a7bea
+Merge: 8bbd35aa6 f92c4a77a
+Author: Bruno Oliveira <nicoddemus@gmail.com>
+Date:   Mon Jun 27 09:58:38 2022 -0300
+
+    Merge pull request #10078 from nicoddemus/pathsep-9791
+
++ git diff da9a2b584eb7a6c7e924b2621ed0ddaeca0a7bea
+diff --git a/doc/en/changelog.rst b/doc/en/changelog.rst
+index 01c6d6983..b961c102f 100644
+--- a/doc/en/changelog.rst
++++ b/doc/en/changelog.rst
+@@ -28,8 +28,17 @@ with advance notice in the **Deprecations** section of releases.
+ 
+ .. towncrier release notes start
+ 
++pytest 7.1.3 (unreleased)
++=========================
++
++Bug Fixes
++---------
++
++- `#XXXX <https://github.com/pytest-dev/pytest/issues/XXXX>`_: Fixed an issue where the tearDown method was being executed for skipped tests when using the --pdb flag.
++
+ pytest 7.1.2 (2022-04-23)
+ =========================
++=========================
+ 
+ Bug Fixes
+ ---------
+diff --git a/src/_pytest/debugging.py b/src/_pytest/debugging.py
+index b99c3fe2d..4a59d2816 100644
+--- a/src/_pytest/debugging.py
++++ b/src/_pytest/debugging.py
+@@ -286,6 +286,9 @@ class PdbInvoke:
+     def pytest_exception_interact(
+         self, node: Node, call: "CallInfo[Any]", report: BaseReport
+     ) -> None:
++        from _pytest.outcomes import Skipped
++        if isinstance(call.excinfo.value, Skipped):
++            return  # Don't enter PDB for skipped tests
+         capman = node.config.pluginmanager.getplugin("capturemanager")
+         if capman:
+             capman.suspend_global_capture(in_=True)
+diff --git a/testing/test_debugging.py b/testing/test_debugging.py
+index 08ae09658..167093149 100644
+--- a/testing/test_debugging.py
++++ b/testing/test_debugging.py
+@@ -1302,3 +1302,24 @@ def test_pdb_wrapper_class_is_reused(pytester: Pytester) -> None:
+     result.stdout.fnmatch_lines(
+         ["*set_trace_called*", "*set_trace_called*", "* 1 passed in *"]
+     )
++
++def test_pdb_not_used_for_skipped_test(pytester: Pytester) -> None:
++    p1 = pytester.makepyfile("""
++        import unittest
++
++        @unittest.skip("hello")
++        class MyTestCase(unittest.TestCase):
++            def setUp(self):
++                print("setUp called")
++            def test_one(self):
++                pass
++            def tearDown(self):
++                print("tearDown called")
++    """)
++    result = pytester.runpytest("--pdb", p1)
++    assert result.ret == 0
++    result.stdout.fnmatch_lines([
++        "*1 skipped*",
++    ])
++    assert "setUp called" not in result.stdout.str()
++    assert "tearDown called" not in result.stdout.str()
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: attrs>=19.2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==7.2.0.dev173+gda9a2b584.d20240725) (23.1.0)
+Requirement already satisfied: iniconfig in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==7.2.0.dev173+gda9a2b584.d20240725) (2.0.0)
+Requirement already satisfied: packaging in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==7.2.0.dev173+gda9a2b584.d20240725) (23.1)
+Requirement already satisfied: pluggy<2.0,>=0.12 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==7.2.0.dev173+gda9a2b584.d20240725) (0.13.1)
+Requirement already satisfied: py>=1.8.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==7.2.0.dev173+gda9a2b584.d20240725) (1.11.0)
+Requirement already satisfied: tomli>=1.0.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==7.2.0.dev173+gda9a2b584.d20240725) (2.0.1)
+Building wheels for collected packages: pytest
+  Building editable for pytest (pyproject.toml): started
+  Building editable for pytest (pyproject.toml): finished with status 'done'
+  Created wheel for pytest: filename=pytest-7.2.0.dev173+gda9a2b584.d20240725-0.editable-py3-none-any.whl size=5367 sha256=554cc873c8c7f2a398a5a1ab111352e39e10f009f61ba0c4defc53983a0e804c
+  Stored in directory: /tmp/pip-ephem-wheel-cache-pulh0sgg/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built pytest
+Installing collected packages: pytest
+  Attempting uninstall: pytest
+    Found existing installation: pytest 7.2.0.dev173+gda9a2b584
+    Uninstalling pytest-7.2.0.dev173+gda9a2b584:
+      Successfully uninstalled pytest-7.2.0.dev173+gda9a2b584
+Successfully installed pytest-7.2.0.dev173+gda9a2b584.d20240725
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout da9a2b584eb7a6c7e924b2621ed0ddaeca0a7bea testing/test_unittest.py
+Updated 0 paths from 8916298f5
++ git apply -v -
+Checking patch testing/test_unittest.py...
+Applied patch testing/test_unittest.py cleanly.
++ pytest -rA testing/test_unittest.py
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /testbed, configfile: pyproject.toml
+collected 73 items
+
+testing/test_unittest.py ......................sssssss.................. [ 64%]
+............F..s........s.                                               [100%]
+
+=================================== FAILURES ===================================
+____________ test_pdb_teardown_skipped_for_classes[@unittest.skip] _____________
+
+pytester = <Pytester PosixPath('/tmp/pytest-of-root/pytest-0/test_pdb_teardown_skipped_for_classes0')>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc3ab6f6a60>
+mark = '@unittest.skip'
+
+    @pytest.mark.parametrize("mark", ["@unittest.skip", "@pytest.mark.skip"])
+    def test_pdb_teardown_skipped_for_classes(
+        pytester: Pytester, monkeypatch: MonkeyPatch, mark: str
+    ) -> None:
+        """
+        With --pdb, setUp and tearDown should not be called for tests skipped
+        via a decorator on the class (#10060).
+        """
+        tracked: List[str] = []
+        monkeypatch.setattr(pytest, "track_pdb_teardown_skipped", tracked, raising=False)
+    
+        pytester.makepyfile(
+            """
+            import unittest
+            import pytest
+    
+            {mark}("skipped for reasons")
+            class MyTestCase(unittest.TestCase):
+    
+                def setUp(self):
+                    pytest.track_pdb_teardown_skipped.append("setUp:" + self.id())
+    
+                def tearDown(self):
+                    pytest.track_pdb_teardown_skipped.append("tearDown:" + self.id())
+    
+                def test_1(self):
+                    pass
+    
+        """.format(
+                mark=mark
+            )
+        )
+        result = pytester.runpytest_inprocess("--pdb")
+        result.stdout.fnmatch_lines("* 1 skipped in *")
+>       assert tracked == []
+E       AssertionError: assert ['tearDown:te...tCase.test_1'] == []
+E         Left contains one more item: 'tearDown:test_pdb_teardown_skipped_for_classes.MyTestCase.test_1'
+E         Use -v to get more diff
+
+/testbed/testing/test_unittest.py:1314: AssertionError
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_pdb_teardown_skipped_for_classes0
+collected 1 item
+
+test_pdb_teardown_skipped_for_classes.py s                               [100%]
+
+============================== 1 skipped in 0.02s ==============================
+==================================== PASSES ====================================
+_____________________________ test_simple_unittest _____________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_simple_unittest0
+collected 2 items
+
+test_simple_unittest.py F.                                               [100%]
+
+=================================== FAILURES ===================================
+___________________________ MyTestCase.test_failing ____________________________
+
+self = <test_simple_unittest.MyTestCase testMethod=test_failing>
+
+    def test_failing(self):
+>       self.assertEqual('foo', 'bar')
+E       AssertionError: 'foo' != 'bar'
+E       - foo
+E       + bar
+
+test_simple_unittest.py:6: AssertionError
+=========================== short test summary info ============================
+FAILED test_simple_unittest.py::MyTestCase::test_failing - AssertionError: 'f...
+========================= 1 failed, 1 passed in 0.06s ==========================
+_____________________________ test_runTest_method ______________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1 -- /opt/miniconda3/envs/testbed/bin/python
+cachedir: .pytest_cache
+rootdir: /tmp/pytest-of-root/pytest-0/test_runTest_method0
+collecting ... collected 2 items
+
+test_runTest_method.py::MyTestCaseWithRunTest::runTest PASSED            [ 50%]
+test_runTest_method.py::MyTestCaseWithoutRunTest::test_something PASSED  [100%]
+
+============================== 2 passed in 0.02s ===============================
+__________________________ test_isclasscheck_issue53 ___________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_isclasscheck_issue530
+collected 0 items
+
+============================ no tests ran in 0.01s =============================
+__________________________________ test_setup __________________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_setup0
+collected 1 item
+
+test_setup.py .E
+
+==================================== ERRORS ====================================
+__________________ ERROR at teardown of MyTestCase.test_both ___________________
+
+self = <test_setup.MyTestCase testMethod=test_both>
+method = <bound method MyTestCase.test_both of <test_setup.MyTestCase testMethod=test_both>>
+
+    def teardown_method(self, method):
+>       assert 0, "42"
+E       AssertionError: 42
+E       assert 0
+
+test_setup.py:11: AssertionError
+=========================== short test summary info ============================
+ERROR test_setup.py::MyTestCase::test_both - AssertionError: 42
+========================== 1 passed, 1 error in 0.02s ==========================
+_______________________________ test_setUpModule _______________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_setUpModule0
+collected 2 items
+
+test_setUpModule.py ..                                                   [100%]
+
+============================== 2 passed in 0.01s ===============================
+_____________________ test_setUpModule_failing_no_teardown _____________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_setUpModule_failing_no_teardown0
+collected 1 item
+
+test_setUpModule_failing_no_teardown.py E                                [100%]
+
+==================================== ERRORS ====================================
+_________________________ ERROR at setup of test_hello _________________________
+
+    def setUpModule():
+>       0/0
+E       ZeroDivisionError: division by zero
+
+test_setUpModule_failing_no_teardown.py:4: ZeroDivisionError
+=========================== short test summary info ============================
+ERROR test_setUpModule_failing_no_teardown.py::test_hello - ZeroDivisionError...
+=============================== 1 error in 0.02s ===============================
+______________________________ test_new_instances ______________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_new_instances0
+collected 2 items
+
+test_new_instances.py ..                                                 [100%]
+
+============================== 2 passed in 0.02s ===============================
+______________________ test_function_item_obj_is_instance ______________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_function_item_obj_is_instance0
+collected 1 item
+
+test_function_item_obj_is_instance.py .                                  [100%]
+
+============================== 1 passed in 0.02s ===============================
+________________________________ test_teardown _________________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_teardown0
+collected 2 items
+
+test_teardown.py ..                                                      [100%]
+
+============================== 2 passed in 0.02s ===============================
+___________________________ test_teardown_issue1649 ____________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_teardown_issue16490
+collected 1 item
+
+test_teardown_issue1649.py .
+
+============================== 1 passed in 0.02s ===============================
+_________________________ test_unittest_skip_issue148 __________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_unittest_skip_issue1480
+collected 1 item
+
+test_unittest_skip_issue148.py s                                         [100%]
+
+============================== 1 skipped in 0.02s ==============================
+__________________ test_method_and_teardown_failing_reporting __________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_method_and_teardown_failing_reporting0
+collected 1 item
+
+test_method_and_teardown_failing_reporting.py FE
+
+==================================== ERRORS ====================================
+_____________________ ERROR at teardown of TC.test_method ______________________
+
+self = <test_method_and_teardown_failing_reporting.TC testMethod=test_method>
+
+    def tearDown(self):
+>       assert 0, "down1"
+E       AssertionError: down1
+E       assert 0
+
+test_method_and_teardown_failing_reporting.py:4: AssertionError
+=================================== FAILURES ===================================
+________________________________ TC.test_method ________________________________
+
+self = <test_method_and_teardown_failing_reporting.TC testMethod=test_method>
+
+    def test_method(self):
+>       assert False, "down2"
+E       AssertionError: down2
+E       assert False
+
+test_method_and_teardown_failing_reporting.py:6: AssertionError
+=========================== short test summary info ============================
+FAILED test_method_and_teardown_failing_reporting.py::TC::test_method - Asser...
+ERROR test_method_and_teardown_failing_reporting.py::TC::test_method - Assert...
+========================== 1 failed, 1 error in 0.02s ==========================
+_________________________ test_setup_failure_is_shown __________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_setup_failure_is_shown0
+collected 1 item
+
+test_setup_failure_is_shown.py F
+
+=================================== FAILURES ===================================
+________________________________ TC.test_method ________________________________
+
+self = <test_setup_failure_is_shown.TC testMethod=test_method>
+
+    def setUp(self):
+>       assert 0, "down1"
+E       AssertionError: down1
+E       assert 0
+
+test_setup_failure_is_shown.py:5: AssertionError
+=========================== short test summary info ============================
+FAILED test_setup_failure_is_shown.py::TC::test_method - AssertionError: down1
+============================== 1 failed in 0.03s ===============================
+____________________________ test_setup_setUpClass _____________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_setup_setUpClass0
+collected 3 items
+
+test_setup_setUpClass.py ...                                             [100%]
+
+============================== 3 passed in 0.02s ===============================
+___________________ test_fixtures_setup_setUpClass_issue8394 ___________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_fixtures_setup_setUpClass_issue83940
+collected 1 item
+cache -- .../_pytest/cacheprovider.py:510
+    Return a cache object that can persist state between testing sessions.
+
+capsys -- .../_pytest/capture.py:878
+    Enable text capturing of writes to ``sys.stdout`` and ``sys.stderr``.
+
+capsysbinary -- .../_pytest/capture.py:906
+    Enable bytes capturing of writes to ``sys.stdout`` and ``sys.stderr``.
+
+capfd -- .../_pytest/capture.py:934
+    Enable text capturing of writes to file descriptors ``1`` and ``2``.
+
+capfdbinary -- .../_pytest/capture.py:962
+    Enable bytes capturing of writes to file descriptors ``1`` and ``2``.
+
+doctest_namespace [session scope] -- .../_pytest/doctest.py:731
+    Fixture that returns a :py:class:`dict` that will be injected into the
+    namespace of doctests.
+
+pytestconfig [session scope] -- .../_pytest/fixtures.py:1337
+    Session-scoped fixture that returns the session's :class:`pytest.Config`
+    object.
+
+record_property -- .../_pytest/junitxml.py:282
+    Add extra properties to the calling test.
+
+record_xml_attribute -- .../_pytest/junitxml.py:305
+    Add extra xml attributes to the tag for the calling test.
+
+record_testsuite_property [session scope] -- .../_pytest/junitxml.py:343
+    Record a new ``<property>`` tag as child of the root ``<testsuite>``.
+
+tmpdir_factory [session scope] -- .../_pytest/legacypath.py:295
+    Return a :class:`pytest.TempdirFactory` instance for the test session.
+
+tmpdir -- .../_pytest/legacypath.py:302
+    Return a temporary directory path object which is unique to each test
+    function invocation, created as a sub directory of the base temporary
+    directory.
+
+caplog -- .../_pytest/logging.py:487
+    Access and control log capturing.
+
+monkeypatch -- .../_pytest/monkeypatch.py:29
+    A convenient fixture for monkey-patching.
+
+recwarn -- .../_pytest/recwarn.py:30
+    Return a :class:`WarningsRecorder` instance that records all warnings emitted by test functions.
+
+tmp_path_factory [session scope] -- .../_pytest/tmpdir.py:184
+    Return a :class:`pytest.TempPathFactory` instance for the test session.
+
+tmp_path -- .../_pytest/tmpdir.py:199
+    Return a temporary directory path object which is unique to each test
+    function invocation, created as a sub directory of the base temporary
+    directory.
+
+
+============================ no tests ran in 0.02s =============================
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1 -- /opt/miniconda3/envs/testbed/bin/python
+cachedir: .pytest_cache
+rootdir: /tmp/pytest-of-root/pytest-0/test_fixtures_setup_setUpClass_issue83940
+collected 1 item
+cache -- .../_pytest/cacheprovider.py:510
+    Return a cache object that can persist state between testing sessions.
+    
+    cache.get(key, default)
+    cache.set(key, value)
+    
+    Keys must be ``/`` separated strings, where the first part is usually the
+    name of your plugin or application to avoid clashes with other cache users.
+    
+    Values can be any object handled by the json stdlib module.
+
+capsys -- .../_pytest/capture.py:878
+    Enable text capturing of writes to ``sys.stdout`` and ``sys.stderr``.
+    
+    The captured output is made available via ``capsys.readouterr()`` method
+    calls, which return a ``(out, err)`` namedtuple.
+    ``out`` and ``err`` will be ``text`` objects.
+    
+    Returns an instance of :class:`CaptureFixture[str] <pytest.CaptureFixture>`.
+    
+    Example:
+    
+    .. code-block:: python
+    
+        def test_output(capsys):
+            print("hello")
+            captured = capsys.readouterr()
+            assert captured.out == "hello\n"
+
+capsysbinary -- .../_pytest/capture.py:906
+    Enable bytes capturing of writes to ``sys.stdout`` and ``sys.stderr``.
+    
+    The captured output is made available via ``capsysbinary.readouterr()``
+    method calls, which return a ``(out, err)`` namedtuple.
+    ``out`` and ``err`` will be ``bytes`` objects.
+    
+    Returns an instance of :class:`CaptureFixture[bytes] <pytest.CaptureFixture>`.
+    
+    Example:
+    
+    .. code-block:: python
+    
+        def test_output(capsysbinary):
+            print("hello")
+            captured = capsysbinary.readouterr()
+            assert captured.out == b"hello\n"
+
+capfd -- .../_pytest/capture.py:934
+    Enable text capturing of writes to file descriptors ``1`` and ``2``.
+    
+    The captured output is made available via ``capfd.readouterr()`` method
+    calls, which return a ``(out, err)`` namedtuple.
+    ``out`` and ``err`` will be ``text`` objects.
+    
+    Returns an instance of :class:`CaptureFixture[str] <pytest.CaptureFixture>`.
+    
+    Example:
+    
+    .. code-block:: python
+    
+        def test_system_echo(capfd):
+            os.system('echo "hello"')
+            captured = capfd.readouterr()
+            assert captured.out == "hello\n"
+
+capfdbinary -- .../_pytest/capture.py:962
+    Enable bytes capturing of writes to file descriptors ``1`` and ``2``.
+    
+    The captured output is made available via ``capfd.readouterr()`` method
+    calls, which return a ``(out, err)`` namedtuple.
+    ``out`` and ``err`` will be ``byte`` objects.
+    
+    Returns an instance of :class:`CaptureFixture[bytes] <pytest.CaptureFixture>`.
+    
+    Example:
+    
+    .. code-block:: python
+    
+        def test_system_echo(capfdbinary):
+            os.system('echo "hello"')
+            captured = capfdbinary.readouterr()
+            assert captured.out == b"hello\n"
+
+doctest_namespace [session scope] -- .../_pytest/doctest.py:731
+    Fixture that returns a :py:class:`dict` that will be injected into the
+    namespace of doctests.
+    
+    Usually this fixture is used in conjunction with another ``autouse`` fixture:
+    
+    .. code-block:: python
+    
+        @pytest.fixture(autouse=True)
+        def add_np(doctest_namespace):
+            doctest_namespace["np"] = numpy
+    
+    For more details: :ref:`doctest_namespace`.
+
+pytestconfig [session scope] -- .../_pytest/fixtures.py:1337
+    Session-scoped fixture that returns the session's :class:`pytest.Config`
+    object.
+    
+    Example::
+    
+        def test_foo(pytestconfig):
+            if pytestconfig.getoption("verbose") > 0:
+                ...
+
+record_property -- .../_pytest/junitxml.py:282
+    Add extra properties to the calling test.
+    
+    User properties become part of the test report and are available to the
+    configured reporters, like JUnit XML.
+    
+    The fixture is callable with ``name, value``. The value is automatically
+    XML-encoded.
+    
+    Example::
+    
+        def test_function(record_property):
+            record_property("example_key", 1)
+
+record_xml_attribute -- .../_pytest/junitxml.py:305
+    Add extra xml attributes to the tag for the calling test.
+    
+    The fixture is callable with ``name, value``. The value is
+    automatically XML-encoded.
+
+record_testsuite_property [session scope] -- .../_pytest/junitxml.py:343
+    Record a new ``<property>`` tag as child of the root ``<testsuite>``.
+    
+    This is suitable to writing global information regarding the entire test
+    suite, and is compatible with ``xunit2`` JUnit family.
+    
+    This is a ``session``-scoped fixture which is called with ``(name, value)``. Example:
+    
+    .. code-block:: python
+    
+        def test_foo(record_testsuite_property):
+            record_testsuite_property("ARCH", "PPC")
+            record_testsuite_property("STORAGE_TYPE", "CEPH")
+    
+    ``name`` must be a string, ``value`` will be converted to a string and properly xml-escaped.
+    
+    .. warning::
+    
+        Currently this fixture **does not work** with the
+        `pytest-xdist <https://github.com/pytest-dev/pytest-xdist>`__ plugin. See
+        :issue:`7767` for details.
+
+tmpdir_factory [session scope] -- .../_pytest/legacypath.py:295
+    Return a :class:`pytest.TempdirFactory` instance for the test session.
+
+tmpdir -- .../_pytest/legacypath.py:302
+    Return a temporary directory path object which is unique to each test
+    function invocation, created as a sub directory of the base temporary
+    directory.
+    
+    By default, a new base temporary directory is created each test session,
+    and old bases are removed after 3 sessions, to aid in debugging. If
+    ``--basetemp`` is used then it is cleared each session. See :ref:`base
+    temporary directory`.
+    
+    The returned object is a `legacy_path`_ object.
+    
+    .. _legacy_path: https://py.readthedocs.io/en/latest/path.html
+
+caplog -- .../_pytest/logging.py:487
+    Access and control log capturing.
+    
+    Captured logs are available through the following properties/methods::
+    
+    * caplog.messages        -> list of format-interpolated log messages
+    * caplog.text            -> string containing formatted log output
+    * caplog.records         -> list of logging.LogRecord instances
+    * caplog.record_tuples   -> list of (logger_name, level, message) tuples
+    * caplog.clear()         -> clear captured records and formatted log output string
+
+monkeypatch -- .../_pytest/monkeypatch.py:29
+    A convenient fixture for monkey-patching.
+    
+    The fixture provides these methods to modify objects, dictionaries or
+    os.environ::
+    
+        monkeypatch.setattr(obj, name, value, raising=True)
+        monkeypatch.delattr(obj, name, raising=True)
+        monkeypatch.setitem(mapping, name, value)
+        monkeypatch.delitem(obj, name, raising=True)
+        monkeypatch.setenv(name, value, prepend=None)
+        monkeypatch.delenv(name, raising=True)
+        monkeypatch.syspath_prepend(path)
+        monkeypatch.chdir(path)
+    
+    All modifications will be undone after the requesting test function or
+    fixture has finished. The ``raising`` parameter determines if a KeyError
+    or AttributeError will be raised if the set/deletion operation has no target.
+
+recwarn -- .../_pytest/recwarn.py:30
+    Return a :class:`WarningsRecorder` instance that records all warnings emitted by test functions.
+    
+    See https://docs.python.org/library/how-to/capture-warnings.html for information
+    on warning categories.
+
+tmp_path_factory [session scope] -- .../_pytest/tmpdir.py:184
+    Return a :class:`pytest.TempPathFactory` instance for the test session.
+
+tmp_path -- .../_pytest/tmpdir.py:199
+    Return a temporary directory path object which is unique to each test
+    function invocation, created as a sub directory of the base temporary
+    directory.
+    
+    By default, a new base temporary directory is created each test session,
+    and old bases are removed after 3 sessions, to aid in debugging. If
+    ``--basetemp`` is used then it is cleared each session. See :ref:`base
+    temporary directory`.
+    
+    The returned object is a :class:`pathlib.Path` object.
+
+_unittest_setUpClass_fixture_MyTestCase [class scope] -- .../_pytest/unittest.py:143
+    no docstring available
+
+
+============================ no tests ran in 0.02s =============================
+_______________________________ test_setup_class _______________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_setup_class0
+collected 3 items
+
+test_setup_class.py ...                                                  [100%]
+
+============================== 3 passed in 0.02s ===============================
+________________ test_testcase_adderrorandfailure_defers[Error] ________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_testcase_adderrorandfailure_defers0
+collected 1 item
+
+test_testcase_adderrorandfailure_defers.py F                             [100%]
+
+=================================== FAILURES ===================================
+____________________________ MyTestCase.test_hello _____________________________
+
+>   excinfo = pytest.raises(ZeroDivisionError, lambda: 0/0)
+E   ZeroDivisionError: division by zero
+
+test_testcase_adderrorandfailure_defers.py:5: ZeroDivisionError
+=========================== short test summary info ============================
+FAILED test_testcase_adderrorandfailure_defers.py::MyTestCase::test_hello - Z...
+============================== 1 failed in 0.02s ===============================
+_______________ test_testcase_adderrorandfailure_defers[Failure] _______________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_testcase_adderrorandfailure_defers1
+collected 1 item
+
+test_testcase_adderrorandfailure_defers.py F                             [100%]
+
+=================================== FAILURES ===================================
+____________________________ MyTestCase.test_hello _____________________________
+
+>   excinfo = pytest.raises(ZeroDivisionError, lambda: 0/0)
+E   ZeroDivisionError: division by zero
+
+test_testcase_adderrorandfailure_defers.py:5: ZeroDivisionError
+=========================== short test summary info ============================
+FAILED test_testcase_adderrorandfailure_defers.py::MyTestCase::test_hello - Z...
+============================== 1 failed in 0.02s ===============================
+__________________ test_testcase_custom_exception_info[Error] __________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_testcase_custom_exception_info0
+collected 1 item
+
+test_testcase_custom_exception_info.py F                                 [100%]
+
+=================================== FAILURES ===================================
+____________________________ MyTestCase.test_hello _____________________________
+
+During handling of the above exception, another exception occurred:
+NOTE: Incompatible Exception Representation, displaying natively:
+
+Traceback (most recent call last):
+  File "/testbed/src/_pytest/python_api.py", line 942, in raises
+    func(*args[1:], **kwargs)
+  File "/tmp/pytest-of-root/pytest-0/test_testcase_custom_exception_info0/test_testcase_custom_exception_info.py", line 7, in <lambda>
+    excinfo = pytest.raises(ZeroDivisionError, lambda: 0/0)
+ZeroDivisionError: division by zero
+=========================== short test summary info ============================
+FAILED test_testcase_custom_exception_info.py::MyTestCase::test_hello
+============================== 1 failed in 0.02s ===============================
+_________________ test_testcase_custom_exception_info[Failure] _________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_testcase_custom_exception_info1
+collected 1 item
+
+test_testcase_custom_exception_info.py F                                 [100%]
+
+=================================== FAILURES ===================================
+____________________________ MyTestCase.test_hello _____________________________
+
+During handling of the above exception, another exception occurred:
+NOTE: Incompatible Exception Representation, displaying natively:
+
+Traceback (most recent call last):
+  File "/testbed/src/_pytest/python_api.py", line 942, in raises
+    func(*args[1:], **kwargs)
+  File "/tmp/pytest-of-root/pytest-0/test_testcase_custom_exception_info1/test_testcase_custom_exception_info.py", line 7, in <lambda>
+    excinfo = pytest.raises(ZeroDivisionError, lambda: 0/0)
+ZeroDivisionError: division by zero
+=========================== short test summary info ============================
+FAILED test_testcase_custom_exception_info.py::MyTestCase::test_hello
+============================== 1 failed in 0.02s ===============================
+______________ test_testcase_totally_incompatible_exception_info _______________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_testcase_totally_incompatible_exception_info0
+collected 0 items
+
+============================ no tests ran in 0.00s =============================
+_________________________ test_module_level_pytestmark _________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_module_level_pytestmark0
+collected 1 item
+
+test_module_level_pytestmark.py x
+
+============================== 1 xfailed in 0.02s ==============================
+___________________________ test_djangolike_testcase ___________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_djangolike_testcase0
+collected 1 item
+
+test_djangolike_testcase.py _pre_setup()
+setUp()
+test_thing()
+tearDown()
+_post_teardown()
+.
+
+============================== 1 passed in 0.02s ===============================
+_____________________ test_unittest_not_shown_in_traceback _____________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_unittest_not_shown_in_traceback0
+collected 1 item
+
+test_unittest_not_shown_in_traceback.py F                                [100%]
+
+=================================== FAILURES ===================================
+_________________________________ t.test_hello _________________________________
+
+self = <test_unittest_not_shown_in_traceback.t testMethod=test_hello>
+
+    def test_hello(self):
+        x = 3
+>       self.assertEqual(x, 4)
+E       AssertionError: 3 != 4
+
+test_unittest_not_shown_in_traceback.py:5: AssertionError
+=========================== short test summary info ============================
+FAILED test_unittest_not_shown_in_traceback.py::t::test_hello - AssertionErro...
+============================== 1 failed in 0.05s ===============================
+____________________________ test_unorderable_types ____________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_unorderable_types0
+collected 0 items
+
+============================ no tests ran in 0.01s =============================
+_______________________ test_unittest_typerror_traceback _______________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_unittest_typerror_traceback0
+collected 1 item
+
+test_unittest_typerror_traceback.py F                                    [100%]
+
+=================================== FAILURES ===================================
+___________________________ TestJoinEmpty.test_hello ___________________________
+
+self = <unittest.case._Outcome object at 0x7fc3ab638670>
+test_case = <test_unittest_typerror_traceback.TestJoinEmpty testMethod=test_hello>
+isTest = True
+
+    @contextlib.contextmanager
+    def testPartExecutor(self, test_case, isTest=False):
+        old_success = self.success
+        self.success = True
+        try:
+>           yield
+
+/opt/miniconda3/envs/testbed/lib/python3.9/unittest/case.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/miniconda3/envs/testbed/lib/python3.9/unittest/case.py:592: in run
+    self._callTestMethod(testMethod)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <test_unittest_typerror_traceback.TestJoinEmpty testMethod=test_hello>
+method = <bound method TestJoinEmpty.test_hello of <test_unittest_typerror_traceback.TestJoinEmpty testMethod=test_hello>>
+
+    def _callTestMethod(self, method):
+>       method()
+E       TypeError: test_hello() missing 1 required positional argument: 'arg1'
+
+/opt/miniconda3/envs/testbed/lib/python3.9/unittest/case.py:550: TypeError
+=========================== short test summary info ============================
+FAILED test_unittest_typerror_traceback.py::TestJoinEmpty::test_hello - TypeE...
+============================== 1 failed in 0.07s ===============================
+_______ test_unittest_expected_failure_for_failing_test_is_xfail[pytest] _______
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_unittest_expected_failure_for_failing_test_is_xfail0
+collected 1 item
+
+test_unittest_expected_failure_for_failing_test_is_xfail.py x            [100%]
+
+=========================== short test summary info ============================
+XFAIL test_unittest_expected_failure_for_failing_test_is_xfail.py::MyTestCase::test_failing_test_is_xfail - reason: 
+============================== 1 xfailed in 0.02s ==============================
+______ test_unittest_expected_failure_for_failing_test_is_xfail[unittest] ______
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python /tmp/pytest-of-root/pytest-0/test_unittest_expected_failure_for_failing_test_is_xfail1/test_unittest_expected_failure_for_failing_test_is_xfail.py
+     in: /tmp/pytest-of-root/pytest-0/test_unittest_expected_failure_for_failing_test_is_xfail1
+----------------------------- Captured stderr call -----------------------------
+x
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+OK (expected failures=1)
+_______ test_unittest_expected_failure_for_passing_test_is_fail[pytest] ________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_unittest_expected_failure_for_passing_test_is_fail0
+collected 1 item
+
+test_unittest_expected_failure_for_passing_test_is_fail.py F             [100%]
+
+=================================== FAILURES ===================================
+_____________________ MyTestCase.test_passing_test_is_fail _____________________
+Unexpected success
+============================== 1 failed in 0.02s ===============================
+______ test_unittest_expected_failure_for_passing_test_is_fail[unittest] _______
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python /tmp/pytest-of-root/pytest-0/test_unittest_expected_failure_for_passing_test_is_fail1/test_unittest_expected_failure_for_passing_test_is_fail.py
+     in: /tmp/pytest-of-root/pytest-0/test_unittest_expected_failure_for_passing_test_is_fail1
+----------------------------- Captured stderr call -----------------------------
+u
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (unexpected successes=1)
+___________________ test_unittest_setup_interaction[return] ____________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_unittest_setup_interaction0
+collected 3 items
+
+test_unittest_setup_interaction.py ...                                   [100%]
+
+============================== 3 passed in 0.03s ===============================
+____________________ test_unittest_setup_interaction[yield] ____________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_unittest_setup_interaction1
+collected 3 items
+
+test_unittest_setup_interaction.py ...                                   [100%]
+
+============================== 3 passed in 0.02s ===============================
+___________________ test_non_unittest_no_setupclass_support ____________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_non_unittest_no_setupclass_support0
+collected 2 items
+
+test_non_unittest_no_setupclass_support.py ..                            [100%]
+
+============================== 2 passed in 0.01s ===============================
+____________________ test_no_teardown_if_setupclass_failed _____________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_no_teardown_if_setupclass_failed0
+collected 2 items
+
+test_no_teardown_if_setupclass_failed.py E.                              [100%]
+
+==================================== ERRORS ====================================
+___________________ ERROR at setup of MyTestCase.test_func1 ____________________
+
+cls = <class 'test_no_teardown_if_setupclass_failed.MyTestCase'>
+
+    @classmethod
+    def setUpClass(cls):
+        cls.x = 1
+>       assert False
+E       assert False
+
+test_no_teardown_if_setupclass_failed.py:9: AssertionError
+=========================== short test summary info ============================
+ERROR test_no_teardown_if_setupclass_failed.py::MyTestCase::test_func1 - asse...
+========================== 1 passed, 1 error in 0.02s ==========================
+____________________________ test_cleanup_functions ____________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1 -- /opt/miniconda3/envs/testbed/bin/python
+cachedir: .pytest_cache
+rootdir: /tmp/pytest-of-root/pytest-0/test_cleanup_functions0
+collecting ... collected 3 items
+
+test_cleanup_functions.py::Test::test_func_1 PASSED                      [ 33%]
+test_cleanup_functions.py::Test::test_func_2 FAILED                      [ 66%]
+test_cleanup_functions.py::Test::test_func_3_check_cleanups PASSED       [100%]
+
+=================================== FAILURES ===================================
+_______________________________ Test.test_func_2 _______________________________
+
+self = <test_cleanup_functions.Test testMethod=test_func_2>
+
+    def test_func_2(self):
+        self.addCleanup(cleanups.append, "test_func_2")
+>       assert 0
+E       assert 0
+
+test_cleanup_functions.py:12: AssertionError
+=========================== short test summary info ============================
+FAILED test_cleanup_functions.py::Test::test_func_2 - assert 0
+========================= 1 failed, 2 passed in 0.02s ==========================
+________________________ test_issue333_result_clearing _________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_issue333_result_clearing0
+collected 1 item
+
+test_issue333_result_clearing.py F                                       [100%]
+
+=================================== FAILURES ===================================
+_______________________________ TestIt.test_func _______________________________
+
+self = <test_issue333_result_clearing.TestIt testMethod=test_func>
+
+    def test_func(self):
+>       0/0
+E       ZeroDivisionError: division by zero
+
+test_issue333_result_clearing.py:4: ZeroDivisionError
+=========================== short test summary info ============================
+FAILED test_issue333_result_clearing.py::TestIt::test_func - ZeroDivisionErro...
+============================== 1 failed in 0.02s ===============================
+______________________ test_unittest_raise_skip_issue748 _______________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1 -- /opt/miniconda3/envs/testbed/bin/python
+cachedir: .pytest_cache
+rootdir: /tmp/pytest-of-root/pytest-0/test_unittest_raise_skip_issue7480
+collecting ... collected 1 item
+
+test_foo.py::MyTestCase::test_one SKIPPED (skipping due to reasons)      [100%]
+
+=========================== short test summary info ============================
+SKIPPED [1] test_foo.py:4: skipping due to reasons
+============================== 1 skipped in 0.02s ==============================
+_________________________ test_unittest_skip_issue1169 _________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1 -- /opt/miniconda3/envs/testbed/bin/python
+cachedir: .pytest_cache
+rootdir: /tmp/pytest-of-root/pytest-0/test_unittest_skip_issue11690
+collecting ... collected 1 item
+
+test_foo.py::MyTestCase::test_skip SKIPPED (skipping due to reasons)     [100%]
+
+=========================== short test summary info ============================
+SKIPPED [1] test_foo.py:4: skipping due to reasons
+============================== 1 skipped in 0.02s ==============================
+_________________ test_class_method_containing_test_issue1558 __________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_class_method_containing_test_issue15580
+collected 1 item
+
+test_foo.py .                                                            [100%]
+
+============================== 1 passed in 0.04s ===============================
+_____________ test_usefixtures_marker_on_unittest[builtins.object] _____________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_usefixtures_marker_on_unittest0
+test_usefixtures_marker_on_unittest.py::Tests::test_one
+   Mark(name='usefixtures', args=('fixture1',), kwargs={})
+test_usefixtures_marker_on_unittest.py::Tests::test_two
+   Mark(name='usefixtures', args=('fixture1', 'fixture2'), kwargs={})
+collected 2 items
+
+test_usefixtures_marker_on_unittest.py test_usefixtures_marker_on_unittest.py::Tests::test_one
+   Mark(name='usefixtures', args=('fixture1',), kwargs={})
+.test_usefixtures_marker_on_unittest.py::Tests::test_two
+   Mark(name='usefixtures', args=('fixture1', 'fixture2'), kwargs={})
+.
+
+============================== 2 passed in 0.01s ===============================
+____________ test_usefixtures_marker_on_unittest[unittest.TestCase] ____________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_usefixtures_marker_on_unittest1
+test_usefixtures_marker_on_unittest.py::Tests::test_one
+   Mark(name='usefixtures', args=('fixture1',), kwargs={})
+test_usefixtures_marker_on_unittest.py::Tests::test_two
+   Mark(name='usefixtures', args=('fixture1', 'fixture2'), kwargs={})
+collected 2 items
+
+test_usefixtures_marker_on_unittest.py test_usefixtures_marker_on_unittest.py::Tests::test_one
+   Mark(name='usefixtures', args=('fixture1',), kwargs={})
+.test_usefixtures_marker_on_unittest.py::Tests::test_two
+   Mark(name='usefixtures', args=('fixture1', 'fixture2'), kwargs={})
+.
+
+============================== 2 passed in 0.01s ===============================
+____________________ test_testcase_handles_init_exceptions _____________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_testcase_handles_init_exceptions0
+collected 1 item
+
+test_testcase_handles_init_exceptions.py E                               [100%]
+
+==================================== ERRORS ====================================
+___________________ ERROR at setup of MyTestCase.test_hello ____________________
+
+self = <[AttributeError("'MyTestCase' object has no attribute '_testMethodName'") raised in repr()] MyTestCase object at 0x7fc3ab6b1610>
+args = ('test_hello',), kwargs = {}
+
+    def __init__(self, *args, **kwargs):
+>       raise Exception("should raise this exception")
+E       Exception: should raise this exception
+
+test_testcase_handles_init_exceptions.py:5: Exception
+=========================== short test summary info ============================
+ERROR test_testcase_handles_init_exceptions.py::MyTestCase::test_hello - Exce...
+=============================== 1 error in 0.02s ===============================
+________________ test_error_message_with_parametrized_fixtures _________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_error_message_with_parametrized_fixtures0
+collected 1 item
+
+test_parametrized_fixture_error_message.py E                             [100%]
+
+==================================== ERRORS ====================================
+_________________ ERROR at setup of TestSomethingElse.test_two _________________
+test_two does not support fixtures, maybe unittest.TestCase subclass?
+Node id: test_parametrized_fixture_error_message.py::TestSomethingElse::test_two
+Function type: TestCaseFunction
+=========================== short test summary info ============================
+ERROR test_parametrized_fixture_error_message.py::TestSomethingElse::test_two
+=============================== 1 error in 0.02s ===============================
+________ test_setup_inheritance_skipping[test_setup_skip.py-1 skipped] _________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_setup_inheritance_skipping0
+collected 1 item
+
+test_setup_skip.py s                                                     [100%]
+
+============================== 1 skipped in 0.02s ==============================
+_____ test_setup_inheritance_skipping[test_setup_skip_class.py-1 skipped] ______
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_setup_inheritance_skipping1
+collected 1 item
+
+test_setup_skip_class.py s                                               [100%]
+
+============================== 1 skipped in 0.02s ==============================
+______ test_setup_inheritance_skipping[test_setup_skip_module.py-1 error] ______
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_setup_inheritance_skipping2
+collected 1 item
+
+test_setup_skip_module.py E                                              [100%]
+
+==================================== ERRORS ====================================
+_________________________ ERROR at setup of Base.test __________________________
+
+    def setUpModule():
+>       assert 0
+E       assert 0
+
+test_setup_skip_module.py:6: AssertionError
+=========================== short test summary info ============================
+ERROR test_setup_skip_module.py::Base::test - assert 0
+=============================== 1 error in 0.02s ===============================
+_________________________________ test_BdbQuit _________________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_BdbQuit0
+collected 2 items
+
+test_foo.py F.                                                           [100%]
+
+=================================== FAILURES ===================================
+___________________________ MyTestCase.test_bdbquit ____________________________
+
+self = <test_foo.MyTestCase testMethod=test_bdbquit>
+
+    def test_bdbquit(self):
+        import bdb
+>       raise bdb.BdbQuit()
+E       bdb.BdbQuit
+
+test_foo.py:6: BdbQuit
+=========================== short test summary info ============================
+FAILED test_foo.py::MyTestCase::test_bdbquit - bdb.BdbQuit
+========================= 1 failed, 1 passed in 0.02s ==========================
+______________________________ test_exit_outcome _______________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_exit_outcome0
+collected 2 items
+
+test_foo.py 
+
+!!!!!!!!!!!!!!!!!! _pytest.outcomes.Exit: pytest_exit called !!!!!!!!!!!!!!!!!!!
+============================ no tests ran in 0.25s =============================
+__________________________________ test_trace __________________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_trace0
+collected 1 item
+
+test_trace.py .                                                          [100%]
+
+============================== 1 passed in 0.02s ===============================
+___________________________ test_pdb_teardown_called ___________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_pdb_teardown_called0
+collected 2 items
+
+test_pdb_teardown_called.py ..                                           [100%]
+
+============================== 2 passed in 0.02s ===============================
+___________ test_pdb_teardown_skipped_for_functions[@unittest.skip] ____________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_pdb_teardown_skipped_for_functions0
+collected 1 item
+
+test_pdb_teardown_skipped_for_functions.py s                             [100%]
+
+============================== 1 skipped in 0.02s ==============================
+__________ test_pdb_teardown_skipped_for_functions[@pytest.mark.skip] __________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_pdb_teardown_skipped_for_functions1
+collected 1 item
+
+test_pdb_teardown_skipped_for_functions.py s                             [100%]
+
+============================== 1 skipped in 0.02s ==============================
+___________ test_pdb_teardown_skipped_for_classes[@pytest.mark.skip] ___________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_pdb_teardown_skipped_for_classes1
+collected 1 item
+
+test_pdb_teardown_skipped_for_classes.py s                               [100%]
+
+============================== 1 skipped in 0.02s ==============================
+______________________________ test_async_support ______________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_async_support0
+collected 3 items
+
+test_unittest_asyncio.py .F.                                             [100%]
+
+=================================== FAILURES ===================================
+__________________ AsyncArguments.test_something_async_fails ___________________
+
+self = <test_unittest_asyncio.AsyncArguments testMethod=test_something_async_fails>
+
+    async def test_something_async_fails(self):
+        async def addition(x, y):
+            return x + y
+    
+>       self.assertEqual(await addition(2, 2), 3)
+E       AssertionError: 4 != 3
+
+test_unittest_asyncio.py:22: AssertionError
+=========================== short test summary info ============================
+FAILED test_unittest_asyncio.py::AsyncArguments::test_something_async_fails
+========================= 1 failed, 2 passed in 0.06s ==========================
+______________________ test_do_class_cleanups_on_success _______________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_do_class_cleanups_on_success0
+collected 3 items
+
+test_do_class_cleanups_on_success.py ...                                 [100%]
+
+============================== 3 passed in 0.02s ===============================
+_________________ test_do_class_cleanups_on_setupclass_failure _________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_do_class_cleanups_on_setupclass_failure0
+collected 2 items
+
+test_do_class_cleanups_on_setupclass_failure.py E.                       [100%]
+
+==================================== ERRORS ====================================
+____________________ ERROR at setup of MyTestCase.test_one _____________________
+
+cls = <class 'test_do_class_cleanups_on_setupclass_failure.MyTestCase'>
+
+    @classmethod
+    def setUpClass(cls):
+        def cleanup():
+            cls.values.append(1)
+        cls.addClassCleanup(cleanup)
+>       assert False
+E       assert False
+
+test_do_class_cleanups_on_setupclass_failure.py:9: AssertionError
+=========================== short test summary info ============================
+ERROR test_do_class_cleanups_on_setupclass_failure.py::MyTestCase::test_one
+========================== 1 passed, 1 error in 0.02s ==========================
+_______________ test_do_class_cleanups_on_teardownclass_failure ________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_do_class_cleanups_on_teardownclass_failure0
+collected 3 items
+
+test_do_class_cleanups_on_teardownclass_failure.py ..E.                  [100%]
+
+==================================== ERRORS ====================================
+___________________ ERROR at teardown of MyTestCase.test_two ___________________
+
+cls = <class 'test_do_class_cleanups_on_teardownclass_failure.MyTestCase'>
+
+    @classmethod
+    def tearDownClass(cls):
+>       assert False
+E       assert False
+
+test_do_class_cleanups_on_teardownclass_failure.py:11: AssertionError
+=========================== short test summary info ============================
+ERROR test_do_class_cleanups_on_teardownclass_failure.py::MyTestCase::test_two
+========================== 3 passed, 1 error in 0.02s ==========================
+_________________________ test_do_cleanups_on_success __________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_do_cleanups_on_success0
+collected 3 items
+
+test_do_cleanups_on_success.py ...                                       [100%]
+
+============================== 3 passed in 0.02s ===============================
+______________________ test_do_cleanups_on_setup_failure _______________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_do_cleanups_on_setup_failure0
+collected 3 items
+
+test_do_cleanups_on_setup_failure.py FF.                                 [100%]
+
+=================================== FAILURES ===================================
+_____________________________ MyTestCase.test_one ______________________________
+
+self = <test_do_cleanups_on_setup_failure.MyTestCase testMethod=test_one>
+
+    def setUp(self):
+        def cleanup():
+            self.values.append(1)
+        self.addCleanup(cleanup)
+>       assert False
+E       assert False
+
+test_do_cleanups_on_setup_failure.py:8: AssertionError
+_____________________________ MyTestCase.test_two ______________________________
+
+self = <test_do_cleanups_on_setup_failure.MyTestCase testMethod=test_two>
+
+    def setUp(self):
+        def cleanup():
+            self.values.append(1)
+        self.addCleanup(cleanup)
+>       assert False
+E       assert False
+
+test_do_cleanups_on_setup_failure.py:8: AssertionError
+=========================== short test summary info ============================
+FAILED test_do_cleanups_on_setup_failure.py::MyTestCase::test_one - assert False
+FAILED test_do_cleanups_on_setup_failure.py::MyTestCase::test_two - assert False
+========================= 2 failed, 1 passed in 0.03s ==========================
+_____________________ test_do_cleanups_on_teardown_failure _____________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_do_cleanups_on_teardown_failure0
+collected 3 items
+
+test_do_cleanups_on_teardown_failure.py FF.                              [100%]
+
+=================================== FAILURES ===================================
+_____________________________ MyTestCase.test_one ______________________________
+
+self = <test_do_cleanups_on_teardown_failure.MyTestCase testMethod=test_one>
+
+    def tearDown(self):
+>       assert False
+E       assert False
+
+test_do_cleanups_on_teardown_failure.py:9: AssertionError
+_____________________________ MyTestCase.test_two ______________________________
+
+self = <test_do_cleanups_on_teardown_failure.MyTestCase testMethod=test_two>
+
+    def tearDown(self):
+>       assert False
+E       assert False
+
+test_do_cleanups_on_teardown_failure.py:9: AssertionError
+=========================== short test summary info ============================
+FAILED test_do_cleanups_on_teardown_failure.py::MyTestCase::test_one - assert...
+FAILED test_do_cleanups_on_teardown_failure.py::MyTestCase::test_two - assert...
+========================= 2 failed, 1 passed in 0.03s ==========================
+____________________________ test_traceback_pruning ____________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_traceback_pruning0
+collected 1 item
+
+test_traceback_pruning.py .E                                             [100%]
+
+==================================== ERRORS ====================================
+_____________________ ERROR at teardown of TestIt.test_it ______________________
+
+cls = <class 'test_traceback_pruning.TestIt'>
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+>       assert False
+E       assert False
+
+test_traceback_pruning.py:10: AssertionError
+=========================== short test summary info ============================
+ERROR test_traceback_pruning.py::TestIt::test_it - assert False
+========================== 1 passed, 1 error in 0.03s ==========================
+_______________ test_raising_unittest_skiptest_during_collection _______________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_raising_unittest_skiptest_during_collection0
+collected 0 items / 1 skipped
+
+============================== 1 skipped in 0.02s ==============================
+__________________ test_plain_unittest_does_not_support_async __________________
+----------------------------- Captured stdout call -----------------------------
+running: /opt/miniconda3/envs/testbed/bin/python -mpytest --basetemp=/tmp/pytest-of-root/pytest-0/test_plain_unittest_does_not_support_async0/runpytest-0
+     in: /tmp/pytest-of-root/pytest-0/test_plain_unittest_does_not_support_async0
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.2.0.dev173+gda9a2b584.d20240725, pluggy-0.13.1
+rootdir: /tmp/pytest-of-root/pytest-0/test_plain_unittest_does_not_support_async0
+collected 1 item
+
+test_unittest_plain_async.py .                                           [100%]
+
+=============================== warnings summary ===============================
+test_unittest_plain_async.py::Test::test_foo
+  /opt/miniconda3/envs/testbed/lib/python3.9/unittest/case.py:550: RuntimeWarning: coroutine 'Test.test_foo' was never awaited
+    method()
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+========================= 1 passed, 1 warning in 0.02s =========================
+=========================== short test summary info ============================
+PASSED testing/test_unittest.py::test_simple_unittest
+PASSED testing/test_unittest.py::test_runTest_method
+PASSED testing/test_unittest.py::test_isclasscheck_issue53
+PASSED testing/test_unittest.py::test_setup
+PASSED testing/test_unittest.py::test_setUpModule
+PASSED testing/test_unittest.py::test_setUpModule_failing_no_teardown
+PASSED testing/test_unittest.py::test_new_instances
+PASSED testing/test_unittest.py::test_function_item_obj_is_instance
+PASSED testing/test_unittest.py::test_teardown
+PASSED testing/test_unittest.py::test_teardown_issue1649
+PASSED testing/test_unittest.py::test_unittest_skip_issue148
+PASSED testing/test_unittest.py::test_method_and_teardown_failing_reporting
+PASSED testing/test_unittest.py::test_setup_failure_is_shown
+PASSED testing/test_unittest.py::test_setup_setUpClass
+PASSED testing/test_unittest.py::test_fixtures_setup_setUpClass_issue8394
+PASSED testing/test_unittest.py::test_setup_class
+PASSED testing/test_unittest.py::test_testcase_adderrorandfailure_defers[Error]
+PASSED testing/test_unittest.py::test_testcase_adderrorandfailure_defers[Failure]
+PASSED testing/test_unittest.py::test_testcase_custom_exception_info[Error]
+PASSED testing/test_unittest.py::test_testcase_custom_exception_info[Failure]
+PASSED testing/test_unittest.py::test_testcase_totally_incompatible_exception_info
+PASSED testing/test_unittest.py::test_module_level_pytestmark
+PASSED testing/test_unittest.py::test_djangolike_testcase
+PASSED testing/test_unittest.py::test_unittest_not_shown_in_traceback
+PASSED testing/test_unittest.py::test_unorderable_types
+PASSED testing/test_unittest.py::test_unittest_typerror_traceback
+PASSED testing/test_unittest.py::test_unittest_expected_failure_for_failing_test_is_xfail[pytest]
+PASSED testing/test_unittest.py::test_unittest_expected_failure_for_failing_test_is_xfail[unittest]
+PASSED testing/test_unittest.py::test_unittest_expected_failure_for_passing_test_is_fail[pytest]
+PASSED testing/test_unittest.py::test_unittest_expected_failure_for_passing_test_is_fail[unittest]
+PASSED testing/test_unittest.py::test_unittest_setup_interaction[return]
+PASSED testing/test_unittest.py::test_unittest_setup_interaction[yield]
+PASSED testing/test_unittest.py::test_non_unittest_no_setupclass_support
+PASSED testing/test_unittest.py::test_no_teardown_if_setupclass_failed
+PASSED testing/test_unittest.py::test_cleanup_functions
+PASSED testing/test_unittest.py::test_issue333_result_clearing
+PASSED testing/test_unittest.py::test_unittest_raise_skip_issue748
+PASSED testing/test_unittest.py::test_unittest_skip_issue1169
+PASSED testing/test_unittest.py::test_class_method_containing_test_issue1558
+PASSED testing/test_unittest.py::test_usefixtures_marker_on_unittest[builtins.object]
+PASSED testing/test_unittest.py::test_usefixtures_marker_on_unittest[unittest.TestCase]
+PASSED testing/test_unittest.py::test_testcase_handles_init_exceptions
+PASSED testing/test_unittest.py::test_error_message_with_parametrized_fixtures
+PASSED testing/test_unittest.py::test_setup_inheritance_skipping[test_setup_skip.py-1 skipped]
+PASSED testing/test_unittest.py::test_setup_inheritance_skipping[test_setup_skip_class.py-1 skipped]
+PASSED testing/test_unittest.py::test_setup_inheritance_skipping[test_setup_skip_module.py-1 error]
+PASSED testing/test_unittest.py::test_BdbQuit
+PASSED testing/test_unittest.py::test_exit_outcome
+PASSED testing/test_unittest.py::test_trace
+PASSED testing/test_unittest.py::test_pdb_teardown_called
+PASSED testing/test_unittest.py::test_pdb_teardown_skipped_for_functions[@unittest.skip]
+PASSED testing/test_unittest.py::test_pdb_teardown_skipped_for_functions[@pytest.mark.skip]
+PASSED testing/test_unittest.py::test_pdb_teardown_skipped_for_classes[@pytest.mark.skip]
+PASSED testing/test_unittest.py::test_async_support
+PASSED testing/test_unittest.py::test_do_class_cleanups_on_success
+PASSED testing/test_unittest.py::test_do_class_cleanups_on_setupclass_failure
+PASSED testing/test_unittest.py::test_do_class_cleanups_on_teardownclass_failure
+PASSED testing/test_unittest.py::test_do_cleanups_on_success
+PASSED testing/test_unittest.py::test_do_cleanups_on_setup_failure
+PASSED testing/test_unittest.py::test_do_cleanups_on_teardown_failure
+PASSED testing/test_unittest.py::test_traceback_pruning
+PASSED testing/test_unittest.py::test_raising_unittest_skiptest_during_collection
+PASSED testing/test_unittest.py::test_plain_unittest_does_not_support_async
+SKIPPED [8] testing/test_unittest.py:456: could not import 'twisted.trial.unittest': No module named 'twisted'
+SKIPPED [1] testing/test_unittest.py:1327: could not import 'asynctest': No module named 'asynctest'
+FAILED testing/test_unittest.py::test_pdb_teardown_skipped_for_classes[@unittest.skip]
+=================== 1 failed, 63 passed, 9 skipped in 5.10s ====================
++ git checkout da9a2b584eb7a6c7e924b2621ed0ddaeca0a7bea testing/test_unittest.py
+Updated 1 path from 8916298f5

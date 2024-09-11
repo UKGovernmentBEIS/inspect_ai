@@ -1,0 +1,41 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..8eb380a13d
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,7 @@
++from sympy.combinatorics import *
++from sympy.combinatorics.homomorphisms import homomorphism
++
++D3 = DihedralGroup(3)
++T = homomorphism(D3, D3, D3.generators, D3.generators)
++
++print("Script completed successfully, no errors.")
+diff --git a/sympy/combinatorics/homomorphisms.py b/sympy/combinatorics/homomorphisms.py
+index bb7bdf32ba..5b0bc1fce3 100644
+--- a/sympy/combinatorics/homomorphisms.py
++++ b/sympy/combinatorics/homomorphisms.py
+@@ -333,14 +333,16 @@ def _image(r):
+             # both indices
+             while i < len(r):
+                 power = r_arr[j][1]
+-                if isinstance(domain, PermutationGroup) and r[i] in gens:
+-                    s = domain.generators[gens.index(r[i])]
+-                else:
+-                    s = r[i]
++                s = r[i]
++                if isinstance(domain, PermutationGroup):
++                    if s in gens:
++                        s = domain.generators[gens.index(s)]
++                    elif s**-1 in gens:
++                        s = domain.generators[gens.index(s**-1)]**-1
+                 if s in images:
+-                    w = w*images[s]**power
++                    w = w * images[s]**power
+                 elif s**-1 in images:
+-                    w = w*images[s**-1]**power
++                    w = w * images[s**-1]**(-power)
+                 i += abs(power)
+                 j += 1
+             return w

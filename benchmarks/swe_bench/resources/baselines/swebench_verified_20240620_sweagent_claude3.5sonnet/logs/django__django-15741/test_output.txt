@@ -1,0 +1,685 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/utils/formats.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	tests/test_formats.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 8c0886b068ba4e224dd78104b93c9638b860b398
+Author: Marcelo Galigniana <marcelogaligniana@gmail.com>
+Date:   Mon May 2 00:20:00 2022 -0300
+
+    Fixed #22078 -- Fixed crash of Feed with decorated methods.
+
+diff --git a/django/contrib/syndication/views.py b/django/contrib/syndication/views.py
+index a9d1bff5cf..2378a14874 100644
+--- a/django/contrib/syndication/views.py
++++ b/django/contrib/syndication/views.py
+@@ -1,3 +1,5 @@
++from inspect import getattr_static, unwrap
++
+ from django.contrib.sites.shortcuts import get_current_site
+ from django.core.exceptions import ImproperlyConfigured, ObjectDoesNotExist
+ from django.http import Http404, HttpResponse
+@@ -82,10 +84,21 @@ class Feed:
+             # Check co_argcount rather than try/excepting the function and
+             # catching the TypeError, because something inside the function
+             # may raise the TypeError. This technique is more accurate.
++            func = unwrap(attr)
+             try:
+-                code = attr.__code__
++                code = func.__code__
+             except AttributeError:
+-                code = attr.__call__.__code__
++                func = unwrap(attr.__call__)
++                code = func.__code__
++            # If function doesn't have arguments and it is not a static method,
++            # it was decorated without using @functools.wraps.
++            if not code.co_argcount and not isinstance(
++                getattr_static(self, func.__name__, None), staticmethod
++            ):
++                raise ImproperlyConfigured(
++                    f"Feed method {attname!r} decorated by {func.__name__!r} needs to "
++                    f"use @functools.wraps."
++                )
+             if code.co_argcount == 2:  # one argument is 'self'
+                 return attr(obj)
+             else:
+diff --git a/tests/syndication_tests/feeds.py b/tests/syndication_tests/feeds.py
+index 223a0b0bb1..a35dc29e20 100644
+--- a/tests/syndication_tests/feeds.py
++++ b/tests/syndication_tests/feeds.py
+@@ -1,3 +1,5 @@
++from functools import wraps
++
+ from django.contrib.syndication import views
+ from django.utils import feedgenerator
+ from django.utils.timezone import get_fixed_timezone
+@@ -5,6 +7,23 @@ from django.utils.timezone import get_fixed_timezone
+ from .models import Article, Entry
+ 
+ 
++def wraps_decorator(f):
++    @wraps(f)
++    def wrapper(*args, **kwargs):
++        value = f(*args, **kwargs)
++        return f"{value} -- decorated by @wraps."
++
++    return wrapper
++
++
++def common_decorator(f):
++    def wrapper(*args, **kwargs):
++        value = f(*args, **kwargs)
++        return f"{value} -- common decorated."
++
++    return wrapper
++
++
+ class TestRss2Feed(views.Feed):
+     title = "My blog"
+     description = "A more thorough description of my blog."
+@@ -47,11 +66,45 @@ class TestRss2FeedWithCallableObject(TestRss2Feed):
+     ttl = TimeToLive()
+ 
+ 
+-class TestRss2FeedWithStaticMethod(TestRss2Feed):
++class TestRss2FeedWithDecoratedMethod(TestRss2Feed):
++    class TimeToLive:
++        @wraps_decorator
++        def __call__(self):
++            return 800
++
++    @staticmethod
++    @wraps_decorator
++    def feed_copyright():
++        return "Copyright (c) 2022, John Doe"
++
++    ttl = TimeToLive()
++
+     @staticmethod
+     def categories():
+         return ("javascript", "vue")
+ 
++    @wraps_decorator
++    def title(self):
++        return "Overridden title"
++
++    @wraps_decorator
++    def item_title(self, item):
++        return f"Overridden item title: {item.title}"
++
++    @wraps_decorator
++    def description(self, obj):
++        return "Overridden description"
++
++    @wraps_decorator
++    def item_description(self):
++        return "Overridden item description"
++
++
++class TestRss2FeedWithWrongDecoratedMethod(TestRss2Feed):
++    @common_decorator
++    def item_description(self, item):
++        return f"Overridden item description: {item.title}"
++
+ 
+ class TestRss2FeedWithGuidIsPermaLinkTrue(TestRss2Feed):
+     def item_guid_is_permalink(self, item):
+diff --git a/tests/syndication_tests/tests.py b/tests/syndication_tests/tests.py
+index 6aaf80c1a9..a68ed879db 100644
+--- a/tests/syndication_tests/tests.py
++++ b/tests/syndication_tests/tests.py
+@@ -202,11 +202,38 @@ class SyndicationFeedTest(FeedTestCase):
+         chan = doc.getElementsByTagName("rss")[0].getElementsByTagName("channel")[0]
+         self.assertChildNodeContent(chan, {"ttl": "700"})
+ 
+-    def test_rss2_feed_with_static_methods(self):
+-        response = self.client.get("/syndication/rss2/with-static-methods/")
++    def test_rss2_feed_with_decorated_methods(self):
++        response = self.client.get("/syndication/rss2/with-decorated-methods/")
+         doc = minidom.parseString(response.content)
+         chan = doc.getElementsByTagName("rss")[0].getElementsByTagName("channel")[0]
+         self.assertCategories(chan, ["javascript", "vue"])
++        self.assertChildNodeContent(
++            chan,
++            {
++                "title": "Overridden title -- decorated by @wraps.",
++                "description": "Overridden description -- decorated by @wraps.",
++                "ttl": "800 -- decorated by @wraps.",
++                "copyright": "Copyright (c) 2022, John Doe -- decorated by @wraps.",
++            },
++        )
++        items = chan.getElementsByTagName("item")
++        self.assertChildNodeContent(
++            items[0],
++            {
++                "title": (
++                    f"Overridden item title: {self.e1.title} -- decorated by @wraps."
++                ),
++                "description": "Overridden item description -- decorated by @wraps.",
++            },
++        )
++
++    def test_rss2_feed_with_wrong_decorated_methods(self):
++        msg = (
++            "Feed method 'item_description' decorated by 'wrapper' needs to use "
++            "@functools.wraps."
++        )
++        with self.assertRaisesMessage(ImproperlyConfigured, msg):
++            self.client.get("/syndication/rss2/with-wrong-decorated-methods/")
+ 
+     def test_rss2_feed_guid_permalink_false(self):
+         """
+diff --git a/tests/syndication_tests/urls.py b/tests/syndication_tests/urls.py
+index 5d2b23bf0a..50f673373e 100644
+--- a/tests/syndication_tests/urls.py
++++ b/tests/syndication_tests/urls.py
+@@ -7,7 +7,14 @@ urlpatterns = [
+     path(
+         "syndication/rss2/with-callable-object/", feeds.TestRss2FeedWithCallableObject()
+     ),
+-    path("syndication/rss2/with-static-methods/", feeds.TestRss2FeedWithStaticMethod()),
++    path(
++        "syndication/rss2/with-decorated-methods/",
++        feeds.TestRss2FeedWithDecoratedMethod(),
++    ),
++    path(
++        "syndication/rss2/with-wrong-decorated-methods/",
++        feeds.TestRss2FeedWithWrongDecoratedMethod(),
++    ),
+     path("syndication/rss2/articles/<int:entry_id>/", feeds.TestGetObjectFeed()),
+     path(
+         "syndication/rss2/guid_ispermalink_true/",
++ git diff 8c0886b068ba4e224dd78104b93c9638b860b398
+diff --git a/django/utils/formats.py b/django/utils/formats.py
+index 3f38322d84..146d6eb839 100644
+--- a/django/utils/formats.py
++++ b/django/utils/formats.py
+@@ -125,13 +125,13 @@ def get_format(format_type, lang=None, use_l10n=None):
+     val = None
+     if use_l10n:
+         for module in get_format_modules(lang):
+-            val = getattr(module, format_type, None)
++            val = getattr(module, str(format_type), None)
+             if val is not None:
+                 break
+     if val is None:
+         if format_type not in FORMAT_SETTINGS:
+             return format_type
+-        val = getattr(settings, format_type)
++        val = getattr(settings, str(format_type))
+     elif format_type in ISO_INPUT_FORMATS:
+         # If a list of input formats from one of the format_modules was
+         # retrieved, make sure the ISO_INPUT_FORMATS are in this list.
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.4.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.2.dev20220526083951) (3.8.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.2.dev20220526083951) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from asgiref>=3.4.1->Django==4.2.dev20220526083951) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.2.dev20220526083951-0.editable-py3-none-any.whl size=27021 sha256=ccbfc3116a7532caabee73619922764ac9bd24daa083d92c2be4496dabfbfe39
+  Stored in directory: /tmp/pip-ephem-wheel-cache-cq2k199m/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.2.dev20220526083951
+    Uninstalling Django-4.2.dev20220526083951:
+      Successfully uninstalled Django-4.2.dev20220526083951
+Successfully installed Django-4.2.dev20220526083951
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 8c0886b068ba4e224dd78104b93c9638b860b398 tests/i18n/tests.py tests/template_tests/filter_tests/test_date.py
+Updated 0 paths from 62ea548fb1
++ git apply -v -
+Checking patch tests/i18n/tests.py...
+Checking patch tests/template_tests/filter_tests/test_date.py...
+Applied patch tests/i18n/tests.py cleanly.
+Applied patch tests/template_tests/filter_tests/test_date.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 i18n.tests template_tests.filter_tests.test_date
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application i18n
+Importing application template_tests
+Found 106 test(s).
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, i18n, messages, sessions, staticfiles, template_tests
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table i18n_testmodel
+    Creating table i18n_company
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+test_streaming_response (i18n.tests.LocaleMiddlewareTests) ... ok
+test_lazy (i18n.tests.TestModels) ... ok
+test_safestr (i18n.tests.TestModels) ... ok
+test_app_translation (i18n.tests.AppResolutionOrderI18NTests) ... ok
+test_check_for_language (i18n.tests.CountrySpecificLanguageTests) ... ok
+test_check_for_language_null (i18n.tests.CountrySpecificLanguageTests) ... ok
+test_get_language_from_request (i18n.tests.CountrySpecificLanguageTests) ... ok
+test_get_language_from_request_null (i18n.tests.CountrySpecificLanguageTests) ... ok
+test_specific_language_codes (i18n.tests.CountrySpecificLanguageTests) ... ok
+test_django_fallback (i18n.tests.DjangoFallbackResolutionOrderI18NTests) ... ok
+test_admin_javascript_supported_input_formats (i18n.tests.FormattingTests)
+The first input format for DATE_INPUT_FORMATS, TIME_INPUT_FORMATS, and ... ok
+test_all_format_strings (i18n.tests.FormattingTests) ... ok
+test_false_like_locale_formats (i18n.tests.FormattingTests)
+The active locale's formats take precedence over the default settings ... ok
+test_format_arbitrary_settings (i18n.tests.FormattingTests) ... ok
+test_get_custom_format (i18n.tests.FormattingTests) ... ok
+test_get_format_lazy_format (i18n.tests.FormattingTests) ... ok
+test_get_format_modules_lang (i18n.tests.FormattingTests) ... ok
+test_iter_format_modules (i18n.tests.FormattingTests)
+Tests the iter_format_modules function. ... ok
+test_iter_format_modules_stability (i18n.tests.FormattingTests)
+Tests the iter_format_modules function always yields format modules in ... ok
+test_l10n_disabled (i18n.tests.FormattingTests)
+Catalan locale with format i18n disabled translations will be used, ... ok
+test_l10n_enabled (i18n.tests.FormattingTests) ... ok
+test_locale_independent (i18n.tests.FormattingTests)
+Localization of numbers ... ok
+test_localize_templatetag_and_filter (i18n.tests.FormattingTests)
+Test the {% localize %} templatetag and the localize/unlocalize filters. ... ok
+test_localized_as_text_as_hidden_input (i18n.tests.FormattingTests)
+Form input with 'as_hidden' or 'as_text' is correctly localized. ... ok
+test_localized_input (i18n.tests.FormattingTests)
+Tests if form input is correctly localized ... ok
+test_localized_input_func (i18n.tests.FormattingTests) ... ok
+test_localized_off_numbers (i18n.tests.FormattingTests)
+A string representation is returned for unlocalized numbers. ... ok
+test_sanitize_separators (i18n.tests.FormattingTests)
+Tests django.utils.formats.sanitize_separators. ... ok
+test_sanitize_strftime_format (i18n.tests.FormattingTests) ... ok
+test_sanitize_strftime_format_with_escaped_percent (i18n.tests.FormattingTests) ... ok
+test_sub_locales (i18n.tests.FormattingTests)
+Check if sublocales fall back to the main locale ... ok
+test_locale_paths_override_app_translation (i18n.tests.LocalePathsResolutionOrderI18NTests) ... ok
+test_locale_paths_translation (i18n.tests.LocalePathsResolutionOrderI18NTests) ... ok
+test_cache_resetting (i18n.tests.MiscTests)
+After setting LANGUAGE, the cache should be cleared and languages ... ok
+test_english_fallback (i18n.tests.MiscTests)
+With a non-English LANGUAGE_CODE and if the active language is English ... ok
+test_get_language_from_path_null (i18n.tests.MiscTests) ... ok
+test_get_language_from_path_real (i18n.tests.MiscTests) ... ok
+test_get_supported_language_variant_null (i18n.tests.MiscTests) ... ok
+test_get_supported_language_variant_real (i18n.tests.MiscTests) ... ok
+test_i18n_patterns_returns_list (i18n.tests.MiscTests) ... ok
+test_parse_language_cookie (i18n.tests.MiscTests)
+Now test that we parse language preferences stored in a cookie correctly. ... ok
+test_parse_literal_http_header (i18n.tests.MiscTests)
+Now test that we parse a literal HTTP header correctly. ... ok
+test_parse_spec_http_header (i18n.tests.MiscTests)
+Testing HTTP header parsing. First, we test that we can parse the ... ok
+test_special_fallback_language (i18n.tests.MiscTests)
+Some languages may have special fallbacks that don't follow the simple ... ok
+test_subsequent_code_fallback_language (i18n.tests.MiscTests)
+Subsequent language codes should be used when the language code is not ... ok
+test_support_for_deprecated_chinese_language_codes (i18n.tests.MiscTests)
+Some browsers (Firefox, IE, etc.) use deprecated language codes. As these ... ok
+test_check_for_language (i18n.tests.NonDjangoLanguageTests) ... ok
+test_non_django_language (i18n.tests.NonDjangoLanguageTests) ... ok
+test_plural_non_django_language (i18n.tests.NonDjangoLanguageTests) ... ok
+test_fallback_language_code (i18n.tests.TestLanguageInfo)
+get_language_info return the first fallback language info if the lang_info ... ok
+test_localized_language_info (i18n.tests.TestLanguageInfo) ... ok
+test_unknown_language_code (i18n.tests.TestLanguageInfo) ... ok
+test_unknown_language_code_and_country_code (i18n.tests.TestLanguageInfo) ... ok
+test_unknown_only_country_code (i18n.tests.TestLanguageInfo) ... ok
+test_sparse_territory_catalog (i18n.tests.TranslationFallbackI18NTests)
+Untranslated strings for territorial language variants use the ... ok
+test_ignores_non_mo_files (i18n.tests.TranslationFileChangedTests) ... ok
+test_resets_cache_with_mo_files (i18n.tests.TranslationFileChangedTests) ... ok
+test_failure_finding_default_mo_files (i18n.tests.TranslationFilesMissing)
+OSError is raised if the default language is unparseable. ... ok
+test_translation_loading (i18n.tests.TranslationLoadingTests)
+"loading_app" does not have translations for all languages provided by ... ok
+test_empty_value (i18n.tests.TranslationTests)
+Empty value must stay empty after being translated (#23196). ... ok
+test_language_bidi (i18n.tests.TranslationTests) ... ok
+test_language_bidi_null (i18n.tests.TranslationTests) ... ok
+test_lazy_objects (i18n.tests.TranslationTests)
+Format string interpolation should work with *_lazy objects. ... ok
+test_lazy_pickle (i18n.tests.TranslationTests) ... ok
+test_maclines (i18n.tests.TranslationTests)
+Translations on files with Mac or DOS end of lines will be converted ... ok
+test_multiple_plurals_per_language (i18n.tests.TranslationTests)
+Normally, French has 2 plurals. As other/locale/fr/LC_MESSAGES/django.po ... ok
+test_ngettext_lazy (i18n.tests.TranslationTests) ... ok
+test_ngettext_lazy_bool (i18n.tests.TranslationTests) ... ok
+test_ngettext_lazy_format_style (i18n.tests.TranslationTests) ... ok
+test_ngettext_lazy_pickle (i18n.tests.TranslationTests) ... ok
+test_override (i18n.tests.TranslationTests) ... ok
+test_override_decorator (i18n.tests.TranslationTests) ... ok
+test_override_exit (i18n.tests.TranslationTests)
+The language restored is the one used when the function was ... ok
+test_pgettext (i18n.tests.TranslationTests) ... ok
+test_plural (i18n.tests.TranslationTests)
+Test plurals with ngettext. French differs from English in that 0 is singular. ... ok
+test_plural_null (i18n.tests.TranslationTests) ... ok
+test_safe_status (i18n.tests.TranslationTests)
+Translating a string requiring no auto-escaping with gettext or pgettext ... ok
+test_to_language (i18n.tests.TranslationTests) ... ok
+test_to_locale (i18n.tests.TranslationTests) ... ok
+test_bug14894_translation_activate_thread_safety (i18n.tests.TranslationThreadSafetyTests) ... ok
+test_default_lang_without_prefix (i18n.tests.UnprefixedDefaultLanguageTests)
+With i18n_patterns(..., prefix_default_language=False), the default ... ok
+test_no_redirect_on_404 (i18n.tests.UnprefixedDefaultLanguageTests)
+A request for a nonexistent URL shouldn't cause a redirect to ... ok
+test_other_lang_with_prefix (i18n.tests.UnprefixedDefaultLanguageTests) ... ok
+test_page_with_dash (i18n.tests.UnprefixedDefaultLanguageTests) ... ok
+test_unprefixed_language_other_than_accept_language (i18n.tests.UnprefixedDefaultLanguageTests) ... ok
+test_round_away_from_one (i18n.tests.UtilsTests) ... ok
+test_i18n_app_dirs (i18n.tests.WatchForTranslationChangesTests) ... ok
+test_i18n_app_dirs_ignore_django_apps (i18n.tests.WatchForTranslationChangesTests) ... ok
+test_i18n_disabled (i18n.tests.WatchForTranslationChangesTests) ... ok
+test_i18n_enabled (i18n.tests.WatchForTranslationChangesTests) ... ok
+test_i18n_local_locale (i18n.tests.WatchForTranslationChangesTests) ... ok
+test_i18n_locale_paths (i18n.tests.WatchForTranslationChangesTests) ... ok
+test_date01 (template_tests.filter_tests.test_date.DateTests) ... ok
+test_date02 (template_tests.filter_tests.test_date.DateTests) ... ok
+test_date02_l10n (template_tests.filter_tests.test_date.DateTests)
+Without arg, the active language's DATE_FORMAT is used. ... ok
+test_date03 (template_tests.filter_tests.test_date.DateTests)
+#9520: Make sure |date doesn't blow up on non-dates ... ok
+test_date04 (template_tests.filter_tests.test_date.DateTests) ... ok
+test_date05 (template_tests.filter_tests.test_date.DateTests) ... ok
+test_date06 (template_tests.filter_tests.test_date.DateTests) ... ok
+test_date07 (template_tests.filter_tests.test_date.DateTests) ... ok
+test_date08 (template_tests.filter_tests.test_date.DateTests) ... ok
+test_date09 (template_tests.filter_tests.test_date.DateTests) ... ok
+test_date_lazy (template_tests.filter_tests.test_date.DateTests) ... ok
+test_date (template_tests.filter_tests.test_date.FunctionTests) ... ok
+test_escape_characters (template_tests.filter_tests.test_date.FunctionTests) ... ok
+test_no_args (template_tests.filter_tests.test_date.FunctionTests) ... ok
+
+----------------------------------------------------------------------
+Ran 106 tests in 1.064s
+
+OK
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout 8c0886b068ba4e224dd78104b93c9638b860b398 tests/i18n/tests.py tests/template_tests/filter_tests/test_date.py
+Updated 2 paths from 62ea548fb1

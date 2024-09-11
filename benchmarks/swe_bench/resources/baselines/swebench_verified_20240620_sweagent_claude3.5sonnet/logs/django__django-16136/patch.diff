@@ -1,0 +1,95 @@
+
+diff --git a/django/views/generic/base.py b/django/views/generic/base.py
+index db1842e3e5..6d7331c6ee 100644
+--- a/django/views/generic/base.py
++++ b/django/views/generic/base.py
+@@ -148,6 +148,10 @@ class View:
+             request.path,
+             extra={"status_code": 405, "request": request},
+         )
++        if self.view_is_async:
++            async def async_response():
++                return HttpResponseNotAllowed(self._allowed_methods())
++            return async_response()
+         return HttpResponseNotAllowed(self._allowed_methods())
+ 
+     def options(self, request, *args, **kwargs):
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..45a623a09d
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,73 @@
++import os
++import django
++from django.conf import settings
++from django.core.asgi import get_asgi_application
++from django.urls import path
++from django.views import View
++from django.http import HttpResponse
++
++# Configure Django settings
++if not settings.configured:
++    settings.configure(
++        ALLOWED_HOSTS=['testserver'],
++        DEBUG=True,
++        SECRET_KEY='secret',
++        ROOT_URLCONF=__name__,
++        MIDDLEWARE=[
++            'django.middleware.common.CommonMiddleware',
++        ],
++    )
++
++# Define the views
++class AsyncDemo(View):
++    """This view supports only GET requests asynchronously"""
++    async def get(self, request):
++        return HttpResponse("Async GET request received")
++
++class SyncDemo(View):
++    """This view supports only POST requests synchronously"""
++    def post(self, request):
++        return HttpResponse("Sync POST request received")
++
++# Define URL patterns
++urlpatterns = [
++    path("async_demo", AsyncDemo.as_view()),
++    path("sync_demo", SyncDemo.as_view()),
++]
++
++# Set up the ASGI application
++application = get_asgi_application()
++
++if __name__ == "__main__":
++    os.environ.setdefault("DJANGO_SETTINGS_MODULE", __name__)
++    django.setup()
++    
++    from django.test import AsyncClient, Client
++    import asyncio
++
++    async def test_requests():
++        async_client = AsyncClient()
++        sync_client = Client()
++
++        # Test AsyncDemo
++        print("Testing AsyncDemo:")
++        response = await async_client.get('/async_demo')
++        print(f"GET Response status code: {response.status_code}")
++        print(f"GET Response content: {response.content}")
++
++        response = await async_client.post('/async_demo')
++        print(f"POST Response status code: {response.status_code}")
++        print(f"POST Response content: {response.content}")
++
++        # Test SyncDemo
++        print("\nTesting SyncDemo:")
++        response = sync_client.post('/sync_demo')
++        print(f"POST Response status code: {response.status_code}")
++        print(f"POST Response content: {response.content}")
++
++        response = sync_client.get('/sync_demo')
++        print(f"GET Response status code: {response.status_code}")
++        print(f"GET Response content: {response.content}")
++
++    asyncio.run(test_requests())
++    print("\nScript completed successfully.")

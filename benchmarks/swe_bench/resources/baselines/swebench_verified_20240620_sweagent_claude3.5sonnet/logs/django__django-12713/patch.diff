@@ -1,0 +1,167 @@
+
+diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py
+index 69a5fbf389..8d2e8963b5 100644
+--- a/django/contrib/admin/options.py
++++ b/django/contrib/admin/options.py
+@@ -249,16 +249,17 @@ class BaseModelAdmin(metaclass=forms.MediaDefiningClass):
+             return None
+         db = kwargs.get('using')
+ 
+-        autocomplete_fields = self.get_autocomplete_fields(request)
+-        if db_field.name in autocomplete_fields:
+-            kwargs['widget'] = AutocompleteSelectMultiple(db_field.remote_field, self.admin_site, using=db)
+-        elif db_field.name in self.raw_id_fields:
+-            kwargs['widget'] = widgets.ManyToManyRawIdWidget(db_field.remote_field, self.admin_site, using=db)
+-        elif db_field.name in [*self.filter_vertical, *self.filter_horizontal]:
+-            kwargs['widget'] = widgets.FilteredSelectMultiple(
+-                db_field.verbose_name,
+-                db_field.name in self.filter_vertical
+-            )
++        if 'widget' not in kwargs:
++            autocomplete_fields = self.get_autocomplete_fields(request)
++            if db_field.name in autocomplete_fields:
++                kwargs['widget'] = AutocompleteSelectMultiple(db_field.remote_field, self.admin_site, using=db)
++            elif db_field.name in self.raw_id_fields:
++                kwargs['widget'] = widgets.ManyToManyRawIdWidget(db_field.remote_field, self.admin_site, using=db)
++            elif db_field.name in [*self.filter_vertical, *self.filter_horizontal]:
++                kwargs['widget'] = widgets.FilteredSelectMultiple(
++                    db_field.verbose_name,
++                    db_field.name in self.filter_vertical
++                )
+ 
+         if 'queryset' not in kwargs:
+             queryset = self.get_field_queryset(db, db_field, request)
+@@ -268,10 +269,12 @@ class BaseModelAdmin(metaclass=forms.MediaDefiningClass):
+         form_field = db_field.formfield(**kwargs)
+         if (isinstance(form_field.widget, SelectMultiple) and
+                 not isinstance(form_field.widget, (CheckboxSelectMultiple, AutocompleteSelectMultiple))):
+-            msg = _('Hold down “Control”, or “Command” on a Mac, to select more than one.')
++            msg = _('Hold down "Control", or "Command" on a Mac, to select more than one.')
+             help_text = form_field.help_text
+             form_field.help_text = format_lazy('{} {}', help_text, msg) if help_text else msg
+         return form_field
++            form_field.help_text = format_lazy('{} {}', help_text, msg) if help_text else msg
++        return form_field
+ 
+     def get_autocomplete_fields(self, request):
+         """
+diff --git a/test_formfield.py b/test_formfield.py
+new file mode 100644
+index 0000000000..2837adc835
+--- /dev/null
++++ b/test_formfield.py
+@@ -0,0 +1,63 @@
++import os
++import django
++from django.conf import settings
++from unittest.mock import Mock
++
++# Set up Django environment
++if not settings.configured:
++    settings.configure(
++        INSTALLED_APPS=[
++            'django.contrib.admin',
++            'django.contrib.auth',
++            'django.contrib.contenttypes',
++            'django.contrib.sessions',
++        ],
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        SECRET_KEY='fake-key',
++    )
++    django.setup()
++
++from django.contrib.admin.options import ModelAdmin
++from django.db import models
++from django.forms.widgets import SelectMultiple, Widget
++
++class RelatedModel(models.Model):
++    class Meta:
++        app_label = 'admin'
++
++class TestModel(models.Model):
++    related = models.ManyToManyField(RelatedModel)
++
++    class Meta:
++        app_label = 'admin'
++
++class TestAdmin(ModelAdmin):
++    def __init__(self, *args, **kwargs):
++        super().__init__(*args, **kwargs)
++        self.admin_site = Mock()
++        self.admin_site._registry = {}
++
++    def formfield_for_manytomany(self, db_field, request, **kwargs):
++        if 'widget' in kwargs:
++            return db_field.formfield(**kwargs)
++        return super().formfield_for_manytomany(db_field, request, **kwargs)
++
++# Test with default widget
++admin = TestAdmin(TestModel, None)
++formfield = admin.formfield_for_manytomany(TestModel._meta.get_field('related'), None)
++print(f"Default widget: {formfield.widget.__class__.__name__}")
++
++# Test with custom widget
++class CustomWidget(SelectMultiple):
++    pass
++
++admin = TestAdmin(TestModel, None)
++formfield = admin.formfield_for_manytomany(TestModel._meta.get_field('related'), None, widget=CustomWidget)
++print(f"Custom widget: {formfield.widget.__class__.__name__}")
++
++print("If you see 'CustomWidget' as the output for the custom widget test, the fix is working correctly.")
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..d2e67b8329
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,45 @@
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++
++INSTALLED_APPS = [
++    'django.contrib.admin',
++    'django.contrib.auth',
++    'django.contrib.contenttypes',
++    'django.contrib.sessions',
++    'django.contrib.messages',
++    'django.contrib.staticfiles',
++    'tests',
++]
++
++MIDDLEWARE = [
++    'django.contrib.sessions.middleware.SessionMiddleware',
++    'django.middleware.common.CommonMiddleware',
++    'django.middleware.csrf.CsrfViewMiddleware',
++    'django.contrib.auth.middleware.AuthenticationMiddleware',
++    'django.contrib.messages.middleware.MessageMiddleware',
++]
++
++TEMPLATES = [
++    {
++        'BACKEND': 'django.template.backends.django.DjangoTemplates',
++        'APP_DIRS': True,
++        'OPTIONS': {
++            'context_processors': [
++                'django.template.context_processors.debug',
++                'django.template.context_processors.request',
++                'django.contrib.auth.context_processors.auth',
++                'django.contrib.messages.context_processors.messages',
++            ],
++        },
++    },
++]
++
++SECRET_KEY = 'fake-key'
++
++USE_TZ = True
++
++ROOT_URLCONF = 'tests.urls'

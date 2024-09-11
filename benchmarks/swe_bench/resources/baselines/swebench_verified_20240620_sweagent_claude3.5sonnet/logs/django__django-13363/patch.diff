@@ -1,0 +1,81 @@
+
+diff --git a/django/db/models/functions/datetime.py b/django/db/models/functions/datetime.py
+index b6594b043b..ab0298d95f 100644
+--- a/django/db/models/functions/datetime.py
++++ b/django/db/models/functions/datetime.py
+@@ -292,7 +292,7 @@ class TruncDate(TruncBase):
+     def as_sql(self, compiler, connection):
+         # Cast to date rather than truncate to date.
+         lhs, lhs_params = compiler.compile(self.lhs)
+-        tzname = timezone.get_current_timezone_name() if settings.USE_TZ else None
++        tzname = self.tzinfo.tzname(None) if self.tzinfo else (timezone.get_current_timezone_name() if settings.USE_TZ else None)
+         sql = connection.ops.datetime_cast_date_sql(lhs, tzname)
+         return sql, lhs_params
+ 
+@@ -305,7 +305,7 @@ class TruncTime(TruncBase):
+     def as_sql(self, compiler, connection):
+         # Cast to time rather than truncate to time.
+         lhs, lhs_params = compiler.compile(self.lhs)
+-        tzname = timezone.get_current_timezone_name() if settings.USE_TZ else None
++        tzname = self.tzinfo.tzname(None) if self.tzinfo else (timezone.get_current_timezone_name() if settings.USE_TZ else None)
+         sql = connection.ops.datetime_cast_time_sql(lhs, tzname)
+         return sql, lhs_params
+ 
+diff --git a/tests/db_functions/models.py b/tests/db_functions/models.py
+index 97584326aa..6bf3d33922 100644
+--- a/tests/db_functions/models.py
++++ b/tests/db_functions/models.py
+@@ -10,10 +10,10 @@ class Author(models.Model):
+     goes_by = models.CharField(max_length=50, null=True, blank=True)
+     age = models.PositiveSmallIntegerField(default=30)
+ 
+-
+-class Article(models.Model):
+-    authors = models.ManyToManyField(Author, related_name='articles')
+-    title = models.CharField(max_length=50)
++    def setUp(self):
++        self.utc_datetime = datetime(2022, 1, 1, 12, 30, 45, tzinfo=timezone.utc)
++        self.ny_tz = ZoneInfo("America/New_York")
++        DTModel.objects.create(start_datetime=self.utc_datetime)
+     summary = models.CharField(max_length=200, null=True, blank=True)
+     text = models.TextField()
+     written = models.DateTimeField()
+diff --git a/tests/db_functions/test_datetime_trunc.py b/tests/db_functions/test_datetime_trunc.py
+new file mode 100644
+index 0000000000..d41b777934
+--- /dev/null
++++ b/tests/db_functions/test_datetime_trunc.py
+@@ -0,0 +1,33 @@
++from datetime import datetime
++
++from django.db.models.functions import TruncDate, TruncTime
++from django.test import SimpleTestCase
++from django.utils import timezone
++import pytz
++
++
++class DateTimeTruncTests(SimpleTestCase):
++    def setUp(self):
++        self.naive_datetime = datetime(2022, 1, 1, 12, 30, 45)
++        self.ny_tz = pytz.timezone("America/New_York")
++        self.aware_datetime = timezone.make_aware(self.naive_datetime, self.ny_tz)
++
++    def test_trunc_date_with_tzinfo(self):
++        trunc_date = TruncDate(self.aware_datetime, tzinfo=self.ny_tz)
++        self.assertIsInstance(trunc_date, TruncDate)
++        self.assertEqual(trunc_date.tzinfo, self.ny_tz)
++
++    def test_trunc_time_with_tzinfo(self):
++        trunc_time = TruncTime(self.aware_datetime, tzinfo=self.ny_tz)
++        self.assertIsInstance(trunc_time, TruncTime)
++        self.assertEqual(trunc_time.tzinfo, self.ny_tz)
++
++    def test_trunc_date_without_tzinfo(self):
++        trunc_date = TruncDate(self.naive_datetime)
++        self.assertIsInstance(trunc_date, TruncDate)
++        self.assertIsNone(trunc_date.tzinfo)
++
++    def test_trunc_time_without_tzinfo(self):
++        trunc_time = TruncTime(self.naive_datetime)
++        self.assertIsInstance(trunc_time, TruncTime)
++        self.assertIsNone(trunc_time.tzinfo)

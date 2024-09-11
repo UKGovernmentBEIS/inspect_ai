@@ -1,0 +1,112 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..cdaf44f546
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,15 @@
++from sympy import *
++
++A = MatrixSymbol('A', 2, 2)
++B = MatrixSymbol('B', 2, 2)
++
++print("String representation:")
++print(A - A*B - B)
++
++print("\nPretty print representation:")
++pprint(A - A*B - B)
++
++print("\nLaTeX representation:")
++print(latex(A - A*B - B))
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sympy/matrices/expressions/matadd.py b/sympy/matrices/expressions/matadd.py
+index bef8e1e9ea..1db953fd6e 100644
+--- a/sympy/matrices/expressions/matadd.py
++++ b/sympy/matrices/expressions/matadd.py
+@@ -114,3 +114,38 @@ def merge_explicit(matadd):
+ 
+ canonicalize = exhaust(condition(lambda x: isinstance(x, MatAdd),
+                                  do_one(*rules)))
++class MatSub(MatrixExpr):
++    """A Subtraction of Matrix Expressions"""
++    is_MatSub = True
++
++    def __new__(cls, A, B):
++        A = sympify(A)
++        B = sympify(B)
++        obj = Basic.__new__(cls, A, B)
++        return obj
++
++    @property
++    def shape(self):
++        return self.args[0].shape
++
++    def _entry(self, i, j):
++        return self.args[0]._entry(i, j) - self.args[1]._entry(i, j)
++
++    def _eval_transpose(self):
++        return MatSub(transpose(self.args[0]), transpose(self.args[1]))
++
++    def _eval_adjoint(self):
++        return MatSub(adjoint(self.args[0]), adjoint(self.args[1]))
++
++    def doit(self, **kwargs):
++        deep = kwargs.get('deep', True)
++        if deep:
++            args = [arg.doit(**kwargs) for arg in self.args]
++        else:
++            args = self.args
++        return MatSub(*args)
++
++    def __str__(self):
++        return f"{self.args[0]} - {self.args[1]}"
++
++    __repr__ = __str__
+diff --git a/sympy/matrices/expressions/matexpr.py b/sympy/matrices/expressions/matexpr.py
+index 07dd23549b..7f397d025e 100644
+--- a/sympy/matrices/expressions/matexpr.py
++++ b/sympy/matrices/expressions/matexpr.py
+@@ -97,12 +97,14 @@ def __radd__(self, other):
+     @_sympifyit('other', NotImplemented)
+     @call_highest_priority('__rsub__')
+     def __sub__(self, other):
+-        return MatAdd(self, -other).doit()
++        from sympy.matrices.expressions.matadd import MatSub
++        return MatSub(self, other).doit()
+ 
+     @_sympifyit('other', NotImplemented)
+     @call_highest_priority('__sub__')
+     def __rsub__(self, other):
+-        return MatAdd(other, -self).doit()
++        from sympy.matrices.expressions.matadd import MatSub
++        return MatSub(other, self).doit()
+ 
+     @_sympifyit('other', NotImplemented)
+     @call_highest_priority('__rmul__')
+diff --git a/test_matrix_sub.py b/test_matrix_sub.py
+new file mode 100644
+index 0000000000..888b2d3db6
+--- /dev/null
++++ b/test_matrix_sub.py
+@@ -0,0 +1,20 @@
++from sympy import *
++
++def test_matrix_subtraction():
++    A = MatrixSymbol('A', 2, 2)
++    B = MatrixSymbol('B', 2, 2)
++    
++    result = A - A*B - B
++    
++    print("String representation:")
++    print(str(result))
++    
++    print("\nPretty print representation:")
++    print(pretty(result))
++    
++    print("\nLaTeX representation:")
++    print(latex(result))
++
++if __name__ == "__main__":
++    test_matrix_subtraction()
++    print("\nTest completed successfully.")

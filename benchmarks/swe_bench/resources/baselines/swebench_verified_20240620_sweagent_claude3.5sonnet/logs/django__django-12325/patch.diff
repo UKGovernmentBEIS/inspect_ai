@@ -1,0 +1,102 @@
+
+diff --git a/django/db/models/base.py b/django/db/models/base.py
+index 8ea6c05ef9..edbc543240 100644
+--- a/django/db/models/base.py
++++ b/django/db/models/base.py
+@@ -204,7 +204,9 @@ class ModelBase(type):
+             for field in base._meta.local_fields:
+                 if isinstance(field, OneToOneField):
+                     related = resolve_relation(new_class, field.remote_field.model)
+-                    parent_links[make_model_tuple(related)] = field
++                    related_tuple = make_model_tuple(related)
++                    if related_tuple not in parent_links or getattr(field, 'parent_link', False):
++                        parent_links[related_tuple] = field
+ 
+         # Track fields inherited from base models.
+         inherited_attributes = set()
+diff --git a/django/db/models/options.py b/django/db/models/options.py
+index a375f6ba1d..9278ade104 100644
+--- a/django/db/models/options.py
++++ b/django/db/models/options.py
+@@ -1,3 +1,4 @@
++from django.db.models.fields.related import OneToOneField
+ import bisect
+ import copy
+ import inspect
+@@ -240,21 +241,25 @@ class Options:
+ 
+         if self.pk is None:
+             if self.parents:
+-                # Promote the first parent link in lieu of adding yet another
+-                # field.
+-                field = next(iter(self.parents.values()))
+-                # Look for a local field with the same name as the
+-                # first parent link. If a local field has already been
+-                # created, use it instead of promoting the parent
+-                already_created = [fld for fld in self.local_fields if fld.name == field.name]
+-                if already_created:
+-                    field = already_created[0]
+-                field.primary_key = True
+-                self.setup_pk(field)
+-                if not field.remote_field.parent_link:
+-                    raise ImproperlyConfigured(
+-                        'Add parent_link=True to %s.' % field,
+-                    )
++                # Look for a OneToOneField with parent_link=True
++                parent_link_fields = [
++                    field for field in self.local_fields
++                    if isinstance(field, OneToOneField) and getattr(field.remote_field, 'parent_link', False)
++                ]
++                
++                if parent_link_fields:
++                    parent_link_field = parent_link_fields[0]
++                else:
++                    # If no parent_link=True field is found, use the first parent link
++                    parent_link_field = next(iter(self.parents.values()))
++                
++                parent_link_field.primary_key = True
++                self.setup_pk(parent_link_field)
++                
++                # Update self.parents to ensure it uses the correct parent link field
++                for parent, field in self.parents.items():
++                    if field != parent_link_field:
++                        self.parents[parent] = parent_link_field
+             else:
+                 auto = AutoField(verbose_name='ID', primary_key=True, auto_created=True)
+                 model.add_to_class('id', auto)
+diff --git a/tests/model_inheritance/test_multiple_onetoone.py b/tests/model_inheritance/test_multiple_onetoone.py
+new file mode 100644
+index 0000000000..2c68913295
+--- /dev/null
++++ b/tests/model_inheritance/test_multiple_onetoone.py
+@@ -0,0 +1,30 @@
++from django.db import models
++from django.test import TestCase
++from django.core.exceptions import ImproperlyConfigured
++
++class TestMultipleOneToOneFields(TestCase):
++    def test_multiple_onetoone_fields(self):
++        class Document(models.Model):
++            pass
++
++        # This should not raise ImproperlyConfigured
++        class Picking(Document):
++            document_ptr = models.OneToOneField(Document, on_delete=models.CASCADE, parent_link=True, related_name='+')
++            origin = models.OneToOneField(Document, related_name='picking', on_delete=models.PROTECT)
++
++        # This should also not raise ImproperlyConfigured
++        class AnotherPicking(Document):
++            origin = models.OneToOneField(Document, related_name='another_picking', on_delete=models.PROTECT)
++            document_ptr = models.OneToOneField(Document, on_delete=models.CASCADE, parent_link=True, related_name='+')
++
++        self.assertTrue(issubclass(Picking, Document))
++        self.assertTrue(issubclass(AnotherPicking, Document))
++
++        # Ensure that the parent_link is correctly identified
++        self.assertEqual(Picking._meta.parents[Document], Picking._meta.get_field('document_ptr'))
++        self.assertEqual(AnotherPicking._meta.parents[Document], AnotherPicking._meta.get_field('document_ptr'))
++
++        # Ensure that the non-parent_link OneToOneField is not treated as a parent link
++        self.assertNotIn(Document, Picking._meta.get_field('origin').related_model._meta.parents)
++        self.assertNotIn(Document, AnotherPicking._meta.get_field('origin').related_model._meta.parents)
++

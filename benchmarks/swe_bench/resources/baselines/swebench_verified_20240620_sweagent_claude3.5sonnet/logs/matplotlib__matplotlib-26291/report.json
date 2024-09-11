@@ -1,0 +1,78 @@
+{
+    "matplotlib__matplotlib-26291": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_inset_axes_tight"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_divider_append_axes",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_twin_axes_empty_and_removed[png]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_axesgrid_colorbar_log_smoketest",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_inset_colorbar_tight_layout_smoketest",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_inset_locator[png]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_inset_axes[png]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_inset_axes_complete",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_fill_facecolor[png]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_zooming_with_inverted_axes[png]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_anchored_direction_arrows[png]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_anchored_direction_arrows_many_args[png]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_axes_locatable_position",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_image_grid_each_left_label_mode_all[png]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_image_grid_single_bottom[png]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_image_grid_label_mode_deprecation_warning",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_image_grid[png]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_gettightbbox",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_picking_callbacks_overlap[gca-gca-big]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_picking_callbacks_overlap[gca-gca-small]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_picking_callbacks_overlap[host-host-big]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_picking_callbacks_overlap[host-host-small]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_picking_callbacks_overlap[host-parasite-big]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_picking_callbacks_overlap[host-parasite-small]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_picking_callbacks_overlap[parasite-host-big]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_picking_callbacks_overlap[parasite-host-small]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_picking_callbacks_overlap[parasite-parasite-big]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_picking_callbacks_overlap[parasite-parasite-small]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_anchored_artists[png]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_hbox_divider",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_vbox_divider",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_axes_class_tuple",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_grid_axes_lists",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_grid_axes_position[row]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_grid_axes_position[column]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_grid_errors[rect0-None-TypeError-Incorrect",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_grid_errors[111--1-ValueError-ngrids",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_grid_errors[111-7-ValueError-ngrids",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_divider_errors[None-TypeError-anchor",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_divider_errors[CC-ValueError-'CC'",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_divider_errors[anchor2-TypeError-anchor",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_mark_inset_unstales_viewlim[png]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_auto_adjustable",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_rgb_axes[png]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_insetposition[png]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_imagegrid_cbar_mode_edge[png]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_imagegrid",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_removal",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_anchored_locator_base_call[png]",
+                    "lib/mpl_toolkits/axes_grid1/tests/test_axes_grid1.py::test_grid_with_axes_class_not_overriding_axis"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

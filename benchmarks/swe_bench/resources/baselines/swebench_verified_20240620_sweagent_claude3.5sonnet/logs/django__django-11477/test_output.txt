@@ -1,0 +1,614 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/urls/base.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test_translate_url.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit e28671187903e6aca2428374fdd504fca3032aee
+Author: Tom Forbes <tom@tomforb.es>
+Date:   Mon Jun 24 08:48:59 2019 +0100
+
+    Simplified handling of non-existent paths in autoreloader with Path.resolve(strict=True).
+
+diff --git a/django/utils/autoreload.py b/django/utils/autoreload.py
+index 9a3b10bf20..d33ee9096d 100644
+--- a/django/utils/autoreload.py
++++ b/django/utils/autoreload.py
+@@ -136,11 +136,13 @@ def iter_modules_and_files(modules, extra_files):
+         if not filename:
+             continue
+         path = pathlib.Path(filename)
+-        if not path.exists():
++        try:
++            resolved_path = path.resolve(strict=True).absolute()
++        except FileNotFoundError:
+             # The module could have been removed, don't fail loudly if this
+             # is the case.
+             continue
+-        results.add(path.resolve().absolute())
++        results.add(resolved_path)
+     return frozenset(results)
+ 
+ 
+@@ -182,14 +184,15 @@ def sys_path_directories():
+     """
+     for path in sys.path:
+         path = Path(path)
+-        if not path.exists():
++        try:
++            resolved_path = path.resolve(strict=True).absolute()
++        except FileNotFoundError:
+             continue
+-        path = path.resolve().absolute()
+         # If the path is a file (like a zip file), watch the parent directory.
+-        if path.is_file():
+-            yield path.parent
++        if resolved_path.is_file():
++            yield resolved_path.parent
+         else:
+-            yield path
++            yield resolved_path
+ 
+ 
+ def get_child_arguments():
++ git diff e28671187903e6aca2428374fdd504fca3032aee
+diff --git a/django/urls/base.py b/django/urls/base.py
+index 0e1c3d909c..04f1128070 100644
+--- a/django/urls/base.py
++++ b/django/urls/base.py
+@@ -164,17 +164,24 @@ def translate_url(url, lang_code):
+     Return the original URL if no translated version is found.
+     """
+     parsed = urlsplit(url)
++    path = parsed.path
+     try:
+-        match = resolve(parsed.path)
++        match = resolve(path)
+     except Resolver404:
+-        pass
++        # If the path couldn't be resolved, we want to add the language code
++        path = f'/{lang_code}/{path.lstrip("/")}'
+     else:
+         to_be_reversed = "%s:%s" % (match.namespace, match.url_name) if match.namespace else match.url_name
+         with override(lang_code):
+             try:
+-                url = reverse(to_be_reversed, args=match.args, kwargs=match.kwargs)
++                # Filter out kwargs that are not present in the reversed URL
++                filtered_kwargs = {k: v for k, v in match.kwargs.items() if f'{k}=' in url}
++                path = reverse(to_be_reversed, args=match.args, kwargs=filtered_kwargs)
+             except NoReverseMatch:
+                 pass
+-            else:
+-                url = urlunsplit((parsed.scheme, parsed.netloc, url, parsed.query, parsed.fragment))
+-    return url
++    
++    # Add the language code to the beginning of the path if it's not already there
++    if not path.startswith(f'/{lang_code}/'):
++        path = f'/{lang_code}/{path.lstrip("/")}'
++    
++    return urlunsplit((parsed.scheme, parsed.netloc, path, parsed.query, parsed.fragment))
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0.dev20190624074859) (2024.1)
+Requirement already satisfied: sqlparse in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0.dev20190624074859) (0.4.4)
+Requirement already satisfied: asgiref in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0.dev20190624074859) (3.4.1)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref->Django==3.0.dev20190624074859) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.0.dev20190624074859
+    Uninstalling Django-3.0.dev20190624074859:
+      Successfully uninstalled Django-3.0.dev20190624074859
+  Running setup.py develop for Django
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+Successfully installed Django-3.0.dev20190624074859
++ git checkout e28671187903e6aca2428374fdd504fca3032aee tests/i18n/patterns/tests.py tests/i18n/patterns/urls/default.py tests/urlpatterns/path_urls.py tests/urlpatterns/tests.py tests/urlpatterns_reverse/tests.py
+Updated 0 paths from 752348dce5
++ git apply -v -
+Checking patch tests/i18n/patterns/tests.py...
+Checking patch tests/i18n/patterns/urls/default.py...
+Checking patch tests/urlpatterns/path_urls.py...
+Checking patch tests/urlpatterns/tests.py...
+Checking patch tests/urlpatterns_reverse/tests.py...
+Applied patch tests/i18n/patterns/tests.py cleanly.
+Applied patch tests/i18n/patterns/urls/default.py cleanly.
+Applied patch tests/urlpatterns/path_urls.py cleanly.
+Applied patch tests/urlpatterns/tests.py cleanly.
+Applied patch tests/urlpatterns_reverse/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 i18n.patterns.tests i18n.patterns.urls.default urlpatterns.path_urls urlpatterns.tests urlpatterns_reverse.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+test_inserting_reverse_lazy_into_string (urlpatterns_reverse.tests.ReverseLazyTest) ... ok
+test_redirect_with_lazy_reverse (urlpatterns_reverse.tests.ReverseLazyTest) ... ok
+test_user_permission_with_lazy_reverse (urlpatterns_reverse.tests.ReverseLazyTest) ... ok
+test_no_lang_activate (i18n.patterns.tests.PathUnusedTests) ... ok
+test_request_urlconf_considered (i18n.patterns.tests.RequestURLConfTests) ... ok
+test_prefixed_i18n_disabled (i18n.patterns.tests.URLDisabledTests) ... ok
+test_account_register (i18n.patterns.tests.URLNamespaceTests) ... ok
+test_invalid_prefix_use (i18n.patterns.tests.URLPrefixTests) ... ok
+test_not_prefixed (i18n.patterns.tests.URLPrefixTests) ... ok
+test_prefixed (i18n.patterns.tests.URLPrefixTests) ... ok
+test_custom_redirect_class (i18n.patterns.tests.URLRedirectTests) ... ok
+test_en_redirect (i18n.patterns.tests.URLRedirectTests) ... ok
+test_en_redirect_wrong_url (i18n.patterns.tests.URLRedirectTests) ... ok
+test_nl_redirect (i18n.patterns.tests.URLRedirectTests) ... ok
+test_nl_redirect_wrong_url (i18n.patterns.tests.URLRedirectTests) ... ok
+test_no_prefix_response (i18n.patterns.tests.URLRedirectTests) ... ok
+test_pl_pl_redirect (i18n.patterns.tests.URLRedirectTests) ... ok
+test_pt_br_redirect (i18n.patterns.tests.URLRedirectTests) ... ok
+test_language_prefix_with_script_prefix (i18n.patterns.tests.URLRedirectWithScriptAliasTests) ... ok
+test_en_redirect (i18n.patterns.tests.URLRedirectWithoutTrailingSlashSettingTests) ... ok
+test_not_prefixed_redirect (i18n.patterns.tests.URLRedirectWithoutTrailingSlashSettingTests) ... ok
+test_en_redirect (i18n.patterns.tests.URLRedirectWithoutTrailingSlashTests) ... ok
+test_not_prefixed_redirect (i18n.patterns.tests.URLRedirectWithoutTrailingSlashTests) ... ok
+test_en_path (i18n.patterns.tests.URLResponseTests) ... ok
+test_en_url (i18n.patterns.tests.URLResponseTests) ... ok
+test_nl_path (i18n.patterns.tests.URLResponseTests) ... ok
+test_nl_url (i18n.patterns.tests.URLResponseTests) ... ok
+test_not_prefixed_with_prefix (i18n.patterns.tests.URLResponseTests) ... ok
+test_pt_br_url (i18n.patterns.tests.URLResponseTests) ... ok
+test_wrong_en_prefix (i18n.patterns.tests.URLResponseTests) ... ok
+test_wrong_nl_prefix (i18n.patterns.tests.URLResponseTests) ... ok
+test_args (i18n.patterns.tests.URLTagTests) ... ok
+test_context (i18n.patterns.tests.URLTagTests) ... ok
+test_kwargs (i18n.patterns.tests.URLTagTests) ... ok
+test_strings_only (i18n.patterns.tests.URLTagTests) ... ok
+test_no_prefix_translated (i18n.patterns.tests.URLTranslationTests) ... ok
+test_translate_url_utility (i18n.patterns.tests.URLTranslationTests) ... FAIL
+test_users_url (i18n.patterns.tests.URLTranslationTests) ... ok
+test_en_redirect (i18n.patterns.tests.URLVaryAcceptLanguageTests) ... ok
+test_no_prefix_response (i18n.patterns.tests.URLVaryAcceptLanguageTests) ... ok
+test_resolve_type_error_propagates (urlpatterns.tests.ConversionExceptionTests) ... ok
+test_resolve_value_error_means_no_match (urlpatterns.tests.ConversionExceptionTests) ... ok
+test_reverse_value_error_propagates (urlpatterns.tests.ConversionExceptionTests) ... ok
+test_matching_urls (urlpatterns.tests.ConverterTests) ... ok
+test_nonmatching_urls (urlpatterns.tests.ConverterTests) ... ok
+test_allows_non_ascii_but_valid_identifiers (urlpatterns.tests.ParameterRestrictionTests) ... ok
+test_non_identifier_parameter_name_causes_exception (urlpatterns.tests.ParameterRestrictionTests) ... ok
+test_converter_resolve (urlpatterns.tests.SimplifiedURLTests) ... ok
+test_converter_reverse (urlpatterns.tests.SimplifiedURLTests) ... ok
+test_converter_reverse_with_second_layer_instance_namespace (urlpatterns.tests.SimplifiedURLTests) ... ok
+test_invalid_converter (urlpatterns.tests.SimplifiedURLTests) ... ok
+test_path_inclusion_is_matchable (urlpatterns.tests.SimplifiedURLTests) ... ok
+test_path_inclusion_is_reversible (urlpatterns.tests.SimplifiedURLTests) ... ok
+test_path_lookup_with_double_inclusion (urlpatterns.tests.SimplifiedURLTests) ... ok
+test_path_lookup_with_empty_string_inclusion (urlpatterns.tests.SimplifiedURLTests) ... ok
+test_path_lookup_with_inclusion (urlpatterns.tests.SimplifiedURLTests) ... ok
+test_path_lookup_with_multiple_paramaters (urlpatterns.tests.SimplifiedURLTests) ... ok
+test_path_lookup_with_typed_parameters (urlpatterns.tests.SimplifiedURLTests) ... ok
+test_path_lookup_without_parameters (urlpatterns.tests.SimplifiedURLTests) ... ok
+test_path_reverse_with_parameter (urlpatterns.tests.SimplifiedURLTests) ... ok
+test_path_reverse_without_parameter (urlpatterns.tests.SimplifiedURLTests) ... ok
+test_re_path (urlpatterns.tests.SimplifiedURLTests) ... ok
+test_re_path_with_optional_parameter (urlpatterns.tests.SimplifiedURLTests) ... test_two_variable_at_start_of_path_pattern (urlpatterns.tests.SimplifiedURLTests) ... ok
+test_default_handler (urlpatterns_reverse.tests.DefaultErrorHandlerTests)
+If the urls.py doesn't specify handlers, the defaults are used ... ok
+test_invalid_regex (urlpatterns_reverse.tests.ErroneousViewTests) ... ok
+test_noncallable_view (urlpatterns_reverse.tests.ErroneousViewTests) ... ok
+test_callable_handlers (urlpatterns_reverse.tests.ErrorHandlerResolutionTests) ... ok
+test_named_handlers (urlpatterns_reverse.tests.ErrorHandlerResolutionTests) ... ok
+test_include_2_tuple (urlpatterns_reverse.tests.IncludeTests) ... ok
+test_include_2_tuple_namespace (urlpatterns_reverse.tests.IncludeTests) ... ok
+test_include_3_tuple (urlpatterns_reverse.tests.IncludeTests) ... ok
+test_include_3_tuple_namespace (urlpatterns_reverse.tests.IncludeTests) ... ok
+test_include_4_tuple (urlpatterns_reverse.tests.IncludeTests) ... ok
+test_include_app_name (urlpatterns_reverse.tests.IncludeTests) ... ok
+test_include_app_name_namespace (urlpatterns_reverse.tests.IncludeTests) ... ok
+test_include_namespace (urlpatterns_reverse.tests.IncludeTests) ... ok
+test_include_urls (urlpatterns_reverse.tests.IncludeTests) ... ok
+test_invalid_resolve (urlpatterns_reverse.tests.LookaheadTests) ... ok
+test_invalid_reverse (urlpatterns_reverse.tests.LookaheadTests) ... ok
+test_valid_resolve (urlpatterns_reverse.tests.LookaheadTests) ... ok
+test_valid_reverse (urlpatterns_reverse.tests.LookaheadTests) ... ok
+test_ambiguous_object (urlpatterns_reverse.tests.NamespaceTests) ... ok
+test_ambiguous_urlpattern (urlpatterns_reverse.tests.NamespaceTests) ... ok
+test_app_lookup_object (urlpatterns_reverse.tests.NamespaceTests)
+A default application namespace can be used for lookup. ... ok
+test_app_lookup_object_with_default (urlpatterns_reverse.tests.NamespaceTests)
+A default application namespace is sensitive to the current app. ... ok
+test_app_lookup_object_without_default (urlpatterns_reverse.tests.NamespaceTests) ... ok
+test_app_name_pattern (urlpatterns_reverse.tests.NamespaceTests) ... ok
+test_app_object (urlpatterns_reverse.tests.NamespaceTests) ... ok
+test_app_object_default_namespace (urlpatterns_reverse.tests.NamespaceTests) ... ok
+test_current_app_no_partial_match (urlpatterns_reverse.tests.NamespaceTests)
+current_app shouldn't be used unless it matches the whole path. ... ok
+test_embedded_namespace_object (urlpatterns_reverse.tests.NamespaceTests)
+Namespaces can be installed anywhere in the URL pattern tree. ... ok
+test_multiple_namespace_pattern (urlpatterns_reverse.tests.NamespaceTests)
+Namespaces can be embedded. ... ok
+test_namespace_object (urlpatterns_reverse.tests.NamespaceTests)
+Dynamic URL objects can be found using a namespace. ... ok
+test_namespace_pattern (urlpatterns_reverse.tests.NamespaceTests)
+Namespaces can be applied to include()'d urlpatterns. ... ok
+test_namespace_pattern_with_variable_prefix (urlpatterns_reverse.tests.NamespaceTests) ... ok
+test_namespaces_with_variables (urlpatterns_reverse.tests.NamespaceTests)
+Namespace prefixes can capture variables. ... ok
+test_nested_app_lookup (urlpatterns_reverse.tests.NamespaceTests) ... ok
+test_nested_namespace_pattern (urlpatterns_reverse.tests.NamespaceTests)
+Namespaces can be nested. ... ok
+test_non_existent_namespace (urlpatterns_reverse.tests.NamespaceTests)
+Nonexistent namespaces raise errors. ... ok
+test_normal_name (urlpatterns_reverse.tests.NamespaceTests)
+Normal lookups work as expected. ... ok
+test_simple_included_name (urlpatterns_reverse.tests.NamespaceTests)
+Normal lookups work on names included from other patterns. ... ok
+test_special_chars_namespace (urlpatterns_reverse.tests.NamespaceTests) ... ok
+test_no_handler_exception (urlpatterns_reverse.tests.NoRootUrlConfTests) ... ok
+test_no_urls_exception (urlpatterns_reverse.tests.NoURLPatternsTests) ... ok
+test_reverse_inner_in_response_middleware (urlpatterns_reverse.tests.RequestURLconfTests) ... ok
+test_reverse_inner_in_streaming (urlpatterns_reverse.tests.RequestURLconfTests) ... ok
+test_reverse_outer_in_response_middleware (urlpatterns_reverse.tests.RequestURLconfTests) ... ok
+test_reverse_outer_in_streaming (urlpatterns_reverse.tests.RequestURLconfTests) ... ok
+test_urlconf (urlpatterns_reverse.tests.RequestURLconfTests) ... ok
+test_urlconf_is_reset_after_request (urlpatterns_reverse.tests.RequestURLconfTests)
+The URLconf is reset after each request. ... ok
+test_urlconf_overridden (urlpatterns_reverse.tests.RequestURLconfTests) ... ok
+test_urlconf_overridden_with_null (urlpatterns_reverse.tests.RequestURLconfTests) ... ok
+test_repr (urlpatterns_reverse.tests.ResolverMatchTests) ... ok
+test_resolver_match_on_request (urlpatterns_reverse.tests.ResolverMatchTests) ... ok
+test_resolver_match_on_request_before_resolution (urlpatterns_reverse.tests.ResolverMatchTests) ... ok
+test_urlpattern_resolve (urlpatterns_reverse.tests.ResolverMatchTests) ... ok
+test_404_tried_urls_have_names (urlpatterns_reverse.tests.ResolverTests) ... ok
+test_namespaced_view_detail (urlpatterns_reverse.tests.ResolverTests) ... ok
+test_non_regex (urlpatterns_reverse.tests.ResolverTests) ... ok
+test_populate_concurrency (urlpatterns_reverse.tests.ResolverTests) ... ok
+test_resolver_repr (urlpatterns_reverse.tests.ResolverTests) ... ok
+test_resolver_reverse (urlpatterns_reverse.tests.ResolverTests) ... ok
+test_resolver_reverse_conflict (urlpatterns_reverse.tests.ResolverTests) ... ok
+test_reverse_lazy_object_coercion_by_resolve (urlpatterns_reverse.tests.ResolverTests) ... ok
+test_view_detail_as_method (urlpatterns_reverse.tests.ResolverTests) ... ok
+test_lazy_in_settings (urlpatterns_reverse.tests.ReverseLazySettingsTest) ... ok
+test_no_illegal_imports (urlpatterns_reverse.tests.ReverseShortcutTests) ... ok
+test_redirect_to_object (urlpatterns_reverse.tests.ReverseShortcutTests) ... ok
+test_redirect_to_url (urlpatterns_reverse.tests.ReverseShortcutTests) ... ok
+test_redirect_to_view_name (urlpatterns_reverse.tests.ReverseShortcutTests) ... ok
+test_redirect_view_object (urlpatterns_reverse.tests.ReverseShortcutTests) ... ok
+test_reverse_by_path_nested (urlpatterns_reverse.tests.ReverseShortcutTests) ... ok
+test_illegal_args_message (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_illegal_kwargs_message (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_mixing_args_and_kwargs (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_no_args_message (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_non_urlsafe_prefix_with_args (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_patterns_reported (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_prefix_braces (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_prefix_format_char (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_prefix_parenthesis (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_reverse_none (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_script_name_escaping (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_urlpattern_reverse (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_view_not_found_message (urlpatterns_reverse.tests.URLPatternReverse) ... ok
+test_attributeerror_not_hidden (urlpatterns_reverse.tests.ViewLoadingTests) ... ok
+test_module_does_not_exist (urlpatterns_reverse.tests.ViewLoadingTests) ... ok
+test_non_string_value (urlpatterns_reverse.tests.ViewLoadingTests) ... ok
+test_not_callable (urlpatterns_reverse.tests.ViewLoadingTests) ... ok
+test_parent_module_does_not_exist (urlpatterns_reverse.tests.ViewLoadingTests) ... ok
+test_string_without_dot (urlpatterns_reverse.tests.ViewLoadingTests) ... ok
+test_view_does_not_exist (urlpatterns_reverse.tests.ViewLoadingTests) ... ok
+test_view_loading (urlpatterns_reverse.tests.ViewLoadingTests) ... ok
+
+======================================================================
+FAIL: test_translate_url_utility (i18n.patterns.tests.URLTranslationTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/i18n/patterns/tests.py", line 154, in test_translate_url_utility
+    self.assertEqual(translate_url('/en/nonexistent/', 'nl'), '/en/nonexistent/')
+AssertionError: '/nl/en/nonexistent/' != '/en/nonexistent/'
+- /nl/en/nonexistent/
+? ---
++ /en/nonexistent/
+
+
+======================================================================
+FAIL: test_re_path_with_optional_parameter (urlpatterns.tests.SimplifiedURLTests) (url='/regex_optional/1/')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/urlpatterns/tests.py", line 65, in test_re_path_with_optional_parameter
+    self.assertEqual(match.kwargs, kwargs)
+AssertionError: {'arg1': '1', 'arg2': None} != {'arg1': '1'}
+- {'arg1': '1', 'arg2': None}
++ {'arg1': '1'}
+
+----------------------------------------------------------------------
+Ran 154 tests in 1.706s
+
+FAILED (failures=2)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application i18n
+Importing application urlpatterns
+Importing application urlpatterns_reverse
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, i18n, messages, sessions, staticfiles, urlpatterns, urlpatterns_reverse
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table i18n_testmodel
+    Creating table i18n_company
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
++ git checkout e28671187903e6aca2428374fdd504fca3032aee tests/i18n/patterns/tests.py tests/i18n/patterns/urls/default.py tests/urlpatterns/path_urls.py tests/urlpatterns/tests.py tests/urlpatterns_reverse/tests.py
+Updated 5 paths from 752348dce5

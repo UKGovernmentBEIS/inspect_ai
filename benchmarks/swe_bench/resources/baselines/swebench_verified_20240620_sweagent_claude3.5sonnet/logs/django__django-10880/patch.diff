@@ -1,0 +1,61 @@
+
+diff --git a/django/db/models/aggregates.py b/django/db/models/aggregates.py
+index ac0b62d0bf..ea88c54b0d 100644
+--- a/django/db/models/aggregates.py
++++ b/django/db/models/aggregates.py
+@@ -68,7 +68,7 @@ class Aggregate(Func):
+         return []
+ 
+     def as_sql(self, compiler, connection, **extra_context):
+-        extra_context['distinct'] = 'DISTINCT' if self.distinct else ''
++        extra_context['distinct'] = 'DISTINCT ' if self.distinct else ''
+         if self.filter:
+             if connection.features.supports_aggregate_filter_clause:
+                 filter_sql, filter_params = self.filter.as_sql(compiler, connection)
+diff --git a/tests/aggregation/test_count_distinct_case.py b/tests/aggregation/test_count_distinct_case.py
+new file mode 100644
+index 0000000000..f3cab2bd7b
+--- /dev/null
++++ b/tests/aggregation/test_count_distinct_case.py
+@@ -0,0 +1,41 @@
++from django.db.models import Case, Count, When, Value, IntegerField
++from django.test import TestCase
++from django.contrib.auth.models import User
++
++class CountDistinctCaseTests(TestCase):
++    @classmethod
++    def setUpTestData(cls):
++        User.objects.bulk_create([
++            User(username='user1', is_active=True, is_staff=False),
++            User(username='user2', is_active=True, is_staff=False),
++            User(username='user3', is_active=False, is_staff=False),
++            User(username='user4', is_active=True, is_staff=True),
++        ])
++
++    def test_count_distinct_case_single_value(self):
++        query = User.objects.aggregate(
++            active_count=Count(
++                Case(
++                    When(is_active=True, then=Value(1)),
++                    output_field=IntegerField(),
++                ),
++                distinct=True
++            )
++        )
++        print(f"Single value query result: {query}")
++        self.assertEqual(query['active_count'], 1)
++
++    def test_count_distinct_case_multiple_values(self):
++        query = User.objects.aggregate(
++            status_count=Count(
++                Case(
++                    When(is_active=True, is_staff=False, then=Value(1)),
++                    When(is_active=True, is_staff=True, then=Value(2)),
++                    When(is_active=False, then=Value(3)),
++                    output_field=IntegerField(),
++                ),
++                distinct=True
++            )
++        )
++        print(f"Multiple values query result: {query}")
++        self.assertEqual(query['status_count'], 3)

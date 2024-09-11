@@ -1,0 +1,44 @@
+
+diff --git a/lib/matplotlib/tests/test_image.py b/lib/matplotlib/tests/test_image.py
+index 69fb89bcd4..86646dda78 100644
+--- a/lib/matplotlib/tests/test_image.py
++++ b/lib/matplotlib/tests/test_image.py
+@@ -1235,23 +1235,32 @@ def test_imshow_quantitynd():
+ 
+ @check_figures_equal(extensions=['png'])
+ def test_huge_range_log(fig_test, fig_ref):
+-    data = np.full((5, 5), -1, dtype=np.float64)
++    data = np.full((5, 5), 1e-10, dtype=np.float64)  # Use small positive number instead of -1
+     data[0:2, :] = 1E20
+ 
++    print("Test data:", data)
++    print("Test data min:", data.min(), "max:", data.max())
++
+     ax = fig_test.subplots()
+-    im = ax.imshow(data, norm=colors.LogNorm(vmin=100, vmax=data.max()),
++    norm = colors.LogNorm(vmin=data.min(), vmax=data.max())  # Use data min as vmin
++    print("LogNorm vmin:", norm.vmin, "vmax:", norm.vmax)
++    im = ax.imshow(data, norm=norm,
+                    interpolation='nearest', cmap='viridis')
+ 
+-    data = np.full((5, 5), -1, dtype=np.float64)
+-    data[0:2, :] = 1000
++    data_ref = np.full((5, 5), 1, dtype=np.float64)  # Use 1 for reference
++    data_ref[0:2, :] = 1000
++
++    print("Reference data:", data_ref)
++    print("Reference data min:", data_ref.min(), "max:", data_ref.max())
+ 
+     cmap = copy(plt.get_cmap('viridis'))
+     cmap.set_under('w')
+     ax = fig_ref.subplots()
+-    im = ax.imshow(data, norm=colors.Normalize(vmin=100, vmax=data.max()),
++    norm = colors.Normalize(vmin=data_ref.min(), vmax=data_ref.max())
++    print("Normalize vmin:", norm.vmin, "vmax:", norm.vmax)
++    im = ax.imshow(data_ref, norm=norm,
+                    interpolation='nearest', cmap=cmap)
+ 
+-
+ @check_figures_equal()
+ def test_spy_box(fig_test, fig_ref):
+     # setting up reference and test

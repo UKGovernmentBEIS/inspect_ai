@@ -1,0 +1,791 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
++ git show
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   astropy/units/decorators.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	poc.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
+commit 732d89c2940156bdc0e200bb36dc38b5e424bcba
+Merge: 54e700fca9 c5040acce1
+Author: Nadia Dencheva <nadia.astropy@gmail.com>
+Date:   Wed Apr 4 17:23:17 2018 -0400
+
+    Merge pull request #7199 from jehturner/issue_6819_part_2
+    
+    Make FittingWithOutlierRemoval handle model sets
+
++ git diff 732d89c2940156bdc0e200bb36dc38b5e424bcba
+diff --git a/astropy/units/decorators.py b/astropy/units/decorators.py
+index 8bece5a850..163e7c0216 100644
+--- a/astropy/units/decorators.py
++++ b/astropy/units/decorators.py
+@@ -221,7 +221,10 @@ class QuantityInput:
+             with add_enabled_equivalencies(self.equivalencies):
+                 return_ = wrapped_function(*func_args, **func_kwargs)
+             if wrapped_signature.return_annotation is not inspect.Signature.empty:
+-                return return_.to(wrapped_signature.return_annotation)
++                if return_ is not None:
++                    return return_.to(wrapped_signature.return_annotation)
++                else:
++                    return None
+             else:
+                 return return_
+ 
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e '.[test]' --verbose
+Using pip 21.2.2 from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/pip (python 3.6)
+Obtaining file:///testbed
+    Running command python setup.py egg_info
+    running egg_info
+    creating /tmp/pip-pip-egg-info-czt3pyvj/astropy.egg-info
+    writing /tmp/pip-pip-egg-info-czt3pyvj/astropy.egg-info/PKG-INFO
+    writing dependency_links to /tmp/pip-pip-egg-info-czt3pyvj/astropy.egg-info/dependency_links.txt
+    writing entry points to /tmp/pip-pip-egg-info-czt3pyvj/astropy.egg-info/entry_points.txt
+    writing requirements to /tmp/pip-pip-egg-info-czt3pyvj/astropy.egg-info/requires.txt
+    writing top-level names to /tmp/pip-pip-egg-info-czt3pyvj/astropy.egg-info/top_level.txt
+    writing manifest file '/tmp/pip-pip-egg-info-czt3pyvj/astropy.egg-info/SOURCES.txt'
+    reading manifest file '/tmp/pip-pip-egg-info-czt3pyvj/astropy.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    warning: no files found matching 'astropy/utils/misc/data/.hidden_file.txt'
+    warning: no files found matching '*' under directory 'scripts'
+    warning: no files found matching '*' under directory 'astropy/sphinx/themes'
+    no previously-included directories found matching 'docs/_build'
+    no previously-included directories found matching 'build'
+    warning: no files found matching '*.pyx' under directory 'astropy_helpers/astropy_helpers'
+    warning: no files found matching '*.h' under directory 'astropy_helpers/astropy_helpers'
+    no previously-included directories found matching 'astropy_helpers/build'
+    warning: no previously-included files matching '*.o' found anywhere in distribution
+    writing manifest file '/tmp/pip-pip-egg-info-czt3pyvj/astropy.egg-info/SOURCES.txt'
+Requirement already satisfied: numpy>=1.10.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from astropy==3.1.dev21681) (1.16.0)
+Requirement already satisfied: pytest-astropy in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from astropy==3.1.dev21681) (0.2.1)
+Requirement already satisfied: pytest-openfiles>=0.2.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev21681) (0.2.0)
+Requirement already satisfied: pytest-remotedata>=0.2.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev21681) (0.2.0)
+Requirement already satisfied: pytest-doctestplus>=0.1.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev21681) (0.1.2)
+Requirement already satisfied: pytest>=3.1.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev21681) (3.3.1)
+Requirement already satisfied: pytest-arraydiff in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev21681) (0.1)
+Requirement already satisfied: six>=1.10.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest>=3.1.0->pytest-astropy->astropy==3.1.dev21681) (1.16.0)
+Requirement already satisfied: attrs>=17.2.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest>=3.1.0->pytest-astropy->astropy==3.1.dev21681) (17.3.0)
+Requirement already satisfied: py>=1.5.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest>=3.1.0->pytest-astropy->astropy==3.1.dev21681) (1.11.0)
+Requirement already satisfied: setuptools in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest>=3.1.0->pytest-astropy->astropy==3.1.dev21681) (38.2.4)
+Requirement already satisfied: pluggy<0.7,>=0.5 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest>=3.1.0->pytest-astropy->astropy==3.1.dev21681) (0.6.0)
+Requirement already satisfied: psutil in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-openfiles>=0.2.0->pytest-astropy->astropy==3.1.dev21681) (5.4.2)
+Installing collected packages: astropy
+  Attempting uninstall: astropy
+    Found existing installation: astropy 3.1.dev21681
+    Uninstalling astropy-3.1.dev21681:
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fits2bitmap
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fitscheck
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fitsdiff
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fitsheader
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fitsinfo
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/samp_hub
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/showtable
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/volint
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/wcslint
+      Removing file or directory /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/astropy.egg-link
+      Removing pth entries from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/easy-install.pth:
+      Removing entry: /testbed
+      Successfully uninstalled astropy-3.1.dev21681
+  Running setup.py develop for astropy
+    Running command /opt/miniconda3/envs/testbed/bin/python -c 'import io, os, sys, setuptools, tokenize; sys.argv[0] = '"'"'/testbed/setup.py'"'"'; __file__='"'"'/testbed/setup.py'"'"';f = getattr(tokenize, '"'"'open'"'"', open)(__file__) if os.path.exists(__file__) else io.StringIO('"'"'from setuptools import setup; setup()'"'"');code = f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' develop --no-deps
+    running develop
+    running egg_info
+    writing astropy.egg-info/PKG-INFO
+    writing dependency_links to astropy.egg-info/dependency_links.txt
+    writing entry points to astropy.egg-info/entry_points.txt
+    writing requirements to astropy.egg-info/requires.txt
+    writing top-level names to astropy.egg-info/top_level.txt
+    reading manifest file 'astropy.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    warning: no files found matching 'astropy/utils/misc/data/.hidden_file.txt'
+    warning: no files found matching '*' under directory 'scripts'
+    warning: no files found matching '*' under directory 'astropy/sphinx/themes'
+    no previously-included directories found matching 'docs/_build'
+    no previously-included directories found matching 'build'
+    warning: no files found matching '*.pyx' under directory 'astropy_helpers/astropy_helpers'
+    warning: no files found matching '*.h' under directory 'astropy_helpers/astropy_helpers'
+    no previously-included directories found matching 'astropy_helpers/build'
+    warning: no previously-included files matching '*.o' found anywhere in distribution
+    writing manifest file 'astropy.egg-info/SOURCES.txt'
+    running build_ext
+    running pre_hook from astropy._erfa.setup_package for build_ext command
+    running pre_hook from astropy.modeling.setup_package for build_ext command
+    building 'astropy._compiler' extension
+    gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC -I/opt/miniconda3/envs/testbed/include/python3.6m -c astropy/_compiler.c -o build/temp.linux-x86_64-3.6/astropy/_compiler.o
+    gcc -pthread -shared -B /opt/miniconda3/envs/testbed/compiler_compat -L/opt/miniconda3/envs/testbed/lib -Wl,-rpath=/opt/miniconda3/envs/testbed/lib -Wl,--no-as-needed -Wl,--sysroot=/ build/temp.linux-x86_64-3.6/astropy/_compiler.o -o /testbed/astropy/_compiler.cpython-36m-x86_64-linux-gnu.so
+    skipping 'astropy/table/_np_utils.c' Cython extension (up-to-date)
+    skipping 'astropy/table/_column_mixins.c' Cython extension (up-to-date)
+    skipping 'astropy/io/ascii/cparser.c' Cython extension (up-to-date)
+    skipping 'astropy/convolution/boundary_extend.c' Cython extension (up-to-date)
+    skipping 'astropy/convolution/boundary_fill.c' Cython extension (up-to-date)
+    skipping 'astropy/convolution/boundary_none.c' Cython extension (up-to-date)
+    skipping 'astropy/convolution/boundary_wrap.c' Cython extension (up-to-date)
+    skipping 'astropy/cosmology/scalar_inv_efuncs.c' Cython extension (up-to-date)
+    skipping 'astropy/stats/lombscargle/implementations/cython_impl.c' Cython extension (up-to-date)
+    Creating /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/astropy.egg-link (link to .)
+    Adding astropy 3.1.dev21681 to easy-install.pth file
+    Installing fits2bitmap script to /opt/miniconda3/envs/testbed/bin
+    Installing fitscheck script to /opt/miniconda3/envs/testbed/bin
+    Installing fitsdiff script to /opt/miniconda3/envs/testbed/bin
+    Installing fitsheader script to /opt/miniconda3/envs/testbed/bin
+    Installing fitsinfo script to /opt/miniconda3/envs/testbed/bin
+    Installing samp_hub script to /opt/miniconda3/envs/testbed/bin
+    Installing showtable script to /opt/miniconda3/envs/testbed/bin
+    Installing volint script to /opt/miniconda3/envs/testbed/bin
+    Installing wcslint script to /opt/miniconda3/envs/testbed/bin
+
+    Installed /testbed
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+Successfully installed astropy-3.1.dev21681
++ git checkout 732d89c2940156bdc0e200bb36dc38b5e424bcba astropy/units/tests/py3_test_quantity_annotations.py astropy/units/tests/test_quantity_decorator.py
+Updated 0 paths from 3e46c1b625
++ git apply -v -
+Checking patch astropy/units/tests/py3_test_quantity_annotations.py => astropy/units/tests/test_quantity_annotations.py...
+Checking patch astropy/units/tests/test_quantity_decorator.py...
+Applied patch astropy/units/tests/py3_test_quantity_annotations.py => astropy/units/tests/test_quantity_annotations.py cleanly.
+Applied patch astropy/units/tests/test_quantity_decorator.py cleanly.
++ pytest -rA -vv -o console_output_style=classic --tb=no astropy/units/tests/test_quantity_annotations.py astropy/units/tests/test_quantity_decorator.py
+Internet access disabled
+============================= test session starts ==============================
+platform linux -- Python 3.6.13, pytest-3.3.1, py-1.11.0, pluggy-0.6.0 -- /opt/miniconda3/envs/testbed/bin/python
+cachedir: .
+
+Running tests with Astropy version 3.1.dev21681.
+Running tests in astropy/units/tests/test_quantity_annotations.py astropy/units/tests/test_quantity_decorator.py.
+
+Date: 2024-07-24T17:48:22
+
+Platform: Linux-6.1.96-102.177.amzn2023.x86_64-x86_64-with-debian-bookworm-sid
+
+Executable: /opt/miniconda3/envs/testbed/bin/python
+
+Full Python Version: 
+3.6.13 |Anaconda, Inc.| (default, Jun  4 2021, 14:25:59) 
+[GCC 7.5.0]
+
+encodings: sys: utf-8, locale: ANSI_X3.4-1968, filesystem: ascii
+byteorder: little
+float info: dig: 15, mant_dig: 15
+
+Numpy: 1.16.0
+Scipy: not available
+Matplotlib: not available
+h5py: not available
+Pandas: not available
+Cython: 0.27.3
+Using Astropy options: remote_data: none.
+
+rootdir: /testbed, inifile: setup.cfg
+plugins: xdist-1.20.1, remotedata-0.2.0, openfiles-0.2.0, mock-1.6.3, forked-0.2, filter-subpackage-0.1, doctestplus-0.1.2, cov-2.5.1, astropy-header-0.1, arraydiff-0.1, hypothesis-3.44.2
+collecting ... collected 340 items
+
+astropy/units/tests/test_quantity_annotations.py::test_args3[solarx_unit0-solary_unit0] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_args3[angle-angle] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_args_noconvert3[solarx_unit0-solary_unit0] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_args_noconvert3[angle-angle] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_args_nonquantity3[solarx_unit0] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_args_nonquantity3[angle] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_arg_equivalencies3[solarx_unit0-solary_unit0] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_arg_equivalencies3[angle-energy] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_wrong_unit3[solarx_unit0-solary_unit0] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_wrong_unit3[angle-angle] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_not_quantity3[solarx_unit0-solary_unit0] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_not_quantity3[angle-angle] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_decorator_override PASSED
+astropy/units/tests/test_quantity_annotations.py::test_kwargs3[solarx_unit0-solary_unit0] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_kwargs3[angle-angle] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_unused_kwargs3[solarx_unit0-solary_unit0] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_unused_kwargs3[angle-angle] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_kwarg_equivalencies3[solarx_unit0-energy0] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_kwarg_equivalencies3[angle-energy] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_kwarg_wrong_unit3[solarx_unit0-solary_unit0] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_kwarg_wrong_unit3[angle-angle] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_kwarg_not_quantity3[solarx_unit0-solary_unit0] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_kwarg_not_quantity3[angle-angle] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_kwarg_default3[solarx_unit0-solary_unit0] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_kwarg_default3[angle-angle] PASSED
+astropy/units/tests/test_quantity_annotations.py::test_return_annotation PASSED
+astropy/units/tests/test_quantity_annotations.py::test_return_annotation_none PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[0-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[0-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[0-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[0-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[0-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[0-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[0-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[0-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[0-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[0-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[0-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[0-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[0-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[0-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[0-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[0-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[0-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[0-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[1-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[1-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[1-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[1-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[1-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[1-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[1-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[1-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[1-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[1-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[1-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[1-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[1-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[1-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[1-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[1-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[1-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[1-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[1-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[1-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[1-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[1-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[1-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[1-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[1-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[1-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[1-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[0-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[0-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[0-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[0-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[0-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[0-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[0-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[0-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[0-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[2-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[2-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[2-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[2-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[2-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[2-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[2-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[2-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[2-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[2-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[2-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[2-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[2-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[2-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[2-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[2-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[2-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[2-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[2-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[2-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[2-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[2-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[2-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[2-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[2-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[2-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[2-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[2-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[2-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[2-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[2-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[2-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[2-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[2-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[2-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[2-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[1-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[1-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[1-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[1-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[1-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[1-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[1-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[1-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[1-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[0-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[0-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[0-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[0-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[0-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[0-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[0-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[0-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[0-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[3-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[3-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[3-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[3-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[3-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[3-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[3-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[3-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[3-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[3-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[3-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[3-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[3-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[3-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[3-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[3-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[3-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[3-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[3-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[3-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[3-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[3-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[3-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[3-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[3-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[3-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[3-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[3-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[3-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[3-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[3-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[3-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[3-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[3-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[3-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[3-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args_nonquantity[3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_extra[3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[4-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[4-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[4-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[4-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[4-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[4-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[4-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[4-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[4-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[4-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[4-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[4-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[4-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[4-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[4-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[4-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[4-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[4-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[4-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[4-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[4-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[4-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[4-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[4-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[4-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[4-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[4-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[4-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[4-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[4-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[4-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[4-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[4-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[4-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[4-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[4-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args_nonquantity[4] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_extra[4] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[5-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[5-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[5-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[5-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[5-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[5-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[5-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[5-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[5-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[5-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[5-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[5-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[5-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[5-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[5-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[5-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[5-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[5-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[5-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[5-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[5-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[5-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[5-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[5-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[5-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[5-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[5-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[5-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[5-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[5-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[5-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[5-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[5-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[5-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[5-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[5-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args_nonquantity[5] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_extra[5] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[6-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[6-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[6-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[6-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[6-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[6-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[6-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[6-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[6-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[6-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[6-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[6-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[6-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[6-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[6-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[6-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[6-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[6-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[6-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[6-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[6-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[6-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[6-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[6-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[6-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[6-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[6-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[6-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[6-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[6-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[6-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[6-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[6-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[6-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[6-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[6-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args_nonquantity[6] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_extra[6] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[7-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[7-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[7-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[7-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[7-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[7-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[7-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[7-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[7-3] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[7-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[7-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[7-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[7-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[7-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[7-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[7-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[7-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[7-2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[7-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[7-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[7-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[7-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[7-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[7-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[7-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[7-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[7-1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args[7-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_wrong_unit[7-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_not_quantity[7-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs[7-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_unused_kwargs[7-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_wrong_unit[7-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_not_quantity[7-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_default[7-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_input[7-0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args_nonquantity[7] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_extra[7] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args_nonquantity[2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_extra[2] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args_nonquantity[1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_extra[1] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args_nonquantity[0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwargs_extra[0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_arg_equivalencies[x_unit0-y_unit0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_arg_equivalencies[angle-energy] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_equivalencies[x_unit0-energy_unit0] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_equivalencies[angle-energy] PASSED
+astropy/units/tests/test_quantity_decorator.py::test_no_equivalent PASSED
+astropy/units/tests/test_quantity_decorator.py::test_kwarg_invalid_physical_type PASSED
+astropy/units/tests/test_quantity_decorator.py::test_default_value_check PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args_None PASSED
+astropy/units/tests/test_quantity_decorator.py::test_args_None_kwarg PASSED
+
+=============================== warnings summary ===============================
+None
+  Module already imported so cannot be rewritten: astropy.tests.plugins.display
+
+-- Docs: http://doc.pytest.org/en/latest/warnings.html
+==================== 340 passed, 1 warnings in 6.55 seconds ====================
++ git checkout 732d89c2940156bdc0e200bb36dc38b5e424bcba astropy/units/tests/py3_test_quantity_annotations.py astropy/units/tests/test_quantity_decorator.py
+Updated 2 paths from 3e46c1b625

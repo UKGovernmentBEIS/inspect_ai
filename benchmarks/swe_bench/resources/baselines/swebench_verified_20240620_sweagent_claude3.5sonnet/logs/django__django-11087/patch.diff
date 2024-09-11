@@ -1,0 +1,38 @@
+
+diff --git a/django/db/models/sql/subqueries.py b/django/db/models/sql/subqueries.py
+index fbc265d113..a2b1b2f268 100644
+--- a/django/db/models/sql/subqueries.py
++++ b/django/db/models/sql/subqueries.py
+@@ -31,13 +31,11 @@ class DeleteQuery(Query):
+         More than one physical query may be executed if there are a
+         lot of values in pk_list.
+         """
+-        # number of objects deleted
+         num_deleted = 0
+         field = self.get_meta().pk
+         for offset in range(0, len(pk_list), GET_ITERATOR_CHUNK_SIZE):
+             self.where = self.where_class()
+-            self.add_q(Q(
+-                **{field.attname + '__in': pk_list[offset:offset + GET_ITERATOR_CHUNK_SIZE]}))
++            self.add_q(Q(**{field.attname + '__in': pk_list[offset:offset + GET_ITERATOR_CHUNK_SIZE]}))
+             num_deleted += self.do_query(self.get_meta().db_table, self.where, using=using)
+         return num_deleted
+ 
+@@ -65,11 +63,13 @@ class DeleteQuery(Query):
+                     return 0
+                 return self.delete_batch(values, using)
+             else:
++                # TODO: Test this optimization thoroughly to ensure it doesn't introduce any new issues
++                # Optimize the subquery to only select the primary key
++                # This addresses the issue of fetching unnecessary fields during deletion
+                 innerq.clear_select_clause()
+-                innerq.select = [
+-                    pk.get_col(self.get_initial_alias())
+-                ]
+-                values = innerq
++                innerq.select = [pk.get_col(self.get_initial_alias())]
++                innerq.clear_ordering(True)
++                innerq.clear_limits()
+             self.where = self.where_class()
+             self.add_q(Q(pk__in=values))
+         cursor = self.get_compiler(using).execute_sql(CURSOR)

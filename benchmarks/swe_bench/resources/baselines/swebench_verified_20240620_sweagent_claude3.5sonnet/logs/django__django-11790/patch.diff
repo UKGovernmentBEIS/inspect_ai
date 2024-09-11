@@ -1,0 +1,172 @@
+
+diff --git a/django/contrib/auth/forms.py b/django/contrib/auth/forms.py
+index a0cfed0995..2eb0851fca 100644
+--- a/django/contrib/auth/forms.py
++++ b/django/contrib/auth/forms.py
+@@ -62,11 +62,14 @@ class UsernameField(forms.CharField):
+         return unicodedata.normalize('NFKC', super().to_python(value))
+ 
+     def widget_attrs(self, widget):
+-        return {
+-            **super().widget_attrs(widget),
++        attrs = super().widget_attrs(widget)
++        attrs.update({
+             'autocapitalize': 'none',
+             'autocomplete': 'username',
+-        }
++        })
++        if self.max_length is not None:
++            attrs['maxlength'] = str(self.max_length)
++        return attrs
+ 
+ 
+ class UserCreationForm(forms.ModelForm):
+@@ -165,7 +168,11 @@ class AuthenticationForm(forms.Form):
+     Base class for authenticating users. Extend this to get a form that accepts
+     username/password logins.
+     """
+-    username = UsernameField(widget=forms.TextInput(attrs={'autofocus': True}))
++    # Set max_length on username field to ensure maxlength HTML attribute is set
++    username = UsernameField(
++        widget=forms.TextInput(attrs={'autofocus': True}),
++        max_length=UserModel._meta.get_field(UserModel.USERNAME_FIELD).max_length or 254
++    )
+     password = forms.CharField(
+         label=_("Password"),
+         strip=False,
+@@ -191,7 +198,6 @@ class AuthenticationForm(forms.Form):
+ 
+         # Set the max length and label for the "username" field.
+         self.username_field = UserModel._meta.get_field(UserModel.USERNAME_FIELD)
+-        self.fields['username'].max_length = self.username_field.max_length or 254
+         if self.fields['username'].label is None:
+             self.fields['username'].label = capfirst(self.username_field.verbose_name)
+ 
+diff --git a/run_auth_tests.py b/run_auth_tests.py
+new file mode 100644
+index 0000000000..afc656fd1b
+--- /dev/null
++++ b/run_auth_tests.py
+@@ -0,0 +1,57 @@
++import os
++import django
++from django.conf import settings
++from django.test.utils import get_runner, setup_test_environment
++from django.db import connections
++
++if __name__ == "__main__":
++    os.environ['DJANGO_SETTINGS_MODULE'] = 'django.conf.global_settings'
++    settings.configure(
++        DEBUG=True,
++        SECRET_KEY='dummy_secret_key_for_testing',
++        INSTALLED_APPS=[
++            'django.contrib.auth',
++            'django.contrib.contenttypes',
++            'django.contrib.sessions',
++            'django.contrib.sites',
++            'django.contrib.messages',
++            'django.contrib.admin',
++            'tests.auth_tests',
++        ],
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        MIDDLEWARE=[
++            'django.contrib.sessions.middleware.SessionMiddleware',
++            'django.contrib.auth.middleware.AuthenticationMiddleware',
++            'django.contrib.messages.middleware.MessageMiddleware',
++        ],
++        ROOT_URLCONF='tests.auth_tests.urls',
++        MIGRATION_MODULES={},  # Disable migrations
++    )
++    django.setup()
++    
++    # Set up the test environment
++    setup_test_environment()
++    
++    # Create the test database
++    for connection in connections.all():
++        connection.creation.create_test_db()
++
++    TestRunner = get_runner(settings)
++    test_runner = TestRunner(verbosity=1, interactive=False)
++    test_modules = [
++        'tests.auth_tests.test_forms',
++        'tests.auth_tests.test_views',
++        'tests.auth_tests.test_models',
++    ]
++    failures = test_runner.run_tests(test_modules)
++    
++    # Destroy the test database
++    for connection in connections.all():
++        connection.creation.destroy_test_db(verbosity=1)
++
++    print("Test failures:", failures)
+diff --git a/test_authentication_form.py b/test_authentication_form.py
+new file mode 100644
+index 0000000000..df1a98c0ea
+--- /dev/null
++++ b/test_authentication_form.py
+@@ -0,0 +1,59 @@
++import os
++import sys
++import django
++from django.conf import settings
++from django.test.utils import get_runner
++from django.contrib.auth.models import AbstractUser
++from django.db import models
++
++class CustomUser(AbstractUser):
++    username = models.CharField(max_length=254, unique=True)
++
++# Configure settings before importing any Django modules
++if not settings.configured:
++    os.environ['DJANGO_SETTINGS_MODULE'] = 'django.conf.global_settings'
++    settings.configure(
++        DEBUG=True,
++        DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},
++        INSTALLED_APPS=[
++            'django.contrib.auth',
++            'django.contrib.contenttypes',
++            'django.contrib.sessions',
++        ],
++        SECRET_KEY='dummy-secret-key',
++        AUTH_USER_MODEL='__main__.CustomUser',
++    )
++    django.setup()
++
++# Now we can import Django modules
++from django.test import TestCase
++from django.contrib.auth.forms import AuthenticationForm
++from django.contrib.auth import get_user_model
++
++class AuthenticationFormTest(TestCase):
++    def test_username_field_maxlength(self):
++        form = AuthenticationForm()
++        username_field = form.fields['username']
++        widget = username_field.widget
++        
++        # Check if the maxlength attribute is set in the widget attrs
++        self.assertIn('maxlength', widget.attrs)
++        
++        # Check if the maxlength value is correct
++        # The max_length for the username field should now be 254
++        self.assertEqual(widget.attrs['maxlength'], '254')
++
++    def test_username_field_renders_maxlength(self):
++        form = AuthenticationForm()
++        rendered_form = form.as_p()
++        
++        # Check if the maxlength attribute is present in the rendered HTML
++        self.assertIn('maxlength="254"', rendered_form)
++
++if __name__ == '__main__':
++    # Run the tests
++    django.setup()
++    TestRunner = get_runner(settings)
++    test_runner = TestRunner(verbosity=1, interactive=False)
++    failures = test_runner.run_tests([__name__])
++    sys.exit(bool(failures))

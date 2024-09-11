@@ -1,0 +1,698 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   astropy/units/core.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_issue.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 3cedd79e6c121910220f8e6df77c54a0b344ea94
+Merge: 9a6e8ebb59 3e4584cfb8
+Author: Nadia Dencheva <nadia.astropy@gmail.com>
+Date:   Mon Aug 13 14:38:54 2018 -0400
+
+    Merge pull request #7731 from cclauss/patch-1
+    
+    TWO_OR_THREE_ARGS --> TWO_OR_MORE_ARGS in __all__ of wcs/_docutil.py
+
++ git diff 3cedd79e6c121910220f8e6df77c54a0b344ea94
+diff --git a/astropy/units/core.py b/astropy/units/core.py
+index e9bd986d33..1b202395e9 100644
+--- a/astropy/units/core.py
++++ b/astropy/units/core.py
+@@ -1710,6 +1710,8 @@ class UnrecognizedUnit(IrreducibleUnit):
+         _unrecognized_operator
+ 
+     def __eq__(self, other):
++        if other is None:
++            return False
+         other = Unit(other, parse_strict='silent')
+         return isinstance(other, UnrecognizedUnit) and self.name == other.name
+ 
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e '.[test]' --verbose
+Using pip 21.2.2 from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/pip (python 3.6)
+Obtaining file:///testbed
+    Running command python setup.py egg_info
+    running egg_info
+    creating /tmp/pip-pip-egg-info-7bey0rrx/astropy.egg-info
+    writing /tmp/pip-pip-egg-info-7bey0rrx/astropy.egg-info/PKG-INFO
+    writing dependency_links to /tmp/pip-pip-egg-info-7bey0rrx/astropy.egg-info/dependency_links.txt
+    writing entry points to /tmp/pip-pip-egg-info-7bey0rrx/astropy.egg-info/entry_points.txt
+    writing requirements to /tmp/pip-pip-egg-info-7bey0rrx/astropy.egg-info/requires.txt
+    writing top-level names to /tmp/pip-pip-egg-info-7bey0rrx/astropy.egg-info/top_level.txt
+    writing manifest file '/tmp/pip-pip-egg-info-7bey0rrx/astropy.egg-info/SOURCES.txt'
+    reading manifest file '/tmp/pip-pip-egg-info-7bey0rrx/astropy.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    warning: no files found matching 'ez_setup.py'
+    warning: no files found matching 'astropy/utils/misc/data/.hidden_file.txt'
+    warning: no files found matching '*' under directory 'scripts'
+    warning: no files found matching '*' under directory 'astropy/sphinx/themes'
+    no previously-included directories found matching 'docs/_build'
+    no previously-included directories found matching 'build'
+    warning: no files found matching 'astropy_helpers/ez_setup.py'
+    warning: no files found matching '*.pyx' under directory 'astropy_helpers/astropy_helpers'
+    warning: no files found matching '*.h' under directory 'astropy_helpers/astropy_helpers'
+    warning: no files found matching '*.rst' under directory 'astropy_helpers/astropy_helpers'
+    no previously-included directories found matching 'astropy_helpers/build'
+    warning: no previously-included files matching '*.pyc' found anywhere in distribution
+    warning: no previously-included files matching '*.o' found anywhere in distribution
+    writing manifest file '/tmp/pip-pip-egg-info-7bey0rrx/astropy.egg-info/SOURCES.txt'
+Requirement already satisfied: numpy>=1.13.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from astropy==3.1.dev22325) (1.16.0)
+Requirement already satisfied: pytest-astropy in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from astropy==3.1.dev22325) (0.2.1)
+Requirement already satisfied: pytest-arraydiff in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev22325) (0.1)
+Requirement already satisfied: pytest-doctestplus>=0.1.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev22325) (0.1.2)
+Requirement already satisfied: pytest-remotedata>=0.2.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev22325) (0.2.0)
+Requirement already satisfied: pytest>=3.1.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev22325) (3.3.1)
+Requirement already satisfied: pytest-openfiles>=0.2.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-astropy->astropy==3.1.dev22325) (0.2.0)
+Requirement already satisfied: pluggy<0.7,>=0.5 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest>=3.1.0->pytest-astropy->astropy==3.1.dev22325) (0.6.0)
+Requirement already satisfied: setuptools in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest>=3.1.0->pytest-astropy->astropy==3.1.dev22325) (38.2.4)
+Requirement already satisfied: py>=1.5.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest>=3.1.0->pytest-astropy->astropy==3.1.dev22325) (1.11.0)
+Requirement already satisfied: attrs>=17.2.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest>=3.1.0->pytest-astropy->astropy==3.1.dev22325) (17.3.0)
+Requirement already satisfied: six>=1.10.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest>=3.1.0->pytest-astropy->astropy==3.1.dev22325) (1.16.0)
+Requirement already satisfied: psutil in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from pytest-openfiles>=0.2.0->pytest-astropy->astropy==3.1.dev22325) (5.4.2)
+Installing collected packages: astropy
+  Attempting uninstall: astropy
+    Found existing installation: astropy 3.1.dev22325
+    Uninstalling astropy-3.1.dev22325:
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fits2bitmap
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fitscheck
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fitsdiff
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fitsheader
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fitsinfo
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/samp_hub
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/showtable
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/volint
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/wcslint
+      Removing file or directory /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/astropy.egg-link
+      Removing pth entries from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/easy-install.pth:
+      Removing entry: /testbed
+      Successfully uninstalled astropy-3.1.dev22325
+  Running setup.py develop for astropy
+    Running command /opt/miniconda3/envs/testbed/bin/python -c 'import io, os, sys, setuptools, tokenize; sys.argv[0] = '"'"'/testbed/setup.py'"'"'; __file__='"'"'/testbed/setup.py'"'"';f = getattr(tokenize, '"'"'open'"'"', open)(__file__) if os.path.exists(__file__) else io.StringIO('"'"'from setuptools import setup; setup()'"'"');code = f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' develop --no-deps
+    running develop
+    running egg_info
+    writing astropy.egg-info/PKG-INFO
+    writing dependency_links to astropy.egg-info/dependency_links.txt
+    writing entry points to astropy.egg-info/entry_points.txt
+    writing requirements to astropy.egg-info/requires.txt
+    writing top-level names to astropy.egg-info/top_level.txt
+    reading manifest file 'astropy.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    warning: no files found matching 'ez_setup.py'
+    warning: no files found matching 'astropy/utils/misc/data/.hidden_file.txt'
+    warning: no files found matching '*' under directory 'scripts'
+    warning: no files found matching '*' under directory 'astropy/sphinx/themes'
+    no previously-included directories found matching 'docs/_build'
+    no previously-included directories found matching 'build'
+    warning: no files found matching 'astropy_helpers/ez_setup.py'
+    warning: no files found matching '*.pyx' under directory 'astropy_helpers/astropy_helpers'
+    warning: no files found matching '*.h' under directory 'astropy_helpers/astropy_helpers'
+    warning: no files found matching '*.rst' under directory 'astropy_helpers/astropy_helpers'
+    no previously-included directories found matching 'astropy_helpers/build'
+    warning: no previously-included files matching '*.pyc' found anywhere in distribution
+    warning: no previously-included files matching '*.o' found anywhere in distribution
+    writing manifest file 'astropy.egg-info/SOURCES.txt'
+    running build_ext
+    running pre_hook from astropy._erfa.setup_package for build_ext command
+    running pre_hook from astropy.modeling.setup_package for build_ext command
+    building 'astropy._compiler' extension
+    gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC -I/opt/miniconda3/envs/testbed/include/python3.6m -c astropy/_compiler.c -o build/temp.linux-x86_64-3.6/astropy/_compiler.o
+    gcc -pthread -shared -B /opt/miniconda3/envs/testbed/compiler_compat -L/opt/miniconda3/envs/testbed/lib -Wl,-rpath=/opt/miniconda3/envs/testbed/lib -Wl,--no-as-needed -Wl,--sysroot=/ build/temp.linux-x86_64-3.6/astropy/_compiler.o -o /testbed/astropy/_compiler.cpython-36m-x86_64-linux-gnu.so
+    skipping 'astropy/table/_np_utils.c' Cython extension (up-to-date)
+    skipping 'astropy/table/_column_mixins.c' Cython extension (up-to-date)
+    skipping 'astropy/io/ascii/cparser.c' Cython extension (up-to-date)
+    skipping 'astropy/stats/bls/_impl.c' Cython extension (up-to-date)
+    skipping 'astropy/convolution/boundary_extend.c' Cython extension (up-to-date)
+    skipping 'astropy/convolution/boundary_fill.c' Cython extension (up-to-date)
+    skipping 'astropy/convolution/boundary_none.c' Cython extension (up-to-date)
+    skipping 'astropy/convolution/boundary_wrap.c' Cython extension (up-to-date)
+    skipping 'astropy/cosmology/scalar_inv_efuncs.c' Cython extension (up-to-date)
+    skipping 'astropy/stats/lombscargle/implementations/cython_impl.c' Cython extension (up-to-date)
+    Creating /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/astropy.egg-link (link to .)
+    Adding astropy 3.1.dev22325 to easy-install.pth file
+    Installing fits2bitmap script to /opt/miniconda3/envs/testbed/bin
+    Installing fitscheck script to /opt/miniconda3/envs/testbed/bin
+    Installing fitsdiff script to /opt/miniconda3/envs/testbed/bin
+    Installing fitsheader script to /opt/miniconda3/envs/testbed/bin
+    Installing fitsinfo script to /opt/miniconda3/envs/testbed/bin
+    Installing samp_hub script to /opt/miniconda3/envs/testbed/bin
+    Installing showtable script to /opt/miniconda3/envs/testbed/bin
+    Installing volint script to /opt/miniconda3/envs/testbed/bin
+    Installing wcslint script to /opt/miniconda3/envs/testbed/bin
+
+    Installed /testbed
+Successfully installed astropy-3.1.dev22325
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 3cedd79e6c121910220f8e6df77c54a0b344ea94 astropy/units/tests/test_units.py
+Updated 0 paths from c9d9fb8b1e
++ git apply -v -
+Checking patch astropy/units/tests/test_units.py...
+Applied patch astropy/units/tests/test_units.py cleanly.
++ pytest -rA -vv -o console_output_style=classic --tb=no astropy/units/tests/test_units.py
+Internet access disabled
+============================= test session starts ==============================
+platform linux -- Python 3.6.13, pytest-3.3.1, py-1.11.0, pluggy-0.6.0 -- /opt/miniconda3/envs/testbed/bin/python
+cachedir: .
+
+Running tests with Astropy version 3.1.dev22325.
+Running tests in astropy/units/tests/test_units.py.
+
+Date: 2024-07-24T17:51:54
+
+Platform: Linux-6.1.96-102.177.amzn2023.x86_64-x86_64-with-debian-bookworm-sid
+
+Executable: /opt/miniconda3/envs/testbed/bin/python
+
+Full Python Version: 
+3.6.13 |Anaconda, Inc.| (default, Jun  4 2021, 14:25:59) 
+[GCC 7.5.0]
+
+encodings: sys: utf-8, locale: ANSI_X3.4-1968, filesystem: ascii
+byteorder: little
+float info: dig: 15, mant_dig: 15
+
+Numpy: 1.16.0
+Scipy: not available
+Matplotlib: not available
+h5py: not available
+Pandas: not available
+Cython: 0.27.3
+astropy_helpers: 3.1.dev957
+Using Astropy options: remote_data: none.
+
+rootdir: /testbed, inifile: setup.cfg
+plugins: xdist-1.20.1, remotedata-0.2.0, openfiles-0.2.0, mock-1.6.3, forked-0.2, filter-subpackage-0.1, doctestplus-0.1.2, cov-2.5.1, astropy-header-0.1, arraydiff-0.1, hypothesis-3.44.2
+collecting ... collected 242 items
+
+astropy/units/tests/test_units.py::test_getting_started PASSED
+astropy/units/tests/test_units.py::test_initialisation PASSED
+astropy/units/tests/test_units.py::test_invalid_power PASSED
+astropy/units/tests/test_units.py::test_invalid_compare PASSED
+astropy/units/tests/test_units.py::test_convert PASSED
+astropy/units/tests/test_units.py::test_convert_fail PASSED
+astropy/units/tests/test_units.py::test_composite PASSED
+astropy/units/tests/test_units.py::test_str PASSED
+astropy/units/tests/test_units.py::test_repr PASSED
+astropy/units/tests/test_units.py::test_represents PASSED
+astropy/units/tests/test_units.py::test_units_conversion PASSED
+astropy/units/tests/test_units.py::test_units_manipulation PASSED
+astropy/units/tests/test_units.py::test_decompose PASSED
+astropy/units/tests/test_units.py::test_dimensionless_to_si PASSED
+astropy/units/tests/test_units.py::test_dimensionless_to_cgs PASSED
+astropy/units/tests/test_units.py::test_unknown_unit PASSED
+astropy/units/tests/test_units.py::test_multiple_solidus PASSED
+astropy/units/tests/test_units.py::test_unknown_unit3 PASSED
+astropy/units/tests/test_units.py::test_invalid_scale PASSED
+astropy/units/tests/test_units.py::test_cds_power PASSED
+astropy/units/tests/test_units.py::test_register PASSED
+astropy/units/tests/test_units.py::test_in_units PASSED
+astropy/units/tests/test_units.py::test_null_unit PASSED
+astropy/units/tests/test_units.py::test_unrecognized_equivalency PASSED
+astropy/units/tests/test_units.py::test_unit_noarg PASSED
+astropy/units/tests/test_units.py::test_convertible_exception PASSED
+astropy/units/tests/test_units.py::test_convertible_exception2 PASSED
+astropy/units/tests/test_units.py::test_invalid_type PASSED
+astropy/units/tests/test_units.py::test_steradian PASSED
+astropy/units/tests/test_units.py::test_decompose_bases PASSED
+astropy/units/tests/test_units.py::test_complex_compose PASSED
+astropy/units/tests/test_units.py::test_equiv_compose PASSED
+astropy/units/tests/test_units.py::test_empty_compose PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[unit0] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[%] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[A] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[AU] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[Angstrom] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[Ba] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[Bi] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[Bq] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[C] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[Ci] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[D] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[F] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[Fr] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[G] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[Gal] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[H] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[Hz] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[J] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[Jy] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[K] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[M_e] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[M_p] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[N] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[Ohm] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[P] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[Pa] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[R] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[Ry] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[S] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[St] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[Sun] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[T] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[V] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[W] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[Wb] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[a] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[abC] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[adu] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[arcmin] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[arcsec] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[bar] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[barn] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[beam] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[bin] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[bit] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[byte] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[cd] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[chan] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[cm] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[ct] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[cycle] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[d] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[dB] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[deg] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[deg_C] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[dex] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[dyn] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[eV] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[earthMass] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[earthRad] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[electron] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[erg] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[fortnight] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[g] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[h] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[hourangle] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[jupiterMass] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[jupiterRad] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[k] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[kg] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[l] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[lm] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[lx] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[lyr] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[m] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[mag] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[mas] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[micron] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[min] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[mol] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[pc] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[ph] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[pix] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[rad] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[s] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[sday] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[solLum] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[solMass] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[solRad] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[sr] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[statA] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[t] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[u] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[uas] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[vox] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[wk] PASSED
+astropy/units/tests/test_units.py::test_compose_roundtrip[yr] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[Ba] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[Bi] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[C] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[D] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[Fr] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[G] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[Gal] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[K] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[P] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[St] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[abC] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[cd] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[cm] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[dyn] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[erg] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[g] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[k] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[mol] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[rad] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[s] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[sr] PASSED
+astropy/units/tests/test_units.py::test_compose_cgs_to_si[statA] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[%] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[A] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[Angstrom] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[Bq] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[C] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[Ci] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[F] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[H] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[Hz] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[J] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[K] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[N] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[Ohm] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[Pa] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[S] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[T] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[V] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[W] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[Wb] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[a] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[arcmin] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[arcsec] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[bar] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[cd] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[d] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[deg] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[eV] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[fortnight] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[g] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[h] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[hourangle] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[kg] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[l] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[lm] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[lx] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[m] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[mas] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[micron] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[min] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[mol] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[rad] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[s] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[sday] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[sr] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[t] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[uas] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[wk] PASSED
+astropy/units/tests/test_units.py::test_compose_si_to_cgs[yr] PASSED
+astropy/units/tests/test_units.py::test_to_cgs PASSED
+astropy/units/tests/test_units.py::test_decompose_to_cgs PASSED
+astropy/units/tests/test_units.py::test_compose_issue_579 PASSED
+astropy/units/tests/test_units.py::test_compose_prefix_unit PASSED
+astropy/units/tests/test_units.py::test_self_compose PASSED
+astropy/units/tests/test_units.py::test_compose_failed PASSED
+astropy/units/tests/test_units.py::test_compose_fractional_powers PASSED
+astropy/units/tests/test_units.py::test_compose_best_unit_first PASSED
+astropy/units/tests/test_units.py::test_compose_no_duplicates PASSED
+astropy/units/tests/test_units.py::test_long_int PASSED
+astropy/units/tests/test_units.py::test_endian_independence PASSED
+astropy/units/tests/test_units.py::test_radian_base PASSED
+astropy/units/tests/test_units.py::test_no_as PASSED
+astropy/units/tests/test_units.py::test_no_duplicates_in_names PASSED
+astropy/units/tests/test_units.py::test_pickling PASSED
+astropy/units/tests/test_units.py::test_pickle_unrecognized_unit PASSED
+astropy/units/tests/test_units.py::test_duplicate_define PASSED
+astropy/units/tests/test_units.py::test_all_units PASSED
+astropy/units/tests/test_units.py::test_repr_latex PASSED
+astropy/units/tests/test_units.py::test_operations_with_strings PASSED
+astropy/units/tests/test_units.py::test_comparison PASSED
+astropy/units/tests/test_units.py::test_compose_into_arbitrary_units PASSED
+astropy/units/tests/test_units.py::test_unit_multiplication_with_string PASSED
+astropy/units/tests/test_units.py::test_unit_division_by_string PASSED
+astropy/units/tests/test_units.py::test_sorted_bases PASSED
+astropy/units/tests/test_units.py::test_megabit PASSED
+astropy/units/tests/test_units.py::test_composite_unit_get_format_name PASSED
+astropy/units/tests/test_units.py::test_unicode_policy PASSED
+astropy/units/tests/test_units.py::test_suggestions PASSED
+astropy/units/tests/test_units.py::test_fits_hst_unit PASSED
+astropy/units/tests/test_units.py::test_barn_prefixes PASSED
+astropy/units/tests/test_units.py::test_fractional_powers PASSED
+astropy/units/tests/test_units.py::test_inherit_docstrings PASSED
+astropy/units/tests/test_units.py::test_sqrt_mag PASSED
+astropy/units/tests/test_units.py::test_composite_compose PASSED
+astropy/units/tests/test_units.py::test_data_quantities PASSED
+astropy/units/tests/test_units.py::test_compare_with_none PASSED
+astropy/units/tests/test_units.py::test_validate_power_detect_fraction PASSED
+astropy/units/tests/test_units.py::test_complex_fractional_rounding_errors PASSED
+astropy/units/tests/test_units.py::test_fractional_rounding_errors_simple PASSED
+astropy/units/tests/test_units.py::test_enable_unit_groupings PASSED
+astropy/units/tests/test_units.py::test_unit_summary_prefixes PASSED
+
+=============================== warnings summary ===============================
+None
+  Module already imported so cannot be rewritten: astropy.tests.plugins.display
+
+-- Docs: http://doc.pytest.org/en/latest/warnings.html
+==================== 242 passed, 1 warnings in 6.79 seconds ====================
++ git checkout 3cedd79e6c121910220f8e6df77c54a0b344ea94 astropy/units/tests/test_units.py
+Updated 1 path from c9d9fb8b1e

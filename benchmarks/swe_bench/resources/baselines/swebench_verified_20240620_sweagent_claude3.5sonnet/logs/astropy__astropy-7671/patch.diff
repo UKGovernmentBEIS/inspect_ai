@@ -1,0 +1,56 @@
+
+diff --git a/astropy/utils/introspection.py b/astropy/utils/introspection.py
+index 3e784f9fc..96b713c43 100644
+--- a/astropy/utils/introspection.py
++++ b/astropy/utils/introspection.py
+@@ -7,6 +7,7 @@ import inspect
+ import types
+ import importlib
+ from distutils.version import LooseVersion
++from packaging.version import parse
+ 
+ 
+ __all__ = ['resolve_name', 'minversion', 'find_current_module',
+@@ -140,9 +141,9 @@ def minversion(module, version, inclusive=True, version_path='__version__'):
+         have_version = resolve_name(module.__name__, version_path)
+ 
+     if inclusive:
+-        return LooseVersion(have_version) >= LooseVersion(version)
++        return parse(have_version) >= parse(version)
+     else:
+-        return LooseVersion(have_version) > LooseVersion(version)
++        return parse(have_version) > parse(version)
+ 
+ 
+ def find_current_module(depth=1, finddiff=False):
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..555e9747c
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,25 @@
++from astropy.utils import minversion
++from packaging.version import Version, parse
++
++print("Testing minversion:")
++try:
++    result = minversion('numpy', '1.14dev')
++    print(f"minversion('numpy', '1.14dev') = {result}")
++except Exception as e:
++    print(f"Error in minversion: {type(e).__name__}: {str(e)}")
++
++print("\nTesting Version:")
++try:
++    result = Version('1.14.3') >= Version('1.14dev')
++    print(f"Version('1.14.3') >= Version('1.14dev') = {result}")
++except Exception as e:
++    print(f"Error in Version: {type(e).__name__}: {str(e)}")
++
++print("\nTesting parse:")
++try:
++    result = parse('1.14.3') >= parse('1.14dev')
++    print(f"parse('1.14.3') >= parse('1.14dev') = {result}")
++except Exception as e:
++    print(f"Error in parse: {type(e).__name__}: {str(e)}")
++
++print("\nScript completed successfully.")

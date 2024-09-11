@@ -1,0 +1,730 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_colormap_issue.py
+	test_plot.png
+
+nothing added to commit but untracked files present (use "git add" to track)
++ git show
+commit 7fdf772201e4c9bafbc16dfac23b5472d6a53fa2
+Merge: c2a9793403 bf46361c32
+Author: Oscar Gustafsson <oscar.gustafsson@gmail.com>
+Date:   Tue Apr 25 12:37:17 2023 +0200
+
+    Merge pull request #25763 from matplotlib/dependabot/github_actions/pypa/cibuildwheel-2.12.3
+    
+    Bump pypa/cibuildwheel from 2.12.1 to 2.12.3
+
++ git diff 7fdf772201e4c9bafbc16dfac23b5472d6a53fa2
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval '. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh
+++++ test -n ''
+++++ unset XML_CATALOG_FILES
+++++ unset xml_catalog_files_libxml2
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh
+++++ export GSETTINGS_SCHEMA_DIR=
+++++ GSETTINGS_SCHEMA_DIR=
+++++ unset GSETTINGS_SCHEMA_DIR_CONDA_BACKUP
+++++ '[' -z ']'
+++++ unset GSETTINGS_SCHEMA_DIR
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: contourpy>=1.0.1 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev942+g7fdf772201) (1.1.0)
+Requirement already satisfied: cycler>=0.10 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev942+g7fdf772201) (0.11.0)
+Requirement already satisfied: fonttools>=4.22.0 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev942+g7fdf772201) (4.42.1)
+Requirement already satisfied: kiwisolver>=1.0.1 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev942+g7fdf772201) (1.4.5)
+Requirement already satisfied: numpy>=1.21 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev942+g7fdf772201) (1.25.2)
+Requirement already satisfied: packaging>=20.0 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev942+g7fdf772201) (23.1)
+Requirement already satisfied: pillow>=6.2.0 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev942+g7fdf772201) (10.0.0)
+Requirement already satisfied: pyparsing>=2.3.1 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev942+g7fdf772201) (3.0.9)
+Requirement already satisfied: python-dateutil>=2.7 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev942+g7fdf772201) (2.8.2)
+Requirement already satisfied: setuptools-scm>=7 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev942+g7fdf772201) (7.1.0)
+Requirement already satisfied: six>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from python-dateutil>=2.7->matplotlib==3.8.0.dev942+g7fdf772201) (1.16.0)
+Requirement already satisfied: setuptools in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from setuptools-scm>=7->matplotlib==3.8.0.dev942+g7fdf772201) (68.1.2)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from setuptools-scm>=7->matplotlib==3.8.0.dev942+g7fdf772201) (4.7.1)
+Building wheels for collected packages: matplotlib
+  Building editable for matplotlib (pyproject.toml): started
+  Building editable for matplotlib (pyproject.toml): still running...
+  Building editable for matplotlib (pyproject.toml): finished with status 'done'
+  Created wheel for matplotlib: filename=matplotlib-3.8.0.dev942+g7fdf772201-0.editable-cp311-cp311-linux_x86_64.whl size=22889 sha256=44900d2045f0c3028faaa68cd6d81dd2085b1fe25024e4636f0cfaa517a4c353
+  Stored in directory: /tmp/pip-ephem-wheel-cache-v2wogqmw/wheels/49/5f/4f/01b7d31ea6ddac9643da788242d33e5fd3467d95d17b032c6b
+Successfully built matplotlib
+Installing collected packages: matplotlib
+  Attempting uninstall: matplotlib
+    Found existing installation: matplotlib 3.8.0.dev942+g7fdf772201
+    Uninstalling matplotlib-3.8.0.dev942+g7fdf772201:
+      Successfully uninstalled matplotlib-3.8.0.dev942+g7fdf772201
+Successfully installed matplotlib-3.8.0.dev942+g7fdf772201
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 7fdf772201e4c9bafbc16dfac23b5472d6a53fa2 lib/matplotlib/tests/test_colors.py
+Updated 0 paths from 6c597b1e3d
++ git apply -v -
+Checking patch lib/matplotlib/tests/test_colors.py...
+Applied patch lib/matplotlib/tests/test_colors.py cleanly.
++ pytest -rA lib/matplotlib/tests/test_colors.py
+============================= test session starts ==============================
+platform linux -- Python 3.11.9, pytest-8.3.1, pluggy-1.5.0
+rootdir: /testbed
+configfile: pytest.ini
+plugins: cov-5.0.0, rerunfailures-14.0, timeout-2.3.1, xdist-3.6.1
+collected 267 items
+
+lib/matplotlib/tests/test_colors.py ..........F..F...................... [ 13%]
+........................................................................ [ 40%]
+........................................................................ [ 67%]
+........................................................................ [ 94%]
+..........s...F                                                          [100%]
+
+=================================== FAILURES ===================================
+______________________ test_double_register_builtin_cmap _______________________
+
+    def test_double_register_builtin_cmap():
+        name = "viridis"
+        match = f"Re-registering the builtin cmap {name!r}."
+        with pytest.raises(ValueError, match=match):
+            matplotlib.colormaps.register(
+                mpl.colormaps[name], name=name, force=True
+            )
+        with pytest.raises(ValueError, match='A colormap named "viridis"'):
+            with pytest.warns(mpl.MatplotlibDeprecationWarning):
+                cm.register_cmap(name, mpl.colormaps[name])
+>       with pytest.warns(UserWarning):
+E       matplotlib._api.deprecation.MatplotlibDeprecationWarning: The register_cmap function was deprecated in Matplotlib 3.7 and will be removed two minor releases later. Use ``matplotlib.colormaps.register(name)`` instead.
+
+lib/matplotlib/tests/test_colors.py:150: MatplotlibDeprecationWarning
+_____________________________ test_colormap_equals _____________________________
+
+    def test_colormap_equals():
+        cmap = mpl.colormaps["plasma"]
+        cm_copy = cmap.copy()
+        # different object id's
+        assert cm_copy is not cmap
+        # But the same data should be equal
+        assert cm_copy == cmap
+        # Change the copy
+        cm_copy.set_bad('y')
+        assert cm_copy != cmap
+        # Make sure we can compare different sizes without failure
+        cm_copy._lut = cm_copy._lut[:10, :]
+        assert cm_copy != cmap
+        # Test different names are equal if the lookup table is the same
+        cm_copy = cmap.copy()
+        cm_copy.name = "Test"
+>       assert cm_copy == cmap
+E       assert <matplotlib.colors.ListedColormap object at 0x7f34cc58ec90> == <matplotlib.colors.ListedColormap object at 0x7f34cc58cc90>
+
+lib/matplotlib/tests/test_colors.py:201: AssertionError
+________________________ test_set_cmap_mismatched_name _________________________
+
+    def test_set_cmap_mismatched_name():
+        cmap = matplotlib.colormaps["viridis"].with_extremes(over='r')
+        # register it with different names
+        cmap.name = "test-cmap"
+        matplotlib.colormaps.register(name='wrong-cmap', cmap=cmap)
+    
+        plt.set_cmap("wrong-cmap")
+        cmap_returned = plt.get_cmap("wrong-cmap")
+        assert cmap_returned == cmap
+>       assert cmap_returned.name == "wrong-cmap"
+E       AssertionError: assert 'test-cmap' == 'wrong-cmap'
+E         
+E         - wrong-cmap
+E         + test-cmap
+
+lib/matplotlib/tests/test_colors.py:1663: AssertionError
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED lib/matplotlib/tests/test_colors.py::test_create_lookup_table[5-result0]
+PASSED lib/matplotlib/tests/test_colors.py::test_create_lookup_table[2-result1]
+PASSED lib/matplotlib/tests/test_colors.py::test_create_lookup_table[1-result2]
+PASSED lib/matplotlib/tests/test_colors.py::test_index_dtype[uint8]
+PASSED lib/matplotlib/tests/test_colors.py::test_index_dtype[int]
+PASSED lib/matplotlib/tests/test_colors.py::test_index_dtype[float16]
+PASSED lib/matplotlib/tests/test_colors.py::test_index_dtype[float]
+PASSED lib/matplotlib/tests/test_colors.py::test_resampled
+PASSED lib/matplotlib/tests/test_colors.py::test_register_cmap
+PASSED lib/matplotlib/tests/test_colors.py::test_colormaps_get_cmap
+PASSED lib/matplotlib/tests/test_colors.py::test_unregister_builtin_cmap
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_copy
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_endian
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_invalid
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_return_types
+PASSED lib/matplotlib/tests/test_colors.py::test_BoundaryNorm
+PASSED lib/matplotlib/tests/test_colors.py::test_CenteredNorm
+PASSED lib/matplotlib/tests/test_colors.py::test_lognorm_invalid[-1-2]
+PASSED lib/matplotlib/tests/test_colors.py::test_lognorm_invalid[3-1]
+PASSED lib/matplotlib/tests/test_colors.py::test_LogNorm
+PASSED lib/matplotlib/tests/test_colors.py::test_LogNorm_inverse
+PASSED lib/matplotlib/tests/test_colors.py::test_PowerNorm
+PASSED lib/matplotlib/tests/test_colors.py::test_PowerNorm_translation_invariance
+PASSED lib/matplotlib/tests/test_colors.py::test_Normalize
+PASSED lib/matplotlib/tests/test_colors.py::test_FuncNorm
+PASSED lib/matplotlib/tests/test_colors.py::test_TwoSlopeNorm_autoscale
+PASSED lib/matplotlib/tests/test_colors.py::test_TwoSlopeNorm_autoscale_None_vmin
+PASSED lib/matplotlib/tests/test_colors.py::test_TwoSlopeNorm_autoscale_None_vmax
+PASSED lib/matplotlib/tests/test_colors.py::test_TwoSlopeNorm_scale
+PASSED lib/matplotlib/tests/test_colors.py::test_TwoSlopeNorm_scaleout_center
+PASSED lib/matplotlib/tests/test_colors.py::test_TwoSlopeNorm_scaleout_center_max
+PASSED lib/matplotlib/tests/test_colors.py::test_TwoSlopeNorm_Even
+PASSED lib/matplotlib/tests/test_colors.py::test_TwoSlopeNorm_Odd
+PASSED lib/matplotlib/tests/test_colors.py::test_TwoSlopeNorm_VminEqualsVcenter
+PASSED lib/matplotlib/tests/test_colors.py::test_TwoSlopeNorm_VmaxEqualsVcenter
+PASSED lib/matplotlib/tests/test_colors.py::test_TwoSlopeNorm_VminGTVcenter
+PASSED lib/matplotlib/tests/test_colors.py::test_TwoSlopeNorm_TwoSlopeNorm_VminGTVmax
+PASSED lib/matplotlib/tests/test_colors.py::test_TwoSlopeNorm_VcenterGTVmax
+PASSED lib/matplotlib/tests/test_colors.py::test_TwoSlopeNorm_premature_scaling
+PASSED lib/matplotlib/tests/test_colors.py::test_SymLogNorm
+PASSED lib/matplotlib/tests/test_colors.py::test_SymLogNorm_colorbar
+PASSED lib/matplotlib/tests/test_colors.py::test_SymLogNorm_single_zero
+PASSED lib/matplotlib/tests/test_colors.py::TestAsinhNorm::test_init
+PASSED lib/matplotlib/tests/test_colors.py::TestAsinhNorm::test_norm
+PASSED lib/matplotlib/tests/test_colors.py::test_cmap_and_norm_from_levels_and_colors[png]
+PASSED lib/matplotlib/tests/test_colors.py::test_boundarynorm_and_colorbarbase[png]
+PASSED lib/matplotlib/tests/test_colors.py::test_cmap_and_norm_from_levels_and_colors2
+PASSED lib/matplotlib/tests/test_colors.py::test_rgb_hsv_round_trip
+PASSED lib/matplotlib/tests/test_colors.py::test_autoscale_masked
+PASSED lib/matplotlib/tests/test_colors.py::test_light_source_topo_surface[png]
+PASSED lib/matplotlib/tests/test_colors.py::test_light_source_shading_default
+PASSED lib/matplotlib/tests/test_colors.py::test_light_source_shading_empty_mask
+PASSED lib/matplotlib/tests/test_colors.py::test_light_source_masked_shading
+PASSED lib/matplotlib/tests/test_colors.py::test_light_source_hillshading
+PASSED lib/matplotlib/tests/test_colors.py::test_light_source_planar_hillshading
+PASSED lib/matplotlib/tests/test_colors.py::test_color_names
+PASSED lib/matplotlib/tests/test_colors.py::test_pandas_iterable
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Accent]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Accent_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Blues]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Blues_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[BrBG]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[BrBG_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[BuGn]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[BuGn_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[BuPu]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[BuPu_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[CMRmap]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[CMRmap_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Dark2]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Dark2_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[GnBu]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[GnBu_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Greens]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Greens_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Greys]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Greys_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[OrRd]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[OrRd_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Oranges]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Oranges_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[PRGn]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[PRGn_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Paired]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Paired_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Pastel1]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Pastel1_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Pastel2]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Pastel2_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[PiYG]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[PiYG_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[PuBu]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[PuBuGn]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[PuBuGn_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[PuBu_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[PuOr]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[PuOr_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[PuRd]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[PuRd_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Purples]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Purples_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[RdBu]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[RdBu_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[RdGy]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[RdGy_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[RdPu]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[RdPu_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[RdYlBu]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[RdYlBu_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[RdYlGn]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[RdYlGn_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Reds]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Reds_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Set1]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Set1_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Set2]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Set2_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Set3]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Set3_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Spectral]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Spectral_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Wistia]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[Wistia_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[YlGn]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[YlGnBu]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[YlGnBu_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[YlGn_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[YlOrBr]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[YlOrBr_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[YlOrRd]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[YlOrRd_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[afmhot]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[afmhot_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[autumn]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[autumn_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[binary]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[binary_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[bone]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[bone_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[brg]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[brg_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[bwr]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[bwr_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[cividis]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[cividis_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[cool]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[cool_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[coolwarm]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[coolwarm_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[copper]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[copper_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[cubehelix]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[cubehelix_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[flag]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[flag_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gist_earth]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gist_earth_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gist_gray]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gist_gray_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gist_heat]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gist_heat_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gist_ncar]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gist_ncar_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gist_rainbow]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gist_rainbow_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gist_stern]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gist_stern_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gist_yarg]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gist_yarg_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gnuplot]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gnuplot2]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gnuplot2_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gnuplot_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gray]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[gray_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[hot]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[hot_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[hsv]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[hsv_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[inferno]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[inferno_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[jet]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[jet_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[magma]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[magma_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[nipy_spectral]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[nipy_spectral_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[ocean]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[ocean_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[pink]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[pink_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[plasma]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[plasma_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[prism]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[prism_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[rainbow]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[rainbow_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[seismic]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[seismic_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[spring]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[spring_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[summer]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[summer_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[tab10]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[tab10_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[tab20]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[tab20_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[tab20b]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[tab20b_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[tab20c]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[tab20c_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[terrain]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[terrain_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[turbo]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[turbo_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[twilight]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[twilight_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[twilight_shifted]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[twilight_shifted_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[viridis]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[viridis_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[winter]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_reversing[winter_r]
+PASSED lib/matplotlib/tests/test_colors.py::test_has_alpha_channel
+PASSED lib/matplotlib/tests/test_colors.py::test_cn
+PASSED lib/matplotlib/tests/test_colors.py::test_conversions
+PASSED lib/matplotlib/tests/test_colors.py::test_conversions_masked
+PASSED lib/matplotlib/tests/test_colors.py::test_to_rgba_array_single_str
+PASSED lib/matplotlib/tests/test_colors.py::test_to_rgba_array_alpha_array
+PASSED lib/matplotlib/tests/test_colors.py::test_to_rgba_array_accepts_color_alpha_tuple
+PASSED lib/matplotlib/tests/test_colors.py::test_to_rgba_array_explicit_alpha_overrides_tuple_alpha
+PASSED lib/matplotlib/tests/test_colors.py::test_to_rgba_array_accepts_color_alpha_tuple_with_multiple_colors
+PASSED lib/matplotlib/tests/test_colors.py::test_to_rgba_array_error_with_color_invalid_alpha_tuple
+PASSED lib/matplotlib/tests/test_colors.py::test_to_rgba_accepts_color_alpha_tuple[rgba_alpha0]
+PASSED lib/matplotlib/tests/test_colors.py::test_to_rgba_accepts_color_alpha_tuple[rgba_alpha1]
+PASSED lib/matplotlib/tests/test_colors.py::test_to_rgba_accepts_color_alpha_tuple[rgba_alpha2]
+PASSED lib/matplotlib/tests/test_colors.py::test_to_rgba_accepts_color_alpha_tuple[rgba_alpha3]
+PASSED lib/matplotlib/tests/test_colors.py::test_to_rgba_explicit_alpha_overrides_tuple_alpha
+PASSED lib/matplotlib/tests/test_colors.py::test_to_rgba_error_with_color_invalid_alpha_tuple
+PASSED lib/matplotlib/tests/test_colors.py::test_failed_conversions
+PASSED lib/matplotlib/tests/test_colors.py::test_grey_gray
+PASSED lib/matplotlib/tests/test_colors.py::test_tableau_order
+PASSED lib/matplotlib/tests/test_colors.py::test_ndarray_subclass_norm
+PASSED lib/matplotlib/tests/test_colors.py::test_same_color
+PASSED lib/matplotlib/tests/test_colors.py::test_hex_shorthand_notation
+PASSED lib/matplotlib/tests/test_colors.py::test_repr_png
+PASSED lib/matplotlib/tests/test_colors.py::test_repr_html
+PASSED lib/matplotlib/tests/test_colors.py::test_get_under_over_bad
+PASSED lib/matplotlib/tests/test_colors.py::test_non_mutable_get_values[over]
+PASSED lib/matplotlib/tests/test_colors.py::test_non_mutable_get_values[under]
+PASSED lib/matplotlib/tests/test_colors.py::test_non_mutable_get_values[bad]
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_alpha_array
+PASSED lib/matplotlib/tests/test_colors.py::test_colormap_bad_data_with_alpha
+PASSED lib/matplotlib/tests/test_colors.py::test_2d_to_rgba
+PASSED lib/matplotlib/tests/test_colors.py::test_set_dict_to_rgba
+PASSED lib/matplotlib/tests/test_colors.py::test_norm_deepcopy
+PASSED lib/matplotlib/tests/test_colors.py::test_norm_callback
+PASSED lib/matplotlib/tests/test_colors.py::test_scalarmappable_norm_update
+PASSED lib/matplotlib/tests/test_colors.py::test_norm_update_figs[png]
+PASSED lib/matplotlib/tests/test_colors.py::test_norm_update_figs[pdf]
+PASSED lib/matplotlib/tests/test_colors.py::test_make_norm_from_scale_name
+PASSED lib/matplotlib/tests/test_colors.py::test_color_sequences
+PASSED lib/matplotlib/tests/test_colors.py::test_cm_set_cmap_error
+SKIPPED [1] lib/matplotlib/testing/compare.py:285: Don't know how to convert .svg files to png
+FAILED lib/matplotlib/tests/test_colors.py::test_double_register_builtin_cmap
+FAILED lib/matplotlib/tests/test_colors.py::test_colormap_equals - assert <ma...
+FAILED lib/matplotlib/tests/test_colors.py::test_set_cmap_mismatched_name - A...
+================== 3 failed, 263 passed, 1 skipped in 13.90s ===================
++ git checkout 7fdf772201e4c9bafbc16dfac23b5472d6a53fa2 lib/matplotlib/tests/test_colors.py
+Updated 1 path from 6c597b1e3d

@@ -1,0 +1,33 @@
+
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 00000000..d2663184
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,13 @@
++import xarray as xr
++
++xds1 = xr.Dataset(attrs={'a':'b'})
++xds2 = xr.Dataset(attrs={'a':'c'})
++print(f"Initial state: a1: {xds1.a}, a2: {xds2.a}")
++
++xds3 = xr.merge([xds1, xds2], combine_attrs='override')
++print(f"After merge: a1: {xds1.a}, a2: {xds2.a}, a3: {xds3.a}")
++
++xds3.attrs['a'] = 'd'
++print(f"After modifying xds3: a1: {xds1.a}, a2: {xds2.a}, a3: {xds3.a}")
++
++print("Script completed successfully.")
+diff --git a/xarray/core/merge.py b/xarray/core/merge.py
+index ca4e29b6..dff00804 100644
+--- a/xarray/core/merge.py
++++ b/xarray/core/merge.py
+@@ -501,7 +501,7 @@ def merge_attrs(variable_attrs, combine_attrs):
+     if combine_attrs == "drop":
+         return {}
+     elif combine_attrs == "override":
+-        return variable_attrs[0]
++        return dict(variable_attrs[0])
+     elif combine_attrs == "no_conflicts":
+         result = dict(variable_attrs[0])
+         for attrs in variable_attrs[1:]:

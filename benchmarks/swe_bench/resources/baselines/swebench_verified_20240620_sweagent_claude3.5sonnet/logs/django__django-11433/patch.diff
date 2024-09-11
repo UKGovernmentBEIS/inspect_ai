@@ -1,0 +1,86 @@
+
+diff --git a/django/forms/models.py b/django/forms/models.py
+index 5edbbd376f..fccf0ef829 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -48,8 +48,7 @@ def construct_instance(form, instance, fields=None, exclude=None):
+             continue
+         # Leave defaults for fields that aren't in POST data, except for
+         # checkbox inputs because they don't appear in POST data if not checked.
+-        if (f.has_default() and
+-                form[f.name].field.widget.value_omitted_from_data(form.data, form.files, form.add_prefix(f.name))):
++        if f.name not in cleaned_data:
+             continue
+         # Defer saving file-type fields until after the other fields, so a
+         # callable upload_to can use the values from other fields.
+diff --git a/docs/topics/forms/index.txt b/docs/topics/forms/index.txt
+index 6cf1570ab0..f78a5d617e 100644
+--- a/docs/topics/forms/index.txt
++++ b/docs/topics/forms/index.txt
+@@ -442,6 +442,14 @@ validated by calling ``is_valid()`` (and ``is_valid()`` has returned ``True``),
+ the validated form data will be in the ``form.cleaned_data`` dictionary. This
+ data will have been nicely converted into Python types for you.
+ 
++.. note::
++   The ``cleaned_data`` dictionary can overwrite a field's default value (set by the ``initial`` parameter or a model field's ``default``).
++   If a field is not present in the form submission (e.g., it was removed from the payload),
++   its value in ``cleaned_data`` will be ``None``, effectively overwriting any default.
++
++In the above example, ``cc_myself`` will be a boolean value. Likewise, fields
++data will have been nicely converted into Python types for you.
++
+ .. note::
+ 
+     You can still access the unvalidated data directly from ``request.POST`` at
+diff --git a/run_tests.py b/run_tests.py
+new file mode 100644
+index 0000000000..b20e9f3579
+--- /dev/null
++++ b/run_tests.py
+@@ -0,0 +1,13 @@
++import os
++import sys
++
++if __name__ == "__main__":
++    os.environ['DJANGO_SETTINGS_MODULE'] = 'tests.test_sqlite'
++    test_dir = os.path.dirname(__file__)
++    sys.path.insert(0, test_dir)
++    
++    from tests.runtests import setup, django_tests
++    
++    setup(verbosity=1, test_labels=[], parallel=1, start_at=None, start_after=None)
++    failures = django_tests(verbosity=1, interactive=True, failfast=False, test_labels=[])
++    sys.exit(bool(failures))
+diff --git a/tests/forms_tests/tests/test_forms.py b/tests/forms_tests/tests/test_forms.py
+index 18fb4a94de..752cd69ab3 100644
+--- a/tests/forms_tests/tests/test_forms.py
++++ b/tests/forms_tests/tests/test_forms.py
+@@ -3717,4 +3717,27 @@ class RendererTests(SimpleTestCase):
+ 
+         custom = CustomRenderer()
+         form = CustomForm(renderer=custom)
+-        self.assertEqual(form.renderer, custom)
++
++class DefaultValueForm(Form):
++    name = CharField(max_length=50, initial='Default Name')
++
++class CleanedDataOverwriteTest(SimpleTestCase):
++    def test_cleaned_data_overwrites_default(self):
++        # Test with no data provided
++        form = DefaultValueForm()
++        self.assertEqual(form['name'].value(), 'Default Name')
++
++        # Test with data provided
++        form = DefaultValueForm({'name': 'New Name'})
++        self.assertTrue(form.is_valid())
++        self.assertEqual(form.cleaned_data['name'], 'New Name')
++
++        # Test with empty string provided
++        form = DefaultValueForm({'name': ''})
++        self.assertFalse(form.is_valid())
++
++        # Test with None provided (simulating removal of field from payload)
++        form = DefaultValueForm({'name': None})
++        form.full_clean()
++        self.assertEqual(form.cleaned_data.get('name'), None)
++

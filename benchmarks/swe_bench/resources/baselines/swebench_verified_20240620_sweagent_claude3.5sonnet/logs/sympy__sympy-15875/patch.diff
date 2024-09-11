@@ -1,0 +1,59 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..20f900c4bb
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,8 @@
++from sympy import I, simplify
++
++e = -2*I + (1 + I)**2
++print("e =", e)
++print("e.is_zero =", e.is_zero)
++print("simplify(e).is_zero =", simplify(e).is_zero)
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sympy/core/add.py b/sympy/core/add.py
+index 83a5f2aedc..a33213e563 100644
+--- a/sympy/core/add.py
++++ b/sympy/core/add.py
+@@ -530,10 +530,15 @@ def _eval_is_imaginary(self):
+             return False
+ 
+     def _eval_is_zero(self):
++        from sympy import simplify
+         if self.is_commutative is False:
+-            # issue 10528: there is no way to know if a nc symbol
+-            # is zero or not
+             return
++        simplified = simplify(self)
++        if simplified.is_zero:
++            return True
++        if simplified.is_zero is False:
++            return False
++        # If simplify couldn't determine, fall back to original logic
+         nz = []
+         z = 0
+         im_or_z = False
+@@ -564,6 +569,7 @@ def _eval_is_zero(self):
+                 return False
+         if b.is_zero is False:
+             return False
++        return None
+ 
+     def _eval_is_odd(self):
+         l = [f for f in self.args if not (f.is_even is True)]
+diff --git a/test_is_zero.py b/test_is_zero.py
+new file mode 100644
+index 0000000000..20f900c4bb
+--- /dev/null
++++ b/test_is_zero.py
+@@ -0,0 +1,8 @@
++from sympy import I, simplify
++
++e = -2*I + (1 + I)**2
++print("e =", e)
++print("e.is_zero =", e.is_zero)
++print("simplify(e).is_zero =", simplify(e).is_zero)
++
++print("\nScript completed successfully, no errors.")

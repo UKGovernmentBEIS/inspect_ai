@@ -1,0 +1,51 @@
+
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 00000000..13c31a6d
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,9 @@
++import requests
++
++try:
++    requests.get("http://.example.com")
++except Exception as e:
++    print(f"Error type: {type(e).__name__}")
++    print(f"Error message: {str(e)}")
++
++print("Script completed.")
+diff --git a/requests/models.py b/requests/models.py
+index e7d292d5..271395b7 100644
+--- a/requests/models.py
++++ b/requests/models.py
+@@ -367,7 +367,7 @@ class PreparedRequest(RequestEncodingMixin, RequestHooksMixin):
+         if isinstance(url, bytes):
+             url = url.decode('utf8')
+         else:
+-            url = unicode(url) if is_py2 else str(url)
++            url = str(url)
+ 
+         # Remove leading whitespaces from url
+         url = url.lstrip()
+@@ -382,8 +382,20 @@ class PreparedRequest(RequestEncodingMixin, RequestHooksMixin):
+         # Support for unicode domain names and paths.
+         try:
+             scheme, auth, host, port, path, query, fragment = parse_url(url)
++            if host.startswith('.'):
++                # Remove leading dot from the host to prevent parsing issues
++                host = host[1:]
++                url = f"{scheme}://{host}"
++                if port:
++                    url += f":{port}"
++                url += f"{path or ''}"
++                if query:
++                    url += f"?{query}"
++                if fragment:
++                    url += f"#{fragment}"
++                scheme, auth, host, port, path, query, fragment = parse_url(url)
+         except LocationParseError as e:
+-            raise InvalidURL(*e.args)
++            raise InvalidURL("Invalid URL %r: %s" % (url, str(e)))
+ 
+         if not scheme:
+             error = ("Invalid URL {0!r}: No schema supplied. Perhaps you meant http://{0}?")

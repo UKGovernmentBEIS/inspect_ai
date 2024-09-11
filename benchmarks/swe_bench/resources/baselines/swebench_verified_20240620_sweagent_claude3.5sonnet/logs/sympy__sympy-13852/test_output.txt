@@ -1,0 +1,554 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sympy/functions/special/zeta_functions.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test_polylog.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit c935e1d106743efd5bf0705fbeedbd18fadff4dc
+Merge: b9adfc7de3 9a96bdadf7
+Author: Chris Smith <smichr@gmail.com>
+Date:   Sat Jan 6 08:03:46 2018 -0600
+
+    Merge pull request #13846 from smichr/segment
+    
+    directed segments, self-intersecting poly
+
++ git diff c935e1d106743efd5bf0705fbeedbd18fadff4dc
+diff --git a/sympy/functions/special/zeta_functions.py b/sympy/functions/special/zeta_functions.py
+index b8e2b66195..f307bc8578 100644
+--- a/sympy/functions/special/zeta_functions.py
++++ b/sympy/functions/special/zeta_functions.py
+@@ -1,7 +1,7 @@
+ """ Riemann zeta and related function. """
+ from __future__ import print_function, division
+ 
+-from sympy.core import Function, S, sympify, pi
++from sympy.core import Function, S, sympify, pi, Rational
+ from sympy.core.function import ArgumentIndexError
+ from sympy.core.compatibility import range
+ from sympy.functions.combinatorial.numbers import bernoulli, factorial, harmonic
+@@ -204,6 +204,57 @@ def _eval_rewrite_as_polylog(self, z, s, a):
+ 
+ 
+ class polylog(Function):
++    @classmethod
++    def eval(cls, s, z):
++        from sympy import unpolarify, log
++        z = unpolarify(z)
++        if z == 1:
++            return zeta(s)
++        elif z == -1:
++            return -dirichlet_eta(s)
++        elif z == 0:
++            return S.Zero
++        elif s == 2 and z == Rational(1, 2):
++            return -log(2)**2/2 + pi**2/12
++        return None
++
++    def _eval_expand_func(self, **hints):
++        s, z = self.args
++        if s == 2 and z == Rational(1, 2):
++            return -log(2)**2/2 + pi**2/12
++        return self
++
++    def _eval_evalf(self, prec):
++        s, z = self.args
++        if s == 2 and z == Rational(1, 2):
++            return (-log(2)**2/2 + pi**2/12).evalf(prec)
++        return self
++
++    @classmethod
++    def doit(cls, s, z):
++        result = cls.eval(s, z)
++        if result is None:
++            return cls(s, z)
++        return result
++
++    def __new__(cls, s, z):
++        result = cls.eval(s, z)
++        if result is None:
++            return Function.__new__(cls, s, z)
++        return result
++
++    @property
++    def args(self):
++        return (self._args[0], self._args[1])
++    @property
++    def args(self):
++        return (self._args[0], self._args[1])
++
++    def fdiff(self, argindex=2):
++        s, z = self.args
++        if argindex == 2:
++            return polylog(s - 1, z)/z
++        raise ArgumentIndexError(self, argindex)
+     r"""
+     Polylogarithm function.
+ 
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: mpmath>=0.19 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from sympy==1.1.2.dev0) (1.3.0)
+Installing collected packages: sympy
+  Attempting uninstall: sympy
+    Found existing installation: sympy 1.1.2.dev0
+    Uninstalling sympy-1.1.2.dev0:
+      Successfully uninstalled sympy-1.1.2.dev0
+  Running setup.py develop for sympy
+Successfully installed sympy-1.1.2.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout c935e1d106743efd5bf0705fbeedbd18fadff4dc sympy/functions/special/tests/test_zeta_functions.py
+Updated 0 paths from 16f833c66a
++ git apply -v -
+Checking patch sympy/functions/special/tests/test_zeta_functions.py...
+Applied patch sympy/functions/special/tests/test_zeta_functions.py cleanly.
++ PYTHONWARNINGS=ignore::UserWarning,ignore::SyntaxWarning
++ bin/test -C --verbose sympy/functions/special/tests/test_zeta_functions.py
+/testbed/sympy/core/basic.py:3: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Mapping, defaultdict
+/testbed/sympy/core/containers.py:271: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  class OrderedSet(collections.MutableSet):
+/testbed/sympy/plotting/plot.py:28: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Callable
+/testbed/sympy/core/basic.py:3: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Mapping, defaultdict
+/testbed/sympy/core/containers.py:271: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  class OrderedSet(collections.MutableSet):
+/testbed/sympy/plotting/plot.py:28: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Callable
+============================= test process starts ==============================
+executable:         /opt/miniconda3/envs/testbed/bin/python  (3.9.19-final-0) [CPython]
+architecture:       64-bit
+cache:              no
+ground types:       python 
+numpy:              None
+random seed:        25698152
+hash randomization: on (PYTHONHASHSEED=3386155028)
+
+sympy/functions/special/tests/test_zeta_functions.py[11] 
+test_zeta_eval ok
+test_zeta_series E
+test_dirichlet_eta_eval ok
+test_rewriting E
+test_derivatives E
+test_polylog_expansion F
+test_polylog_values F
+test_lerchphi_expansion E
+test_stieltjes ok
+test_stieltjes_evalf ok
+test_issue_10475 E                                                        [FAIL]
+
+
+________________________________________________________________________________
+____ sympy/functions/special/tests/test_zeta_functions.py:test_zeta_series _____
+  File "/testbed/sympy/functions/special/tests/test_zeta_functions.py", line 67, in test_zeta_series
+    assert zeta(x, a).series(a, 0, 2) == \
+  File "/testbed/sympy/core/expr.py", line 2643, in series
+    rv = self.subs(x, xpos).series(xpos, x0, n, dir, logx=logx)
+  File "/testbed/sympy/core/expr.py", line 2650, in series
+    s1 = self._eval_nseries(x, n=n, logx=logx)
+  File "/testbed/sympy/core/function.py", line 677, in _eval_nseries
+    e = e.diff(_x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1246, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_____ sympy/functions/special/tests/test_zeta_functions.py:test_rewriting ______
+  File "/testbed/sympy/functions/special/tests/test_zeta_functions.py", line 90, in test_rewriting
+    assert z*lerchphi(z, s, 1).rewrite(polylog) == polylog(s, z)
+  File "/testbed/sympy/core/basic.py", line 1637, in rewrite
+    return self._eval_rewrite(None, rule, **hints)
+  File "/testbed/sympy/core/basic.py", line 1579, in _eval_rewrite
+    rewritten = getattr(self, rule)(*args)
+  File "/testbed/sympy/functions/special/zeta_functions.py", line 199, in _eval_rewrite_as_polylog
+    return self._eval_rewrite_helper(z, s, a, polylog)
+  File "/testbed/sympy/functions/special/zeta_functions.py", line 189, in _eval_rewrite_helper
+    res = self._eval_expand_func()
+  File "/testbed/sympy/functions/special/zeta_functions.py", line 159, in _eval_expand_func
+    *[polylog(s, zet**k*root)._eval_expand_func(**hints)
+  File "/testbed/sympy/functions/special/zeta_functions.py", line 160, in <listcomp>
+    / (unpolarify(zet)**k*root)**m for k in range(n)])
+  File "/testbed/sympy/functions/elementary/complexes.py", line 1151, in unpolarify
+    res = _unpolarify(eq, exponents_only, pause)
+  File "/testbed/sympy/functions/elementary/complexes.py", line 1099, in _unpolarify
+    return exp(_unpolarify(eq.exp, exponents_only))
+  File "/testbed/sympy/core/function.py", line 439, in __new__
+    result = super(Function, cls).__new__(cls, *args, **options)
+  File "/testbed/sympy/core/function.py", line 250, in __new__
+    evaluated = cls.eval(*args)
+  File "/testbed/sympy/functions/elementary/exponential.py", line 251, in eval
+    if ask(Q.integer(2*coeff)):
+  File "/testbed/sympy/assumptions/ask.py", line 1247, in ask
+    from sympy.assumptions.satask import satask
+  File "/testbed/sympy/assumptions/satask.py", line 9, in <module>
+    from sympy.assumptions.sathandlers import fact_registry
+  File "/testbed/sympy/assumptions/sathandlers.py", line 3, in <module>
+    from collections import MutableMapping, defaultdict
+  File "<frozen importlib._bootstrap>", line 1055, in _handle_fromlist
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+____ sympy/functions/special/tests/test_zeta_functions.py:test_derivatives _____
+  File "/testbed/sympy/functions/special/tests/test_zeta_functions.py", line 95, in test_derivatives
+    assert zeta(x, a).diff(x) == Derivative(zeta(x, a), x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1246, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_ sympy/functions/special/tests/test_zeta_functions.py:test_lerchphi_expansion _
+  File "/testbed/sympy/functions/special/tests/test_zeta_functions.py", line 152, in test_lerchphi_expansion
+    assert myexpand(lerchphi(z, s, 1), polylog(s, z)/z)
+  File "/testbed/sympy/functions/special/tests/test_zeta_functions.py", line 111, in myexpand
+    expanded = expand_func(func)
+  File "/testbed/sympy/core/function.py", line 2397, in expand_func
+    return sympify(expr).expand(deep=deep, func=True, basic=False,
+  File "/testbed/sympy/core/expr.py", line 3105, in expand
+    expr, hit = Expr._expand_hint(expr, hint, deep=deep, **hints)
+  File "/testbed/sympy/core/expr.py", line 3046, in _expand_hint
+    newexpr = getattr(expr, hint)(**hints)
+  File "/testbed/sympy/functions/special/zeta_functions.py", line 159, in _eval_expand_func
+    *[polylog(s, zet**k*root)._eval_expand_func(**hints)
+  File "/testbed/sympy/functions/special/zeta_functions.py", line 160, in <listcomp>
+    / (unpolarify(zet)**k*root)**m for k in range(n)])
+  File "/testbed/sympy/functions/elementary/complexes.py", line 1151, in unpolarify
+    res = _unpolarify(eq, exponents_only, pause)
+  File "/testbed/sympy/functions/elementary/complexes.py", line 1099, in _unpolarify
+    return exp(_unpolarify(eq.exp, exponents_only))
+  File "/testbed/sympy/core/function.py", line 439, in __new__
+    result = super(Function, cls).__new__(cls, *args, **options)
+  File "/testbed/sympy/core/function.py", line 250, in __new__
+    evaluated = cls.eval(*args)
+  File "/testbed/sympy/functions/elementary/exponential.py", line 251, in eval
+    if ask(Q.integer(2*coeff)):
+  File "/testbed/sympy/assumptions/ask.py", line 1247, in ask
+    from sympy.assumptions.satask import satask
+  File "/testbed/sympy/assumptions/satask.py", line 9, in <module>
+    from sympy.assumptions.sathandlers import fact_registry
+  File "/testbed/sympy/assumptions/sathandlers.py", line 3, in <module>
+    from collections import MutableMapping, defaultdict
+  File "<frozen importlib._bootstrap>", line 1055, in _handle_fromlist
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+____ sympy/functions/special/tests/test_zeta_functions.py:test_issue_10475 _____
+  File "/testbed/sympy/functions/special/tests/test_zeta_functions.py", line 208, in test_issue_10475
+    assert zeta(b).is_finite is None
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/functions/special/zeta_functions.py", line 515, in _eval_is_finite
+    arg_is_one = (self.args[0] - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 592, in _eval_is_positive
+    if s != self and s.is_positive and a.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 595, in _eval_is_positive
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1246, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+
+________________________________________________________________________________
+_ sympy/functions/special/tests/test_zeta_functions.py:test_polylog_expansion __
+  File "/testbed/sympy/functions/special/tests/test_zeta_functions.py", line 131, in test_polylog_expansion
+    assert myexpand(polylog(1, z), -log(1 - z))
+AssertionError
+________________________________________________________________________________
+___ sympy/functions/special/tests/test_zeta_functions.py:test_polylog_values ___
+  File "/testbed/sympy/functions/special/tests/test_zeta_functions.py", line 140, in test_polylog_values
+    assert polylog(2, 2) == pi**2/4 - I*pi*log(2)
+AssertionError
+
+====== tests finished: 4 passed, 2 failed, 5 exceptions, in 0.59 seconds =======
+DO *NOT* COMMIT!
++ git checkout c935e1d106743efd5bf0705fbeedbd18fadff4dc sympy/functions/special/tests/test_zeta_functions.py
+Updated 1 path from 16f833c66a

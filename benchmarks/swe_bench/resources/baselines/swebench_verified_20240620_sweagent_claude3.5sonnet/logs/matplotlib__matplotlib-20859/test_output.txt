@@ -1,0 +1,2834 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   lib/matplotlib/legend.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_bug.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 64619e53e9d0ed417daba287ac0d3a06943a54d5
+Merge: b071f393f7 515f4418c1
+Author: Elliott Sales de Andrade <quantum.analyst@gmail.com>
+Date:   Thu Aug 19 03:11:01 2021 -0400
+
+    Merge pull request #20814 from harupy/save-script-if-necessary
+    
+    FIX: Avoid copying source script when `plot_html_show_source_link` is False in plot directive
+
++ git diff 64619e53e9d0ed417daba287ac0d3a06943a54d5
+diff --git a/lib/matplotlib/legend.py b/lib/matplotlib/legend.py
+index 44ab024698..6f3777fb95 100644
+--- a/lib/matplotlib/legend.py
++++ b/lib/matplotlib/legend.py
+@@ -47,6 +47,7 @@ from matplotlib.offsetbox import (
+ )
+ from matplotlib.container import ErrorbarContainer, BarContainer, StemContainer
+ from . import legend_handler
++# Remove this line: from matplotlib.figure import FigureBase
+ 
+ 
+ class DraggableLegend(DraggableOffsetBox):
+@@ -433,12 +434,11 @@ class Legend(Artist):
+         if isinstance(parent, Axes):
+             self.isaxes = True
+             self.axes = parent
+-            self.set_figure(parent.figure)
+-        elif isinstance(parent, Figure):
++        if hasattr(parent, 'figure'):
+             self.isaxes = False
+-            self.set_figure(parent)
++            self.set_figure(parent.figure)
+         else:
+-            raise TypeError("Legend needs either Axes or Figure as parent")
++            raise TypeError("Legend needs either Axes or a Figure-like object as parent")
+         self.parent = parent
+ 
+         self._loc_used_default = loc is None
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: cycler>=0.10 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev1716+g64619e53e9.d20240724) (0.12.1)
+Requirement already satisfied: fonttools>=4.22.0 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev1716+g64619e53e9.d20240724) (4.53.1)
+Requirement already satisfied: kiwisolver>=1.0.1 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev1716+g64619e53e9.d20240724) (1.4.5)
+Requirement already satisfied: numpy>=1.17 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev1716+g64619e53e9.d20240724) (1.24.4)
+Requirement already satisfied: packaging>=20.0 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev1716+g64619e53e9.d20240724) (24.1)
+Requirement already satisfied: pillow>=6.2.0 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev1716+g64619e53e9.d20240724) (10.4.0)
+Requirement already satisfied: pyparsing>=2.2.1 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev1716+g64619e53e9.d20240724) (2.4.7)
+Requirement already satisfied: python-dateutil>=2.7 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev1716+g64619e53e9.d20240724) (2.9.0.post0)
+Requirement already satisfied: setuptools_scm>=4 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev1716+g64619e53e9.d20240724) (8.1.0)
+Requirement already satisfied: six>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from python-dateutil>=2.7->matplotlib==3.5.0.dev1716+g64619e53e9.d20240724) (1.16.0)
+Requirement already satisfied: setuptools in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from setuptools_scm>=4->matplotlib==3.5.0.dev1716+g64619e53e9.d20240724) (69.5.1)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from setuptools_scm>=4->matplotlib==3.5.0.dev1716+g64619e53e9.d20240724) (4.12.2)
+Requirement already satisfied: tomli>=1 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from setuptools_scm>=4->matplotlib==3.5.0.dev1716+g64619e53e9.d20240724) (2.0.1)
+Installing collected packages: matplotlib
+  Attempting uninstall: matplotlib
+    Found existing installation: matplotlib 3.5.0.dev1716+g64619e53e9
+    Uninstalling matplotlib-3.5.0.dev1716+g64619e53e9:
+      Successfully uninstalled matplotlib-3.5.0.dev1716+g64619e53e9
+  Running setup.py develop for matplotlib
+Successfully installed matplotlib-3.5.0.dev1716+g64619e53e9.d20240724
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 64619e53e9d0ed417daba287ac0d3a06943a54d5 lib/matplotlib/tests/test_legend.py
+Updated 0 paths from 61c04b19ab
++ git apply -v -
+Checking patch lib/matplotlib/tests/test_legend.py...
+Applied patch lib/matplotlib/tests/test_legend.py cleanly.
++ pytest -rA lib/matplotlib/tests/test_legend.py
+============================= test session starts ==============================
+platform linux -- Python 3.8.19, pytest-8.3.1, pluggy-1.5.0
+rootdir: /testbed
+configfile: pytest.ini
+plugins: cov-5.0.0, rerunfailures-14.0, timeout-2.3.1, xdist-3.6.1
+collected 99 items
+
+lib/matplotlib/tests/test_legend.py .FFsFFsFFsFFsF.....s..s..s..s..s.... [ 36%]
+...............F...FF.........................sF..............F          [100%]
+
+=================================== FAILURES ===================================
+____________________________ test_legend_auto1[png] ____________________________
+
+    @image_comparison(['legend_auto1'], remove_text=True)
+    def test_legend_auto1():
+        """Test automatic legend placement"""
+        fig, ax = plt.subplots()
+        x = np.arange(100)
+        ax.plot(x, 50 - x, 'o', label='y=1')
+        ax.plot(x, x - 50, 'o', label='y=-1')
+>       ax.legend(loc='best')
+
+lib/matplotlib/tests/test_legend.py:45: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/axes/_axes.py:305: in legend
+    self.legend_ = mlegend.Legend(self, handles, labels, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.legend.Legend object at 0x7f3828b5b700>
+parent = <AxesSubplot:>
+handles = [<matplotlib.lines.Line2D object at 0x7f3828b79280>, <matplotlib.lines.Line2D object at 0x7f3828b794c0>]
+labels = ['y=1', 'y=-1'], loc = 0, numpoints = None, markerscale = None
+markerfirst = True, scatterpoints = None, scatteryoffsets = None, prop = None
+fontsize = None, labelcolor = None, borderpad = None, labelspacing = None
+handlelength = None, handleheight = None, handletextpad = None
+borderaxespad = None, columnspacing = None, ncol = 1, mode = None
+fancybox = None, shadow = None, title = None, title_fontsize = None
+framealpha = None, edgecolor = None, facecolor = None, bbox_to_anchor = None
+bbox_transform = None, frameon = None, handler_map = None
+title_fontproperties = None
+
+    @docstring.dedent_interpd
+    def __init__(
+        self, parent, handles, labels,
+        loc=None,
+        numpoints=None,      # number of points in the legend line
+        markerscale=None,    # relative size of legend markers vs. original
+        markerfirst=True,    # left/right ordering of legend marker and label
+        scatterpoints=None,  # number of scatter points
+        scatteryoffsets=None,
+        prop=None,           # properties for the legend texts
+        fontsize=None,       # keyword to set font size directly
+        labelcolor=None,     # keyword to set the text color
+    
+        # spacing & pad defined as a fraction of the font-size
+        borderpad=None,      # whitespace inside the legend border
+        labelspacing=None,   # vertical space between the legend entries
+        handlelength=None,   # length of the legend handles
+        handleheight=None,   # height of the legend handles
+        handletextpad=None,  # pad between the legend handle and text
+        borderaxespad=None,  # pad between the axes and legend border
+        columnspacing=None,  # spacing between columns
+    
+        ncol=1,     # number of columns
+        mode=None,  # horizontal distribution of columns: None or "expand"
+    
+        fancybox=None,  # True: fancy box, False: rounded box, None: rcParam
+        shadow=None,
+        title=None,           # legend title
+        title_fontsize=None,  # legend title font size
+        framealpha=None,      # set frame alpha
+        edgecolor=None,       # frame patch edgecolor
+        facecolor=None,       # frame patch facecolor
+    
+        bbox_to_anchor=None,  # bbox to which the legend will be anchored
+        bbox_transform=None,  # transform for the bbox
+        frameon=None,         # draw frame
+        handler_map=None,
+        title_fontproperties=None,  # properties for the legend title
+    ):
+        """
+        Parameters
+        ----------
+        parent : `~matplotlib.axes.Axes` or `.Figure`
+            The artist that contains the legend.
+    
+        handles : list of `.Artist`
+            A list of Artists (lines, patches) to be added to the legend.
+    
+        labels : list of str
+            A list of labels to show next to the artists. The length of handles
+            and labels should be the same. If they are not, they are truncated
+            to the smaller of both lengths.
+    
+        Other Parameters
+        ----------------
+        %(_legend_kw_doc)s
+    
+        Notes
+        -----
+        Users can specify any arbitrary location for the legend using the
+        *bbox_to_anchor* keyword argument. *bbox_to_anchor* can be a
+        `.BboxBase` (or derived therefrom) or a tuple of 2 or 4 floats.
+        See `set_bbox_to_anchor` for more detail.
+    
+        The legend location can be specified by setting *loc* with a tuple of
+        2 floats, which is interpreted as the lower-left corner of the legend
+        in the normalized axes coordinate.
+        """
+        # local import only to avoid circularity
+        from matplotlib.axes import Axes
+        from matplotlib.figure import Figure
+    
+        super().__init__()
+    
+        if prop is None:
+            if fontsize is not None:
+                self.prop = FontProperties(size=fontsize)
+            else:
+                self.prop = FontProperties(
+                    size=mpl.rcParams["legend.fontsize"])
+        else:
+            self.prop = FontProperties._from_any(prop)
+            if isinstance(prop, dict) and "size" not in prop:
+                self.prop.set_size(mpl.rcParams["legend.fontsize"])
+    
+        self._fontsize = self.prop.get_size_in_points()
+    
+        self.texts = []
+        self.legendHandles = []
+        self._legend_title_box = None
+    
+        #: A dictionary with the extra handler mappings for this Legend
+        #: instance.
+        self._custom_handler_map = handler_map
+    
+        locals_view = locals()
+        for name in ["numpoints", "markerscale", "shadow", "columnspacing",
+                     "scatterpoints", "handleheight", 'borderpad',
+                     'labelspacing', 'handlelength', 'handletextpad',
+                     'borderaxespad']:
+            if locals_view[name] is None:
+                value = mpl.rcParams["legend." + name]
+            else:
+                value = locals_view[name]
+            setattr(self, name, value)
+        del locals_view
+        # trim handles and labels if illegal label...
+        _lab, _hand = [], []
+        for label, handle in zip(labels, handles):
+            if isinstance(label, str) and label.startswith('_'):
+                _api.warn_external('The handle {!r} has a label of {!r} '
+                                   'which cannot be automatically added to'
+                                   ' the legend.'.format(handle, label))
+            else:
+                _lab.append(label)
+                _hand.append(handle)
+        labels, handles = _lab, _hand
+    
+        handles = list(handles)
+        if len(handles) < 2:
+            ncol = 1
+        self._ncol = ncol
+    
+        if self.numpoints <= 0:
+            raise ValueError("numpoints must be > 0; it was %d" % numpoints)
+    
+        # introduce y-offset for handles of the scatter plot
+        if scatteryoffsets is None:
+            self._scatteryoffsets = np.array([3. / 8., 4. / 8., 2.5 / 8.])
+        else:
+            self._scatteryoffsets = np.asarray(scatteryoffsets)
+        reps = self.scatterpoints // len(self._scatteryoffsets) + 1
+        self._scatteryoffsets = np.tile(self._scatteryoffsets,
+                                        reps)[:self.scatterpoints]
+    
+        # _legend_box is a VPacker instance that contains all
+        # legend items and will be initialized from _init_legend_box()
+        # method.
+        self._legend_box = None
+    
+        if isinstance(parent, Axes):
+            self.isaxes = True
+            self.axes = parent
+        if hasattr(parent, 'figure'):
+            self.isaxes = False
+            self.set_figure(parent.figure)
+        else:
+            raise TypeError("Legend needs either Axes or a Figure-like object as parent")
+        self.parent = parent
+    
+        self._loc_used_default = loc is None
+        if loc is None:
+            loc = mpl.rcParams["legend.loc"]
+            if not self.isaxes and loc in [0, 'best']:
+                loc = 'upper right'
+        if isinstance(loc, str):
+            loc = _api.check_getitem(self.codes, loc=loc)
+        if not self.isaxes and loc == 0:
+>           raise ValueError(
+                "Automatic legend placement (loc='best') not implemented for "
+                "figure legend")
+E           ValueError: Automatic legend placement (loc='best') not implemented for figure legend
+
+lib/matplotlib/legend.py:452: ValueError
+____________________________ test_legend_auto1[pdf] ____________________________
+
+    @image_comparison(['legend_auto1'], remove_text=True)
+    def test_legend_auto1():
+        """Test automatic legend placement"""
+        fig, ax = plt.subplots()
+        x = np.arange(100)
+        ax.plot(x, 50 - x, 'o', label='y=1')
+        ax.plot(x, x - 50, 'o', label='y=-1')
+>       ax.legend(loc='best')
+
+lib/matplotlib/tests/test_legend.py:45: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/axes/_axes.py:305: in legend
+    self.legend_ = mlegend.Legend(self, handles, labels, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.legend.Legend object at 0x7f38288c9430>
+parent = <AxesSubplot:>
+handles = [<matplotlib.lines.Line2D object at 0x7f38288c9580>, <matplotlib.lines.Line2D object at 0x7f3815c4a3a0>]
+labels = ['y=1', 'y=-1'], loc = 0, numpoints = None, markerscale = None
+markerfirst = True, scatterpoints = None, scatteryoffsets = None, prop = None
+fontsize = None, labelcolor = None, borderpad = None, labelspacing = None
+handlelength = None, handleheight = None, handletextpad = None
+borderaxespad = None, columnspacing = None, ncol = 1, mode = None
+fancybox = None, shadow = None, title = None, title_fontsize = None
+framealpha = None, edgecolor = None, facecolor = None, bbox_to_anchor = None
+bbox_transform = None, frameon = None, handler_map = None
+title_fontproperties = None
+
+    @docstring.dedent_interpd
+    def __init__(
+        self, parent, handles, labels,
+        loc=None,
+        numpoints=None,      # number of points in the legend line
+        markerscale=None,    # relative size of legend markers vs. original
+        markerfirst=True,    # left/right ordering of legend marker and label
+        scatterpoints=None,  # number of scatter points
+        scatteryoffsets=None,
+        prop=None,           # properties for the legend texts
+        fontsize=None,       # keyword to set font size directly
+        labelcolor=None,     # keyword to set the text color
+    
+        # spacing & pad defined as a fraction of the font-size
+        borderpad=None,      # whitespace inside the legend border
+        labelspacing=None,   # vertical space between the legend entries
+        handlelength=None,   # length of the legend handles
+        handleheight=None,   # height of the legend handles
+        handletextpad=None,  # pad between the legend handle and text
+        borderaxespad=None,  # pad between the axes and legend border
+        columnspacing=None,  # spacing between columns
+    
+        ncol=1,     # number of columns
+        mode=None,  # horizontal distribution of columns: None or "expand"
+    
+        fancybox=None,  # True: fancy box, False: rounded box, None: rcParam
+        shadow=None,
+        title=None,           # legend title
+        title_fontsize=None,  # legend title font size
+        framealpha=None,      # set frame alpha
+        edgecolor=None,       # frame patch edgecolor
+        facecolor=None,       # frame patch facecolor
+    
+        bbox_to_anchor=None,  # bbox to which the legend will be anchored
+        bbox_transform=None,  # transform for the bbox
+        frameon=None,         # draw frame
+        handler_map=None,
+        title_fontproperties=None,  # properties for the legend title
+    ):
+        """
+        Parameters
+        ----------
+        parent : `~matplotlib.axes.Axes` or `.Figure`
+            The artist that contains the legend.
+    
+        handles : list of `.Artist`
+            A list of Artists (lines, patches) to be added to the legend.
+    
+        labels : list of str
+            A list of labels to show next to the artists. The length of handles
+            and labels should be the same. If they are not, they are truncated
+            to the smaller of both lengths.
+    
+        Other Parameters
+        ----------------
+        %(_legend_kw_doc)s
+    
+        Notes
+        -----
+        Users can specify any arbitrary location for the legend using the
+        *bbox_to_anchor* keyword argument. *bbox_to_anchor* can be a
+        `.BboxBase` (or derived therefrom) or a tuple of 2 or 4 floats.
+        See `set_bbox_to_anchor` for more detail.
+    
+        The legend location can be specified by setting *loc* with a tuple of
+        2 floats, which is interpreted as the lower-left corner of the legend
+        in the normalized axes coordinate.
+        """
+        # local import only to avoid circularity
+        from matplotlib.axes import Axes
+        from matplotlib.figure import Figure
+    
+        super().__init__()
+    
+        if prop is None:
+            if fontsize is not None:
+                self.prop = FontProperties(size=fontsize)
+            else:
+                self.prop = FontProperties(
+                    size=mpl.rcParams["legend.fontsize"])
+        else:
+            self.prop = FontProperties._from_any(prop)
+            if isinstance(prop, dict) and "size" not in prop:
+                self.prop.set_size(mpl.rcParams["legend.fontsize"])
+    
+        self._fontsize = self.prop.get_size_in_points()
+    
+        self.texts = []
+        self.legendHandles = []
+        self._legend_title_box = None
+    
+        #: A dictionary with the extra handler mappings for this Legend
+        #: instance.
+        self._custom_handler_map = handler_map
+    
+        locals_view = locals()
+        for name in ["numpoints", "markerscale", "shadow", "columnspacing",
+                     "scatterpoints", "handleheight", 'borderpad',
+                     'labelspacing', 'handlelength', 'handletextpad',
+                     'borderaxespad']:
+            if locals_view[name] is None:
+                value = mpl.rcParams["legend." + name]
+            else:
+                value = locals_view[name]
+            setattr(self, name, value)
+        del locals_view
+        # trim handles and labels if illegal label...
+        _lab, _hand = [], []
+        for label, handle in zip(labels, handles):
+            if isinstance(label, str) and label.startswith('_'):
+                _api.warn_external('The handle {!r} has a label of {!r} '
+                                   'which cannot be automatically added to'
+                                   ' the legend.'.format(handle, label))
+            else:
+                _lab.append(label)
+                _hand.append(handle)
+        labels, handles = _lab, _hand
+    
+        handles = list(handles)
+        if len(handles) < 2:
+            ncol = 1
+        self._ncol = ncol
+    
+        if self.numpoints <= 0:
+            raise ValueError("numpoints must be > 0; it was %d" % numpoints)
+    
+        # introduce y-offset for handles of the scatter plot
+        if scatteryoffsets is None:
+            self._scatteryoffsets = np.array([3. / 8., 4. / 8., 2.5 / 8.])
+        else:
+            self._scatteryoffsets = np.asarray(scatteryoffsets)
+        reps = self.scatterpoints // len(self._scatteryoffsets) + 1
+        self._scatteryoffsets = np.tile(self._scatteryoffsets,
+                                        reps)[:self.scatterpoints]
+    
+        # _legend_box is a VPacker instance that contains all
+        # legend items and will be initialized from _init_legend_box()
+        # method.
+        self._legend_box = None
+    
+        if isinstance(parent, Axes):
+            self.isaxes = True
+            self.axes = parent
+        if hasattr(parent, 'figure'):
+            self.isaxes = False
+            self.set_figure(parent.figure)
+        else:
+            raise TypeError("Legend needs either Axes or a Figure-like object as parent")
+        self.parent = parent
+    
+        self._loc_used_default = loc is None
+        if loc is None:
+            loc = mpl.rcParams["legend.loc"]
+            if not self.isaxes and loc in [0, 'best']:
+                loc = 'upper right'
+        if isinstance(loc, str):
+            loc = _api.check_getitem(self.codes, loc=loc)
+        if not self.isaxes and loc == 0:
+>           raise ValueError(
+                "Automatic legend placement (loc='best') not implemented for "
+                "figure legend")
+E           ValueError: Automatic legend placement (loc='best') not implemented for figure legend
+
+lib/matplotlib/legend.py:452: ValueError
+____________________________ test_legend_auto2[png] ____________________________
+
+    @image_comparison(['legend_auto2'], remove_text=True)
+    def test_legend_auto2():
+        """Test automatic legend placement"""
+        fig, ax = plt.subplots()
+        x = np.arange(100)
+        b1 = ax.bar(x, x, align='edge', color='m')
+        b2 = ax.bar(x, x[::-1], align='edge', color='g')
+>       ax.legend([b1[0], b2[0]], ['up', 'down'], loc='best')
+
+lib/matplotlib/tests/test_legend.py:55: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/axes/_axes.py:305: in legend
+    self.legend_ = mlegend.Legend(self, handles, labels, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.legend.Legend object at 0x7f3828c24400>
+parent = <AxesSubplot:>
+handles = [<matplotlib.patches.Rectangle object at 0x7f3828b40b20>, <matplotlib.patches.Rectangle object at 0x7f382886ccd0>]
+labels = ['up', 'down'], loc = 0, numpoints = None, markerscale = None
+markerfirst = True, scatterpoints = None, scatteryoffsets = None, prop = None
+fontsize = None, labelcolor = None, borderpad = None, labelspacing = None
+handlelength = None, handleheight = None, handletextpad = None
+borderaxespad = None, columnspacing = None, ncol = 1, mode = None
+fancybox = None, shadow = None, title = None, title_fontsize = None
+framealpha = None, edgecolor = None, facecolor = None, bbox_to_anchor = None
+bbox_transform = None, frameon = None, handler_map = None
+title_fontproperties = None
+
+    @docstring.dedent_interpd
+    def __init__(
+        self, parent, handles, labels,
+        loc=None,
+        numpoints=None,      # number of points in the legend line
+        markerscale=None,    # relative size of legend markers vs. original
+        markerfirst=True,    # left/right ordering of legend marker and label
+        scatterpoints=None,  # number of scatter points
+        scatteryoffsets=None,
+        prop=None,           # properties for the legend texts
+        fontsize=None,       # keyword to set font size directly
+        labelcolor=None,     # keyword to set the text color
+    
+        # spacing & pad defined as a fraction of the font-size
+        borderpad=None,      # whitespace inside the legend border
+        labelspacing=None,   # vertical space between the legend entries
+        handlelength=None,   # length of the legend handles
+        handleheight=None,   # height of the legend handles
+        handletextpad=None,  # pad between the legend handle and text
+        borderaxespad=None,  # pad between the axes and legend border
+        columnspacing=None,  # spacing between columns
+    
+        ncol=1,     # number of columns
+        mode=None,  # horizontal distribution of columns: None or "expand"
+    
+        fancybox=None,  # True: fancy box, False: rounded box, None: rcParam
+        shadow=None,
+        title=None,           # legend title
+        title_fontsize=None,  # legend title font size
+        framealpha=None,      # set frame alpha
+        edgecolor=None,       # frame patch edgecolor
+        facecolor=None,       # frame patch facecolor
+    
+        bbox_to_anchor=None,  # bbox to which the legend will be anchored
+        bbox_transform=None,  # transform for the bbox
+        frameon=None,         # draw frame
+        handler_map=None,
+        title_fontproperties=None,  # properties for the legend title
+    ):
+        """
+        Parameters
+        ----------
+        parent : `~matplotlib.axes.Axes` or `.Figure`
+            The artist that contains the legend.
+    
+        handles : list of `.Artist`
+            A list of Artists (lines, patches) to be added to the legend.
+    
+        labels : list of str
+            A list of labels to show next to the artists. The length of handles
+            and labels should be the same. If they are not, they are truncated
+            to the smaller of both lengths.
+    
+        Other Parameters
+        ----------------
+        %(_legend_kw_doc)s
+    
+        Notes
+        -----
+        Users can specify any arbitrary location for the legend using the
+        *bbox_to_anchor* keyword argument. *bbox_to_anchor* can be a
+        `.BboxBase` (or derived therefrom) or a tuple of 2 or 4 floats.
+        See `set_bbox_to_anchor` for more detail.
+    
+        The legend location can be specified by setting *loc* with a tuple of
+        2 floats, which is interpreted as the lower-left corner of the legend
+        in the normalized axes coordinate.
+        """
+        # local import only to avoid circularity
+        from matplotlib.axes import Axes
+        from matplotlib.figure import Figure
+    
+        super().__init__()
+    
+        if prop is None:
+            if fontsize is not None:
+                self.prop = FontProperties(size=fontsize)
+            else:
+                self.prop = FontProperties(
+                    size=mpl.rcParams["legend.fontsize"])
+        else:
+            self.prop = FontProperties._from_any(prop)
+            if isinstance(prop, dict) and "size" not in prop:
+                self.prop.set_size(mpl.rcParams["legend.fontsize"])
+    
+        self._fontsize = self.prop.get_size_in_points()
+    
+        self.texts = []
+        self.legendHandles = []
+        self._legend_title_box = None
+    
+        #: A dictionary with the extra handler mappings for this Legend
+        #: instance.
+        self._custom_handler_map = handler_map
+    
+        locals_view = locals()
+        for name in ["numpoints", "markerscale", "shadow", "columnspacing",
+                     "scatterpoints", "handleheight", 'borderpad',
+                     'labelspacing', 'handlelength', 'handletextpad',
+                     'borderaxespad']:
+            if locals_view[name] is None:
+                value = mpl.rcParams["legend." + name]
+            else:
+                value = locals_view[name]
+            setattr(self, name, value)
+        del locals_view
+        # trim handles and labels if illegal label...
+        _lab, _hand = [], []
+        for label, handle in zip(labels, handles):
+            if isinstance(label, str) and label.startswith('_'):
+                _api.warn_external('The handle {!r} has a label of {!r} '
+                                   'which cannot be automatically added to'
+                                   ' the legend.'.format(handle, label))
+            else:
+                _lab.append(label)
+                _hand.append(handle)
+        labels, handles = _lab, _hand
+    
+        handles = list(handles)
+        if len(handles) < 2:
+            ncol = 1
+        self._ncol = ncol
+    
+        if self.numpoints <= 0:
+            raise ValueError("numpoints must be > 0; it was %d" % numpoints)
+    
+        # introduce y-offset for handles of the scatter plot
+        if scatteryoffsets is None:
+            self._scatteryoffsets = np.array([3. / 8., 4. / 8., 2.5 / 8.])
+        else:
+            self._scatteryoffsets = np.asarray(scatteryoffsets)
+        reps = self.scatterpoints // len(self._scatteryoffsets) + 1
+        self._scatteryoffsets = np.tile(self._scatteryoffsets,
+                                        reps)[:self.scatterpoints]
+    
+        # _legend_box is a VPacker instance that contains all
+        # legend items and will be initialized from _init_legend_box()
+        # method.
+        self._legend_box = None
+    
+        if isinstance(parent, Axes):
+            self.isaxes = True
+            self.axes = parent
+        if hasattr(parent, 'figure'):
+            self.isaxes = False
+            self.set_figure(parent.figure)
+        else:
+            raise TypeError("Legend needs either Axes or a Figure-like object as parent")
+        self.parent = parent
+    
+        self._loc_used_default = loc is None
+        if loc is None:
+            loc = mpl.rcParams["legend.loc"]
+            if not self.isaxes and loc in [0, 'best']:
+                loc = 'upper right'
+        if isinstance(loc, str):
+            loc = _api.check_getitem(self.codes, loc=loc)
+        if not self.isaxes and loc == 0:
+>           raise ValueError(
+                "Automatic legend placement (loc='best') not implemented for "
+                "figure legend")
+E           ValueError: Automatic legend placement (loc='best') not implemented for figure legend
+
+lib/matplotlib/legend.py:452: ValueError
+____________________________ test_legend_auto2[pdf] ____________________________
+
+    @image_comparison(['legend_auto2'], remove_text=True)
+    def test_legend_auto2():
+        """Test automatic legend placement"""
+        fig, ax = plt.subplots()
+        x = np.arange(100)
+        b1 = ax.bar(x, x, align='edge', color='m')
+        b2 = ax.bar(x, x[::-1], align='edge', color='g')
+>       ax.legend([b1[0], b2[0]], ['up', 'down'], loc='best')
+
+lib/matplotlib/tests/test_legend.py:55: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/axes/_axes.py:305: in legend
+    self.legend_ = mlegend.Legend(self, handles, labels, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.legend.Legend object at 0x7f3827e133a0>
+parent = <AxesSubplot:>
+handles = [<matplotlib.patches.Rectangle object at 0x7f3827e2cfa0>, <matplotlib.patches.Rectangle object at 0x7f3828d0f040>]
+labels = ['up', 'down'], loc = 0, numpoints = None, markerscale = None
+markerfirst = True, scatterpoints = None, scatteryoffsets = None, prop = None
+fontsize = None, labelcolor = None, borderpad = None, labelspacing = None
+handlelength = None, handleheight = None, handletextpad = None
+borderaxespad = None, columnspacing = None, ncol = 1, mode = None
+fancybox = None, shadow = None, title = None, title_fontsize = None
+framealpha = None, edgecolor = None, facecolor = None, bbox_to_anchor = None
+bbox_transform = None, frameon = None, handler_map = None
+title_fontproperties = None
+
+    @docstring.dedent_interpd
+    def __init__(
+        self, parent, handles, labels,
+        loc=None,
+        numpoints=None,      # number of points in the legend line
+        markerscale=None,    # relative size of legend markers vs. original
+        markerfirst=True,    # left/right ordering of legend marker and label
+        scatterpoints=None,  # number of scatter points
+        scatteryoffsets=None,
+        prop=None,           # properties for the legend texts
+        fontsize=None,       # keyword to set font size directly
+        labelcolor=None,     # keyword to set the text color
+    
+        # spacing & pad defined as a fraction of the font-size
+        borderpad=None,      # whitespace inside the legend border
+        labelspacing=None,   # vertical space between the legend entries
+        handlelength=None,   # length of the legend handles
+        handleheight=None,   # height of the legend handles
+        handletextpad=None,  # pad between the legend handle and text
+        borderaxespad=None,  # pad between the axes and legend border
+        columnspacing=None,  # spacing between columns
+    
+        ncol=1,     # number of columns
+        mode=None,  # horizontal distribution of columns: None or "expand"
+    
+        fancybox=None,  # True: fancy box, False: rounded box, None: rcParam
+        shadow=None,
+        title=None,           # legend title
+        title_fontsize=None,  # legend title font size
+        framealpha=None,      # set frame alpha
+        edgecolor=None,       # frame patch edgecolor
+        facecolor=None,       # frame patch facecolor
+    
+        bbox_to_anchor=None,  # bbox to which the legend will be anchored
+        bbox_transform=None,  # transform for the bbox
+        frameon=None,         # draw frame
+        handler_map=None,
+        title_fontproperties=None,  # properties for the legend title
+    ):
+        """
+        Parameters
+        ----------
+        parent : `~matplotlib.axes.Axes` or `.Figure`
+            The artist that contains the legend.
+    
+        handles : list of `.Artist`
+            A list of Artists (lines, patches) to be added to the legend.
+    
+        labels : list of str
+            A list of labels to show next to the artists. The length of handles
+            and labels should be the same. If they are not, they are truncated
+            to the smaller of both lengths.
+    
+        Other Parameters
+        ----------------
+        %(_legend_kw_doc)s
+    
+        Notes
+        -----
+        Users can specify any arbitrary location for the legend using the
+        *bbox_to_anchor* keyword argument. *bbox_to_anchor* can be a
+        `.BboxBase` (or derived therefrom) or a tuple of 2 or 4 floats.
+        See `set_bbox_to_anchor` for more detail.
+    
+        The legend location can be specified by setting *loc* with a tuple of
+        2 floats, which is interpreted as the lower-left corner of the legend
+        in the normalized axes coordinate.
+        """
+        # local import only to avoid circularity
+        from matplotlib.axes import Axes
+        from matplotlib.figure import Figure
+    
+        super().__init__()
+    
+        if prop is None:
+            if fontsize is not None:
+                self.prop = FontProperties(size=fontsize)
+            else:
+                self.prop = FontProperties(
+                    size=mpl.rcParams["legend.fontsize"])
+        else:
+            self.prop = FontProperties._from_any(prop)
+            if isinstance(prop, dict) and "size" not in prop:
+                self.prop.set_size(mpl.rcParams["legend.fontsize"])
+    
+        self._fontsize = self.prop.get_size_in_points()
+    
+        self.texts = []
+        self.legendHandles = []
+        self._legend_title_box = None
+    
+        #: A dictionary with the extra handler mappings for this Legend
+        #: instance.
+        self._custom_handler_map = handler_map
+    
+        locals_view = locals()
+        for name in ["numpoints", "markerscale", "shadow", "columnspacing",
+                     "scatterpoints", "handleheight", 'borderpad',
+                     'labelspacing', 'handlelength', 'handletextpad',
+                     'borderaxespad']:
+            if locals_view[name] is None:
+                value = mpl.rcParams["legend." + name]
+            else:
+                value = locals_view[name]
+            setattr(self, name, value)
+        del locals_view
+        # trim handles and labels if illegal label...
+        _lab, _hand = [], []
+        for label, handle in zip(labels, handles):
+            if isinstance(label, str) and label.startswith('_'):
+                _api.warn_external('The handle {!r} has a label of {!r} '
+                                   'which cannot be automatically added to'
+                                   ' the legend.'.format(handle, label))
+            else:
+                _lab.append(label)
+                _hand.append(handle)
+        labels, handles = _lab, _hand
+    
+        handles = list(handles)
+        if len(handles) < 2:
+            ncol = 1
+        self._ncol = ncol
+    
+        if self.numpoints <= 0:
+            raise ValueError("numpoints must be > 0; it was %d" % numpoints)
+    
+        # introduce y-offset for handles of the scatter plot
+        if scatteryoffsets is None:
+            self._scatteryoffsets = np.array([3. / 8., 4. / 8., 2.5 / 8.])
+        else:
+            self._scatteryoffsets = np.asarray(scatteryoffsets)
+        reps = self.scatterpoints // len(self._scatteryoffsets) + 1
+        self._scatteryoffsets = np.tile(self._scatteryoffsets,
+                                        reps)[:self.scatterpoints]
+    
+        # _legend_box is a VPacker instance that contains all
+        # legend items and will be initialized from _init_legend_box()
+        # method.
+        self._legend_box = None
+    
+        if isinstance(parent, Axes):
+            self.isaxes = True
+            self.axes = parent
+        if hasattr(parent, 'figure'):
+            self.isaxes = False
+            self.set_figure(parent.figure)
+        else:
+            raise TypeError("Legend needs either Axes or a Figure-like object as parent")
+        self.parent = parent
+    
+        self._loc_used_default = loc is None
+        if loc is None:
+            loc = mpl.rcParams["legend.loc"]
+            if not self.isaxes and loc in [0, 'best']:
+                loc = 'upper right'
+        if isinstance(loc, str):
+            loc = _api.check_getitem(self.codes, loc=loc)
+        if not self.isaxes and loc == 0:
+>           raise ValueError(
+                "Automatic legend placement (loc='best') not implemented for "
+                "figure legend")
+E           ValueError: Automatic legend placement (loc='best') not implemented for figure legend
+
+lib/matplotlib/legend.py:452: ValueError
+____________________________ test_legend_auto3[png] ____________________________
+
+    @image_comparison(['legend_auto3'])
+    def test_legend_auto3():
+        """Test automatic legend placement"""
+        fig, ax = plt.subplots()
+        x = [0.9, 0.1, 0.1, 0.9, 0.9, 0.5]
+        y = [0.95, 0.95, 0.05, 0.05, 0.5, 0.5]
+        ax.plot(x, y, 'o-', label='line')
+        ax.set_xlim(0.0, 1.0)
+        ax.set_ylim(0.0, 1.0)
+>       ax.legend(loc='best')
+
+lib/matplotlib/tests/test_legend.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/axes/_axes.py:305: in legend
+    self.legend_ = mlegend.Legend(self, handles, labels, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.legend.Legend object at 0x7f38288f3640>
+parent = <AxesSubplot:>
+handles = [<matplotlib.lines.Line2D object at 0x7f3828d0fd60>]
+labels = ['line'], loc = 0, numpoints = None, markerscale = None
+markerfirst = True, scatterpoints = None, scatteryoffsets = None, prop = None
+fontsize = None, labelcolor = None, borderpad = None, labelspacing = None
+handlelength = None, handleheight = None, handletextpad = None
+borderaxespad = None, columnspacing = None, ncol = 1, mode = None
+fancybox = None, shadow = None, title = None, title_fontsize = None
+framealpha = None, edgecolor = None, facecolor = None, bbox_to_anchor = None
+bbox_transform = None, frameon = None, handler_map = None
+title_fontproperties = None
+
+    @docstring.dedent_interpd
+    def __init__(
+        self, parent, handles, labels,
+        loc=None,
+        numpoints=None,      # number of points in the legend line
+        markerscale=None,    # relative size of legend markers vs. original
+        markerfirst=True,    # left/right ordering of legend marker and label
+        scatterpoints=None,  # number of scatter points
+        scatteryoffsets=None,
+        prop=None,           # properties for the legend texts
+        fontsize=None,       # keyword to set font size directly
+        labelcolor=None,     # keyword to set the text color
+    
+        # spacing & pad defined as a fraction of the font-size
+        borderpad=None,      # whitespace inside the legend border
+        labelspacing=None,   # vertical space between the legend entries
+        handlelength=None,   # length of the legend handles
+        handleheight=None,   # height of the legend handles
+        handletextpad=None,  # pad between the legend handle and text
+        borderaxespad=None,  # pad between the axes and legend border
+        columnspacing=None,  # spacing between columns
+    
+        ncol=1,     # number of columns
+        mode=None,  # horizontal distribution of columns: None or "expand"
+    
+        fancybox=None,  # True: fancy box, False: rounded box, None: rcParam
+        shadow=None,
+        title=None,           # legend title
+        title_fontsize=None,  # legend title font size
+        framealpha=None,      # set frame alpha
+        edgecolor=None,       # frame patch edgecolor
+        facecolor=None,       # frame patch facecolor
+    
+        bbox_to_anchor=None,  # bbox to which the legend will be anchored
+        bbox_transform=None,  # transform for the bbox
+        frameon=None,         # draw frame
+        handler_map=None,
+        title_fontproperties=None,  # properties for the legend title
+    ):
+        """
+        Parameters
+        ----------
+        parent : `~matplotlib.axes.Axes` or `.Figure`
+            The artist that contains the legend.
+    
+        handles : list of `.Artist`
+            A list of Artists (lines, patches) to be added to the legend.
+    
+        labels : list of str
+            A list of labels to show next to the artists. The length of handles
+            and labels should be the same. If they are not, they are truncated
+            to the smaller of both lengths.
+    
+        Other Parameters
+        ----------------
+        %(_legend_kw_doc)s
+    
+        Notes
+        -----
+        Users can specify any arbitrary location for the legend using the
+        *bbox_to_anchor* keyword argument. *bbox_to_anchor* can be a
+        `.BboxBase` (or derived therefrom) or a tuple of 2 or 4 floats.
+        See `set_bbox_to_anchor` for more detail.
+    
+        The legend location can be specified by setting *loc* with a tuple of
+        2 floats, which is interpreted as the lower-left corner of the legend
+        in the normalized axes coordinate.
+        """
+        # local import only to avoid circularity
+        from matplotlib.axes import Axes
+        from matplotlib.figure import Figure
+    
+        super().__init__()
+    
+        if prop is None:
+            if fontsize is not None:
+                self.prop = FontProperties(size=fontsize)
+            else:
+                self.prop = FontProperties(
+                    size=mpl.rcParams["legend.fontsize"])
+        else:
+            self.prop = FontProperties._from_any(prop)
+            if isinstance(prop, dict) and "size" not in prop:
+                self.prop.set_size(mpl.rcParams["legend.fontsize"])
+    
+        self._fontsize = self.prop.get_size_in_points()
+    
+        self.texts = []
+        self.legendHandles = []
+        self._legend_title_box = None
+    
+        #: A dictionary with the extra handler mappings for this Legend
+        #: instance.
+        self._custom_handler_map = handler_map
+    
+        locals_view = locals()
+        for name in ["numpoints", "markerscale", "shadow", "columnspacing",
+                     "scatterpoints", "handleheight", 'borderpad',
+                     'labelspacing', 'handlelength', 'handletextpad',
+                     'borderaxespad']:
+            if locals_view[name] is None:
+                value = mpl.rcParams["legend." + name]
+            else:
+                value = locals_view[name]
+            setattr(self, name, value)
+        del locals_view
+        # trim handles and labels if illegal label...
+        _lab, _hand = [], []
+        for label, handle in zip(labels, handles):
+            if isinstance(label, str) and label.startswith('_'):
+                _api.warn_external('The handle {!r} has a label of {!r} '
+                                   'which cannot be automatically added to'
+                                   ' the legend.'.format(handle, label))
+            else:
+                _lab.append(label)
+                _hand.append(handle)
+        labels, handles = _lab, _hand
+    
+        handles = list(handles)
+        if len(handles) < 2:
+            ncol = 1
+        self._ncol = ncol
+    
+        if self.numpoints <= 0:
+            raise ValueError("numpoints must be > 0; it was %d" % numpoints)
+    
+        # introduce y-offset for handles of the scatter plot
+        if scatteryoffsets is None:
+            self._scatteryoffsets = np.array([3. / 8., 4. / 8., 2.5 / 8.])
+        else:
+            self._scatteryoffsets = np.asarray(scatteryoffsets)
+        reps = self.scatterpoints // len(self._scatteryoffsets) + 1
+        self._scatteryoffsets = np.tile(self._scatteryoffsets,
+                                        reps)[:self.scatterpoints]
+    
+        # _legend_box is a VPacker instance that contains all
+        # legend items and will be initialized from _init_legend_box()
+        # method.
+        self._legend_box = None
+    
+        if isinstance(parent, Axes):
+            self.isaxes = True
+            self.axes = parent
+        if hasattr(parent, 'figure'):
+            self.isaxes = False
+            self.set_figure(parent.figure)
+        else:
+            raise TypeError("Legend needs either Axes or a Figure-like object as parent")
+        self.parent = parent
+    
+        self._loc_used_default = loc is None
+        if loc is None:
+            loc = mpl.rcParams["legend.loc"]
+            if not self.isaxes and loc in [0, 'best']:
+                loc = 'upper right'
+        if isinstance(loc, str):
+            loc = _api.check_getitem(self.codes, loc=loc)
+        if not self.isaxes and loc == 0:
+>           raise ValueError(
+                "Automatic legend placement (loc='best') not implemented for "
+                "figure legend")
+E           ValueError: Automatic legend placement (loc='best') not implemented for figure legend
+
+lib/matplotlib/legend.py:452: ValueError
+____________________________ test_legend_auto3[pdf] ____________________________
+
+    @image_comparison(['legend_auto3'])
+    def test_legend_auto3():
+        """Test automatic legend placement"""
+        fig, ax = plt.subplots()
+        x = [0.9, 0.1, 0.1, 0.9, 0.9, 0.5]
+        y = [0.95, 0.95, 0.05, 0.05, 0.5, 0.5]
+        ax.plot(x, y, 'o-', label='line')
+        ax.set_xlim(0.0, 1.0)
+        ax.set_ylim(0.0, 1.0)
+>       ax.legend(loc='best')
+
+lib/matplotlib/tests/test_legend.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/axes/_axes.py:305: in legend
+    self.legend_ = mlegend.Legend(self, handles, labels, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.legend.Legend object at 0x7f3815c4a8e0>
+parent = <AxesSubplot:>
+handles = [<matplotlib.lines.Line2D object at 0x7f38289220d0>]
+labels = ['line'], loc = 0, numpoints = None, markerscale = None
+markerfirst = True, scatterpoints = None, scatteryoffsets = None, prop = None
+fontsize = None, labelcolor = None, borderpad = None, labelspacing = None
+handlelength = None, handleheight = None, handletextpad = None
+borderaxespad = None, columnspacing = None, ncol = 1, mode = None
+fancybox = None, shadow = None, title = None, title_fontsize = None
+framealpha = None, edgecolor = None, facecolor = None, bbox_to_anchor = None
+bbox_transform = None, frameon = None, handler_map = None
+title_fontproperties = None
+
+    @docstring.dedent_interpd
+    def __init__(
+        self, parent, handles, labels,
+        loc=None,
+        numpoints=None,      # number of points in the legend line
+        markerscale=None,    # relative size of legend markers vs. original
+        markerfirst=True,    # left/right ordering of legend marker and label
+        scatterpoints=None,  # number of scatter points
+        scatteryoffsets=None,
+        prop=None,           # properties for the legend texts
+        fontsize=None,       # keyword to set font size directly
+        labelcolor=None,     # keyword to set the text color
+    
+        # spacing & pad defined as a fraction of the font-size
+        borderpad=None,      # whitespace inside the legend border
+        labelspacing=None,   # vertical space between the legend entries
+        handlelength=None,   # length of the legend handles
+        handleheight=None,   # height of the legend handles
+        handletextpad=None,  # pad between the legend handle and text
+        borderaxespad=None,  # pad between the axes and legend border
+        columnspacing=None,  # spacing between columns
+    
+        ncol=1,     # number of columns
+        mode=None,  # horizontal distribution of columns: None or "expand"
+    
+        fancybox=None,  # True: fancy box, False: rounded box, None: rcParam
+        shadow=None,
+        title=None,           # legend title
+        title_fontsize=None,  # legend title font size
+        framealpha=None,      # set frame alpha
+        edgecolor=None,       # frame patch edgecolor
+        facecolor=None,       # frame patch facecolor
+    
+        bbox_to_anchor=None,  # bbox to which the legend will be anchored
+        bbox_transform=None,  # transform for the bbox
+        frameon=None,         # draw frame
+        handler_map=None,
+        title_fontproperties=None,  # properties for the legend title
+    ):
+        """
+        Parameters
+        ----------
+        parent : `~matplotlib.axes.Axes` or `.Figure`
+            The artist that contains the legend.
+    
+        handles : list of `.Artist`
+            A list of Artists (lines, patches) to be added to the legend.
+    
+        labels : list of str
+            A list of labels to show next to the artists. The length of handles
+            and labels should be the same. If they are not, they are truncated
+            to the smaller of both lengths.
+    
+        Other Parameters
+        ----------------
+        %(_legend_kw_doc)s
+    
+        Notes
+        -----
+        Users can specify any arbitrary location for the legend using the
+        *bbox_to_anchor* keyword argument. *bbox_to_anchor* can be a
+        `.BboxBase` (or derived therefrom) or a tuple of 2 or 4 floats.
+        See `set_bbox_to_anchor` for more detail.
+    
+        The legend location can be specified by setting *loc* with a tuple of
+        2 floats, which is interpreted as the lower-left corner of the legend
+        in the normalized axes coordinate.
+        """
+        # local import only to avoid circularity
+        from matplotlib.axes import Axes
+        from matplotlib.figure import Figure
+    
+        super().__init__()
+    
+        if prop is None:
+            if fontsize is not None:
+                self.prop = FontProperties(size=fontsize)
+            else:
+                self.prop = FontProperties(
+                    size=mpl.rcParams["legend.fontsize"])
+        else:
+            self.prop = FontProperties._from_any(prop)
+            if isinstance(prop, dict) and "size" not in prop:
+                self.prop.set_size(mpl.rcParams["legend.fontsize"])
+    
+        self._fontsize = self.prop.get_size_in_points()
+    
+        self.texts = []
+        self.legendHandles = []
+        self._legend_title_box = None
+    
+        #: A dictionary with the extra handler mappings for this Legend
+        #: instance.
+        self._custom_handler_map = handler_map
+    
+        locals_view = locals()
+        for name in ["numpoints", "markerscale", "shadow", "columnspacing",
+                     "scatterpoints", "handleheight", 'borderpad',
+                     'labelspacing', 'handlelength', 'handletextpad',
+                     'borderaxespad']:
+            if locals_view[name] is None:
+                value = mpl.rcParams["legend." + name]
+            else:
+                value = locals_view[name]
+            setattr(self, name, value)
+        del locals_view
+        # trim handles and labels if illegal label...
+        _lab, _hand = [], []
+        for label, handle in zip(labels, handles):
+            if isinstance(label, str) and label.startswith('_'):
+                _api.warn_external('The handle {!r} has a label of {!r} '
+                                   'which cannot be automatically added to'
+                                   ' the legend.'.format(handle, label))
+            else:
+                _lab.append(label)
+                _hand.append(handle)
+        labels, handles = _lab, _hand
+    
+        handles = list(handles)
+        if len(handles) < 2:
+            ncol = 1
+        self._ncol = ncol
+    
+        if self.numpoints <= 0:
+            raise ValueError("numpoints must be > 0; it was %d" % numpoints)
+    
+        # introduce y-offset for handles of the scatter plot
+        if scatteryoffsets is None:
+            self._scatteryoffsets = np.array([3. / 8., 4. / 8., 2.5 / 8.])
+        else:
+            self._scatteryoffsets = np.asarray(scatteryoffsets)
+        reps = self.scatterpoints // len(self._scatteryoffsets) + 1
+        self._scatteryoffsets = np.tile(self._scatteryoffsets,
+                                        reps)[:self.scatterpoints]
+    
+        # _legend_box is a VPacker instance that contains all
+        # legend items and will be initialized from _init_legend_box()
+        # method.
+        self._legend_box = None
+    
+        if isinstance(parent, Axes):
+            self.isaxes = True
+            self.axes = parent
+        if hasattr(parent, 'figure'):
+            self.isaxes = False
+            self.set_figure(parent.figure)
+        else:
+            raise TypeError("Legend needs either Axes or a Figure-like object as parent")
+        self.parent = parent
+    
+        self._loc_used_default = loc is None
+        if loc is None:
+            loc = mpl.rcParams["legend.loc"]
+            if not self.isaxes and loc in [0, 'best']:
+                loc = 'upper right'
+        if isinstance(loc, str):
+            loc = _api.check_getitem(self.codes, loc=loc)
+        if not self.isaxes and loc == 0:
+>           raise ValueError(
+                "Automatic legend placement (loc='best') not implemented for "
+                "figure legend")
+E           ValueError: Automatic legend placement (loc='best') not implemented for figure legend
+
+lib/matplotlib/legend.py:452: ValueError
+___________________________ test_various_labels[png] ___________________________
+
+    @image_comparison(['legend_various_labels'], remove_text=True)
+    def test_various_labels():
+        # tests all sorts of label types
+        fig = plt.figure()
+        ax = fig.add_subplot(121)
+        ax.plot(np.arange(4), 'o', label=1)
+        ax.plot(np.linspace(4, 4.1), 'o', label='Développés')
+        ax.plot(np.arange(4, 1, -1), 'o', label='__nolegend__')
+>       ax.legend(numpoints=1, loc='best')
+
+lib/matplotlib/tests/test_legend.py:78: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/axes/_axes.py:305: in legend
+    self.legend_ = mlegend.Legend(self, handles, labels, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.legend.Legend object at 0x7f3827e36fa0>
+parent = <AxesSubplot:>
+handles = [<matplotlib.lines.Line2D object at 0x7f3827e36a90>, <matplotlib.lines.Line2D object at 0x7f3828d537c0>]
+labels = ['1', 'Développés'], loc = 0, numpoints = 1, markerscale = None
+markerfirst = True, scatterpoints = None, scatteryoffsets = None, prop = None
+fontsize = None, labelcolor = None, borderpad = None, labelspacing = None
+handlelength = None, handleheight = None, handletextpad = None
+borderaxespad = None, columnspacing = None, ncol = 1, mode = None
+fancybox = None, shadow = None, title = None, title_fontsize = None
+framealpha = None, edgecolor = None, facecolor = None, bbox_to_anchor = None
+bbox_transform = None, frameon = None, handler_map = None
+title_fontproperties = None
+
+    @docstring.dedent_interpd
+    def __init__(
+        self, parent, handles, labels,
+        loc=None,
+        numpoints=None,      # number of points in the legend line
+        markerscale=None,    # relative size of legend markers vs. original
+        markerfirst=True,    # left/right ordering of legend marker and label
+        scatterpoints=None,  # number of scatter points
+        scatteryoffsets=None,
+        prop=None,           # properties for the legend texts
+        fontsize=None,       # keyword to set font size directly
+        labelcolor=None,     # keyword to set the text color
+    
+        # spacing & pad defined as a fraction of the font-size
+        borderpad=None,      # whitespace inside the legend border
+        labelspacing=None,   # vertical space between the legend entries
+        handlelength=None,   # length of the legend handles
+        handleheight=None,   # height of the legend handles
+        handletextpad=None,  # pad between the legend handle and text
+        borderaxespad=None,  # pad between the axes and legend border
+        columnspacing=None,  # spacing between columns
+    
+        ncol=1,     # number of columns
+        mode=None,  # horizontal distribution of columns: None or "expand"
+    
+        fancybox=None,  # True: fancy box, False: rounded box, None: rcParam
+        shadow=None,
+        title=None,           # legend title
+        title_fontsize=None,  # legend title font size
+        framealpha=None,      # set frame alpha
+        edgecolor=None,       # frame patch edgecolor
+        facecolor=None,       # frame patch facecolor
+    
+        bbox_to_anchor=None,  # bbox to which the legend will be anchored
+        bbox_transform=None,  # transform for the bbox
+        frameon=None,         # draw frame
+        handler_map=None,
+        title_fontproperties=None,  # properties for the legend title
+    ):
+        """
+        Parameters
+        ----------
+        parent : `~matplotlib.axes.Axes` or `.Figure`
+            The artist that contains the legend.
+    
+        handles : list of `.Artist`
+            A list of Artists (lines, patches) to be added to the legend.
+    
+        labels : list of str
+            A list of labels to show next to the artists. The length of handles
+            and labels should be the same. If they are not, they are truncated
+            to the smaller of both lengths.
+    
+        Other Parameters
+        ----------------
+        %(_legend_kw_doc)s
+    
+        Notes
+        -----
+        Users can specify any arbitrary location for the legend using the
+        *bbox_to_anchor* keyword argument. *bbox_to_anchor* can be a
+        `.BboxBase` (or derived therefrom) or a tuple of 2 or 4 floats.
+        See `set_bbox_to_anchor` for more detail.
+    
+        The legend location can be specified by setting *loc* with a tuple of
+        2 floats, which is interpreted as the lower-left corner of the legend
+        in the normalized axes coordinate.
+        """
+        # local import only to avoid circularity
+        from matplotlib.axes import Axes
+        from matplotlib.figure import Figure
+    
+        super().__init__()
+    
+        if prop is None:
+            if fontsize is not None:
+                self.prop = FontProperties(size=fontsize)
+            else:
+                self.prop = FontProperties(
+                    size=mpl.rcParams["legend.fontsize"])
+        else:
+            self.prop = FontProperties._from_any(prop)
+            if isinstance(prop, dict) and "size" not in prop:
+                self.prop.set_size(mpl.rcParams["legend.fontsize"])
+    
+        self._fontsize = self.prop.get_size_in_points()
+    
+        self.texts = []
+        self.legendHandles = []
+        self._legend_title_box = None
+    
+        #: A dictionary with the extra handler mappings for this Legend
+        #: instance.
+        self._custom_handler_map = handler_map
+    
+        locals_view = locals()
+        for name in ["numpoints", "markerscale", "shadow", "columnspacing",
+                     "scatterpoints", "handleheight", 'borderpad',
+                     'labelspacing', 'handlelength', 'handletextpad',
+                     'borderaxespad']:
+            if locals_view[name] is None:
+                value = mpl.rcParams["legend." + name]
+            else:
+                value = locals_view[name]
+            setattr(self, name, value)
+        del locals_view
+        # trim handles and labels if illegal label...
+        _lab, _hand = [], []
+        for label, handle in zip(labels, handles):
+            if isinstance(label, str) and label.startswith('_'):
+                _api.warn_external('The handle {!r} has a label of {!r} '
+                                   'which cannot be automatically added to'
+                                   ' the legend.'.format(handle, label))
+            else:
+                _lab.append(label)
+                _hand.append(handle)
+        labels, handles = _lab, _hand
+    
+        handles = list(handles)
+        if len(handles) < 2:
+            ncol = 1
+        self._ncol = ncol
+    
+        if self.numpoints <= 0:
+            raise ValueError("numpoints must be > 0; it was %d" % numpoints)
+    
+        # introduce y-offset for handles of the scatter plot
+        if scatteryoffsets is None:
+            self._scatteryoffsets = np.array([3. / 8., 4. / 8., 2.5 / 8.])
+        else:
+            self._scatteryoffsets = np.asarray(scatteryoffsets)
+        reps = self.scatterpoints // len(self._scatteryoffsets) + 1
+        self._scatteryoffsets = np.tile(self._scatteryoffsets,
+                                        reps)[:self.scatterpoints]
+    
+        # _legend_box is a VPacker instance that contains all
+        # legend items and will be initialized from _init_legend_box()
+        # method.
+        self._legend_box = None
+    
+        if isinstance(parent, Axes):
+            self.isaxes = True
+            self.axes = parent
+        if hasattr(parent, 'figure'):
+            self.isaxes = False
+            self.set_figure(parent.figure)
+        else:
+            raise TypeError("Legend needs either Axes or a Figure-like object as parent")
+        self.parent = parent
+    
+        self._loc_used_default = loc is None
+        if loc is None:
+            loc = mpl.rcParams["legend.loc"]
+            if not self.isaxes and loc in [0, 'best']:
+                loc = 'upper right'
+        if isinstance(loc, str):
+            loc = _api.check_getitem(self.codes, loc=loc)
+        if not self.isaxes and loc == 0:
+>           raise ValueError(
+                "Automatic legend placement (loc='best') not implemented for "
+                "figure legend")
+E           ValueError: Automatic legend placement (loc='best') not implemented for figure legend
+
+lib/matplotlib/legend.py:452: ValueError
+___________________________ test_various_labels[pdf] ___________________________
+
+    @image_comparison(['legend_various_labels'], remove_text=True)
+    def test_various_labels():
+        # tests all sorts of label types
+        fig = plt.figure()
+        ax = fig.add_subplot(121)
+        ax.plot(np.arange(4), 'o', label=1)
+        ax.plot(np.linspace(4, 4.1), 'o', label='Développés')
+        ax.plot(np.arange(4, 1, -1), 'o', label='__nolegend__')
+>       ax.legend(numpoints=1, loc='best')
+
+lib/matplotlib/tests/test_legend.py:78: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/axes/_axes.py:305: in legend
+    self.legend_ = mlegend.Legend(self, handles, labels, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.legend.Legend object at 0x7f38281e2070>
+parent = <AxesSubplot:>
+handles = [<matplotlib.lines.Line2D object at 0x7f38281e29d0>, <matplotlib.lines.Line2D object at 0x7f38280b4b80>]
+labels = ['1', 'Développés'], loc = 0, numpoints = 1, markerscale = None
+markerfirst = True, scatterpoints = None, scatteryoffsets = None, prop = None
+fontsize = None, labelcolor = None, borderpad = None, labelspacing = None
+handlelength = None, handleheight = None, handletextpad = None
+borderaxespad = None, columnspacing = None, ncol = 1, mode = None
+fancybox = None, shadow = None, title = None, title_fontsize = None
+framealpha = None, edgecolor = None, facecolor = None, bbox_to_anchor = None
+bbox_transform = None, frameon = None, handler_map = None
+title_fontproperties = None
+
+    @docstring.dedent_interpd
+    def __init__(
+        self, parent, handles, labels,
+        loc=None,
+        numpoints=None,      # number of points in the legend line
+        markerscale=None,    # relative size of legend markers vs. original
+        markerfirst=True,    # left/right ordering of legend marker and label
+        scatterpoints=None,  # number of scatter points
+        scatteryoffsets=None,
+        prop=None,           # properties for the legend texts
+        fontsize=None,       # keyword to set font size directly
+        labelcolor=None,     # keyword to set the text color
+    
+        # spacing & pad defined as a fraction of the font-size
+        borderpad=None,      # whitespace inside the legend border
+        labelspacing=None,   # vertical space between the legend entries
+        handlelength=None,   # length of the legend handles
+        handleheight=None,   # height of the legend handles
+        handletextpad=None,  # pad between the legend handle and text
+        borderaxespad=None,  # pad between the axes and legend border
+        columnspacing=None,  # spacing between columns
+    
+        ncol=1,     # number of columns
+        mode=None,  # horizontal distribution of columns: None or "expand"
+    
+        fancybox=None,  # True: fancy box, False: rounded box, None: rcParam
+        shadow=None,
+        title=None,           # legend title
+        title_fontsize=None,  # legend title font size
+        framealpha=None,      # set frame alpha
+        edgecolor=None,       # frame patch edgecolor
+        facecolor=None,       # frame patch facecolor
+    
+        bbox_to_anchor=None,  # bbox to which the legend will be anchored
+        bbox_transform=None,  # transform for the bbox
+        frameon=None,         # draw frame
+        handler_map=None,
+        title_fontproperties=None,  # properties for the legend title
+    ):
+        """
+        Parameters
+        ----------
+        parent : `~matplotlib.axes.Axes` or `.Figure`
+            The artist that contains the legend.
+    
+        handles : list of `.Artist`
+            A list of Artists (lines, patches) to be added to the legend.
+    
+        labels : list of str
+            A list of labels to show next to the artists. The length of handles
+            and labels should be the same. If they are not, they are truncated
+            to the smaller of both lengths.
+    
+        Other Parameters
+        ----------------
+        %(_legend_kw_doc)s
+    
+        Notes
+        -----
+        Users can specify any arbitrary location for the legend using the
+        *bbox_to_anchor* keyword argument. *bbox_to_anchor* can be a
+        `.BboxBase` (or derived therefrom) or a tuple of 2 or 4 floats.
+        See `set_bbox_to_anchor` for more detail.
+    
+        The legend location can be specified by setting *loc* with a tuple of
+        2 floats, which is interpreted as the lower-left corner of the legend
+        in the normalized axes coordinate.
+        """
+        # local import only to avoid circularity
+        from matplotlib.axes import Axes
+        from matplotlib.figure import Figure
+    
+        super().__init__()
+    
+        if prop is None:
+            if fontsize is not None:
+                self.prop = FontProperties(size=fontsize)
+            else:
+                self.prop = FontProperties(
+                    size=mpl.rcParams["legend.fontsize"])
+        else:
+            self.prop = FontProperties._from_any(prop)
+            if isinstance(prop, dict) and "size" not in prop:
+                self.prop.set_size(mpl.rcParams["legend.fontsize"])
+    
+        self._fontsize = self.prop.get_size_in_points()
+    
+        self.texts = []
+        self.legendHandles = []
+        self._legend_title_box = None
+    
+        #: A dictionary with the extra handler mappings for this Legend
+        #: instance.
+        self._custom_handler_map = handler_map
+    
+        locals_view = locals()
+        for name in ["numpoints", "markerscale", "shadow", "columnspacing",
+                     "scatterpoints", "handleheight", 'borderpad',
+                     'labelspacing', 'handlelength', 'handletextpad',
+                     'borderaxespad']:
+            if locals_view[name] is None:
+                value = mpl.rcParams["legend." + name]
+            else:
+                value = locals_view[name]
+            setattr(self, name, value)
+        del locals_view
+        # trim handles and labels if illegal label...
+        _lab, _hand = [], []
+        for label, handle in zip(labels, handles):
+            if isinstance(label, str) and label.startswith('_'):
+                _api.warn_external('The handle {!r} has a label of {!r} '
+                                   'which cannot be automatically added to'
+                                   ' the legend.'.format(handle, label))
+            else:
+                _lab.append(label)
+                _hand.append(handle)
+        labels, handles = _lab, _hand
+    
+        handles = list(handles)
+        if len(handles) < 2:
+            ncol = 1
+        self._ncol = ncol
+    
+        if self.numpoints <= 0:
+            raise ValueError("numpoints must be > 0; it was %d" % numpoints)
+    
+        # introduce y-offset for handles of the scatter plot
+        if scatteryoffsets is None:
+            self._scatteryoffsets = np.array([3. / 8., 4. / 8., 2.5 / 8.])
+        else:
+            self._scatteryoffsets = np.asarray(scatteryoffsets)
+        reps = self.scatterpoints // len(self._scatteryoffsets) + 1
+        self._scatteryoffsets = np.tile(self._scatteryoffsets,
+                                        reps)[:self.scatterpoints]
+    
+        # _legend_box is a VPacker instance that contains all
+        # legend items and will be initialized from _init_legend_box()
+        # method.
+        self._legend_box = None
+    
+        if isinstance(parent, Axes):
+            self.isaxes = True
+            self.axes = parent
+        if hasattr(parent, 'figure'):
+            self.isaxes = False
+            self.set_figure(parent.figure)
+        else:
+            raise TypeError("Legend needs either Axes or a Figure-like object as parent")
+        self.parent = parent
+    
+        self._loc_used_default = loc is None
+        if loc is None:
+            loc = mpl.rcParams["legend.loc"]
+            if not self.isaxes and loc in [0, 'best']:
+                loc = 'upper right'
+        if isinstance(loc, str):
+            loc = _api.check_getitem(self.codes, loc=loc)
+        if not self.isaxes and loc == 0:
+>           raise ValueError(
+                "Automatic legend placement (loc='best') not implemented for "
+                "figure legend")
+E           ValueError: Automatic legend placement (loc='best') not implemented for figure legend
+
+lib/matplotlib/legend.py:452: ValueError
+____________________________ test_labels_first[png] ____________________________
+
+    @image_comparison(['legend_labels_first.png'], remove_text=True)
+    def test_labels_first():
+        # test labels to left of markers
+        fig, ax = plt.subplots()
+        ax.plot(np.arange(10), '-o', label=1)
+        ax.plot(np.ones(10)*5, ':x', label="x")
+        ax.plot(np.arange(20, 10, -1), 'd', label="diamond")
+>       ax.legend(loc='best', markerfirst=False)
+
+lib/matplotlib/tests/test_legend.py:88: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/axes/_axes.py:305: in legend
+    self.legend_ = mlegend.Legend(self, handles, labels, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.legend.Legend object at 0x7f3828b79970>
+parent = <AxesSubplot:>
+handles = [<matplotlib.lines.Line2D object at 0x7f3828c24580>, <matplotlib.lines.Line2D object at 0x7f3828c24e50>, <matplotlib.lines.Line2D object at 0x7f3828c246a0>]
+labels = ['1', 'x', 'diamond'], loc = 0, numpoints = None, markerscale = None
+markerfirst = False, scatterpoints = None, scatteryoffsets = None, prop = None
+fontsize = None, labelcolor = None, borderpad = None, labelspacing = None
+handlelength = None, handleheight = None, handletextpad = None
+borderaxespad = None, columnspacing = None, ncol = 1, mode = None
+fancybox = None, shadow = None, title = None, title_fontsize = None
+framealpha = None, edgecolor = None, facecolor = None, bbox_to_anchor = None
+bbox_transform = None, frameon = None, handler_map = None
+title_fontproperties = None
+
+    @docstring.dedent_interpd
+    def __init__(
+        self, parent, handles, labels,
+        loc=None,
+        numpoints=None,      # number of points in the legend line
+        markerscale=None,    # relative size of legend markers vs. original
+        markerfirst=True,    # left/right ordering of legend marker and label
+        scatterpoints=None,  # number of scatter points
+        scatteryoffsets=None,
+        prop=None,           # properties for the legend texts
+        fontsize=None,       # keyword to set font size directly
+        labelcolor=None,     # keyword to set the text color
+    
+        # spacing & pad defined as a fraction of the font-size
+        borderpad=None,      # whitespace inside the legend border
+        labelspacing=None,   # vertical space between the legend entries
+        handlelength=None,   # length of the legend handles
+        handleheight=None,   # height of the legend handles
+        handletextpad=None,  # pad between the legend handle and text
+        borderaxespad=None,  # pad between the axes and legend border
+        columnspacing=None,  # spacing between columns
+    
+        ncol=1,     # number of columns
+        mode=None,  # horizontal distribution of columns: None or "expand"
+    
+        fancybox=None,  # True: fancy box, False: rounded box, None: rcParam
+        shadow=None,
+        title=None,           # legend title
+        title_fontsize=None,  # legend title font size
+        framealpha=None,      # set frame alpha
+        edgecolor=None,       # frame patch edgecolor
+        facecolor=None,       # frame patch facecolor
+    
+        bbox_to_anchor=None,  # bbox to which the legend will be anchored
+        bbox_transform=None,  # transform for the bbox
+        frameon=None,         # draw frame
+        handler_map=None,
+        title_fontproperties=None,  # properties for the legend title
+    ):
+        """
+        Parameters
+        ----------
+        parent : `~matplotlib.axes.Axes` or `.Figure`
+            The artist that contains the legend.
+    
+        handles : list of `.Artist`
+            A list of Artists (lines, patches) to be added to the legend.
+    
+        labels : list of str
+            A list of labels to show next to the artists. The length of handles
+            and labels should be the same. If they are not, they are truncated
+            to the smaller of both lengths.
+    
+        Other Parameters
+        ----------------
+        %(_legend_kw_doc)s
+    
+        Notes
+        -----
+        Users can specify any arbitrary location for the legend using the
+        *bbox_to_anchor* keyword argument. *bbox_to_anchor* can be a
+        `.BboxBase` (or derived therefrom) or a tuple of 2 or 4 floats.
+        See `set_bbox_to_anchor` for more detail.
+    
+        The legend location can be specified by setting *loc* with a tuple of
+        2 floats, which is interpreted as the lower-left corner of the legend
+        in the normalized axes coordinate.
+        """
+        # local import only to avoid circularity
+        from matplotlib.axes import Axes
+        from matplotlib.figure import Figure
+    
+        super().__init__()
+    
+        if prop is None:
+            if fontsize is not None:
+                self.prop = FontProperties(size=fontsize)
+            else:
+                self.prop = FontProperties(
+                    size=mpl.rcParams["legend.fontsize"])
+        else:
+            self.prop = FontProperties._from_any(prop)
+            if isinstance(prop, dict) and "size" not in prop:
+                self.prop.set_size(mpl.rcParams["legend.fontsize"])
+    
+        self._fontsize = self.prop.get_size_in_points()
+    
+        self.texts = []
+        self.legendHandles = []
+        self._legend_title_box = None
+    
+        #: A dictionary with the extra handler mappings for this Legend
+        #: instance.
+        self._custom_handler_map = handler_map
+    
+        locals_view = locals()
+        for name in ["numpoints", "markerscale", "shadow", "columnspacing",
+                     "scatterpoints", "handleheight", 'borderpad',
+                     'labelspacing', 'handlelength', 'handletextpad',
+                     'borderaxespad']:
+            if locals_view[name] is None:
+                value = mpl.rcParams["legend." + name]
+            else:
+                value = locals_view[name]
+            setattr(self, name, value)
+        del locals_view
+        # trim handles and labels if illegal label...
+        _lab, _hand = [], []
+        for label, handle in zip(labels, handles):
+            if isinstance(label, str) and label.startswith('_'):
+                _api.warn_external('The handle {!r} has a label of {!r} '
+                                   'which cannot be automatically added to'
+                                   ' the legend.'.format(handle, label))
+            else:
+                _lab.append(label)
+                _hand.append(handle)
+        labels, handles = _lab, _hand
+    
+        handles = list(handles)
+        if len(handles) < 2:
+            ncol = 1
+        self._ncol = ncol
+    
+        if self.numpoints <= 0:
+            raise ValueError("numpoints must be > 0; it was %d" % numpoints)
+    
+        # introduce y-offset for handles of the scatter plot
+        if scatteryoffsets is None:
+            self._scatteryoffsets = np.array([3. / 8., 4. / 8., 2.5 / 8.])
+        else:
+            self._scatteryoffsets = np.asarray(scatteryoffsets)
+        reps = self.scatterpoints // len(self._scatteryoffsets) + 1
+        self._scatteryoffsets = np.tile(self._scatteryoffsets,
+                                        reps)[:self.scatterpoints]
+    
+        # _legend_box is a VPacker instance that contains all
+        # legend items and will be initialized from _init_legend_box()
+        # method.
+        self._legend_box = None
+    
+        if isinstance(parent, Axes):
+            self.isaxes = True
+            self.axes = parent
+        if hasattr(parent, 'figure'):
+            self.isaxes = False
+            self.set_figure(parent.figure)
+        else:
+            raise TypeError("Legend needs either Axes or a Figure-like object as parent")
+        self.parent = parent
+    
+        self._loc_used_default = loc is None
+        if loc is None:
+            loc = mpl.rcParams["legend.loc"]
+            if not self.isaxes and loc in [0, 'best']:
+                loc = 'upper right'
+        if isinstance(loc, str):
+            loc = _api.check_getitem(self.codes, loc=loc)
+        if not self.isaxes and loc == 0:
+>           raise ValueError(
+                "Automatic legend placement (loc='best') not implemented for "
+                "figure legend")
+E           ValueError: Automatic legend placement (loc='best') not implemented for figure legend
+
+lib/matplotlib/legend.py:452: ValueError
+__________________________ test_legend_stackplot[png] __________________________
+
+    @image_comparison(['legend_stackplot.png'])
+    def test_legend_stackplot():
+        """Test legend for PolyCollection using stackplot."""
+        # related to #1341, #1943, and PR #3303
+        fig, ax = plt.subplots()
+        x = np.linspace(0, 10, 10)
+        y1 = 1.0 * x
+        y2 = 2.0 * x + 1
+        y3 = 3.0 * x + 2
+        ax.stackplot(x, y1, y2, y3, labels=['y1', 'y2', 'y3'])
+        ax.set_xlim((0, 10))
+        ax.set_ylim((0, 70))
+>       ax.legend(loc='best')
+
+lib/matplotlib/tests/test_legend.py:397: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/axes/_axes.py:305: in legend
+    self.legend_ = mlegend.Legend(self, handles, labels, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.legend.Legend object at 0x7f3828044820>
+parent = <AxesSubplot:>
+handles = [<matplotlib.collections.PolyCollection object at 0x7f38157ba040>, <matplotlib.collections.PolyCollection object at 0x7f38157ba370>, <matplotlib.collections.PolyCollection object at 0x7f38157ba6a0>]
+labels = ['y1', 'y2', 'y3'], loc = 0, numpoints = None, markerscale = None
+markerfirst = True, scatterpoints = None, scatteryoffsets = None, prop = None
+fontsize = None, labelcolor = None, borderpad = None, labelspacing = None
+handlelength = None, handleheight = None, handletextpad = None
+borderaxespad = None, columnspacing = None, ncol = 1, mode = None
+fancybox = None, shadow = None, title = None, title_fontsize = None
+framealpha = None, edgecolor = None, facecolor = None, bbox_to_anchor = None
+bbox_transform = None, frameon = None, handler_map = None
+title_fontproperties = None
+
+    @docstring.dedent_interpd
+    def __init__(
+        self, parent, handles, labels,
+        loc=None,
+        numpoints=None,      # number of points in the legend line
+        markerscale=None,    # relative size of legend markers vs. original
+        markerfirst=True,    # left/right ordering of legend marker and label
+        scatterpoints=None,  # number of scatter points
+        scatteryoffsets=None,
+        prop=None,           # properties for the legend texts
+        fontsize=None,       # keyword to set font size directly
+        labelcolor=None,     # keyword to set the text color
+    
+        # spacing & pad defined as a fraction of the font-size
+        borderpad=None,      # whitespace inside the legend border
+        labelspacing=None,   # vertical space between the legend entries
+        handlelength=None,   # length of the legend handles
+        handleheight=None,   # height of the legend handles
+        handletextpad=None,  # pad between the legend handle and text
+        borderaxespad=None,  # pad between the axes and legend border
+        columnspacing=None,  # spacing between columns
+    
+        ncol=1,     # number of columns
+        mode=None,  # horizontal distribution of columns: None or "expand"
+    
+        fancybox=None,  # True: fancy box, False: rounded box, None: rcParam
+        shadow=None,
+        title=None,           # legend title
+        title_fontsize=None,  # legend title font size
+        framealpha=None,      # set frame alpha
+        edgecolor=None,       # frame patch edgecolor
+        facecolor=None,       # frame patch facecolor
+    
+        bbox_to_anchor=None,  # bbox to which the legend will be anchored
+        bbox_transform=None,  # transform for the bbox
+        frameon=None,         # draw frame
+        handler_map=None,
+        title_fontproperties=None,  # properties for the legend title
+    ):
+        """
+        Parameters
+        ----------
+        parent : `~matplotlib.axes.Axes` or `.Figure`
+            The artist that contains the legend.
+    
+        handles : list of `.Artist`
+            A list of Artists (lines, patches) to be added to the legend.
+    
+        labels : list of str
+            A list of labels to show next to the artists. The length of handles
+            and labels should be the same. If they are not, they are truncated
+            to the smaller of both lengths.
+    
+        Other Parameters
+        ----------------
+        %(_legend_kw_doc)s
+    
+        Notes
+        -----
+        Users can specify any arbitrary location for the legend using the
+        *bbox_to_anchor* keyword argument. *bbox_to_anchor* can be a
+        `.BboxBase` (or derived therefrom) or a tuple of 2 or 4 floats.
+        See `set_bbox_to_anchor` for more detail.
+    
+        The legend location can be specified by setting *loc* with a tuple of
+        2 floats, which is interpreted as the lower-left corner of the legend
+        in the normalized axes coordinate.
+        """
+        # local import only to avoid circularity
+        from matplotlib.axes import Axes
+        from matplotlib.figure import Figure
+    
+        super().__init__()
+    
+        if prop is None:
+            if fontsize is not None:
+                self.prop = FontProperties(size=fontsize)
+            else:
+                self.prop = FontProperties(
+                    size=mpl.rcParams["legend.fontsize"])
+        else:
+            self.prop = FontProperties._from_any(prop)
+            if isinstance(prop, dict) and "size" not in prop:
+                self.prop.set_size(mpl.rcParams["legend.fontsize"])
+    
+        self._fontsize = self.prop.get_size_in_points()
+    
+        self.texts = []
+        self.legendHandles = []
+        self._legend_title_box = None
+    
+        #: A dictionary with the extra handler mappings for this Legend
+        #: instance.
+        self._custom_handler_map = handler_map
+    
+        locals_view = locals()
+        for name in ["numpoints", "markerscale", "shadow", "columnspacing",
+                     "scatterpoints", "handleheight", 'borderpad',
+                     'labelspacing', 'handlelength', 'handletextpad',
+                     'borderaxespad']:
+            if locals_view[name] is None:
+                value = mpl.rcParams["legend." + name]
+            else:
+                value = locals_view[name]
+            setattr(self, name, value)
+        del locals_view
+        # trim handles and labels if illegal label...
+        _lab, _hand = [], []
+        for label, handle in zip(labels, handles):
+            if isinstance(label, str) and label.startswith('_'):
+                _api.warn_external('The handle {!r} has a label of {!r} '
+                                   'which cannot be automatically added to'
+                                   ' the legend.'.format(handle, label))
+            else:
+                _lab.append(label)
+                _hand.append(handle)
+        labels, handles = _lab, _hand
+    
+        handles = list(handles)
+        if len(handles) < 2:
+            ncol = 1
+        self._ncol = ncol
+    
+        if self.numpoints <= 0:
+            raise ValueError("numpoints must be > 0; it was %d" % numpoints)
+    
+        # introduce y-offset for handles of the scatter plot
+        if scatteryoffsets is None:
+            self._scatteryoffsets = np.array([3. / 8., 4. / 8., 2.5 / 8.])
+        else:
+            self._scatteryoffsets = np.asarray(scatteryoffsets)
+        reps = self.scatterpoints // len(self._scatteryoffsets) + 1
+        self._scatteryoffsets = np.tile(self._scatteryoffsets,
+                                        reps)[:self.scatterpoints]
+    
+        # _legend_box is a VPacker instance that contains all
+        # legend items and will be initialized from _init_legend_box()
+        # method.
+        self._legend_box = None
+    
+        if isinstance(parent, Axes):
+            self.isaxes = True
+            self.axes = parent
+        if hasattr(parent, 'figure'):
+            self.isaxes = False
+            self.set_figure(parent.figure)
+        else:
+            raise TypeError("Legend needs either Axes or a Figure-like object as parent")
+        self.parent = parent
+    
+        self._loc_used_default = loc is None
+        if loc is None:
+            loc = mpl.rcParams["legend.loc"]
+            if not self.isaxes and loc in [0, 'best']:
+                loc = 'upper right'
+        if isinstance(loc, str):
+            loc = _api.check_getitem(self.codes, loc=loc)
+        if not self.isaxes and loc == 0:
+>           raise ValueError(
+                "Automatic legend placement (loc='best') not implemented for "
+                "figure legend")
+E           ValueError: Automatic legend placement (loc='best') not implemented for figure legend
+
+lib/matplotlib/legend.py:452: ValueError
+________________________ test_not_covering_scatter[png] ________________________
+
+    @image_comparison(['not_covering_scatter.png'])
+    def test_not_covering_scatter():
+        colors = ['b', 'g', 'r']
+    
+        for n in range(3):
+            plt.scatter([n], [n], color=colors[n])
+    
+>       plt.legend(['foo', 'foo', 'foo'], loc='best')
+
+lib/matplotlib/tests/test_legend.py:450: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/pyplot.py:2884: in legend
+    return gca().legend(*args, **kwargs)
+lib/matplotlib/axes/_axes.py:305: in legend
+    self.legend_ = mlegend.Legend(self, handles, labels, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.legend.Legend object at 0x7f38287e7eb0>
+parent = <AxesSubplot:>
+handles = [<matplotlib.collections.PathCollection object at 0x7f3828040cd0>, <matplotlib.collections.PathCollection object at 0x7f38287ec040>, <matplotlib.collections.PathCollection object at 0x7f38252678e0>]
+labels = ['foo', 'foo', 'foo'], loc = 0, numpoints = None, markerscale = None
+markerfirst = True, scatterpoints = None, scatteryoffsets = None, prop = None
+fontsize = None, labelcolor = None, borderpad = None, labelspacing = None
+handlelength = None, handleheight = None, handletextpad = None
+borderaxespad = None, columnspacing = None, ncol = 1, mode = None
+fancybox = None, shadow = None, title = None, title_fontsize = None
+framealpha = None, edgecolor = None, facecolor = None, bbox_to_anchor = None
+bbox_transform = None, frameon = None, handler_map = None
+title_fontproperties = None
+
+    @docstring.dedent_interpd
+    def __init__(
+        self, parent, handles, labels,
+        loc=None,
+        numpoints=None,      # number of points in the legend line
+        markerscale=None,    # relative size of legend markers vs. original
+        markerfirst=True,    # left/right ordering of legend marker and label
+        scatterpoints=None,  # number of scatter points
+        scatteryoffsets=None,
+        prop=None,           # properties for the legend texts
+        fontsize=None,       # keyword to set font size directly
+        labelcolor=None,     # keyword to set the text color
+    
+        # spacing & pad defined as a fraction of the font-size
+        borderpad=None,      # whitespace inside the legend border
+        labelspacing=None,   # vertical space between the legend entries
+        handlelength=None,   # length of the legend handles
+        handleheight=None,   # height of the legend handles
+        handletextpad=None,  # pad between the legend handle and text
+        borderaxespad=None,  # pad between the axes and legend border
+        columnspacing=None,  # spacing between columns
+    
+        ncol=1,     # number of columns
+        mode=None,  # horizontal distribution of columns: None or "expand"
+    
+        fancybox=None,  # True: fancy box, False: rounded box, None: rcParam
+        shadow=None,
+        title=None,           # legend title
+        title_fontsize=None,  # legend title font size
+        framealpha=None,      # set frame alpha
+        edgecolor=None,       # frame patch edgecolor
+        facecolor=None,       # frame patch facecolor
+    
+        bbox_to_anchor=None,  # bbox to which the legend will be anchored
+        bbox_transform=None,  # transform for the bbox
+        frameon=None,         # draw frame
+        handler_map=None,
+        title_fontproperties=None,  # properties for the legend title
+    ):
+        """
+        Parameters
+        ----------
+        parent : `~matplotlib.axes.Axes` or `.Figure`
+            The artist that contains the legend.
+    
+        handles : list of `.Artist`
+            A list of Artists (lines, patches) to be added to the legend.
+    
+        labels : list of str
+            A list of labels to show next to the artists. The length of handles
+            and labels should be the same. If they are not, they are truncated
+            to the smaller of both lengths.
+    
+        Other Parameters
+        ----------------
+        %(_legend_kw_doc)s
+    
+        Notes
+        -----
+        Users can specify any arbitrary location for the legend using the
+        *bbox_to_anchor* keyword argument. *bbox_to_anchor* can be a
+        `.BboxBase` (or derived therefrom) or a tuple of 2 or 4 floats.
+        See `set_bbox_to_anchor` for more detail.
+    
+        The legend location can be specified by setting *loc* with a tuple of
+        2 floats, which is interpreted as the lower-left corner of the legend
+        in the normalized axes coordinate.
+        """
+        # local import only to avoid circularity
+        from matplotlib.axes import Axes
+        from matplotlib.figure import Figure
+    
+        super().__init__()
+    
+        if prop is None:
+            if fontsize is not None:
+                self.prop = FontProperties(size=fontsize)
+            else:
+                self.prop = FontProperties(
+                    size=mpl.rcParams["legend.fontsize"])
+        else:
+            self.prop = FontProperties._from_any(prop)
+            if isinstance(prop, dict) and "size" not in prop:
+                self.prop.set_size(mpl.rcParams["legend.fontsize"])
+    
+        self._fontsize = self.prop.get_size_in_points()
+    
+        self.texts = []
+        self.legendHandles = []
+        self._legend_title_box = None
+    
+        #: A dictionary with the extra handler mappings for this Legend
+        #: instance.
+        self._custom_handler_map = handler_map
+    
+        locals_view = locals()
+        for name in ["numpoints", "markerscale", "shadow", "columnspacing",
+                     "scatterpoints", "handleheight", 'borderpad',
+                     'labelspacing', 'handlelength', 'handletextpad',
+                     'borderaxespad']:
+            if locals_view[name] is None:
+                value = mpl.rcParams["legend." + name]
+            else:
+                value = locals_view[name]
+            setattr(self, name, value)
+        del locals_view
+        # trim handles and labels if illegal label...
+        _lab, _hand = [], []
+        for label, handle in zip(labels, handles):
+            if isinstance(label, str) and label.startswith('_'):
+                _api.warn_external('The handle {!r} has a label of {!r} '
+                                   'which cannot be automatically added to'
+                                   ' the legend.'.format(handle, label))
+            else:
+                _lab.append(label)
+                _hand.append(handle)
+        labels, handles = _lab, _hand
+    
+        handles = list(handles)
+        if len(handles) < 2:
+            ncol = 1
+        self._ncol = ncol
+    
+        if self.numpoints <= 0:
+            raise ValueError("numpoints must be > 0; it was %d" % numpoints)
+    
+        # introduce y-offset for handles of the scatter plot
+        if scatteryoffsets is None:
+            self._scatteryoffsets = np.array([3. / 8., 4. / 8., 2.5 / 8.])
+        else:
+            self._scatteryoffsets = np.asarray(scatteryoffsets)
+        reps = self.scatterpoints // len(self._scatteryoffsets) + 1
+        self._scatteryoffsets = np.tile(self._scatteryoffsets,
+                                        reps)[:self.scatterpoints]
+    
+        # _legend_box is a VPacker instance that contains all
+        # legend items and will be initialized from _init_legend_box()
+        # method.
+        self._legend_box = None
+    
+        if isinstance(parent, Axes):
+            self.isaxes = True
+            self.axes = parent
+        if hasattr(parent, 'figure'):
+            self.isaxes = False
+            self.set_figure(parent.figure)
+        else:
+            raise TypeError("Legend needs either Axes or a Figure-like object as parent")
+        self.parent = parent
+    
+        self._loc_used_default = loc is None
+        if loc is None:
+            loc = mpl.rcParams["legend.loc"]
+            if not self.isaxes and loc in [0, 'best']:
+                loc = 'upper right'
+        if isinstance(loc, str):
+            loc = _api.check_getitem(self.codes, loc=loc)
+        if not self.isaxes and loc == 0:
+>           raise ValueError(
+                "Automatic legend placement (loc='best') not implemented for "
+                "figure legend")
+E           ValueError: Automatic legend placement (loc='best') not implemented for figure legend
+
+lib/matplotlib/legend.py:452: ValueError
+___________________ test_not_covering_scatter_transform[png] ___________________
+
+    @image_comparison(['not_covering_scatter_transform.png'])
+    def test_not_covering_scatter_transform():
+        # Offsets point to top left, the default auto position
+        offset = mtransforms.Affine2D().translate(-20, 20)
+        x = np.linspace(0, 30, 1000)
+        plt.plot(x, x)
+    
+        plt.scatter([20], [10], transform=offset + plt.gca().transData)
+    
+>       plt.legend(['foo', 'bar'], loc='best')
+
+lib/matplotlib/tests/test_legend.py:464: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/pyplot.py:2884: in legend
+    return gca().legend(*args, **kwargs)
+lib/matplotlib/axes/_axes.py:305: in legend
+    self.legend_ = mlegend.Legend(self, handles, labels, **kwargs)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.legend.Legend object at 0x7f38252b6820>
+parent = <AxesSubplot:>
+handles = [<matplotlib.lines.Line2D object at 0x7f38252b6a30>, <matplotlib.collections.PathCollection object at 0x7f38252b6cd0>]
+labels = ['foo', 'bar'], loc = 0, numpoints = None, markerscale = None
+markerfirst = True, scatterpoints = None, scatteryoffsets = None, prop = None
+fontsize = None, labelcolor = None, borderpad = None, labelspacing = None
+handlelength = None, handleheight = None, handletextpad = None
+borderaxespad = None, columnspacing = None, ncol = 1, mode = None
+fancybox = None, shadow = None, title = None, title_fontsize = None
+framealpha = None, edgecolor = None, facecolor = None, bbox_to_anchor = None
+bbox_transform = None, frameon = None, handler_map = None
+title_fontproperties = None
+
+    @docstring.dedent_interpd
+    def __init__(
+        self, parent, handles, labels,
+        loc=None,
+        numpoints=None,      # number of points in the legend line
+        markerscale=None,    # relative size of legend markers vs. original
+        markerfirst=True,    # left/right ordering of legend marker and label
+        scatterpoints=None,  # number of scatter points
+        scatteryoffsets=None,
+        prop=None,           # properties for the legend texts
+        fontsize=None,       # keyword to set font size directly
+        labelcolor=None,     # keyword to set the text color
+    
+        # spacing & pad defined as a fraction of the font-size
+        borderpad=None,      # whitespace inside the legend border
+        labelspacing=None,   # vertical space between the legend entries
+        handlelength=None,   # length of the legend handles
+        handleheight=None,   # height of the legend handles
+        handletextpad=None,  # pad between the legend handle and text
+        borderaxespad=None,  # pad between the axes and legend border
+        columnspacing=None,  # spacing between columns
+    
+        ncol=1,     # number of columns
+        mode=None,  # horizontal distribution of columns: None or "expand"
+    
+        fancybox=None,  # True: fancy box, False: rounded box, None: rcParam
+        shadow=None,
+        title=None,           # legend title
+        title_fontsize=None,  # legend title font size
+        framealpha=None,      # set frame alpha
+        edgecolor=None,       # frame patch edgecolor
+        facecolor=None,       # frame patch facecolor
+    
+        bbox_to_anchor=None,  # bbox to which the legend will be anchored
+        bbox_transform=None,  # transform for the bbox
+        frameon=None,         # draw frame
+        handler_map=None,
+        title_fontproperties=None,  # properties for the legend title
+    ):
+        """
+        Parameters
+        ----------
+        parent : `~matplotlib.axes.Axes` or `.Figure`
+            The artist that contains the legend.
+    
+        handles : list of `.Artist`
+            A list of Artists (lines, patches) to be added to the legend.
+    
+        labels : list of str
+            A list of labels to show next to the artists. The length of handles
+            and labels should be the same. If they are not, they are truncated
+            to the smaller of both lengths.
+    
+        Other Parameters
+        ----------------
+        %(_legend_kw_doc)s
+    
+        Notes
+        -----
+        Users can specify any arbitrary location for the legend using the
+        *bbox_to_anchor* keyword argument. *bbox_to_anchor* can be a
+        `.BboxBase` (or derived therefrom) or a tuple of 2 or 4 floats.
+        See `set_bbox_to_anchor` for more detail.
+    
+        The legend location can be specified by setting *loc* with a tuple of
+        2 floats, which is interpreted as the lower-left corner of the legend
+        in the normalized axes coordinate.
+        """
+        # local import only to avoid circularity
+        from matplotlib.axes import Axes
+        from matplotlib.figure import Figure
+    
+        super().__init__()
+    
+        if prop is None:
+            if fontsize is not None:
+                self.prop = FontProperties(size=fontsize)
+            else:
+                self.prop = FontProperties(
+                    size=mpl.rcParams["legend.fontsize"])
+        else:
+            self.prop = FontProperties._from_any(prop)
+            if isinstance(prop, dict) and "size" not in prop:
+                self.prop.set_size(mpl.rcParams["legend.fontsize"])
+    
+        self._fontsize = self.prop.get_size_in_points()
+    
+        self.texts = []
+        self.legendHandles = []
+        self._legend_title_box = None
+    
+        #: A dictionary with the extra handler mappings for this Legend
+        #: instance.
+        self._custom_handler_map = handler_map
+    
+        locals_view = locals()
+        for name in ["numpoints", "markerscale", "shadow", "columnspacing",
+                     "scatterpoints", "handleheight", 'borderpad',
+                     'labelspacing', 'handlelength', 'handletextpad',
+                     'borderaxespad']:
+            if locals_view[name] is None:
+                value = mpl.rcParams["legend." + name]
+            else:
+                value = locals_view[name]
+            setattr(self, name, value)
+        del locals_view
+        # trim handles and labels if illegal label...
+        _lab, _hand = [], []
+        for label, handle in zip(labels, handles):
+            if isinstance(label, str) and label.startswith('_'):
+                _api.warn_external('The handle {!r} has a label of {!r} '
+                                   'which cannot be automatically added to'
+                                   ' the legend.'.format(handle, label))
+            else:
+                _lab.append(label)
+                _hand.append(handle)
+        labels, handles = _lab, _hand
+    
+        handles = list(handles)
+        if len(handles) < 2:
+            ncol = 1
+        self._ncol = ncol
+    
+        if self.numpoints <= 0:
+            raise ValueError("numpoints must be > 0; it was %d" % numpoints)
+    
+        # introduce y-offset for handles of the scatter plot
+        if scatteryoffsets is None:
+            self._scatteryoffsets = np.array([3. / 8., 4. / 8., 2.5 / 8.])
+        else:
+            self._scatteryoffsets = np.asarray(scatteryoffsets)
+        reps = self.scatterpoints // len(self._scatteryoffsets) + 1
+        self._scatteryoffsets = np.tile(self._scatteryoffsets,
+                                        reps)[:self.scatterpoints]
+    
+        # _legend_box is a VPacker instance that contains all
+        # legend items and will be initialized from _init_legend_box()
+        # method.
+        self._legend_box = None
+    
+        if isinstance(parent, Axes):
+            self.isaxes = True
+            self.axes = parent
+        if hasattr(parent, 'figure'):
+            self.isaxes = False
+            self.set_figure(parent.figure)
+        else:
+            raise TypeError("Legend needs either Axes or a Figure-like object as parent")
+        self.parent = parent
+    
+        self._loc_used_default = loc is None
+        if loc is None:
+            loc = mpl.rcParams["legend.loc"]
+            if not self.isaxes and loc in [0, 'best']:
+                loc = 'upper right'
+        if isinstance(loc, str):
+            loc = _api.check_getitem(self.codes, loc=loc)
+        if not self.isaxes and loc == 0:
+>           raise ValueError(
+                "Automatic legend placement (loc='best') not implemented for "
+                "figure legend")
+E           ValueError: Automatic legend placement (loc='best') not implemented for figure legend
+
+lib/matplotlib/legend.py:452: ValueError
+_________________________ test_warn_big_data_best_loc __________________________
+
+    def test_warn_big_data_best_loc():
+        fig, ax = plt.subplots()
+        fig.canvas.draw()  # So that we can call draw_artist later.
+        for idx in range(1000):
+            ax.plot(np.arange(5000), label=idx)
+        with rc_context({'legend.loc': 'best'}):
+            legend = ax.legend()
+        with pytest.warns(UserWarning) as records:
+>           fig.draw_artist(legend)  # Don't bother drawing the lines -- it's slow.
+E           Failed: DID NOT WARN. No warnings of type (<class 'UserWarning'>,) were emitted.
+E            Emitted warnings: [].
+
+lib/matplotlib/tests/test_legend.py:769: Failed
+____________________________ test_subfigure_legend _____________________________
+
+    def test_subfigure_legend():
+        # Test that legend can be added to subfigure (#20723)
+        subfig = plt.figure().subfigures()
+        ax = subfig.subplots()
+        ax.plot([0, 1], [0, 1], label="line")
+        leg = subfig.legend()
+>       assert leg.figure is subfig
+E       assert <Figure size 640x480 with 1 Axes> is <matplotlib.figure.SubFigure object at 0x7f3825280c40>
+E        +  where <Figure size 640x480 with 1 Axes> = <matplotlib.legend.Legend object at 0x7f3814f785e0>.figure
+
+lib/matplotlib/tests/test_legend.py:882: AssertionError
+==================================== PASSES ====================================
+___________________________ test_legend_title_empty ____________________________
+------------------------------ Captured log call -------------------------------
+WARNING  matplotlib.legend:legend.py:1225 No handles with labels found to put in legend.
+_____________________ test_legend_title_fontprop_fontsize ______________________
+------------------------------ Captured log call -------------------------------
+WARNING  matplotlib.legend:legend.py:1225 No handles with labels found to put in legend.
+WARNING  matplotlib.legend:legend.py:1225 No handles with labels found to put in legend.
+WARNING  matplotlib.legend:legend.py:1225 No handles with labels found to put in legend.
+WARNING  matplotlib.legend:legend.py:1225 No handles with labels found to put in legend.
+WARNING  matplotlib.legend:legend.py:1225 No handles with labels found to put in legend.
+WARNING  matplotlib.legend:legend.py:1225 No handles with labels found to put in legend.
+WARNING  matplotlib.legend:legend.py:1225 No handles with labels found to put in legend.
+WARNING  matplotlib.legend:legend.py:1225 No handles with labels found to put in legend.
+____________________________ test_get_set_draggable ____________________________
+------------------------------ Captured log call -------------------------------
+WARNING  matplotlib.legend:legend.py:1225 No handles with labels found to put in legend.
+=========================== short test summary info ============================
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_ordereddict
+PASSED lib/matplotlib/tests/test_legend.py::test_multiple_keys[png]
+PASSED lib/matplotlib/tests/test_legend.py::test_alpha_rgba[png]
+PASSED lib/matplotlib/tests/test_legend.py::test_alpha_rcparam[png]
+PASSED lib/matplotlib/tests/test_legend.py::test_fancy[png]
+PASSED lib/matplotlib/tests/test_legend.py::test_fancy[pdf]
+PASSED lib/matplotlib/tests/test_legend.py::test_framealpha[png]
+PASSED lib/matplotlib/tests/test_legend.py::test_framealpha[pdf]
+PASSED lib/matplotlib/tests/test_legend.py::test_rc[png]
+PASSED lib/matplotlib/tests/test_legend.py::test_rc[pdf]
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_expand[png]
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_expand[pdf]
+PASSED lib/matplotlib/tests/test_legend.py::test_hatching[png]
+PASSED lib/matplotlib/tests/test_legend.py::test_hatching[pdf]
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_remove
+PASSED lib/matplotlib/tests/test_legend.py::TestLegendFunction::test_legend_no_args
+PASSED lib/matplotlib/tests/test_legend.py::TestLegendFunction::test_legend_positional_handles_labels
+PASSED lib/matplotlib/tests/test_legend.py::TestLegendFunction::test_legend_positional_handles_only
+PASSED lib/matplotlib/tests/test_legend.py::TestLegendFunction::test_legend_positional_labels_only
+PASSED lib/matplotlib/tests/test_legend.py::TestLegendFunction::test_legend_three_args
+PASSED lib/matplotlib/tests/test_legend.py::TestLegendFunction::test_legend_handler_map
+PASSED lib/matplotlib/tests/test_legend.py::TestLegendFunction::test_legend_kwargs_handles_only
+PASSED lib/matplotlib/tests/test_legend.py::TestLegendFunction::test_legend_kwargs_labels_only
+PASSED lib/matplotlib/tests/test_legend.py::TestLegendFunction::test_legend_kwargs_handles_labels
+PASSED lib/matplotlib/tests/test_legend.py::TestLegendFunction::test_warn_mixed_args_and_kwargs
+PASSED lib/matplotlib/tests/test_legend.py::TestLegendFunction::test_parasite
+PASSED lib/matplotlib/tests/test_legend.py::TestLegendFigureFunction::test_legend_handle_label
+PASSED lib/matplotlib/tests/test_legend.py::TestLegendFigureFunction::test_legend_no_args
+PASSED lib/matplotlib/tests/test_legend.py::TestLegendFigureFunction::test_legend_label_arg
+PASSED lib/matplotlib/tests/test_legend.py::TestLegendFigureFunction::test_legend_label_three_args
+PASSED lib/matplotlib/tests/test_legend.py::TestLegendFigureFunction::test_legend_label_three_args_pluskw
+PASSED lib/matplotlib/tests/test_legend.py::TestLegendFigureFunction::test_legend_kw_args
+PASSED lib/matplotlib/tests/test_legend.py::TestLegendFigureFunction::test_warn_args_kwargs
+PASSED lib/matplotlib/tests/test_legend.py::test_cross_figure_patch_legend
+PASSED lib/matplotlib/tests/test_legend.py::test_nanscatter
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_repeatcheckok
+PASSED lib/matplotlib/tests/test_legend.py::test_linecollection_scaled_dashes
+PASSED lib/matplotlib/tests/test_legend.py::test_handler_numpoints
+PASSED lib/matplotlib/tests/test_legend.py::test_empty_bar_chart_with_legend
+PASSED lib/matplotlib/tests/test_legend.py::test_shadow_framealpha
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_title_empty
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_proper_window_extent
+PASSED lib/matplotlib/tests/test_legend.py::test_window_extent_cached_renderer
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_title_fontprop_fontsize
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_labelcolor_single[red]
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_labelcolor_single[none]
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_labelcolor_single[color2]
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_labelcolor_list
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_labelcolor_linecolor
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_labelcolor_markeredgecolor
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_labelcolor_markerfacecolor
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_labelcolor_rcparam_single[red]
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_labelcolor_rcparam_single[none]
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_labelcolor_rcparam_single[color2]
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_labelcolor_rcparam_linecolor
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_labelcolor_rcparam_markeredgecolor
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_labelcolor_rcparam_markeredgecolor_short
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_labelcolor_rcparam_markerfacecolor
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_labelcolor_rcparam_markerfacecolor_short
+PASSED lib/matplotlib/tests/test_legend.py::test_get_set_draggable
+PASSED lib/matplotlib/tests/test_legend.py::test_alpha_handles
+PASSED lib/matplotlib/tests/test_legend.py::test_no_warn_big_data_when_loc_specified
+PASSED lib/matplotlib/tests/test_legend.py::test_plot_multiple_input_multiple_label[label_array0]
+PASSED lib/matplotlib/tests/test_legend.py::test_plot_multiple_input_multiple_label[label_array1]
+PASSED lib/matplotlib/tests/test_legend.py::test_plot_multiple_input_multiple_label[label_array2]
+PASSED lib/matplotlib/tests/test_legend.py::test_plot_multiple_input_single_label[one]
+PASSED lib/matplotlib/tests/test_legend.py::test_plot_multiple_input_single_label[1]
+PASSED lib/matplotlib/tests/test_legend.py::test_plot_multiple_input_single_label[int]
+PASSED lib/matplotlib/tests/test_legend.py::test_plot_single_input_multiple_label[label_array0]
+PASSED lib/matplotlib/tests/test_legend.py::test_plot_single_input_multiple_label[label_array1]
+PASSED lib/matplotlib/tests/test_legend.py::test_plot_single_input_multiple_label[label_array2]
+PASSED lib/matplotlib/tests/test_legend.py::test_plot_multiple_label_incorrect_length_exception
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_face_edgecolor
+PASSED lib/matplotlib/tests/test_legend.py::test_legend_text_axes
+PASSED lib/matplotlib/tests/test_legend.py::test_handlerline2d
+SKIPPED [9] ../opt/miniconda3/envs/testbed/lib/python3.8/contextlib.py:75: Cannot compare svg files on this system
+SKIPPED [1] lib/matplotlib/tests/test_legend.py:745: This test needs a TeX installation
+FAILED lib/matplotlib/tests/test_legend.py::test_legend_auto1[png] - ValueErr...
+FAILED lib/matplotlib/tests/test_legend.py::test_legend_auto1[pdf] - ValueErr...
+FAILED lib/matplotlib/tests/test_legend.py::test_legend_auto2[png] - ValueErr...
+FAILED lib/matplotlib/tests/test_legend.py::test_legend_auto2[pdf] - ValueErr...
+FAILED lib/matplotlib/tests/test_legend.py::test_legend_auto3[png] - ValueErr...
+FAILED lib/matplotlib/tests/test_legend.py::test_legend_auto3[pdf] - ValueErr...
+FAILED lib/matplotlib/tests/test_legend.py::test_various_labels[png] - ValueE...
+FAILED lib/matplotlib/tests/test_legend.py::test_various_labels[pdf] - ValueE...
+FAILED lib/matplotlib/tests/test_legend.py::test_labels_first[png] - ValueErr...
+FAILED lib/matplotlib/tests/test_legend.py::test_legend_stackplot[png] - Valu...
+FAILED lib/matplotlib/tests/test_legend.py::test_not_covering_scatter[png] - ...
+FAILED lib/matplotlib/tests/test_legend.py::test_not_covering_scatter_transform[png]
+FAILED lib/matplotlib/tests/test_legend.py::test_warn_big_data_best_loc - Fai...
+FAILED lib/matplotlib/tests/test_legend.py::test_subfigure_legend - assert <F...
+================== 14 failed, 75 passed, 10 skipped in 27.28s ==================
++ git checkout 64619e53e9d0ed417daba287ac0d3a06943a54d5 lib/matplotlib/tests/test_legend.py
+Updated 1 path from 61c04b19ab

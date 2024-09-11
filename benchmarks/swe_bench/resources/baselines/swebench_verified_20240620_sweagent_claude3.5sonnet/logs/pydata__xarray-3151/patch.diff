@@ -1,0 +1,58 @@
+
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 00000000..6aa528ee
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,29 @@
++import xarray as xr
++import numpy as np
++
++#yCoord = ['a', 'b', 'c']  # works without error
++yCoord = ['a', 'c', 'b']  # raises ValueError on combine
++
++ds1 = xr.Dataset(
++    data_vars=dict(
++        data=(['x', 'y'], np.random.rand(3, 3))
++    ),
++    coords=dict(
++        x=[1, 2, 3],
++        y=yCoord
++    )
++)
++
++ds2 = xr.Dataset(
++    data_vars=dict(
++        data=(['x', 'y'], np.random.rand(4, 3))
++    ),
++    coords = dict(
++        x=[4, 5, 6, 7],
++        y=yCoord
++    )
++)
++
++ds3 = xr.combine_by_coords((ds1, ds2))
++
++print("Script completed successfully, no errors.")
+diff --git a/xarray/core/combine.py b/xarray/core/combine.py
+index 37ae903b..4d0f2d0f 100644
+--- a/xarray/core/combine.py
++++ b/xarray/core/combine.py
+@@ -504,11 +504,12 @@ def combine_by_coords(datasets, compat='no_conflicts', data_vars='all',
+         for dim in concatenated.dims:
+             if dim in concatenated:
+                 indexes = concatenated.indexes.get(dim)
+-                if not (indexes.is_monotonic_increasing
+-                        or indexes.is_monotonic_decreasing):
+-                    raise ValueError("Resulting object does not have monotonic"
+-                                     " global indexes along dimension {}"
+-                                     .format(dim))
++                if len(set(map(tuple, [ds.indexes.get(dim) for ds in datasets_with_same_vars]))) > 1:
++                    if not (indexes.is_monotonic_increasing
++                            or indexes.is_monotonic_decreasing):
++                        raise ValueError("Resulting object does not have monotonic"
++                                         " global indexes along dimension {}"
++                                         .format(dim))
+         concatenated_grouped_by_data_vars.append(concatenated)
+ 
+     return merge(concatenated_grouped_by_data_vars, compat=compat,

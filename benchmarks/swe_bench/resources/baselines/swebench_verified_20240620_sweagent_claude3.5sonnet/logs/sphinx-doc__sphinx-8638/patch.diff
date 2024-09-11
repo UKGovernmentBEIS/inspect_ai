@@ -1,0 +1,214 @@
+
+diff --git a/setup.py b/setup.py
+index a0c8ac102..2ef89ef1a 100644
+--- a/setup.py
++++ b/setup.py
+@@ -15,22 +15,22 @@ if sys.version_info < (3, 6):
+     sys.exit(1)
+ 
+ install_requires = [
+-    'sphinxcontrib-applehelp',
+-    'sphinxcontrib-devhelp',
++    'sphinxcontrib-applehelp<=1.0.7',
++    'sphinxcontrib-devhelp<=1.0.5',
+     'sphinxcontrib-jsmath',
+-    'sphinxcontrib-htmlhelp',
+-    'sphinxcontrib-serializinghtml',
+-    'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'sphinxcontrib-htmlhelp<=2.0.4',
++    'sphinxcontrib-serializinghtml<=1.1.9',
++    'sphinxcontrib-qthelp<=1.0.6',
++    'Jinja2<3.0',
+     'Pygments>=2.0',
+     'docutils>=0.14',
+     'snowballstemmer>=1.1',
+     'babel>=1.3',
+-    'alabaster>=0.7,<0.8',
++    'alabaster>=0.7,<0.7.12',
+     'imagesize',
+     'requests>=2.5.0',
+     'setuptools',
+-    'packaging',
++    'packaging', 'markupsafe<=2.0.1',
+ ]
+ 
+ extras_require = {
+diff --git a/sphinx/domains/python.py b/sphinx/domains/python.py
+index 000e2e8d3..b4412a2a2 100644
+--- a/sphinx/domains/python.py
++++ b/sphinx/domains/python.py
+@@ -1144,6 +1144,17 @@ class PythonDomain(Domain):
+             else:
+                 objtypes = self.objtypes_for_role(type)
+             if objtypes is not None:
++                # Prioritize matches within the same module and class
++                if modname and classname:
++                    fullname = modname + '.' + classname + '.' + name
++                    if fullname in self.objects and self.objects[fullname].objtype in objtypes:
++                        return [(fullname, self.objects[fullname])]
++                elif modname:
++                    fullname = modname + '.' + name
++                    if fullname in self.objects and self.objects[fullname].objtype in objtypes:
++                        return [(fullname, self.objects[fullname])]
++                
++                # If no exact match found, fall back to the original behavior
+                 if modname and classname:
+                     fullname = modname + '.' + classname + '.' + name
+                     if fullname in self.objects and self.objects[fullname].objtype in objtypes:
+@@ -1162,7 +1173,15 @@ class PythonDomain(Domain):
+                                    self.objects[oname].objtype in objtypes]
+         else:
+             # NOTE: searching for exact match, object type is not considered
+-            if name in self.objects:
++            if modname and classname:
++                fullname = modname + '.' + classname + '.' + name
++                if fullname in self.objects:
++                    return [(fullname, self.objects[fullname])]
++            elif modname:
++                fullname = modname + '.' + name
++                if fullname in self.objects:
++                    return [(fullname, self.objects[fullname])]
++            elif name in self.objects:
+                 newname = name
+             elif type == 'mod':
+                 # only exact matches allowed for modules
+@@ -1171,9 +1190,6 @@ class PythonDomain(Domain):
+                 newname = classname + '.' + name
+             elif modname and modname + '.' + name in self.objects:
+                 newname = modname + '.' + name
+-            elif modname and classname and \
+-                    modname + '.' + classname + '.' + name in self.objects:
+-                newname = modname + '.' + classname + '.' + name
+         if newname is not None:
+             matches.append((newname, self.objects[newname]))
+         return matches
+diff --git a/tests/roots/test-autodoc-linking/conf.py b/tests/roots/test-autodoc-linking/conf.py
+new file mode 100644
+index 000000000..ae69f9955
+--- /dev/null
++++ b/tests/roots/test-autodoc-linking/conf.py
+@@ -0,0 +1,5 @@
++extensions = ['sphinx.ext.autodoc']
++
++import os
++import sys
++sys.path.insert(0, os.path.abspath('.'))
+diff --git a/tests/roots/test-autodoc-linking/index.rst b/tests/roots/test-autodoc-linking/index.rst
+new file mode 100644
+index 000000000..4f3dd362b
+--- /dev/null
++++ b/tests/roots/test-autodoc-linking/index.rst
+@@ -0,0 +1,11 @@
++Module A
++========
++
++.. automodule:: module_a
++   :members:
++
++Module B
++========
++
++.. automodule:: module_b
++   :members:
+diff --git a/tests/roots/test-autodoc-linking/module_a.py b/tests/roots/test-autodoc-linking/module_a.py
+new file mode 100644
+index 000000000..4a07c2ce3
+--- /dev/null
++++ b/tests/roots/test-autodoc-linking/module_a.py
+@@ -0,0 +1,5 @@
++class ClassA:
++    """Class A docstring."""
++    
++    limit = 10
++    """Limit docstring for ClassA."""
+diff --git a/tests/roots/test-autodoc-linking/module_b.py b/tests/roots/test-autodoc-linking/module_b.py
+new file mode 100644
+index 000000000..a83f8c737
+--- /dev/null
++++ b/tests/roots/test-autodoc-linking/module_b.py
+@@ -0,0 +1,5 @@
++class ClassB:
++    """Class B docstring."""
++    
++    limit = 20
++    """Limit docstring for ClassB."""
+diff --git a/tests/test_autodoc_linking.py b/tests/test_autodoc_linking.py
+new file mode 100644
+index 000000000..55c33d32e
+--- /dev/null
++++ b/tests/test_autodoc_linking.py
+@@ -0,0 +1,60 @@
++import pytest
++from sphinx.testing.util import SphinxTestApp
++
++@pytest.mark.sphinx('html', testroot='autodoc-linking')
++def test_autodoc_linking(app: SphinxTestApp, status, warning):
++    app.builder.build_all()
++    
++    html = (app.outdir / 'index.html').read_text()
++    
++    # Check that the classes and their limits are present
++    assert '<code class="sig-prename descclassname">module_a.</code><code class="sig-name descname">ClassA</code>' in html
++    assert '<code class="sig-prename descclassname">module_b.</code><code class="sig-name descname">ClassB</code>' in html
++    assert '<code class="sig-name descname">limit</code><em class="property"> = 10</em>' in html
++    assert '<code class="sig-name descname">limit</code><em class="property"> = 20</em>' in html
++    
++    # Check that the variables are correctly linked within their own classes
++    assert 'id="module_a.ClassA.limit"' in html
++    assert 'id="module_b.ClassB.limit"' in html
++    
++    # Check that the variables are not linked to each other
++    assert 'href="#module_a.ClassA.limit">ClassB.limit' not in html
++    assert 'href="#module_b.ClassB.limit">ClassA.limit' not in html
++
++# Add the following content to the test root's conf.py
++pytest_configure = '''
++extensions = ['sphinx.ext.autodoc']
++'''
++
++# Add the following content to the test root's index.rst
++index_rst = '''
++Module A
++========
++
++.. automodule:: module_a
++   :members:
++
++Module B
++========
++
++.. automodule:: module_b
++   :members:
++'''
++
++# Add the following content to the test root's module_a.py
++module_a_py = '''
++class ClassA:
++    """Class A docstring."""
++    
++    limit = 10
++    """Limit docstring for ClassA."""
++'''
++
++# Add the following content to the test root's module_b.py
++module_b_py = '''
++class ClassB:
++    """Class B docstring."""
++    
++    limit = 20
++    """Limit docstring for ClassB."""
++'''
+diff --git a/tox.ini b/tox.ini
+index bdf4c2ad3..b12166264 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -26,7 +26,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

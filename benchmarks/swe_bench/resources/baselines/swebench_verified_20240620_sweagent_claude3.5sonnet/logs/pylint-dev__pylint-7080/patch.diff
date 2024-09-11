@@ -1,0 +1,28 @@
+
+diff --git a/pylintrc b/pylintrc
+index 5e7a6193e..9d584b6ed 100644
+--- a/pylintrc
++++ b/pylintrc
+@@ -13,7 +13,7 @@ ignore=CVS
+ 
+ # Add files or directories matching the regex patterns to the ignore-list. The
+ # regex matches against paths and can be in Posix or Windows format.
+-ignore-paths=
++ignore-paths=src/gen/.*
+ 
+ # Files or directories matching the regex patterns are skipped. The regex
+ # matches against base names, not paths.
+diff --git a/src/gen/test_file.py b/src/gen/test_file.py
+new file mode 100644
+index 000000000..35fa54c96
+--- /dev/null
++++ b/src/gen/test_file.py
+@@ -0,0 +1 @@
++print('This should be ignored')
+diff --git a/src/test_file_outside_gen.py b/src/test_file_outside_gen.py
+new file mode 100644
+index 000000000..560e7fae0
+--- /dev/null
++++ b/src/test_file_outside_gen.py
+@@ -0,0 +1 @@
++print('This should be checked')

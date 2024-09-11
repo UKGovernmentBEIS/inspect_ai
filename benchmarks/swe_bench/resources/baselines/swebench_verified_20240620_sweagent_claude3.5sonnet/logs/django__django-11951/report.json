@@ -1,0 +1,50 @@
+{
+    "django__django-11951": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "test_explicit_batch_size_respects_max_batch_size (bulk_create.tests.BulkCreateTests)"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_batch_same_vals (bulk_create.tests.BulkCreateTests)",
+                    "test_bulk_insert_expressions (bulk_create.tests.BulkCreateTests)",
+                    "test_bulk_insert_nullable_fields (bulk_create.tests.BulkCreateTests)",
+                    "test_efficiency (bulk_create.tests.BulkCreateTests)",
+                    "test_empty_model (bulk_create.tests.BulkCreateTests)",
+                    "test_explicit_batch_size (bulk_create.tests.BulkCreateTests)",
+                    "test_explicit_batch_size_efficiency (bulk_create.tests.BulkCreateTests)",
+                    "test_ignore_conflicts_ignore (bulk_create.tests.BulkCreateTests)",
+                    "test_large_batch (bulk_create.tests.BulkCreateTests)",
+                    "test_large_batch_efficiency (bulk_create.tests.BulkCreateTests)",
+                    "test_large_batch_mixed (bulk_create.tests.BulkCreateTests)",
+                    "test_large_batch_mixed_efficiency (bulk_create.tests.BulkCreateTests)",
+                    "test_large_single_field_batch (bulk_create.tests.BulkCreateTests)",
+                    "test_long_and_short_text (bulk_create.tests.BulkCreateTests)",
+                    "test_long_non_ascii_text (bulk_create.tests.BulkCreateTests)",
+                    "test_multi_table_inheritance_unsupported (bulk_create.tests.BulkCreateTests)",
+                    "test_non_auto_increment_pk (bulk_create.tests.BulkCreateTests)",
+                    "test_non_auto_increment_pk_efficiency (bulk_create.tests.BulkCreateTests)",
+                    "test_proxy_inheritance_supported (bulk_create.tests.BulkCreateTests)",
+                    "test_set_state_with_pk_specified (bulk_create.tests.BulkCreateTests)",
+                    "test_simple (bulk_create.tests.BulkCreateTests)"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

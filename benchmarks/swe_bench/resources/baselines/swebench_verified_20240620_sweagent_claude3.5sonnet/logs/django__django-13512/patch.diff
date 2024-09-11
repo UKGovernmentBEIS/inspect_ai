@@ -1,0 +1,57 @@
+
+diff --git a/django/forms/fields.py b/django/forms/fields.py
+index 9de2c60b35..8ba0013871 100644
+--- a/django/forms/fields.py
++++ b/django/forms/fields.py
+@@ -1258,7 +1258,7 @@ class JSONField(CharField):
+     def prepare_value(self, value):
+         if isinstance(value, InvalidJSONInput):
+             return value
+-        return json.dumps(value, cls=self.encoder)
++        return json.dumps(value, cls=self.encoder, ensure_ascii=False)
+ 
+     def has_changed(self, initial, data):
+         if super().has_changed(initial, data):
+@@ -1266,6 +1266,6 @@ class JSONField(CharField):
+         # For purposes of seeing whether something has changed, True isn't the
+         # same as 1 and the order of keys doesn't matter.
+         return (
+-            json.dumps(initial, sort_keys=True, cls=self.encoder) !=
+-            json.dumps(self.to_python(data), sort_keys=True, cls=self.encoder)
++            json.dumps(initial, sort_keys=True, cls=self.encoder, ensure_ascii=False) !=
++            json.dumps(self.to_python(data), sort_keys=True, cls=self.encoder, ensure_ascii=False)
+         )
+diff --git a/test_json_field.py b/test_json_field.py
+new file mode 100644
+index 0000000000..849382a4fa
+--- /dev/null
++++ b/test_json_field.py
+@@ -0,0 +1,28 @@
++import json
++from django.test import SimpleTestCase
++from django.forms import JSONField
++
++class JSONFieldTest(SimpleTestCase):
++    def test_prepare_value_with_unicode(self):
++        field = JSONField()
++        test_data = {"key": "中国"}
++        prepared_value = field.prepare_value(test_data)
++        self.assertEqual(json.loads(prepared_value), test_data)
++        self.assertIn("中国", prepared_value)
++
++    def test_has_changed_with_unicode(self):
++        field = JSONField()
++        initial = {"key": "中国"}
++        data = json.dumps(initial)
++        self.assertFalse(field.has_changed(initial, data))
++
++if __name__ == '__main__':
++    import django
++    from django.conf import settings
++    settings.configure(DEBUG=True)
++    django.setup()
++    from django.test.utils import get_runner
++    TestRunner = get_runner(settings)
++    test_runner = TestRunner()
++    failures = test_runner.run_tests(["__main__"])
++    exit(bool(failures))

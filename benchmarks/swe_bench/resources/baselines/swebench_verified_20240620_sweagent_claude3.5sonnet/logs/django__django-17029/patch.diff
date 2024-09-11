@@ -1,0 +1,88 @@
+
+diff --git a/django/apps/registry.py b/django/apps/registry.py
+index 0683f3ad3c..fbb50d47f1 100644
+--- a/django/apps/registry.py
++++ b/django/apps/registry.py
+@@ -376,13 +376,13 @@ class Apps:
+         # Call expire cache on each model. This will purge
+         # the relation tree and the fields cache.
+         self.get_models.cache_clear()
++        self.get_swappable_settings_name.cache_clear()  # Add this line to clear the cache
+         if self.ready:
+             # Circumvent self.get_models() to prevent that the cache is refilled.
+             # This particularly prevents that an empty value is cached while cloning.
+             for app_config in self.app_configs.values():
+                 for model in app_config.get_models(include_auto_created=True):
+                     model._meta._expire_cache()
+-
+     def lazy_model_operation(self, function, *model_keys):
+         """
+         Take a function and a number of ("app_label", "modelname") tuples, and
+diff --git a/tests/__init__.py b/tests/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/tests/apps/test_clear_cache.py b/tests/apps/test_clear_cache.py
+new file mode 100644
+index 0000000000..a8e27749b4
+--- /dev/null
++++ b/tests/apps/test_clear_cache.py
+@@ -0,0 +1,59 @@
++import os
++import sys
++import unittest
++
++# Add the parent directory to sys.path
++sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
++
++from django.conf import settings
++from django.test import TestCase
++from django.apps import apps
++
++if not settings.configured:
++    settings.configure(
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++        ],
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++    )
++
++import django
++django.setup()
++
++class ClearCacheTests(TestCase):
++    def test_clear_cache_clears_swappable_settings_name(self):
++        # Call get_swappable_settings_name to populate the cache
++        result1 = apps.get_swappable_settings_name('auth.User')
++        self.assertEqual(result1, 'AUTH_USER_MODEL')
++        
++        cache_info1 = apps.get_swappable_settings_name.cache_info()
++        self.assertEqual(cache_info1.hits, 0)
++        self.assertEqual(cache_info1.misses, 1)
++        self.assertEqual(cache_info1.currsize, 1)
++        
++        # Call again to hit the cache
++        result2 = apps.get_swappable_settings_name('auth.User')
++        self.assertEqual(result2, 'AUTH_USER_MODEL')
++        
++        cache_info2 = apps.get_swappable_settings_name.cache_info()
++        self.assertEqual(cache_info2.hits, 1)
++        self.assertEqual(cache_info2.misses, 1)
++        self.assertEqual(cache_info2.currsize, 1)
++        
++        # Clear the cache
++        apps.clear_cache()
++        
++        # Verify that the cache is cleared
++        cache_info_after = apps.get_swappable_settings_name.cache_info()
++        self.assertEqual(cache_info_after.hits, 0)
++        self.assertEqual(cache_info_after.misses, 0)
++        self.assertEqual(cache_info_after.currsize, 0)
++
++if __name__ == '__main__':
++    unittest.main()

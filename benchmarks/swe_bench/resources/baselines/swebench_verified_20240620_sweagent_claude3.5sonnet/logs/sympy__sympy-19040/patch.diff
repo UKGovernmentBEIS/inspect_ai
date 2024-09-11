@@ -1,0 +1,140 @@
+
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..3274c1d383
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,14 @@
++from sympy import expand, factor, I, symbols
++
++x, y = symbols('x y')
++
++z = expand((x-1)*(y-1))
++print("Expanded expression:", z)
++
++factored = factor(z)
++print("Factored without extension:", factored)
++
++factored_with_extension = factor(z, extension=[I])
++print("Factored with extension=[I]:", factored_with_extension)
++
++print("Script completed successfully, no errors.")
+diff --git a/sympy/polys/factortools.py b/sympy/polys/factortools.py
+index c6a5f9f063..a247873c57 100644
+--- a/sympy/polys/factortools.py
++++ b/sympy/polys/factortools.py
+@@ -1147,24 +1147,27 @@ def dmp_ext_factor(f, u, K):
+         return lc, []
+ 
+     f, F = dmp_sqf_part(f, u, K), f
+-    s, g, r = dmp_sqf_norm(f, u, K)
+-
+-    factors = dmp_factor_list_include(r, u, K.dom)
+-
+-    if len(factors) == 1:
+-        factors = [f]
++    
++    if K.is_Algebraic and K.domain.is_ComplexField:
++        # For complex algebraic numbers, we need to factor over the complex field
++        factors = dmp_factor_list_include(f, u, K)
+     else:
+-        H = dmp_raise([K.one, s*K.unit], u, 0, K)
++        s, g, r = dmp_sqf_norm(f, u, K)
++        factors = dmp_factor_list_include(r, u, K.dom)
+ 
+-        for i, (factor, _) in enumerate(factors):
+-            h = dmp_convert(factor, u, K.dom, K)
+-            h, _, g = dmp_inner_gcd(h, g, u, K)
+-            h = dmp_compose(h, H, u, K)
+-            factors[i] = h
++        if len(factors) > 1:
++            H = dmp_raise([K.one, s*K.unit], u, 0, K)
++
++            for i, (factor, _) in enumerate(factors):
++                h = dmp_convert(factor, u, K.dom, K)
++                h, _, g = dmp_inner_gcd(h, g, u, K)
++                h = dmp_compose(h, H, u, K)
++                factors[i] = h
+ 
+     return lc, dmp_trial_division(F, factors, u, K)
+ 
+ 
++
+ def dup_gf_factor(f, K):
+     """Factor univariate polynomials over finite fields. """
+     f = dup_convert(f, K, K.dom)
+diff --git a/sympy/polys/polytools.py b/sympy/polys/polytools.py
+index 68b69d1a24..8b4f2ecf10 100644
+--- a/sympy/polys/polytools.py
++++ b/sympy/polys/polytools.py
+@@ -6255,7 +6255,30 @@ def factor_list(f, *gens, **args):
+     return _generic_factor_list(f, gens, args, method='factor')
+ 
+ 
+-@public
++def factor_complex(f, *gens, **args):
++    """
++    Factor polynomial over complex numbers.
++    """
++    f = sympify(f)
++    if f.is_Number:
++        return f
++
++    try:
++        poly = Poly(f, *gens, **args)
++    except PolynomialError:
++        return f
++
++    domain = poly.get_domain()
++    if domain.is_Algebraic and domain.domain.is_ComplexField:
++        # If we're already in a complex algebraic domain, just use the regular factorization
++        return factor(f, *gens, **args)
++
++    # Otherwise, explicitly set the domain to include I
++    new_args = dict(args, extension=[I])
++    factored = factor(f, *gens, **new_args)
++
++    return factored
++
+ def factor(f, *gens, **args):
+     """
+     Compute the factorization of expression, ``f``, into irreducibles. (To
+diff --git a/test_complex_factor.py b/test_complex_factor.py
+new file mode 100644
+index 0000000000..556d372e19
+--- /dev/null
++++ b/test_complex_factor.py
+@@ -0,0 +1,33 @@
++from sympy import expand, I, symbols
++from sympy.polys.polytools import factor_complex
++
++def test_complex_factor():
++    x, y = symbols('x y')
++    
++    # Test case from the original issue
++    z = expand((x-1)*(y-1))
++    result = factor_complex(z)
++    print("Original issue test:")
++    print(f"Input: {z}")
++    print(f"Factored result: {result}")
++    assert str(result) == "(x - 1)*(y - 1)", f"Expected (x - 1)*(y - 1), but got {result}"
++
++    # Additional test cases
++    z1 = expand((x-I)*(y-2*I))
++    result1 = factor_complex(z1)
++    print("\nAdditional test 1:")
++    print(f"Input: {z1}")
++    print(f"Factored result: {result1}")
++    assert str(result1) == "(x - I)*(y - 2*I)", f"Expected (x - I)*(y - 2*I), but got {result1}"
++
++    z2 = expand((x-1+I)*(y-1-I))
++    result2 = factor_complex(z2)
++    print("\nAdditional test 2:")
++    print(f"Input: {z2}")
++    print(f"Factored result: {result2}")
++    assert str(result2) == "(x - 1 + I)*(y - 1 - I)", f"Expected (x - 1 + I)*(y - 1 - I), but got {result2}"
++
++    print("\nAll tests passed successfully!")
++
++if __name__ == "__main__":
++    test_complex_factor()

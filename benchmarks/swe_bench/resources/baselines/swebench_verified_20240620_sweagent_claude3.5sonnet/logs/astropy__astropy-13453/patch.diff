@@ -1,0 +1,41 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..388feb637
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,34 @@
++from io import StringIO
++
++def format_number(x):
++    return f"{x:.2e}"
++
++# generate table data
++data = [
++    (1.23875234858e-24, 2),
++    (3.2348748432e-15, 4)
++]
++
++# create HTML table
++html = """
++<table>
++  <thead>
++    <tr>
++      <th>a</th>
++      <th>b</th>
++    </tr>
++  </thead>
++  <tbody>
++"""
++
++for row in data:
++    html += f"    <tr>\n      <td>{format_number(row[0])}</td>\n      <td>{row[1]}</td>\n    </tr>\n"
++
++html += """  </tbody>
++</table>
++"""
++
++print("HTML output:")
++print(html)
++
++print("Script completed successfully, no errors.")

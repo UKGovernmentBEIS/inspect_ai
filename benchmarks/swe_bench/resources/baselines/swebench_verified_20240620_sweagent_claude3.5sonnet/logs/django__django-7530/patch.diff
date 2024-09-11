@@ -1,0 +1,145 @@
+
+diff --git a/django/core/management/commands/makemigrations.py b/django/core/management/commands/makemigrations.py
+index 0b39536f5b..9223d1ef2f 100644
+--- a/django/core/management/commands/makemigrations.py
++++ b/django/core/management/commands/makemigrations.py
+@@ -102,13 +102,12 @@ class Command(BaseCommand):
+         for alias in sorted(aliases_to_check):
+             connection = connections[alias]
+             if (connection.settings_dict['ENGINE'] != 'django.db.backends.dummy' and any(
+-                    # At least one model must be migrated to the database.
++                    # Check allow_migrate only for models within their respective app
+                     router.allow_migrate(connection.alias, app_label, model_name=model._meta.object_name)
+                     for app_label in consistency_check_labels
+-                    for model in apps.get_models(app_label)
++                    for model in apps.get_app_config(app_label).get_models()
+             )):
+                 loader.check_consistent_history(connection)
+-
+         # Before anything else, see if there's conflicting apps and drop out
+         # hard if there are any and they don't want to merge
+         conflicts = loader.detect_conflicts()
+diff --git a/docs/releases/2.0.txt b/docs/releases/2.0.txt
+new file mode 100644
+index 0000000000..6f2687621a
+--- /dev/null
++++ b/docs/releases/2.0.txt
+@@ -0,0 +1,60 @@
++======================
++Django 2.0 release notes
++======================
++
++*Expected release date: TBA*
++
++Welcome to Django 2.0!
++
++These release notes cover the new features, as well as some backwards
++incompatible changes you'll want to be aware of when upgrading from
++Django 1.11 or earlier. We've dropped some features that have reached
++the end of their deprecation cycle, and we've begun the deprecation
++process for some features.
++
++See the `Upgrading Django to a newer version` guide if you're updating
++an existing project.
++
++Python compatibility
++====================
++
++Django 2.0 supports Python 3.5+.
++
++What's new in Django 2.0
++========================
++
++Minor features
++--------------
++
++:mod:`django.db.migrations`
++~~~~~~~~~~~~~~~~~~~~~~~~~~~
++
++* Fixed a bug in ``makemigrations`` where ``allow_migrate()`` was being called
++  with invalid ``(app_label, model)`` pairs, potentially causing errors with
++  custom routers. The command now correctly calls ``allow_migrate()`` only
++  for models within their respective apps.
++
++Backwards incompatible changes in 2.0
++=====================================
++
++Database backend API
++--------------------
++
++* ...
++
++Features deprecated in 2.0
++==========================
++
++Miscellaneous
++-------------
++
++* ...
++
++Features removed in 2.0
++=======================
++
++These features have reached the end of their deprecation cycle and are removed
++in Django 2.0.
++
++* ...
++
+diff --git a/tests/migrations/test_commands.py b/tests/migrations/test_commands.py
+index fb2b0fb877..4e53574722 100644
+--- a/tests/migrations/test_commands.py
++++ b/tests/migrations/test_commands.py
+@@ -1082,7 +1082,8 @@ class MakeMigrationsTests(MigrationTestBase):
+                 val
+             )
+ 
+-    def test_makemigrations_with_custom_name(self):
++        self.assertTrue(os.path.exists(os.path.join(migration_dir, '0001_initial.py')))
++
+         """
+         Makes sure that makemigrations generate a custom migration.
+         """
+@@ -1201,6 +1202,43 @@ class MakeMigrationsTests(MigrationTestBase):
+             self.assertIn("You can accept the default 'timezone.now' by pressing 'Enter'", prompt_output)
+             self.assertIn("Add field creation_date to entry", output)
+ 
++    def test_makemigrations_allow_migrate_model_check(self):
++        """
++        Test that makemigrations only checks allow_migrate() for models within their respective app.
++        """
++        out = six.StringIO()
++        migration_dir = None
++        dir_contents = None
++        with self.temporary_migration_module() as temp_dir:
++            migration_dir = temp_dir
++            # Ensure the migrations directory exists
++            os.makedirs(migration_dir, exist_ok=True)
++            
++            # Add a new model to trigger a migration
++            with open(os.path.join(migration_dir, 'models.py'), 'w') as f:
++                f.write("""
++from django.db import models
++
++class TestModel(models.Model):
++    name = models.CharField(max_length=100)
++""")
++
++            with mock.patch('django.db.migrations.questioner.input', return_value='y'):
++                call_command('makemigrations', 'migrations', stdout=out)
++
++            # Capture directory contents before the context manager exits
++            dir_contents = os.listdir(migration_dir)
++
++        # Print debug information
++        print("Migration directory:", migration_dir)
++        print("Directory contents:", dir_contents)
++        print("Command output:", out.getvalue())
++
++        # Check that the command output doesn't contain any warnings about allow_migrate
++        self.assertNotIn('allow_migrate', out.getvalue())
++
++        # Check that a migration file was created
++        self.assertIn('0001_initial.py', dir_contents)
+ 
+ class SquashMigrationsTests(MigrationTestBase):
+     """

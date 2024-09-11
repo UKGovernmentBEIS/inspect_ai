@@ -1,0 +1,52 @@
+2024-07-25 20:11:52,488 - INFO - Environment image sweb.env.x86_64.297af196949a2a635bce66:latest found for django__django-14011
+Building instance image sweb.eval.x86_64.django__django-14011:latest for django__django-14011
+2024-07-25 20:12:37,650 - INFO - Creating container for django__django-14011...
+2024-07-25 20:12:37,696 - INFO - Container for django__django-14011 created: 08089949cfb93c95c0b15d67c47944892f094dad04820e8845b60c6ae328a2b5
+2024-07-25 20:12:38,164 - INFO - Container for django__django-14011 started: 08089949cfb93c95c0b15d67c47944892f094dad04820e8845b60c6ae328a2b5
+2024-07-25 20:12:38,165 - INFO - Intermediate patch for django__django-14011 written to logs/run_evaluation/claude-3-5-run1/claude-3-5-sonnet-20240620__swe-bench-test-split-all__default_xml__t-0.00__p-0.95__c-4.00__install-1__2024-06-20/django__django-14011/patch.diff, now applying to container...
+2024-07-25 20:12:38,649 - INFO - Failed to apply patch to container, trying again...
+2024-07-25 20:12:38,784 - INFO - >>>>> Applied Patch:
+patching file django/test/testcases.py
+
+2024-07-25 20:12:40,172 - INFO - Git diff before:
+diff --git a/django/test/testcases.py b/django/test/testcases.py
+index 92f566b7b0..aed9acc5e5 100644
+--- a/django/test/testcases.py
++++ b/django/test/testcases.py
+@@ -1472,11 +1472,16 @@ class _MediaFilesHandler(FSFilesHandler):
+     def get_base_url(self):
+         return settings.MEDIA_URL
+ 
++class DatabaseClosingThreadedWSGIServer(ThreadedWSGIServer):
++    def process_request_thread(self, request, client_address):
++        super().process_request_thread(request, client_address)
++        connections.close_all()
++
+ 
+ class LiveServerThread(threading.Thread):
+     """Thread for running a live http server while the tests are running."""
+ 
+-    server_class = ThreadedWSGIServer
++    server_class = DatabaseClosingThreadedWSGIServer
+ 
+     def __init__(self, host, static_handler, connections_override=None, port=0):
+         self.host = host
+2024-07-25 20:12:40,173 - INFO - Eval script for django__django-14011 written to logs/run_evaluation/claude-3-5-run1/claude-3-5-sonnet-20240620__swe-bench-test-split-all__default_xml__t-0.00__p-0.95__c-4.00__install-1__2024-06-20/django__django-14011/eval.sh; copying to container...
+2024-07-25 20:12:41,020 - ERROR - Error in evaluating model for django__django-14011: 'utf-8' codec can't decode byte 0xc4 in position 4095: unexpected end of data
+Traceback (most recent call last):
+  File "/home/ec2-user/miniconda3/lib/python3.12/site-packages/swebench/harness/run_evaluation.py", line 158, in run_instance
+    test_output, timed_out, total_runtime = exec_run_with_timeout(container, "/bin/bash /eval.sh", timeout)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ec2-user/miniconda3/lib/python3.12/site-packages/swebench/harness/docker_utils.py", line 208, in exec_run_with_timeout
+    raise exception
+  File "/home/ec2-user/miniconda3/lib/python3.12/site-packages/swebench/harness/docker_utils.py", line 197, in run_command
+    exec_result += chunk.decode()
+                   ^^^^^^^^^^^^^^
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0xc4 in position 4095: unexpected end of data
+
+Check (logs/run_evaluation/claude-3-5-run1/claude-3-5-sonnet-20240620__swe-bench-test-split-all__default_xml__t-0.00__p-0.95__c-4.00__install-1__2024-06-20/django__django-14011/run_instance.log) for more information.
+2024-07-25 20:12:41,020 - INFO - Attempting to stop container sweb.eval.django__django-14011.claude-3-5-run1...
+2024-07-25 20:12:56,843 - INFO - Attempting to remove container sweb.eval.django__django-14011.claude-3-5-run1...
+2024-07-25 20:12:56,879 - INFO - Container sweb.eval.django__django-14011.claude-3-5-run1 removed.
+2024-07-25 20:12:56,879 - INFO - Attempting to remove image sweb.eval.x86_64.django__django-14011:latest...
+2024-07-25 20:12:57,442 - INFO - Image sweb.eval.x86_64.django__django-14011:latest removed.

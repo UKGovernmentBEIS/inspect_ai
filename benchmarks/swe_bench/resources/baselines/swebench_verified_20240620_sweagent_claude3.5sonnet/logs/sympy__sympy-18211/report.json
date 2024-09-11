@@ -1,0 +1,83 @@
+{
+    "sympy__sympy-18211": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "test_issue_18188"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_rel_ne",
+                    "test_rel_subs",
+                    "test_wrappers",
+                    "test_Eq",
+                    "test_as_poly",
+                    "test_rel_Infinity",
+                    "test_infinite_symbol_inequalities",
+                    "test_bool",
+                    "test_rich_cmp",
+                    "test_doit",
+                    "test_new_relational",
+                    "test_relational_arithmetic",
+                    "test_relational_bool_output",
+                    "test_relational_logic_symbols",
+                    "test_univariate_relational_as_set",
+                    "test_Not",
+                    "test_evaluate",
+                    "test_imaginary_compare_raises_TypeError",
+                    "test_complex_compare_not_real",
+                    "test_imaginary_and_inf_compare_raises_TypeError",
+                    "test_complex_pure_imag_not_ordered",
+                    "test_x_minus_y_not_same_as_x_lt_y",
+                    "test_nan_equality_exceptions",
+                    "test_nan_inequality_raise_errors",
+                    "test_nan_complex_inequalities",
+                    "test_complex_infinity_inequalities",
+                    "test_inequalities_symbol_name_same",
+                    "test_inequalities_symbol_name_same_complex",
+                    "test_inequalities_cant_sympify_other",
+                    "test_ineq_avoid_wild_symbol_flip",
+                    "test_issue_8245",
+                    "test_issue_8449",
+                    "test_simplify_relational",
+                    "test_equals",
+                    "test_reversed",
+                    "test_canonical",
+                    "test_issue_8444_workingtests",
+                    "test_issue_10304",
+                    "test_issue_10401",
+                    "test_issue_10633",
+                    "test_issue_10927",
+                    "test_issues_13081_12583_12534",
+                    "test_binary_symbols",
+                    "test_rel_args",
+                    "test_Equality_rewrite_as_Add",
+                    "test_issue_15847",
+                    "test_negated_property",
+                    "test_reversedsign_property",
+                    "test_reversed_reversedsign_property",
+                    "test_improved_canonical",
+                    "test_set_equality_canonical",
+                    "test_trigsimp",
+                    "test_polynomial_relation_simplification",
+                    "test_multivariate_linear_function_simplification"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

@@ -1,0 +1,132 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..9dd43f53a8
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,29 @@
++from sympy.physics.quantum.dagger import Dagger
++from sympy.physics.quantum.operator import Operator, IdentityOperator
++
++A = Operator('A')
++Identity = IdentityOperator()
++
++print("A * Identity:")
++print(A * Identity)
++
++print("\nIdentity * A:")
++print(Identity * A)
++
++B = Dagger(A)
++print("\nB * Identity:")
++print(B * Identity)
++
++print("\nIdentity * B:")
++print(Identity * B)
++
++C = Operator('C')
++D = B * C
++
++print("\nD * Identity:")
++print(D * Identity)
++
++print("\nIdentity * D:")
++print(Identity * D)
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sympy/physics/quantum/dagger.py b/sympy/physics/quantum/dagger.py
+index 17da3cfd2c..3dd479b1b8 100644
+--- a/sympy/physics/quantum/dagger.py
++++ b/sympy/physics/quantum/dagger.py
+@@ -85,5 +85,26 @@ def __new__(cls, arg):
+             return obj
+         return Expr.__new__(cls, arg)
+ 
+-adjoint.__name__ = "Dagger"
+-adjoint._sympyrepr = lambda a, b: "Dagger(%s)" % b._print(a.args[0])
++    def __mul__(self, other):
++        from sympy.physics.quantum.operator import IdentityOperator, Operator
++        from sympy import Mul
++        if isinstance(other, IdentityOperator):
++            return self
++        if isinstance(other, Mul):
++            return Mul(*[self * arg for arg in other.args]).simplify_identity()
++        result = super().__mul__(other)
++        if isinstance(result, Operator):
++            return result.simplify_identity()
++        return result
++
++    def __rmul__(self, other):
++        from sympy.physics.quantum.operator import IdentityOperator, Operator
++        from sympy import Mul
++        if isinstance(other, IdentityOperator):
++            return self
++        if isinstance(other, Mul):
++            return Mul(*[arg * self for arg in other.args]).simplify_identity()
++        result = super().__rmul__(other)
++        if isinstance(result, Operator):
++            return result.simplify_identity()
++        return result
+diff --git a/sympy/physics/quantum/operator.py b/sympy/physics/quantum/operator.py
+index 306bfee64f..92c5b171ed 100644
+--- a/sympy/physics/quantum/operator.py
++++ b/sympy/physics/quantum/operator.py
+@@ -97,6 +97,33 @@ class Operator(QExpr):
+     .. [1] https://en.wikipedia.org/wiki/Operator_%28physics%29
+     .. [2] https://en.wikipedia.org/wiki/Observable
+     """
++    def simplify_identity(self):
++        from sympy import Mul
++        from sympy.physics.quantum.dagger import Dagger
++        if isinstance(self, Mul):
++            args = []
++            for arg in self.args:
++                if isinstance(arg, (Operator, Dagger)):
++                    arg = arg.simplify_identity()
++                if not isinstance(arg, IdentityOperator):
++                    args.append(arg)
++            if not args:
++                return IdentityOperator()
++            elif len(args) == 1:
++                return args[0]
++            else:
++                return Mul(*args)
++        elif isinstance(self, Dagger):
++            return Dagger(self.args[0].simplify_identity())
++        return self
++
++    def __mul__(self, other):
++        result = super().__mul__(other)
++        return result.simplify_identity()
++
++    def __rmul__(self, other):
++        result = super().__rmul__(other)
++        return result.simplify_identity()
+ 
+     @classmethod
+     def default_args(self):
+@@ -306,11 +333,21 @@ def _print_contents_latex(self, printer, *args):
+         return r'{\mathcal{I}}'
+ 
+     def __mul__(self, other):
+-
+         if isinstance(other, Operator):
+             return other
+-
+-        return Mul(self, other)
++        if isinstance(other, Dagger) and isinstance(other.args[0], Operator):
++            return other.args[0].adjoint()
++        if isinstance(other, Mul):
++            return Mul(*[self * arg for arg in other.args])
++        return other
++    def __rmul__(self, other):
++        if isinstance(other, Operator):
++            return other
++        if isinstance(other, Dagger) and isinstance(other.args[0], Operator):
++            return other.args[0].adjoint()
++        if isinstance(other, Mul):
++            return Mul(*[arg * self for arg in other.args])
++        return other
+ 
+     def _represent_default_basis(self, **options):
+         if not self.N or self.N == oo:

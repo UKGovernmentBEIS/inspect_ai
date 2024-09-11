@@ -1,0 +1,73 @@
+
+diff --git a/django/db/models/fields/files.py b/django/db/models/fields/files.py
+index e10a5bb6d9..cb3c84a3ba 100644
+--- a/django/db/models/fields/files.py
++++ b/django/db/models/fields/files.py
+@@ -228,8 +228,8 @@ class FileField(Field):
+         self._primary_key_set_explicitly = 'primary_key' in kwargs
+ 
+         self.storage = storage or default_storage
+-        if callable(self.storage):
+-            self.storage = self.storage()
++        self._storage_is_callable = callable(self.storage)
++        if not self._storage_is_callable:
+             if not isinstance(self.storage, Storage):
+                 raise TypeError(
+                     "%s.storage must be a subclass/instance of %s.%s"
+@@ -279,7 +279,7 @@ class FileField(Field):
+             del kwargs["max_length"]
+         kwargs['upload_to'] = self.upload_to
+         if self.storage is not default_storage:
+-            kwargs['storage'] = self.storage
++            kwargs['storage'] = self.storage if self._storage_is_callable else self.storage
+         return name, path, args, kwargs
+ 
+     def get_internal_type(self):
+diff --git a/tests/model_fields/test_filefield_deconstruct.py b/tests/model_fields/test_filefield_deconstruct.py
+new file mode 100644
+index 0000000000..b01068779e
+--- /dev/null
++++ b/tests/model_fields/test_filefield_deconstruct.py
+@@ -0,0 +1,42 @@
++from django.db import models
++from django.test import TestCase
++from django.core.files.storage import default_storage, Storage
++
++class CustomStorage(Storage):
++    def _save(self, name, content):
++        return name
++
++    def _open(self, name, mode='rb'):
++        return None
++
++    def exists(self, name):
++        return False
++
++def get_storage():
++    return CustomStorage()
++
++class FileFieldDeconstructTest(TestCase):
++    def test_deconstruct_with_callable_storage(self):
++        field = models.FileField(storage=get_storage)
++        name, path, args, kwargs = field.deconstruct()
++        
++        self.assertIn('storage', kwargs)
++        self.assertEqual(kwargs['storage'], get_storage)
++        
++        # Ensure that the storage is not instantiated
++        self.assertTrue(callable(kwargs['storage']))
++
++    def test_deconstruct_with_default_storage(self):
++        field = models.FileField()
++        name, path, args, kwargs = field.deconstruct()
++        
++        self.assertNotIn('storage', kwargs)
++
++    def test_deconstruct_with_instance_storage(self):
++        field = models.FileField(storage=CustomStorage())
++        name, path, args, kwargs = field.deconstruct()
++        
++        self.assertIn('storage', kwargs)
++        self.assertIsInstance(kwargs['storage'], CustomStorage)
++        self.assertFalse(callable(kwargs['storage']))
++

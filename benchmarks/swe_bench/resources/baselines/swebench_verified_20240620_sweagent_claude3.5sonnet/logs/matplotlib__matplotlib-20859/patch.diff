@@ -1,0 +1,43 @@
+
+diff --git a/lib/matplotlib/legend.py b/lib/matplotlib/legend.py
+index 44ab024698..6f3777fb95 100644
+--- a/lib/matplotlib/legend.py
++++ b/lib/matplotlib/legend.py
+@@ -47,6 +47,7 @@ from matplotlib.offsetbox import (
+ )
+ from matplotlib.container import ErrorbarContainer, BarContainer, StemContainer
+ from . import legend_handler
++# Remove this line: from matplotlib.figure import FigureBase
+ 
+ 
+ class DraggableLegend(DraggableOffsetBox):
+@@ -433,12 +434,11 @@ class Legend(Artist):
+         if isinstance(parent, Axes):
+             self.isaxes = True
+             self.axes = parent
+-            self.set_figure(parent.figure)
+-        elif isinstance(parent, Figure):
++        if hasattr(parent, 'figure'):
+             self.isaxes = False
+-            self.set_figure(parent)
++            self.set_figure(parent.figure)
+         else:
+-            raise TypeError("Legend needs either Axes or Figure as parent")
++            raise TypeError("Legend needs either Axes or a Figure-like object as parent")
+         self.parent = parent
+ 
+         self._loc_used_default = loc is None
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..25f34e8849
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,8 @@
++import matplotlib.pyplot as plt
++
++subfig = plt.figure().subfigures()
++ax = subfig.subplots()
++ax.plot([0, 1, 2], [0, 1, 2], label="test")
++subfig.legend()
++
++print("Script completed successfully, no errors.")

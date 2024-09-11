@@ -1,0 +1,3333 @@
+
+diff --git a/_build/html/.doctrees/CONTRIBUTING.doctree b/_build/html/.doctrees/CONTRIBUTING.doctree
+new file mode 100644
+index 000000000..cb4c3f3da
+Binary files /dev/null and b/_build/html/.doctrees/CONTRIBUTING.doctree differ
+diff --git a/_build/html/.doctrees/README.doctree b/_build/html/.doctrees/README.doctree
+new file mode 100644
+index 000000000..1db73c1af
+Binary files /dev/null and b/_build/html/.doctrees/README.doctree differ
+diff --git a/_build/html/.doctrees/conf.doctree b/_build/html/.doctrees/conf.doctree
+new file mode 100644
+index 000000000..9ea648a71
+Binary files /dev/null and b/_build/html/.doctrees/conf.doctree differ
+diff --git a/_build/html/.doctrees/doc/changes.doctree b/_build/html/.doctrees/doc/changes.doctree
+new file mode 100644
+index 000000000..46782a26f
+Binary files /dev/null and b/_build/html/.doctrees/doc/changes.doctree differ
+diff --git a/_build/html/.doctrees/doc/contents.doctree b/_build/html/.doctrees/doc/contents.doctree
+new file mode 100644
+index 000000000..f8c7e946e
+Binary files /dev/null and b/_build/html/.doctrees/doc/contents.doctree differ
+diff --git a/_build/html/.doctrees/doc/development/builders.doctree b/_build/html/.doctrees/doc/development/builders.doctree
+new file mode 100644
+index 000000000..63566e859
+Binary files /dev/null and b/_build/html/.doctrees/doc/development/builders.doctree differ
+diff --git a/_build/html/.doctrees/doc/development/index.doctree b/_build/html/.doctrees/doc/development/index.doctree
+new file mode 100644
+index 000000000..756474e0d
+Binary files /dev/null and b/_build/html/.doctrees/doc/development/index.doctree differ
+diff --git a/_build/html/.doctrees/doc/development/overview.doctree b/_build/html/.doctrees/doc/development/overview.doctree
+new file mode 100644
+index 000000000..cc4fc2441
+Binary files /dev/null and b/_build/html/.doctrees/doc/development/overview.doctree differ
+diff --git a/_build/html/.doctrees/doc/development/theming.doctree b/_build/html/.doctrees/doc/development/theming.doctree
+new file mode 100644
+index 000000000..b0871375d
+Binary files /dev/null and b/_build/html/.doctrees/doc/development/theming.doctree differ
+diff --git a/_build/html/.doctrees/doc/development/tutorials/autodoc_ext.doctree b/_build/html/.doctrees/doc/development/tutorials/autodoc_ext.doctree
+new file mode 100644
+index 000000000..22a2a64f1
+Binary files /dev/null and b/_build/html/.doctrees/doc/development/tutorials/autodoc_ext.doctree differ
+diff --git a/_build/html/.doctrees/doc/development/tutorials/examples/README.doctree b/_build/html/.doctrees/doc/development/tutorials/examples/README.doctree
+new file mode 100644
+index 000000000..0de72c3d6
+Binary files /dev/null and b/_build/html/.doctrees/doc/development/tutorials/examples/README.doctree differ
+diff --git a/_build/html/.doctrees/doc/development/tutorials/helloworld.doctree b/_build/html/.doctrees/doc/development/tutorials/helloworld.doctree
+new file mode 100644
+index 000000000..9f8eac15d
+Binary files /dev/null and b/_build/html/.doctrees/doc/development/tutorials/helloworld.doctree differ
+diff --git a/_build/html/.doctrees/doc/development/tutorials/index.doctree b/_build/html/.doctrees/doc/development/tutorials/index.doctree
+new file mode 100644
+index 000000000..ff3882bdb
+Binary files /dev/null and b/_build/html/.doctrees/doc/development/tutorials/index.doctree differ
+diff --git a/_build/html/.doctrees/doc/development/tutorials/recipe.doctree b/_build/html/.doctrees/doc/development/tutorials/recipe.doctree
+new file mode 100644
+index 000000000..8c85e4d49
+Binary files /dev/null and b/_build/html/.doctrees/doc/development/tutorials/recipe.doctree differ
+diff --git a/_build/html/.doctrees/doc/development/tutorials/todo.doctree b/_build/html/.doctrees/doc/development/tutorials/todo.doctree
+new file mode 100644
+index 000000000..d94bd689b
+Binary files /dev/null and b/_build/html/.doctrees/doc/development/tutorials/todo.doctree differ
+diff --git a/_build/html/.doctrees/doc/examples.doctree b/_build/html/.doctrees/doc/examples.doctree
+new file mode 100644
+index 000000000..83811fb4c
+Binary files /dev/null and b/_build/html/.doctrees/doc/examples.doctree differ
+diff --git a/_build/html/.doctrees/doc/extdev/appapi.doctree b/_build/html/.doctrees/doc/extdev/appapi.doctree
+new file mode 100644
+index 000000000..4fba1d964
+Binary files /dev/null and b/_build/html/.doctrees/doc/extdev/appapi.doctree differ
+diff --git a/_build/html/.doctrees/doc/extdev/builderapi.doctree b/_build/html/.doctrees/doc/extdev/builderapi.doctree
+new file mode 100644
+index 000000000..effcf8e84
+Binary files /dev/null and b/_build/html/.doctrees/doc/extdev/builderapi.doctree differ
+diff --git a/_build/html/.doctrees/doc/extdev/collectorapi.doctree b/_build/html/.doctrees/doc/extdev/collectorapi.doctree
+new file mode 100644
+index 000000000..9eca16dec
+Binary files /dev/null and b/_build/html/.doctrees/doc/extdev/collectorapi.doctree differ
+diff --git a/_build/html/.doctrees/doc/extdev/deprecated.doctree b/_build/html/.doctrees/doc/extdev/deprecated.doctree
+new file mode 100644
+index 000000000..9f2383d8d
+Binary files /dev/null and b/_build/html/.doctrees/doc/extdev/deprecated.doctree differ
+diff --git a/_build/html/.doctrees/doc/extdev/domainapi.doctree b/_build/html/.doctrees/doc/extdev/domainapi.doctree
+new file mode 100644
+index 000000000..8c010a0d6
+Binary files /dev/null and b/_build/html/.doctrees/doc/extdev/domainapi.doctree differ
+diff --git a/_build/html/.doctrees/doc/extdev/envapi.doctree b/_build/html/.doctrees/doc/extdev/envapi.doctree
+new file mode 100644
+index 000000000..317c3e1e3
+Binary files /dev/null and b/_build/html/.doctrees/doc/extdev/envapi.doctree differ
+diff --git a/_build/html/.doctrees/doc/extdev/i18n.doctree b/_build/html/.doctrees/doc/extdev/i18n.doctree
+new file mode 100644
+index 000000000..9935c8ce1
+Binary files /dev/null and b/_build/html/.doctrees/doc/extdev/i18n.doctree differ
+diff --git a/_build/html/.doctrees/doc/extdev/index.doctree b/_build/html/.doctrees/doc/extdev/index.doctree
+new file mode 100644
+index 000000000..85053c375
+Binary files /dev/null and b/_build/html/.doctrees/doc/extdev/index.doctree differ
+diff --git a/_build/html/.doctrees/doc/extdev/logging.doctree b/_build/html/.doctrees/doc/extdev/logging.doctree
+new file mode 100644
+index 000000000..98b137d8f
+Binary files /dev/null and b/_build/html/.doctrees/doc/extdev/logging.doctree differ
+diff --git a/_build/html/.doctrees/doc/extdev/markupapi.doctree b/_build/html/.doctrees/doc/extdev/markupapi.doctree
+new file mode 100644
+index 000000000..94a74a08e
+Binary files /dev/null and b/_build/html/.doctrees/doc/extdev/markupapi.doctree differ
+diff --git a/_build/html/.doctrees/doc/extdev/nodes.doctree b/_build/html/.doctrees/doc/extdev/nodes.doctree
+new file mode 100644
+index 000000000..1b0666071
+Binary files /dev/null and b/_build/html/.doctrees/doc/extdev/nodes.doctree differ
+diff --git a/_build/html/.doctrees/doc/extdev/parserapi.doctree b/_build/html/.doctrees/doc/extdev/parserapi.doctree
+new file mode 100644
+index 000000000..a30e56651
+Binary files /dev/null and b/_build/html/.doctrees/doc/extdev/parserapi.doctree differ
+diff --git a/_build/html/.doctrees/doc/extdev/projectapi.doctree b/_build/html/.doctrees/doc/extdev/projectapi.doctree
+new file mode 100644
+index 000000000..6caa719e9
+Binary files /dev/null and b/_build/html/.doctrees/doc/extdev/projectapi.doctree differ
+diff --git a/_build/html/.doctrees/doc/extdev/utils.doctree b/_build/html/.doctrees/doc/extdev/utils.doctree
+new file mode 100644
+index 000000000..ea5fb3cf5
+Binary files /dev/null and b/_build/html/.doctrees/doc/extdev/utils.doctree differ
+diff --git a/_build/html/.doctrees/doc/faq.doctree b/_build/html/.doctrees/doc/faq.doctree
+new file mode 100644
+index 000000000..8f5741bb4
+Binary files /dev/null and b/_build/html/.doctrees/doc/faq.doctree differ
+diff --git a/_build/html/.doctrees/doc/glossary.doctree b/_build/html/.doctrees/doc/glossary.doctree
+new file mode 100644
+index 000000000..f4cc091bb
+Binary files /dev/null and b/_build/html/.doctrees/doc/glossary.doctree differ
+diff --git a/_build/html/.doctrees/doc/internals/authors.doctree b/_build/html/.doctrees/doc/internals/authors.doctree
+new file mode 100644
+index 000000000..3d9f00db1
+Binary files /dev/null and b/_build/html/.doctrees/doc/internals/authors.doctree differ
+diff --git a/_build/html/.doctrees/doc/internals/code-of-conduct.doctree b/_build/html/.doctrees/doc/internals/code-of-conduct.doctree
+new file mode 100644
+index 000000000..470e9cd95
+Binary files /dev/null and b/_build/html/.doctrees/doc/internals/code-of-conduct.doctree differ
+diff --git a/_build/html/.doctrees/doc/internals/contributing.doctree b/_build/html/.doctrees/doc/internals/contributing.doctree
+new file mode 100644
+index 000000000..23922d170
+Binary files /dev/null and b/_build/html/.doctrees/doc/internals/contributing.doctree differ
+diff --git a/_build/html/.doctrees/doc/internals/index.doctree b/_build/html/.doctrees/doc/internals/index.doctree
+new file mode 100644
+index 000000000..d1bcda696
+Binary files /dev/null and b/_build/html/.doctrees/doc/internals/index.doctree differ
+diff --git a/_build/html/.doctrees/doc/internals/organization.doctree b/_build/html/.doctrees/doc/internals/organization.doctree
+new file mode 100644
+index 000000000..1186ceafb
+Binary files /dev/null and b/_build/html/.doctrees/doc/internals/organization.doctree differ
+diff --git a/_build/html/.doctrees/doc/internals/release-process.doctree b/_build/html/.doctrees/doc/internals/release-process.doctree
+new file mode 100644
+index 000000000..72e3a4352
+Binary files /dev/null and b/_build/html/.doctrees/doc/internals/release-process.doctree differ
+diff --git a/_build/html/.doctrees/doc/latex.doctree b/_build/html/.doctrees/doc/latex.doctree
+new file mode 100644
+index 000000000..46f6d674d
+Binary files /dev/null and b/_build/html/.doctrees/doc/latex.doctree differ
+diff --git a/_build/html/.doctrees/doc/man/index.doctree b/_build/html/.doctrees/doc/man/index.doctree
+new file mode 100644
+index 000000000..9a6ab8057
+Binary files /dev/null and b/_build/html/.doctrees/doc/man/index.doctree differ
+diff --git a/_build/html/.doctrees/doc/man/sphinx-apidoc.doctree b/_build/html/.doctrees/doc/man/sphinx-apidoc.doctree
+new file mode 100644
+index 000000000..9170bf5f0
+Binary files /dev/null and b/_build/html/.doctrees/doc/man/sphinx-apidoc.doctree differ
+diff --git a/_build/html/.doctrees/doc/man/sphinx-autogen.doctree b/_build/html/.doctrees/doc/man/sphinx-autogen.doctree
+new file mode 100644
+index 000000000..0929e6ba4
+Binary files /dev/null and b/_build/html/.doctrees/doc/man/sphinx-autogen.doctree differ
+diff --git a/_build/html/.doctrees/doc/man/sphinx-build.doctree b/_build/html/.doctrees/doc/man/sphinx-build.doctree
+new file mode 100644
+index 000000000..2d88856c5
+Binary files /dev/null and b/_build/html/.doctrees/doc/man/sphinx-build.doctree differ
+diff --git a/_build/html/.doctrees/doc/man/sphinx-quickstart.doctree b/_build/html/.doctrees/doc/man/sphinx-quickstart.doctree
+new file mode 100644
+index 000000000..6c9726624
+Binary files /dev/null and b/_build/html/.doctrees/doc/man/sphinx-quickstart.doctree differ
+diff --git a/_build/html/.doctrees/doc/templating.doctree b/_build/html/.doctrees/doc/templating.doctree
+new file mode 100644
+index 000000000..0d7181dc5
+Binary files /dev/null and b/_build/html/.doctrees/doc/templating.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/advanced/intl.doctree b/_build/html/.doctrees/doc/usage/advanced/intl.doctree
+new file mode 100644
+index 000000000..87a735761
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/advanced/intl.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/advanced/setuptools.doctree b/_build/html/.doctrees/doc/usage/advanced/setuptools.doctree
+new file mode 100644
+index 000000000..e0a99fb3f
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/advanced/setuptools.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/advanced/websupport/api.doctree b/_build/html/.doctrees/doc/usage/advanced/websupport/api.doctree
+new file mode 100644
+index 000000000..54c28115b
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/advanced/websupport/api.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/advanced/websupport/index.doctree b/_build/html/.doctrees/doc/usage/advanced/websupport/index.doctree
+new file mode 100644
+index 000000000..0f68f73f8
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/advanced/websupport/index.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/advanced/websupport/quickstart.doctree b/_build/html/.doctrees/doc/usage/advanced/websupport/quickstart.doctree
+new file mode 100644
+index 000000000..fb70b7160
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/advanced/websupport/quickstart.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/advanced/websupport/searchadapters.doctree b/_build/html/.doctrees/doc/usage/advanced/websupport/searchadapters.doctree
+new file mode 100644
+index 000000000..c8b13ba92
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/advanced/websupport/searchadapters.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/advanced/websupport/storagebackends.doctree b/_build/html/.doctrees/doc/usage/advanced/websupport/storagebackends.doctree
+new file mode 100644
+index 000000000..a44ceecf6
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/advanced/websupport/storagebackends.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/builders/index.doctree b/_build/html/.doctrees/doc/usage/builders/index.doctree
+new file mode 100644
+index 000000000..a2760de41
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/builders/index.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/configuration.doctree b/_build/html/.doctrees/doc/usage/configuration.doctree
+new file mode 100644
+index 000000000..7348d0d16
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/configuration.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/autodoc.doctree b/_build/html/.doctrees/doc/usage/extensions/autodoc.doctree
+new file mode 100644
+index 000000000..d5200664b
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/autodoc.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/autosectionlabel.doctree b/_build/html/.doctrees/doc/usage/extensions/autosectionlabel.doctree
+new file mode 100644
+index 000000000..1026ae6f4
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/autosectionlabel.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/autosummary.doctree b/_build/html/.doctrees/doc/usage/extensions/autosummary.doctree
+new file mode 100644
+index 000000000..1f9c7462a
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/autosummary.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/coverage.doctree b/_build/html/.doctrees/doc/usage/extensions/coverage.doctree
+new file mode 100644
+index 000000000..3daf39032
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/coverage.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/doctest.doctree b/_build/html/.doctrees/doc/usage/extensions/doctest.doctree
+new file mode 100644
+index 000000000..b5e68c464
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/doctest.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/duration.doctree b/_build/html/.doctrees/doc/usage/extensions/duration.doctree
+new file mode 100644
+index 000000000..2a97d2cd4
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/duration.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/example_google.doctree b/_build/html/.doctrees/doc/usage/extensions/example_google.doctree
+new file mode 100644
+index 000000000..33474fef5
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/example_google.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/example_numpy.doctree b/_build/html/.doctrees/doc/usage/extensions/example_numpy.doctree
+new file mode 100644
+index 000000000..0571a6658
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/example_numpy.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/extlinks.doctree b/_build/html/.doctrees/doc/usage/extensions/extlinks.doctree
+new file mode 100644
+index 000000000..434d2f50d
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/extlinks.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/githubpages.doctree b/_build/html/.doctrees/doc/usage/extensions/githubpages.doctree
+new file mode 100644
+index 000000000..3c60feaf8
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/githubpages.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/graphviz.doctree b/_build/html/.doctrees/doc/usage/extensions/graphviz.doctree
+new file mode 100644
+index 000000000..5d3227065
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/graphviz.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/ifconfig.doctree b/_build/html/.doctrees/doc/usage/extensions/ifconfig.doctree
+new file mode 100644
+index 000000000..7a6147d9a
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/ifconfig.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/imgconverter.doctree b/_build/html/.doctrees/doc/usage/extensions/imgconverter.doctree
+new file mode 100644
+index 000000000..4727bbacc
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/imgconverter.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/index.doctree b/_build/html/.doctrees/doc/usage/extensions/index.doctree
+new file mode 100644
+index 000000000..83c3a65ec
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/index.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/inheritance.doctree b/_build/html/.doctrees/doc/usage/extensions/inheritance.doctree
+new file mode 100644
+index 000000000..8fa46283a
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/inheritance.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/intersphinx.doctree b/_build/html/.doctrees/doc/usage/extensions/intersphinx.doctree
+new file mode 100644
+index 000000000..61697963e
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/intersphinx.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/linkcode.doctree b/_build/html/.doctrees/doc/usage/extensions/linkcode.doctree
+new file mode 100644
+index 000000000..b281a2c01
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/linkcode.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/math.doctree b/_build/html/.doctrees/doc/usage/extensions/math.doctree
+new file mode 100644
+index 000000000..e35e1a020
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/math.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/napoleon.doctree b/_build/html/.doctrees/doc/usage/extensions/napoleon.doctree
+new file mode 100644
+index 000000000..91a73836a
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/napoleon.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/todo.doctree b/_build/html/.doctrees/doc/usage/extensions/todo.doctree
+new file mode 100644
+index 000000000..5fd522229
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/todo.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/extensions/viewcode.doctree b/_build/html/.doctrees/doc/usage/extensions/viewcode.doctree
+new file mode 100644
+index 000000000..aa5a8eae9
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/extensions/viewcode.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/index.doctree b/_build/html/.doctrees/doc/usage/index.doctree
+new file mode 100644
+index 000000000..7330392b0
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/index.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/installation.doctree b/_build/html/.doctrees/doc/usage/installation.doctree
+new file mode 100644
+index 000000000..7281d6f8a
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/installation.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/markdown.doctree b/_build/html/.doctrees/doc/usage/markdown.doctree
+new file mode 100644
+index 000000000..6cdd025c1
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/markdown.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/quickstart.doctree b/_build/html/.doctrees/doc/usage/quickstart.doctree
+new file mode 100644
+index 000000000..8baf5af5d
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/quickstart.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/restructuredtext/basics.doctree b/_build/html/.doctrees/doc/usage/restructuredtext/basics.doctree
+new file mode 100644
+index 000000000..c71c50599
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/restructuredtext/basics.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/restructuredtext/directives.doctree b/_build/html/.doctrees/doc/usage/restructuredtext/directives.doctree
+new file mode 100644
+index 000000000..65b796068
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/restructuredtext/directives.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/restructuredtext/domains.doctree b/_build/html/.doctrees/doc/usage/restructuredtext/domains.doctree
+new file mode 100644
+index 000000000..36b0f10a3
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/restructuredtext/domains.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/restructuredtext/field-lists.doctree b/_build/html/.doctrees/doc/usage/restructuredtext/field-lists.doctree
+new file mode 100644
+index 000000000..362125591
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/restructuredtext/field-lists.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/restructuredtext/index.doctree b/_build/html/.doctrees/doc/usage/restructuredtext/index.doctree
+new file mode 100644
+index 000000000..f736056c4
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/restructuredtext/index.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/restructuredtext/roles.doctree b/_build/html/.doctrees/doc/usage/restructuredtext/roles.doctree
+new file mode 100644
+index 000000000..a811aee33
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/restructuredtext/roles.doctree differ
+diff --git a/_build/html/.doctrees/doc/usage/theming.doctree b/_build/html/.doctrees/doc/usage/theming.doctree
+new file mode 100644
+index 000000000..48d85e4c1
+Binary files /dev/null and b/_build/html/.doctrees/doc/usage/theming.doctree differ
+diff --git a/_build/html/.doctrees/file.doctree b/_build/html/.doctrees/file.doctree
+new file mode 100644
+index 000000000..21a8fe54f
+Binary files /dev/null and b/_build/html/.doctrees/file.doctree differ
+diff --git a/_build/html/.doctrees/index.doctree b/_build/html/.doctrees/index.doctree
+new file mode 100644
+index 000000000..fad612752
+Binary files /dev/null and b/_build/html/.doctrees/index.doctree differ
+diff --git a/_build/html/.doctrees/modules.doctree b/_build/html/.doctrees/modules.doctree
+new file mode 100644
+index 000000000..10e31ef2c
+Binary files /dev/null and b/_build/html/.doctrees/modules.doctree differ
+diff --git a/_build/html/.doctrees/setup.doctree b/_build/html/.doctrees/setup.doctree
+new file mode 100644
+index 000000000..302aebe7c
+Binary files /dev/null and b/_build/html/.doctrees/setup.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.builders.doctree b/_build/html/.doctrees/sphinx.builders.doctree
+new file mode 100644
+index 000000000..089a93f00
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.builders.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.builders.html.doctree b/_build/html/.doctrees/sphinx.builders.html.doctree
+new file mode 100644
+index 000000000..6bc7908f8
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.builders.html.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.builders.latex.doctree b/_build/html/.doctrees/sphinx.builders.latex.doctree
+new file mode 100644
+index 000000000..c7c76e025
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.builders.latex.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.cmd.doctree b/_build/html/.doctrees/sphinx.cmd.doctree
+new file mode 100644
+index 000000000..92265b684
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.cmd.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.directives.doctree b/_build/html/.doctrees/sphinx.directives.doctree
+new file mode 100644
+index 000000000..897639bb4
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.directives.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.doctree b/_build/html/.doctrees/sphinx.doctree
+new file mode 100644
+index 000000000..7cb7fba5a
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.domains.doctree b/_build/html/.doctrees/sphinx.domains.doctree
+new file mode 100644
+index 000000000..b6901b33c
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.domains.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.environment.adapters.doctree b/_build/html/.doctrees/sphinx.environment.adapters.doctree
+new file mode 100644
+index 000000000..c1cfe7a05
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.environment.adapters.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.environment.collectors.doctree b/_build/html/.doctrees/sphinx.environment.collectors.doctree
+new file mode 100644
+index 000000000..fe0915a4a
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.environment.collectors.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.environment.doctree b/_build/html/.doctrees/sphinx.environment.doctree
+new file mode 100644
+index 000000000..ef783b96e
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.environment.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.ext.autodoc.doctree b/_build/html/.doctrees/sphinx.ext.autodoc.doctree
+new file mode 100644
+index 000000000..110fe54d8
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.ext.autodoc.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.ext.autosummary.doctree b/_build/html/.doctrees/sphinx.ext.autosummary.doctree
+new file mode 100644
+index 000000000..ea900cecc
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.ext.autosummary.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.ext.doctree b/_build/html/.doctrees/sphinx.ext.doctree
+new file mode 100644
+index 000000000..7883c722a
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.ext.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.ext.napoleon.doctree b/_build/html/.doctrees/sphinx.ext.napoleon.doctree
+new file mode 100644
+index 000000000..f3345cba8
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.ext.napoleon.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.locale.doctree b/_build/html/.doctrees/sphinx.locale.doctree
+new file mode 100644
+index 000000000..bde0b188a
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.locale.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.pycode.doctree b/_build/html/.doctrees/sphinx.pycode.doctree
+new file mode 100644
+index 000000000..b37a73793
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.pycode.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.search.doctree b/_build/html/.doctrees/sphinx.search.doctree
+new file mode 100644
+index 000000000..a5ee30920
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.search.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.testing.doctree b/_build/html/.doctrees/sphinx.testing.doctree
+new file mode 100644
+index 000000000..3d80f3100
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.testing.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.transforms.doctree b/_build/html/.doctrees/sphinx.transforms.doctree
+new file mode 100644
+index 000000000..6bccf3cd8
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.transforms.doctree differ
+diff --git a/_build/html/.doctrees/sphinx.transforms.post_transforms.doctree b/_build/html/.doctrees/sphinx.transforms.post_transforms.doctree
+new file mode 100644
+index 000000000..39e80549a
+Binary files /dev/null and b/_build/html/.doctrees/sphinx.transforms.post_transforms.doctree differ
+diff --git a/autodoc_test.py b/autodoc_test.py
+new file mode 100644
+index 000000000..1528ba65c
+--- /dev/null
++++ b/autodoc_test.py
+@@ -0,0 +1,24 @@
++import inspect
++import sys
++
++# Add the current directory to sys.path
++sys.path.insert(0, '.')
++
++# Import our file
++import file
++
++def print_type_alias_info(name, obj):
++    print(f"\nDocumentation for {name}:")
++    print(f"Type: {type(obj)}")
++    print(f"Annotation: {getattr(obj, '__annotations__', {})}")
++    print(f"Docstring: {inspect.getdoc(obj)}")
++
++# Get all members of the file module
++members = inspect.getmembers(file)
++
++# Filter and print information about type aliases
++for name, obj in members:
++    if name in ['ScaffoldOpts', 'FileContents', 'FileOp']:
++        print_type_alias_info(name, obj)
++
++print("\nScript completed successfully.")
+diff --git a/check_docstrings.py b/check_docstrings.py
+new file mode 100644
+index 000000000..b0358b0d6
+--- /dev/null
++++ b/check_docstrings.py
+@@ -0,0 +1,7 @@
++import file
++
++for name in ['ScaffoldOpts', 'FileContents', 'FileOp']:
++    print(f"\nHelp for {name}:")
++    help(getattr(file, name))
++
++print("\nScript completed successfully.")
+diff --git a/conf.py b/conf.py
+new file mode 100644
+index 000000000..405dd03de
+--- /dev/null
++++ b/conf.py
+@@ -0,0 +1,30 @@
++# Configuration file for the Sphinx documentation builder.
++
++import os
++import sys
++sys.path.insert(0, os.path.abspath('.'))
++
++# -- Project information -----------------------------------------------------
++
++project = 'Sphinx Test'
++copyright = '2023, Test'
++author = 'Test'
++
++# -- General configuration ---------------------------------------------------
++
++extensions = [
++    'sphinx.ext.autodoc',
++    'sphinx.ext.napoleon',
++    'sphinx.ext.intersphinx',
++]
++
++autodoc_typehints = 'description'
++autodoc_member_order = 'bysource'
++
++# -- Options for HTML output -------------------------------------------------
++
++html_theme = 'alabaster'
++
++# -- Extension configuration -------------------------------------------------
++
++intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}
+diff --git a/conf.rst b/conf.rst
+new file mode 100644
+index 000000000..18f10b838
+--- /dev/null
++++ b/conf.rst
+@@ -0,0 +1,7 @@
++conf module
++===========
++
++.. automodule:: conf
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/file.py b/file.py
+new file mode 100644
+index 000000000..34d559bcf
+--- /dev/null
++++ b/file.py
+@@ -0,0 +1,52 @@
++from pathlib import Path
++from typing import Any, Callable, Dict, Union, TypeVar
++from functools import wraps
++
++T = TypeVar('T')
++
++def type_alias(docstring):
++    def decorator(alias):
++        @wraps(alias)
++        def wrapper():
++            return alias
++        wrapper.__doc__ = docstring
++        return wrapper
++    return decorator
++
++# Signatures for the documentation purposes
++
++@type_alias("""Dictionary with PyScaffold's options, see ``pyscaffold.api.create_project``.
++Should be treated as immutable (if required, copy before changing).
++
++Please notice some behaviours given by the options **SHOULD** be observed. For example,
++files should be overwritten when the **force** option is ``True``. Similarly when
++**pretend** is ``True``, no operation should be really performed, but any action should
++be logged as if realized.""")
++def ScaffoldOpts():
++    return Dict[str, Any]
++
++@type_alias("""When the file content is ``None``, the file should not be written to
++disk (empty files are represented by an empty string ``""`` as content).""")
++def FileContents():
++    return Union[str, None]
++
++@type_alias("""Signature of functions considered file operations::
++
++    Callable[[Path, FileContents, ScaffoldOpts], Union[Path, None]]
++
++- **path** (:obj:`pathlib.Path`): file path potentially to be written to/changed
++  in the disk.
++- **contents** (:obj:`FileContents`): usually a string that represents a text content
++  of the file. :obj:`None` indicates the file should not be written.
++- **opts** (:obj:`ScaffoldOpts`): a dict with PyScaffold's options.
++
++If the file is written (or more generally changed, such as new access permissions),
++by convention they should return the :obj:`file path <pathlib.Path>`.
++If no file was touched, :obj:`None` should be returned. Please notice a **FileOp**
++might return :obj:`None` if a pre-existing file in the disk is not modified.
++
++.. note::
++    A **FileOp** usually has side effects (e.g. write a file to the disk), see
++    :obj:`FileFileContents` and :obj:`ScaffoldOpts` for other conventions.""")
++def FileOp():
++    return Callable[[Path, FileContents, ScaffoldOpts], Union[Path, None]]
+diff --git a/file.rst b/file.rst
+new file mode 100644
+index 000000000..338529027
+--- /dev/null
++++ b/file.rst
+@@ -0,0 +1,23 @@
++# Configuration file for the Sphinx documentation builder.
++
++import os
++import sys
++sys.path.insert(0, os.path.abspath('.'))
++
++# -- Project information -----------------------------------------------------
++
++project = 'Sphinx Test'
++copyright = '2023, Test'
++author = 'Test'
++
++# -- General configuration ---------------------------------------------------
++
++extensions = ['sphinx.ext.autodoc']
++
++# -- Options for HTML output -------------------------------------------------
++
++html_theme = 'alabaster'
++
++# Only build documentation for file.py
++source_suffix = '.rst'
++master_doc = 'file'
+diff --git a/index.rst b/index.rst
+new file mode 100644
+index 000000000..d73416a2c
+--- /dev/null
++++ b/index.rst
+@@ -0,0 +1,15 @@
++Welcome to Sphinx Test's documentation!
++=======================================
++
++.. toctree::
++   :maxdepth: 2
++   :caption: Contents:
++
++   file
++
++Indices and tables
++==================
++
++* :ref:`genindex`
++* :ref:`modindex`
++* :ref:`search`
+diff --git a/modules.rst b/modules.rst
+new file mode 100644
+index 000000000..ccec724c9
+--- /dev/null
++++ b/modules.rst
+@@ -0,0 +1,12 @@
++sphinx-doc__sphinx
++==================
++
++.. toctree::
++   :maxdepth: 4
++
++   conf
++   file
++   setup
++   sphinx
++   tests
++   utils
+diff --git a/setup.py b/setup.py
+index b669afc00..0986baec3 100644
+--- a/setup.py
++++ b/setup.py
+@@ -15,22 +15,22 @@ if sys.version_info < (3, 6):
+     sys.exit(1)
+ 
+ install_requires = [
+-    'sphinxcontrib-applehelp',
+-    'sphinxcontrib-devhelp',
++    'sphinxcontrib-applehelp<=1.0.7',
++    'sphinxcontrib-devhelp<=1.0.5',
+     'sphinxcontrib-jsmath',
+-    'sphinxcontrib-htmlhelp',
+-    'sphinxcontrib-serializinghtml',
+-    'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'sphinxcontrib-htmlhelp<=2.0.4',
++    'sphinxcontrib-serializinghtml<=1.1.9',
++    'sphinxcontrib-qthelp<=1.0.6',
++    'Jinja2<3.0',
+     'Pygments>=2.0',
+     'docutils>=0.14,<0.18',
+     'snowballstemmer>=1.1',
+     'babel>=1.3',
+-    'alabaster>=0.7,<0.8',
++    'alabaster>=0.7,<0.7.12',
+     'imagesize',
+     'requests>=2.5.0',
+     'setuptools',
+-    'packaging',
++    'packaging', 'markupsafe<=2.0.1',
+ ]
+ 
+ extras_require = {
+diff --git a/setup.rst b/setup.rst
+new file mode 100644
+index 000000000..552eb49d6
+--- /dev/null
++++ b/setup.rst
+@@ -0,0 +1,7 @@
++setup module
++============
++
++.. automodule:: setup
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.builders.html.rst b/sphinx.builders.html.rst
+new file mode 100644
+index 000000000..276b72180
+--- /dev/null
++++ b/sphinx.builders.html.rst
+@@ -0,0 +1,21 @@
++sphinx.builders.html package
++============================
++
++Submodules
++----------
++
++sphinx.builders.html.transforms module
++--------------------------------------
++
++.. automodule:: sphinx.builders.html.transforms
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.builders.html
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.builders.latex.rst b/sphinx.builders.latex.rst
+new file mode 100644
+index 000000000..0aed82908
+--- /dev/null
++++ b/sphinx.builders.latex.rst
+@@ -0,0 +1,53 @@
++sphinx.builders.latex package
++=============================
++
++Submodules
++----------
++
++sphinx.builders.latex.constants module
++--------------------------------------
++
++.. automodule:: sphinx.builders.latex.constants
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.builders.latex.nodes module
++----------------------------------
++
++.. automodule:: sphinx.builders.latex.nodes
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.builders.latex.theming module
++------------------------------------
++
++.. automodule:: sphinx.builders.latex.theming
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.builders.latex.transforms module
++---------------------------------------
++
++.. automodule:: sphinx.builders.latex.transforms
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.builders.latex.util module
++---------------------------------
++
++.. automodule:: sphinx.builders.latex.util
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.builders.latex
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.builders.rst b/sphinx.builders.rst
+new file mode 100644
+index 000000000..7285825ee
+--- /dev/null
++++ b/sphinx.builders.rst
+@@ -0,0 +1,110 @@
++sphinx.builders package
++=======================
++
++Subpackages
++-----------
++
++.. toctree::
++   :maxdepth: 4
++
++   sphinx.builders.html
++   sphinx.builders.latex
++
++Submodules
++----------
++
++sphinx.builders.changes module
++------------------------------
++
++.. automodule:: sphinx.builders.changes
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.builders.dirhtml module
++------------------------------
++
++.. automodule:: sphinx.builders.dirhtml
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.builders.dummy module
++----------------------------
++
++.. automodule:: sphinx.builders.dummy
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.builders.epub3 module
++----------------------------
++
++.. automodule:: sphinx.builders.epub3
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.builders.gettext module
++------------------------------
++
++.. automodule:: sphinx.builders.gettext
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.builders.linkcheck module
++--------------------------------
++
++.. automodule:: sphinx.builders.linkcheck
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.builders.manpage module
++------------------------------
++
++.. automodule:: sphinx.builders.manpage
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.builders.singlehtml module
++---------------------------------
++
++.. automodule:: sphinx.builders.singlehtml
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.builders.texinfo module
++------------------------------
++
++.. automodule:: sphinx.builders.texinfo
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.builders.text module
++---------------------------
++
++.. automodule:: sphinx.builders.text
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.builders.xml module
++--------------------------
++
++.. automodule:: sphinx.builders.xml
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.builders
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.cmd.rst b/sphinx.cmd.rst
+new file mode 100644
+index 000000000..49f3f44f1
+--- /dev/null
++++ b/sphinx.cmd.rst
+@@ -0,0 +1,37 @@
++sphinx.cmd package
++==================
++
++Submodules
++----------
++
++sphinx.cmd.build module
++-----------------------
++
++.. automodule:: sphinx.cmd.build
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.cmd.make\_mode module
++----------------------------
++
++.. automodule:: sphinx.cmd.make_mode
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.cmd.quickstart module
++----------------------------
++
++.. automodule:: sphinx.cmd.quickstart
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.cmd
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.directives.rst b/sphinx.directives.rst
+new file mode 100644
+index 000000000..dc54444fc
+--- /dev/null
++++ b/sphinx.directives.rst
+@@ -0,0 +1,37 @@
++sphinx.directives package
++=========================
++
++Submodules
++----------
++
++sphinx.directives.code module
++-----------------------------
++
++.. automodule:: sphinx.directives.code
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.directives.other module
++------------------------------
++
++.. automodule:: sphinx.directives.other
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.directives.patches module
++--------------------------------
++
++.. automodule:: sphinx.directives.patches
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.directives
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.domains.rst b/sphinx.domains.rst
+new file mode 100644
+index 000000000..a30413a96
+--- /dev/null
++++ b/sphinx.domains.rst
+@@ -0,0 +1,93 @@
++sphinx.domains package
++======================
++
++Submodules
++----------
++
++sphinx.domains.c module
++-----------------------
++
++.. automodule:: sphinx.domains.c
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.domains.changeset module
++-------------------------------
++
++.. automodule:: sphinx.domains.changeset
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.domains.citation module
++------------------------------
++
++.. automodule:: sphinx.domains.citation
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.domains.cpp module
++-------------------------
++
++.. automodule:: sphinx.domains.cpp
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.domains.index module
++---------------------------
++
++.. automodule:: sphinx.domains.index
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.domains.javascript module
++--------------------------------
++
++.. automodule:: sphinx.domains.javascript
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.domains.math module
++--------------------------
++
++.. automodule:: sphinx.domains.math
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.domains.python module
++----------------------------
++
++.. automodule:: sphinx.domains.python
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.domains.rst module
++-------------------------
++
++.. automodule:: sphinx.domains.rst
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.domains.std module
++-------------------------
++
++.. automodule:: sphinx.domains.std
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.domains
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.environment.adapters.rst b/sphinx.environment.adapters.rst
+new file mode 100644
+index 000000000..8fa20ad9c
+--- /dev/null
++++ b/sphinx.environment.adapters.rst
+@@ -0,0 +1,37 @@
++sphinx.environment.adapters package
++===================================
++
++Submodules
++----------
++
++sphinx.environment.adapters.asset module
++----------------------------------------
++
++.. automodule:: sphinx.environment.adapters.asset
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.environment.adapters.indexentries module
++-----------------------------------------------
++
++.. automodule:: sphinx.environment.adapters.indexentries
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.environment.adapters.toctree module
++------------------------------------------
++
++.. automodule:: sphinx.environment.adapters.toctree
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.environment.adapters
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.environment.collectors.rst b/sphinx.environment.collectors.rst
+new file mode 100644
+index 000000000..708f3bf20
+--- /dev/null
++++ b/sphinx.environment.collectors.rst
+@@ -0,0 +1,53 @@
++sphinx.environment.collectors package
++=====================================
++
++Submodules
++----------
++
++sphinx.environment.collectors.asset module
++------------------------------------------
++
++.. automodule:: sphinx.environment.collectors.asset
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.environment.collectors.dependencies module
++-------------------------------------------------
++
++.. automodule:: sphinx.environment.collectors.dependencies
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.environment.collectors.metadata module
++---------------------------------------------
++
++.. automodule:: sphinx.environment.collectors.metadata
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.environment.collectors.title module
++------------------------------------------
++
++.. automodule:: sphinx.environment.collectors.title
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.environment.collectors.toctree module
++--------------------------------------------
++
++.. automodule:: sphinx.environment.collectors.toctree
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.environment.collectors
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.environment.rst b/sphinx.environment.rst
+new file mode 100644
+index 000000000..51219de63
+--- /dev/null
++++ b/sphinx.environment.rst
+@@ -0,0 +1,19 @@
++sphinx.environment package
++==========================
++
++Subpackages
++-----------
++
++.. toctree::
++   :maxdepth: 4
++
++   sphinx.environment.adapters
++   sphinx.environment.collectors
++
++Module contents
++---------------
++
++.. automodule:: sphinx.environment
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.ext.autodoc.rst b/sphinx.ext.autodoc.rst
+new file mode 100644
+index 000000000..52151f90c
+--- /dev/null
++++ b/sphinx.ext.autodoc.rst
+@@ -0,0 +1,69 @@
++sphinx.ext.autodoc package
++==========================
++
++Submodules
++----------
++
++sphinx.ext.autodoc.deprecated module
++------------------------------------
++
++.. automodule:: sphinx.ext.autodoc.deprecated
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.autodoc.directive module
++-----------------------------------
++
++.. automodule:: sphinx.ext.autodoc.directive
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.autodoc.importer module
++----------------------------------
++
++.. automodule:: sphinx.ext.autodoc.importer
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.autodoc.mock module
++------------------------------
++
++.. automodule:: sphinx.ext.autodoc.mock
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.autodoc.preserve\_defaults module
++--------------------------------------------
++
++.. automodule:: sphinx.ext.autodoc.preserve_defaults
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.autodoc.type\_comment module
++---------------------------------------
++
++.. automodule:: sphinx.ext.autodoc.type_comment
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.autodoc.typehints module
++-----------------------------------
++
++.. automodule:: sphinx.ext.autodoc.typehints
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.ext.autodoc
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.ext.autosummary.rst b/sphinx.ext.autosummary.rst
+new file mode 100644
+index 000000000..5eb0a7f57
+--- /dev/null
++++ b/sphinx.ext.autosummary.rst
+@@ -0,0 +1,21 @@
++sphinx.ext.autosummary package
++==============================
++
++Submodules
++----------
++
++sphinx.ext.autosummary.generate module
++--------------------------------------
++
++.. automodule:: sphinx.ext.autosummary.generate
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.ext.autosummary
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.ext.napoleon.rst b/sphinx.ext.napoleon.rst
+new file mode 100644
+index 000000000..c348807b9
+--- /dev/null
++++ b/sphinx.ext.napoleon.rst
+@@ -0,0 +1,29 @@
++sphinx.ext.napoleon package
++===========================
++
++Submodules
++----------
++
++sphinx.ext.napoleon.docstring module
++------------------------------------
++
++.. automodule:: sphinx.ext.napoleon.docstring
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.napoleon.iterators module
++------------------------------------
++
++.. automodule:: sphinx.ext.napoleon.iterators
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.ext.napoleon
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.ext.rst b/sphinx.ext.rst
+new file mode 100644
+index 000000000..5e7f7ad1a
+--- /dev/null
++++ b/sphinx.ext.rst
+@@ -0,0 +1,159 @@
++sphinx.ext package
++==================
++
++Subpackages
++-----------
++
++.. toctree::
++   :maxdepth: 4
++
++   sphinx.ext.autodoc
++   sphinx.ext.autosummary
++   sphinx.ext.napoleon
++
++Submodules
++----------
++
++sphinx.ext.apidoc module
++------------------------
++
++.. automodule:: sphinx.ext.apidoc
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.autosectionlabel module
++----------------------------------
++
++.. automodule:: sphinx.ext.autosectionlabel
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.coverage module
++--------------------------
++
++.. automodule:: sphinx.ext.coverage
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.doctest module
++-------------------------
++
++.. automodule:: sphinx.ext.doctest
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.duration module
++--------------------------
++
++.. automodule:: sphinx.ext.duration
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.extlinks module
++--------------------------
++
++.. automodule:: sphinx.ext.extlinks
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.githubpages module
++-----------------------------
++
++.. automodule:: sphinx.ext.githubpages
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.graphviz module
++--------------------------
++
++.. automodule:: sphinx.ext.graphviz
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.ifconfig module
++--------------------------
++
++.. automodule:: sphinx.ext.ifconfig
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.imgconverter module
++------------------------------
++
++.. automodule:: sphinx.ext.imgconverter
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.imgmath module
++-------------------------
++
++.. automodule:: sphinx.ext.imgmath
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.inheritance\_diagram module
++--------------------------------------
++
++.. automodule:: sphinx.ext.inheritance_diagram
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.intersphinx module
++-----------------------------
++
++.. automodule:: sphinx.ext.intersphinx
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.linkcode module
++--------------------------
++
++.. automodule:: sphinx.ext.linkcode
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.mathjax module
++-------------------------
++
++.. automodule:: sphinx.ext.mathjax
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.todo module
++----------------------
++
++.. automodule:: sphinx.ext.todo
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.ext.viewcode module
++--------------------------
++
++.. automodule:: sphinx.ext.viewcode
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.ext
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.locale.rst b/sphinx.locale.rst
+new file mode 100644
+index 000000000..7d2a0b1f1
+--- /dev/null
++++ b/sphinx.locale.rst
+@@ -0,0 +1,10 @@
++sphinx.locale package
++=====================
++
++Module contents
++---------------
++
++.. automodule:: sphinx.locale
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.pycode.rst b/sphinx.pycode.rst
+new file mode 100644
+index 000000000..a773e57bd
+--- /dev/null
++++ b/sphinx.pycode.rst
+@@ -0,0 +1,29 @@
++sphinx.pycode package
++=====================
++
++Submodules
++----------
++
++sphinx.pycode.ast module
++------------------------
++
++.. automodule:: sphinx.pycode.ast
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.pycode.parser module
++---------------------------
++
++.. automodule:: sphinx.pycode.parser
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.pycode
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.rst b/sphinx.rst
+new file mode 100644
+index 000000000..d5577df7f
+--- /dev/null
++++ b/sphinx.rst
+@@ -0,0 +1,177 @@
++sphinx package
++==============
++
++Subpackages
++-----------
++
++.. toctree::
++   :maxdepth: 4
++
++   sphinx.builders
++   sphinx.cmd
++   sphinx.directives
++   sphinx.domains
++   sphinx.environment
++   sphinx.ext
++   sphinx.locale
++   sphinx.pycode
++   sphinx.search
++   sphinx.testing
++   sphinx.transforms
++   sphinx.util
++   sphinx.writers
++
++Submodules
++----------
++
++sphinx.addnodes module
++----------------------
++
++.. automodule:: sphinx.addnodes
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.application module
++-------------------------
++
++.. automodule:: sphinx.application
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.config module
++--------------------
++
++.. automodule:: sphinx.config
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.deprecation module
++-------------------------
++
++.. automodule:: sphinx.deprecation
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.errors module
++--------------------
++
++.. automodule:: sphinx.errors
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.events module
++--------------------
++
++.. automodule:: sphinx.events
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.extension module
++-----------------------
++
++.. automodule:: sphinx.extension
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.highlighting module
++--------------------------
++
++.. automodule:: sphinx.highlighting
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.io module
++----------------
++
++.. automodule:: sphinx.io
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.jinja2glue module
++------------------------
++
++.. automodule:: sphinx.jinja2glue
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.parsers module
++---------------------
++
++.. automodule:: sphinx.parsers
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.project module
++---------------------
++
++.. automodule:: sphinx.project
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.pygments\_styles module
++------------------------------
++
++.. automodule:: sphinx.pygments_styles
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.registry module
++----------------------
++
++.. automodule:: sphinx.registry
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.roles module
++-------------------
++
++.. automodule:: sphinx.roles
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.setup\_command module
++----------------------------
++
++.. automodule:: sphinx.setup_command
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.theming module
++---------------------
++
++.. automodule:: sphinx.theming
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.versioning module
++------------------------
++
++.. automodule:: sphinx.versioning
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.search.rst b/sphinx.search.rst
+new file mode 100644
+index 000000000..96f3b87da
+--- /dev/null
++++ b/sphinx.search.rst
+@@ -0,0 +1,157 @@
++sphinx.search package
++=====================
++
++Submodules
++----------
++
++sphinx.search.da module
++-----------------------
++
++.. automodule:: sphinx.search.da
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.search.de module
++-----------------------
++
++.. automodule:: sphinx.search.de
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.search.en module
++-----------------------
++
++.. automodule:: sphinx.search.en
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.search.es module
++-----------------------
++
++.. automodule:: sphinx.search.es
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.search.fi module
++-----------------------
++
++.. automodule:: sphinx.search.fi
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.search.fr module
++-----------------------
++
++.. automodule:: sphinx.search.fr
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.search.hu module
++-----------------------
++
++.. automodule:: sphinx.search.hu
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.search.it module
++-----------------------
++
++.. automodule:: sphinx.search.it
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.search.ja module
++-----------------------
++
++.. automodule:: sphinx.search.ja
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.search.jssplitter module
++-------------------------------
++
++.. automodule:: sphinx.search.jssplitter
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.search.nl module
++-----------------------
++
++.. automodule:: sphinx.search.nl
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.search.no module
++-----------------------
++
++.. automodule:: sphinx.search.no
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.search.pt module
++-----------------------
++
++.. automodule:: sphinx.search.pt
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.search.ro module
++-----------------------
++
++.. automodule:: sphinx.search.ro
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.search.ru module
++-----------------------
++
++.. automodule:: sphinx.search.ru
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.search.sv module
++-----------------------
++
++.. automodule:: sphinx.search.sv
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.search.tr module
++-----------------------
++
++.. automodule:: sphinx.search.tr
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.search.zh module
++-----------------------
++
++.. automodule:: sphinx.search.zh
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.search
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.testing.rst b/sphinx.testing.rst
+new file mode 100644
+index 000000000..eab4afdc2
+--- /dev/null
++++ b/sphinx.testing.rst
+@@ -0,0 +1,53 @@
++sphinx.testing package
++======================
++
++Submodules
++----------
++
++sphinx.testing.comparer module
++------------------------------
++
++.. automodule:: sphinx.testing.comparer
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.testing.fixtures module
++------------------------------
++
++.. automodule:: sphinx.testing.fixtures
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.testing.path module
++--------------------------
++
++.. automodule:: sphinx.testing.path
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.testing.restructuredtext module
++--------------------------------------
++
++.. automodule:: sphinx.testing.restructuredtext
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.testing.util module
++--------------------------
++
++.. automodule:: sphinx.testing.util
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.testing
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.transforms.post_transforms.rst b/sphinx.transforms.post_transforms.rst
+new file mode 100644
+index 000000000..21cadf1e6
+--- /dev/null
++++ b/sphinx.transforms.post_transforms.rst
+@@ -0,0 +1,29 @@
++sphinx.transforms.post\_transforms package
++==========================================
++
++Submodules
++----------
++
++sphinx.transforms.post\_transforms.code module
++----------------------------------------------
++
++.. automodule:: sphinx.transforms.post_transforms.code
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.transforms.post\_transforms.images module
++------------------------------------------------
++
++.. automodule:: sphinx.transforms.post_transforms.images
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.transforms.post_transforms
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.transforms.rst b/sphinx.transforms.rst
+new file mode 100644
+index 000000000..c3e944464
+--- /dev/null
++++ b/sphinx.transforms.rst
+@@ -0,0 +1,45 @@
++sphinx.transforms package
++=========================
++
++Subpackages
++-----------
++
++.. toctree::
++   :maxdepth: 4
++
++   sphinx.transforms.post_transforms
++
++Submodules
++----------
++
++sphinx.transforms.compact\_bullet\_list module
++----------------------------------------------
++
++.. automodule:: sphinx.transforms.compact_bullet_list
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.transforms.i18n module
++-----------------------------
++
++.. automodule:: sphinx.transforms.i18n
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.transforms.references module
++-----------------------------------
++
++.. automodule:: sphinx.transforms.references
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.transforms
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.util.rst b/sphinx.util.rst
+new file mode 100644
+index 000000000..5175fe058
+--- /dev/null
++++ b/sphinx.util.rst
+@@ -0,0 +1,245 @@
++sphinx.util package
++===================
++
++Subpackages
++-----------
++
++.. toctree::
++   :maxdepth: 4
++
++   sphinx.util.stemmer
++
++Submodules
++----------
++
++sphinx.util.build\_phase module
++-------------------------------
++
++.. automodule:: sphinx.util.build_phase
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.cfamily module
++--------------------------
++
++.. automodule:: sphinx.util.cfamily
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.compat module
++-------------------------
++
++.. automodule:: sphinx.util.compat
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.console module
++--------------------------
++
++.. automodule:: sphinx.util.console
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.docfields module
++----------------------------
++
++.. automodule:: sphinx.util.docfields
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.docstrings module
++-----------------------------
++
++.. automodule:: sphinx.util.docstrings
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.docutils module
++---------------------------
++
++.. automodule:: sphinx.util.docutils
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.fileutil module
++---------------------------
++
++.. automodule:: sphinx.util.fileutil
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.i18n module
++-----------------------
++
++.. automodule:: sphinx.util.i18n
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.images module
++-------------------------
++
++.. automodule:: sphinx.util.images
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.inspect module
++--------------------------
++
++.. automodule:: sphinx.util.inspect
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.inventory module
++----------------------------
++
++.. automodule:: sphinx.util.inventory
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.jsdump module
++-------------------------
++
++.. automodule:: sphinx.util.jsdump
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.logging module
++--------------------------
++
++.. automodule:: sphinx.util.logging
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.matching module
++---------------------------
++
++.. automodule:: sphinx.util.matching
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.math module
++-----------------------
++
++.. automodule:: sphinx.util.math
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.nodes module
++------------------------
++
++.. automodule:: sphinx.util.nodes
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.osutil module
++-------------------------
++
++.. automodule:: sphinx.util.osutil
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.parallel module
++---------------------------
++
++.. automodule:: sphinx.util.parallel
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.png module
++----------------------
++
++.. automodule:: sphinx.util.png
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.pycompat module
++---------------------------
++
++.. automodule:: sphinx.util.pycompat
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.requests module
++---------------------------
++
++.. automodule:: sphinx.util.requests
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.rst module
++----------------------
++
++.. automodule:: sphinx.util.rst
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.smartypants module
++------------------------------
++
++.. automodule:: sphinx.util.smartypants
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.tags module
++-----------------------
++
++.. automodule:: sphinx.util.tags
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.template module
++---------------------------
++
++.. automodule:: sphinx.util.template
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.texescape module
++----------------------------
++
++.. automodule:: sphinx.util.texescape
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.util.typing module
++-------------------------
++
++.. automodule:: sphinx.util.typing
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.util
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.util.stemmer.rst b/sphinx.util.stemmer.rst
+new file mode 100644
+index 000000000..9584c6dee
+--- /dev/null
++++ b/sphinx.util.stemmer.rst
+@@ -0,0 +1,21 @@
++sphinx.util.stemmer package
++===========================
++
++Submodules
++----------
++
++sphinx.util.stemmer.porter module
++---------------------------------
++
++.. automodule:: sphinx.util.stemmer.porter
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.util.stemmer
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/sphinx.writers.rst b/sphinx.writers.rst
+new file mode 100644
+index 000000000..5809078fe
+--- /dev/null
++++ b/sphinx.writers.rst
+@@ -0,0 +1,69 @@
++sphinx.writers package
++======================
++
++Submodules
++----------
++
++sphinx.writers.html module
++--------------------------
++
++.. automodule:: sphinx.writers.html
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.writers.html5 module
++---------------------------
++
++.. automodule:: sphinx.writers.html5
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.writers.latex module
++---------------------------
++
++.. automodule:: sphinx.writers.latex
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.writers.manpage module
++-----------------------------
++
++.. automodule:: sphinx.writers.manpage
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.writers.texinfo module
++-----------------------------
++
++.. automodule:: sphinx.writers.texinfo
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.writers.text module
++--------------------------
++
++.. automodule:: sphinx.writers.text
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++sphinx.writers.xml module
++-------------------------
++
++.. automodule:: sphinx.writers.xml
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: sphinx.writers
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/tests.rst b/tests.rst
+new file mode 100644
+index 000000000..c3cd1e459
+--- /dev/null
++++ b/tests.rst
+@@ -0,0 +1,845 @@
++tests package
++=============
++
++Submodules
++----------
++
++tests.conftest module
++---------------------
++
++.. automodule:: tests.conftest
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.ext\_napoleon\_pep526\_data\_google module
++------------------------------------------------
++
++.. automodule:: tests.ext_napoleon_pep526_data_google
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.ext\_napoleon\_pep526\_data\_numpy module
++-----------------------------------------------
++
++.. automodule:: tests.ext_napoleon_pep526_data_numpy
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_api\_translator module
++----------------------------------
++
++.. automodule:: tests.test_api_translator
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_application module
++------------------------------
++
++.. automodule:: tests.test_application
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_build module
++------------------------
++
++.. automodule:: tests.test_build
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_build\_changes module
++---------------------------------
++
++.. automodule:: tests.test_build_changes
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_build\_dirhtml module
++---------------------------------
++
++.. automodule:: tests.test_build_dirhtml
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_build\_epub module
++------------------------------
++
++.. automodule:: tests.test_build_epub
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_build\_gettext module
++---------------------------------
++
++.. automodule:: tests.test_build_gettext
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_build\_html module
++------------------------------
++
++.. automodule:: tests.test_build_html
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_build\_latex module
++-------------------------------
++
++.. automodule:: tests.test_build_latex
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_build\_linkcheck module
++-----------------------------------
++
++.. automodule:: tests.test_build_linkcheck
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_build\_manpage module
++---------------------------------
++
++.. automodule:: tests.test_build_manpage
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_build\_texinfo module
++---------------------------------
++
++.. automodule:: tests.test_build_texinfo
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_build\_text module
++------------------------------
++
++.. automodule:: tests.test_build_text
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_builder module
++--------------------------
++
++.. automodule:: tests.test_builder
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_catalogs module
++---------------------------
++
++.. automodule:: tests.test_catalogs
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_config module
++-------------------------
++
++.. automodule:: tests.test_config
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_correct\_year module
++--------------------------------
++
++.. automodule:: tests.test_correct_year
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_directive\_code module
++----------------------------------
++
++.. automodule:: tests.test_directive_code
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_directive\_only module
++----------------------------------
++
++.. automodule:: tests.test_directive_only
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_directive\_other module
++-----------------------------------
++
++.. automodule:: tests.test_directive_other
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_directive\_patch module
++-----------------------------------
++
++.. automodule:: tests.test_directive_patch
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_docutilsconf module
++-------------------------------
++
++.. automodule:: tests.test_docutilsconf
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_domain\_c module
++----------------------------
++
++.. automodule:: tests.test_domain_c
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_domain\_cpp module
++------------------------------
++
++.. automodule:: tests.test_domain_cpp
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_domain\_js module
++-----------------------------
++
++.. automodule:: tests.test_domain_js
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_domain\_py module
++-----------------------------
++
++.. automodule:: tests.test_domain_py
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_domain\_rst module
++------------------------------
++
++.. automodule:: tests.test_domain_rst
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_domain\_std module
++------------------------------
++
++.. automodule:: tests.test_domain_std
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_environment module
++------------------------------
++
++.. automodule:: tests.test_environment
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_environment\_indexentries module
++--------------------------------------------
++
++.. automodule:: tests.test_environment_indexentries
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_environment\_toctree module
++---------------------------------------
++
++.. automodule:: tests.test_environment_toctree
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_errors module
++-------------------------
++
++.. automodule:: tests.test_errors
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_events module
++-------------------------
++
++.. automodule:: tests.test_events
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_apidoc module
++------------------------------
++
++.. automodule:: tests.test_ext_apidoc
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_autodoc module
++-------------------------------
++
++.. automodule:: tests.test_ext_autodoc
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_autodoc\_autoattribute module
++----------------------------------------------
++
++.. automodule:: tests.test_ext_autodoc_autoattribute
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_autodoc\_autoclass module
++------------------------------------------
++
++.. automodule:: tests.test_ext_autodoc_autoclass
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_autodoc\_autodata module
++-----------------------------------------
++
++.. automodule:: tests.test_ext_autodoc_autodata
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_autodoc\_autofunction module
++---------------------------------------------
++
++.. automodule:: tests.test_ext_autodoc_autofunction
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_autodoc\_automodule module
++-------------------------------------------
++
++.. automodule:: tests.test_ext_autodoc_automodule
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_autodoc\_autoproperty module
++---------------------------------------------
++
++.. automodule:: tests.test_ext_autodoc_autoproperty
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_autodoc\_configs module
++----------------------------------------
++
++.. automodule:: tests.test_ext_autodoc_configs
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_autodoc\_events module
++---------------------------------------
++
++.. automodule:: tests.test_ext_autodoc_events
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_autodoc\_mock module
++-------------------------------------
++
++.. automodule:: tests.test_ext_autodoc_mock
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_autodoc\_preserve\_defaults module
++---------------------------------------------------
++
++.. automodule:: tests.test_ext_autodoc_preserve_defaults
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_autodoc\_private\_members module
++-------------------------------------------------
++
++.. automodule:: tests.test_ext_autodoc_private_members
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_autosectionlabel module
++----------------------------------------
++
++.. automodule:: tests.test_ext_autosectionlabel
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_autosummary module
++-----------------------------------
++
++.. automodule:: tests.test_ext_autosummary
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_coverage module
++--------------------------------
++
++.. automodule:: tests.test_ext_coverage
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_doctest module
++-------------------------------
++
++.. automodule:: tests.test_ext_doctest
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_duration module
++--------------------------------
++
++.. automodule:: tests.test_ext_duration
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_githubpages module
++-----------------------------------
++
++.. automodule:: tests.test_ext_githubpages
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_graphviz module
++--------------------------------
++
++.. automodule:: tests.test_ext_graphviz
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_ifconfig module
++--------------------------------
++
++.. automodule:: tests.test_ext_ifconfig
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_imgconverter module
++------------------------------------
++
++.. automodule:: tests.test_ext_imgconverter
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_inheritance\_diagram module
++--------------------------------------------
++
++.. automodule:: tests.test_ext_inheritance_diagram
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_intersphinx module
++-----------------------------------
++
++.. automodule:: tests.test_ext_intersphinx
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_math module
++----------------------------
++
++.. automodule:: tests.test_ext_math
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_napoleon module
++--------------------------------
++
++.. automodule:: tests.test_ext_napoleon
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_napoleon\_docstring module
++-------------------------------------------
++
++.. automodule:: tests.test_ext_napoleon_docstring
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_napoleon\_iterators module
++-------------------------------------------
++
++.. automodule:: tests.test_ext_napoleon_iterators
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_todo module
++----------------------------
++
++.. automodule:: tests.test_ext_todo
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_ext\_viewcode module
++--------------------------------
++
++.. automodule:: tests.test_ext_viewcode
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_highlighting module
++-------------------------------
++
++.. automodule:: tests.test_highlighting
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_intl module
++-----------------------
++
++.. automodule:: tests.test_intl
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_locale module
++-------------------------
++
++.. automodule:: tests.test_locale
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_markup module
++-------------------------
++
++.. automodule:: tests.test_markup
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_metadata module
++---------------------------
++
++.. automodule:: tests.test_metadata
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_parser module
++-------------------------
++
++.. automodule:: tests.test_parser
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_project module
++--------------------------
++
++.. automodule:: tests.test_project
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_pycode module
++-------------------------
++
++.. automodule:: tests.test_pycode
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_pycode\_ast module
++------------------------------
++
++.. automodule:: tests.test_pycode_ast
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_pycode\_parser module
++---------------------------------
++
++.. automodule:: tests.test_pycode_parser
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_quickstart module
++-----------------------------
++
++.. automodule:: tests.test_quickstart
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_roles module
++------------------------
++
++.. automodule:: tests.test_roles
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_search module
++-------------------------
++
++.. automodule:: tests.test_search
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_setup\_command module
++---------------------------------
++
++.. automodule:: tests.test_setup_command
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_smartquotes module
++------------------------------
++
++.. automodule:: tests.test_smartquotes
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_templating module
++-----------------------------
++
++.. automodule:: tests.test_templating
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_theming module
++--------------------------
++
++.. automodule:: tests.test_theming
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_toctree module
++--------------------------
++
++.. automodule:: tests.test_toctree
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_transforms\_post\_transforms\_code module
++-----------------------------------------------------
++
++.. automodule:: tests.test_transforms_post_transforms_code
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_util module
++-----------------------
++
++.. automodule:: tests.test_util
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_util\_docstrings module
++-----------------------------------
++
++.. automodule:: tests.test_util_docstrings
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_util\_docutils module
++---------------------------------
++
++.. automodule:: tests.test_util_docutils
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_util\_fileutil module
++---------------------------------
++
++.. automodule:: tests.test_util_fileutil
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_util\_i18n module
++-----------------------------
++
++.. automodule:: tests.test_util_i18n
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_util\_images module
++-------------------------------
++
++.. automodule:: tests.test_util_images
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_util\_inspect module
++--------------------------------
++
++.. automodule:: tests.test_util_inspect
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_util\_inventory module
++----------------------------------
++
++.. automodule:: tests.test_util_inventory
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_util\_jsdump module
++-------------------------------
++
++.. automodule:: tests.test_util_jsdump
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_util\_logging module
++--------------------------------
++
++.. automodule:: tests.test_util_logging
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_util\_matching module
++---------------------------------
++
++.. automodule:: tests.test_util_matching
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_util\_nodes module
++------------------------------
++
++.. automodule:: tests.test_util_nodes
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_util\_rst module
++----------------------------
++
++.. automodule:: tests.test_util_rst
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_util\_template module
++---------------------------------
++
++.. automodule:: tests.test_util_template
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_util\_typing module
++-------------------------------
++
++.. automodule:: tests.test_util_typing
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_versioning module
++-----------------------------
++
++.. automodule:: tests.test_versioning
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.test\_writer\_latex module
++--------------------------------
++
++.. automodule:: tests.test_writer_latex
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.typing\_test\_data module
++-------------------------------
++
++.. automodule:: tests.typing_test_data
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++tests.utils module
++------------------
++
++.. automodule:: tests.utils
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: tests
++   :members:
++   :undoc-members:
++   :show-inheritance:
+diff --git a/tox.ini b/tox.ini
+index a363e187f..3b8bc12d0 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,7 +27,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils,ignore::DeprecationWarning:pip._vendor.packaging.version
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3
+diff --git a/utils.rst b/utils.rst
+new file mode 100644
+index 000000000..2415ebf5b
+--- /dev/null
++++ b/utils.rst
+@@ -0,0 +1,45 @@
++utils package
++=============
++
++Submodules
++----------
++
++utils.bump\_version module
++--------------------------
++
++.. automodule:: utils.bump_version
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++utils.checks module
++-------------------
++
++.. automodule:: utils.checks
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++utils.doclinter module
++----------------------
++
++.. automodule:: utils.doclinter
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++utils.jssplitter\_generator module
++----------------------------------
++
++.. automodule:: utils.jssplitter_generator
++   :members:
++   :undoc-members:
++   :show-inheritance:
++
++Module contents
++---------------
++
++.. automodule:: utils
++   :members:
++   :undoc-members:
++   :show-inheritance:

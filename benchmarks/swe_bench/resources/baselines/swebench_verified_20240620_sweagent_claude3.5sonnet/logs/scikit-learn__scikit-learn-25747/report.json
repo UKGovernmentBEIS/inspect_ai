@@ -1,0 +1,43 @@
+{
+    "scikit-learn__scikit-learn-25747": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "sklearn/utils/tests/test_set_output.py::test_set_output_pandas_keep_index"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "sklearn/utils/tests/test_set_output.py::test__wrap_in_pandas_container_dense",
+                    "sklearn/utils/tests/test_set_output.py::test__wrap_in_pandas_container_dense_update_columns_and_index",
+                    "sklearn/utils/tests/test_set_output.py::test__wrap_in_pandas_container_error_validation",
+                    "sklearn/utils/tests/test_set_output.py::test__safe_set_output",
+                    "sklearn/utils/tests/test_set_output.py::test_set_output_mixin",
+                    "sklearn/utils/tests/test_set_output.py::test__safe_set_output_error",
+                    "sklearn/utils/tests/test_set_output.py::test_set_output_method",
+                    "sklearn/utils/tests/test_set_output.py::test_set_output_method_error",
+                    "sklearn/utils/tests/test_set_output.py::test__get_output_config",
+                    "sklearn/utils/tests/test_set_output.py::test_get_output_auto_wrap_false",
+                    "sklearn/utils/tests/test_set_output.py::test_auto_wrap_output_keys_errors_with_incorrect_input",
+                    "sklearn/utils/tests/test_set_output.py::test_set_output_mixin_custom_mixin",
+                    "sklearn/utils/tests/test_set_output.py::test__wrap_in_pandas_container_column_errors",
+                    "sklearn/utils/tests/test_set_output.py::test_set_output_mro"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

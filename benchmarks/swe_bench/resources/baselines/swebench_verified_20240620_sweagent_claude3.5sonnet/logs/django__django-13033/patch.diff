@@ -1,0 +1,251 @@
+
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index d65141b834..3be41cc6b4 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -1634,7 +1634,10 @@ class Query(BaseExpression):
+         """
+         joins = joins[:]
+         for pos, info in enumerate(reversed(path)):
+-            if len(joins) == 1 or not info.direct:
++            if len(joins) == 1:
++                break
++            if not info.direct:
++                # Don't trim reverse joins
+                 break
+             if info.filtered_relation:
+                 break
+@@ -1642,9 +1645,20 @@ class Query(BaseExpression):
+             cur_targets = {t.column for t in targets}
+             if not cur_targets.issubset(join_targets):
+                 break
+-            targets_dict = {r[1].column: r[0] for r in info.join_field.related_fields if r[1].column in cur_targets}
+-            targets = tuple(targets_dict[t.column] for t in targets)
+-            self.unref_alias(joins.pop())
++            # Check if this is a self-referential foreign key
++            if info.from_opts == info.to_opts:
++                # For self-referential foreign keys, we can trim the join if the current targets
++                # are a subset of the join targets and the join is not filtered
++                if cur_targets.issubset(join_targets) and not info.filtered_relation:
++                    targets_dict = {r[1].column: r[0] for r in info.join_field.related_fields if r[1].column in cur_targets}
++                    targets = tuple(targets_dict[t.column] for t in targets)
++                    self.unref_alias(joins.pop())
++                else:
++                    break
++            else:
++                targets_dict = {r[1].column: r[0] for r in info.join_field.related_fields if r[1].column in cur_targets}
++                targets = tuple(targets_dict[t.column] for t in targets)
++                self.unref_alias(joins.pop())
+         return targets, joins[-1], joins
+ 
+     @classmethod
+diff --git a/test_app/__init__.py b/test_app/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_app/apps.py b/test_app/apps.py
+new file mode 100644
+index 0000000000..85ef4038e6
+--- /dev/null
++++ b/test_app/apps.py
+@@ -0,0 +1,5 @@
++from django.apps import AppConfig
++
++class TestAppConfig(AppConfig):
++    name = 'test_app'
++    default_auto_field = 'django.db.models.BigAutoField'
+diff --git a/test_app/models.py b/test_app/models.py
+new file mode 100644
+index 0000000000..f504239b6d
+--- /dev/null
++++ b/test_app/models.py
+@@ -0,0 +1,13 @@
++from django.db import models
++
++class OneModel(models.Model):
++    class Meta:
++        ordering = ("-id",)
++    id = models.BigAutoField(primary_key=True)
++    root = models.ForeignKey("self", on_delete=models.CASCADE, null=True)
++    oneval = models.BigIntegerField(null=True)
++
++class TwoModel(models.Model):
++    id = models.BigAutoField(primary_key=True)
++    record = models.ForeignKey(OneModel, on_delete=models.CASCADE)
++    twoval = models.BigIntegerField(null=True)
+diff --git a/test_foreign_key_ordering.py b/test_foreign_key_ordering.py
+new file mode 100644
+index 0000000000..d586789c9b
+--- /dev/null
++++ b/test_foreign_key_ordering.py
+@@ -0,0 +1,49 @@
++import os
++import django
++from django.conf import settings
++
++# Set up Django
++os.environ.setdefault("DJANGO_SETTINGS_MODULE", "test_settings")
++django.setup()
++
++from django.db.models import F
++from test_app.models import OneModel, TwoModel
++
++# Test cases
++def test_queries():
++    # Case 1: Unexpected DESC ordering
++    qs1 = TwoModel.objects.filter(record__oneval__in=[1,2,3])
++    qs1 = qs1.order_by("record__root_id")
++    print("Query 1:")
++    print(qs1.query)
++    print()
++
++    # Case 2: Correct ordering
++    qs2 = TwoModel.objects.filter(record__oneval__in=[1,2,3])
++    qs2 = qs2.order_by("record__root__id")
++    print("Query 2:")
++    print(qs2.query)
++    print()
++
++    # Case 3: Workaround with annotation
++    qs3 = TwoModel.objects.filter(record__oneval__in=[1,2,3])
++    qs3 = qs3.annotate(root_id=F("record__root_id"))
++    qs3 = qs3.order_by("root_id")
++    print("Query 3:")
++    print(qs3.query)
++    print()
++
++    # Case 4: Inverted sort order
++    qs4 = TwoModel.objects.filter(record__oneval__in=[1,2,3])
++    qs4 = qs4.order_by("-record__root_id")
++    print("Query 4:")
++    print(qs4.query)
++    print()
++
++if __name__ == "__main__":
++    from django.core.management import call_command
++    call_command('makemigrations', interactive=False)
++    call_command('migrate', interactive=False)
++    test_queries()
++
++print("Script completed successfully, no errors.")
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..912940494b
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,14 @@
++SECRET_KEY = 'dummy_secret_key'
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'django.contrib.auth',
++    'tests',
++]
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++USE_TZ = False
++TEST_RUNNER = 'django.test.runner.DiscoverRunner'
+diff --git a/tests/migrations/0001_initial.py b/tests/migrations/0001_initial.py
+new file mode 100644
+index 0000000000..bc3e58edb3
+--- /dev/null
++++ b/tests/migrations/0001_initial.py
+@@ -0,0 +1,32 @@
++from django.db import migrations, models
++import django.db.models.deletion
++
++
++class Migration(migrations.Migration):
++
++    initial = True
++
++    dependencies = [
++    ]
++
++    operations = [
++        migrations.CreateModel(
++            name='OneModel',
++            fields=[
++                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
++                ('oneval', models.BigIntegerField(null=True)),
++                ('root', models.ForeignKey('self', null=True, on_delete=django.db.models.deletion.CASCADE)),
++            ],
++            options={
++                'ordering': ('-id',),
++            },
++        ),
++        migrations.CreateModel(
++            name='TwoModel',
++            fields=[
++                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
++                ('twoval', models.BigIntegerField(null=True)),
++                ('record', models.ForeignKey('OneModel', on_delete=django.db.models.deletion.CASCADE)),
++            ],
++        ),
++    ]
+diff --git a/tests/models.py b/tests/models.py
+new file mode 100644
+index 0000000000..f4970917c9
+--- /dev/null
++++ b/tests/models.py
+@@ -0,0 +1,11 @@
++from django.db import models
++
++class OneModel(models.Model):
++    class Meta:
++        ordering = ("-id",)
++    root = models.ForeignKey('self', on_delete=models.CASCADE, null=True)
++    oneval = models.BigIntegerField(null=True)
++
++class TwoModel(models.Model):
++    record = models.ForeignKey(OneModel, on_delete=models.CASCADE)
++    twoval = models.BigIntegerField(null=True)
+diff --git a/tests/queries/test_self_referential_fk.py b/tests/queries/test_self_referential_fk.py
+new file mode 100644
+index 0000000000..52d46e631c
+--- /dev/null
++++ b/tests/queries/test_self_referential_fk.py
+@@ -0,0 +1,41 @@
++from django.test import TestCase
++from tests.models import OneModel, TwoModel
++
++class SelfReferentialFKTestCase(TestCase):
++    def setUp(self):
++        root = OneModel.objects.create(oneval=1)
++        child1 = OneModel.objects.create(root=root, oneval=2)
++        child2 = OneModel.objects.create(root=root, oneval=3)
++        TwoModel.objects.create(record=root, twoval=10)
++        TwoModel.objects.create(record=child1, twoval=20)
++        TwoModel.objects.create(record=child2, twoval=30)
++
++    def test_order_by_root_id(self):
++        qs = TwoModel.objects.filter(record__oneval__in=[1, 2, 3])
++        qs = qs.order_by("record__root_id")
++        
++        # Check the SQL query
++        sql = str(qs.query)
++        self.assertNotIn("LEFT OUTER JOIN", sql)
++        self.assertIn("INNER JOIN", sql)
++        self.assertIn("ORDER BY", sql)
++        self.assertIn("record__root_id", sql)
++        
++        # Check the results
++        results = list(qs.values_list('twoval', flat=True))
++        self.assertEqual(results, [10, 20, 30])
++
++    def test_order_by_root(self):
++        qs = TwoModel.objects.filter(record__oneval__in=[1, 2, 3])
++        qs = qs.order_by("record__root")
++        
++        # Check the SQL query
++        sql = str(qs.query)
++        self.assertNotIn("LEFT OUTER JOIN", sql)
++        self.assertIn("INNER JOIN", sql)
++        self.assertIn("ORDER BY", sql)
++        self.assertIn("record__root", sql)
++        
++        # Check the results
++        results = list(qs.values_list('twoval', flat=True))
++        self.assertEqual(results, [10, 20, 30])

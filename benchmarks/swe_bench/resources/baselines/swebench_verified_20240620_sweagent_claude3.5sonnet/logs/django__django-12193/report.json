@@ -1,0 +1,40 @@
+{
+    "django__django-12193": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "test_get_context_does_not_mutate_attrs (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest)"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_render_check_exception (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest)",
+                    "test_render_check_test (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest)",
+                    "test_render_empty (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest)",
+                    "test_render_false (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest)",
+                    "test_render_int (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest)",
+                    "test_render_none (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest)",
+                    "test_render_true (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest)",
+                    "test_render_value (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest)",
+                    "test_value_from_datadict (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest)",
+                    "test_value_from_datadict_string_int (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest)",
+                    "test_value_omitted_from_data (forms_tests.widget_tests.test_checkboxinput.CheckboxInputTest)"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

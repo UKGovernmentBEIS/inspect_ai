@@ -1,0 +1,46 @@
+
+diff --git a/django/forms/widgets.py b/django/forms/widgets.py
+index 842b73e95c..e577cd9cbc 100644
+--- a/django/forms/widgets.py
++++ b/django/forms/widgets.py
+@@ -1156,7 +1156,10 @@ class SelectDateWidget(Widget):
+             input_format = get_format("DATE_INPUT_FORMATS")[0]
+             input_format = formats.sanitize_strftime_format(input_format)
+             try:
+-                date_value = datetime.date(int(y), int(m), int(d))
++                y, m, d = int(y), int(m), int(d)
++                if y > 9999 or m > 12 or d > 31:
++                    raise ValueError
++                date_value = datetime.date(y, m, d)
+             except ValueError:
+                 # Return pseudo-ISO dates with zeros for any unselected values,
+                 # e.g. '2017-0-23'.
+diff --git a/tests/forms_tests/widget_tests/test_select_date_widget.py b/tests/forms_tests/widget_tests/test_select_date_widget.py
+new file mode 100644
+index 0000000000..9964adc9c0
+--- /dev/null
++++ b/tests/forms_tests/widget_tests/test_select_date_widget.py
+@@ -0,0 +1,23 @@
++from django.forms import SelectDateWidget
++from django.test import TestCase
++
++class TestSelectDateWidget(TestCase):
++    def test_select_date_widget_with_large_values(self):
++        widget = SelectDateWidget()
++        data = {
++            'field_year': '1234567821345678',
++            'field_month': '1',
++            'field_day': '1'
++        }
++        result = widget.value_from_datadict(data, {}, 'field')
++        self.assertEqual(result, '1234567821345678-1-1')
++
++    def test_select_date_widget_with_valid_values(self):
++        widget = SelectDateWidget()
++        data = {
++            'field_year': '2023',
++            'field_month': '6',
++            'field_day': '15'
++        }
++        result = widget.value_from_datadict(data, {}, 'field')
++        self.assertEqual(result, '2023-06-15')

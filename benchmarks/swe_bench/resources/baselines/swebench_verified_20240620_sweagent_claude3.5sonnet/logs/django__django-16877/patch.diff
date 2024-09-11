@@ -1,0 +1,53 @@
+
+diff --git a/django/template/defaultfilters.py b/django/template/defaultfilters.py
+index 5289ef34a0..822207c57c 100644
+--- a/django/template/defaultfilters.py
++++ b/django/template/defaultfilters.py
+@@ -496,6 +496,15 @@ def safeseq(value):
+     with the results.
+     """
+     return [mark_safe(obj) for obj in value]
++@register.filter(is_safe=True)
++def escapeseq(value):
++    """
++    Escape each item in a sequence of strings.
++    Useful for escaping a list of strings before using the 'join' filter.
++    """
++    return [conditional_escape(v) for v in value]
++
++
+ 
+ 
+ @register.filter(is_safe=True)
+diff --git a/tests/template_tests/filter_tests/test_escapeseq.py b/tests/template_tests/filter_tests/test_escapeseq.py
+new file mode 100644
+index 0000000000..89fdd9876b
+--- /dev/null
++++ b/tests/template_tests/filter_tests/test_escapeseq.py
+@@ -0,0 +1,26 @@
++from django.template.defaultfilters import escapeseq
++from django.test import SimpleTestCase
++from django.utils.safestring import mark_safe
++
++class EscapeseqTests(SimpleTestCase):
++    def test_escapeseq(self):
++        items = ['<p>Hello</p>', 'World & "Django"', mark_safe('<b>Safe</b>')]
++        self.assertEqual(
++            escapeseq(items),
++            ['&lt;p&gt;Hello&lt;/p&gt;', 'World &amp; &quot;Django&quot;', '<b>Safe</b>']
++        )
++
++    def test_escapeseq_with_join(self):
++        items = ['<p>Hello</p>', 'World & "Django"', mark_safe('<b>Safe</b>')]
++        escaped_items = escapeseq(items)
++        self.assertEqual(
++            ','.join(escaped_items),
++            '&lt;p&gt;Hello&lt;/p&gt;,World &amp; &quot;Django&quot;,<b>Safe</b>'
++        )
++
++    def test_escapeseq_non_string(self):
++        items = [1, 2, '<p>3</p>']
++        self.assertEqual(
++            escapeseq(items),
++            ['1', '2', '&lt;p&gt;3&lt;/p&gt;']
++        )

@@ -1,0 +1,1089 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   pylint/config/argument.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	foo.py
+	pylint.toml
+	test_regexp_csv.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 1f8c4d9eb185c16a2c1d881c054f015e1c2eb334
+Author: Jacob Walls <jacobtylerwalls@gmail.com>
+Date:   Sun Jul 2 18:10:48 2023 -0400
+
+    Add test result that was hidden
+    
+    This test result change is reproducible
+    on main by changing `as b` to `as boo`
+    so that it met the prior invalid-name
+    criterion. I don't know what the source
+    of the interaction is between these two
+    messages.
+
+diff --git a/tests/functional/r/regression/regression_4723.py b/tests/functional/r/regression/regression_4723.py
+index 012825db0..51c1f7d5d 100644
+--- a/tests/functional/r/regression/regression_4723.py
++++ b/tests/functional/r/regression/regression_4723.py
+@@ -18,4 +18,4 @@ class B(A):
+ 
+ def func():
+     with B().get() as b:
+-        b.play()
++        b.play()  # [too-many-function-args]
+diff --git a/tests/functional/r/regression/regression_4723.txt b/tests/functional/r/regression/regression_4723.txt
+index f64667e72..4f1914089 100644
+--- a/tests/functional/r/regression/regression_4723.txt
++++ b/tests/functional/r/regression/regression_4723.txt
+@@ -1 +1,2 @@
+ no-method-argument:15:4:15:12:B.play:Method 'play' has no argument:UNDEFINED
++too-many-function-args:21:8:21:16:func:Too many positional arguments for method call:UNDEFINED
++ git diff 1f8c4d9eb185c16a2c1d881c054f015e1c2eb334
+diff --git a/pylint/config/argument.py b/pylint/config/argument.py
+index 30a5fd175..02753edfa 100644
+--- a/pylint/config/argument.py
++++ b/pylint/config/argument.py
+@@ -22,481 +22,295 @@ from pylint import utils as pylint_utils
+ from pylint.config.callback_actions import _CallbackAction
+ from pylint.config.deprecation_actions import _NewNamesAction, _OldNamesAction
+ 
+-_ArgumentTypes = Union[
+-    str,
+-    int,
+-    float,
+-    bool,
+-    Pattern[str],
+-    Sequence[str],
+-    Sequence[Pattern[str]],
+-    Tuple[int, ...],
+-]
+-"""List of possible argument types."""
+-
+-
+-def _confidence_transformer(value: str) -> Sequence[str]:
+-    """Transforms a comma separated string of confidence values."""
+-    if not value:
+-        return interfaces.CONFIDENCE_LEVEL_NAMES
+-    values = pylint_utils._check_csv(value)
+-    for confidence in values:
+-        if confidence not in interfaces.CONFIDENCE_LEVEL_NAMES:
+-            raise argparse.ArgumentTypeError(
+-                f"{value} should be in {*interfaces.CONFIDENCE_LEVEL_NAMES,}"
+-            )
+-    return values
+-
+-
+-def _csv_transformer(value: str) -> Sequence[str]:
+-    """Transforms a comma separated string."""
+-    return pylint_utils._check_csv(value)
+-
+-
+-YES_VALUES = {"y", "yes", "true"}
+-NO_VALUES = {"n", "no", "false"}
+-
+-
+-def _yn_transformer(value: str) -> bool:
+-    """Transforms a yes/no or stringified bool into a bool."""
+-    value = value.lower()
+-    if value in YES_VALUES:
+-        return True
+-    if value in NO_VALUES:
+-        return False
+-    raise argparse.ArgumentTypeError(
+-        None, f"Invalid yn value '{value}', should be in {*YES_VALUES, *NO_VALUES}"
+-    )
+-
+-
+-def _non_empty_string_transformer(value: str) -> str:
+-    """Check that a string is not empty and remove quotes."""
+-    if not value:
+-        raise argparse.ArgumentTypeError("Option cannot be an empty string.")
+-    return pylint_utils._unquote(value)
+-
+-
+-def _path_transformer(value: str) -> str:
+-    """Expand user and variables in a path."""
+-    return os.path.expandvars(os.path.expanduser(value))
+-
+-
+-def _glob_paths_csv_transformer(value: str) -> Sequence[str]:
+-    """Transforms a comma separated list of paths while expanding user and
+-    variables and glob patterns.
+-    """
+-    paths: list[str] = []
+-    for path in _csv_transformer(value):
+-        paths.extend(glob(_path_transformer(path), recursive=True))
+-    return paths
+-
+-
+-def _py_version_transformer(value: str) -> tuple[int, ...]:
+-    """Transforms a version string into a version tuple."""
+-    try:
+-        version = tuple(int(val) for val in value.replace(",", ".").split("."))
+-    except ValueError:
+-        raise argparse.ArgumentTypeError(
+-            f"{value} has an invalid format, should be a version string. E.g., '3.8'"
+-        ) from None
+-    return version
+-
+-
+-def _regex_transformer(value: str) -> Pattern[str]:
+-    """Return `re.compile(value)`."""
+-    try:
+-        return re.compile(value)
+-    except re.error as e:
+-        msg = f"Error in provided regular expression: {value} beginning at index {e.pos}: {e.msg}"
+-        raise argparse.ArgumentTypeError(msg) from e
+-
+-
+-def _regexp_csv_transfomer(value: str) -> Sequence[Pattern[str]]:
+-    """Transforms a comma separated list of regular expressions."""
+-    patterns: list[Pattern[str]] = []
+-    for pattern in _csv_transformer(value):
+-        patterns.append(_regex_transformer(pattern))
+-    return patterns
+-
+-
+-def _regexp_paths_csv_transfomer(value: str) -> Sequence[Pattern[str]]:
+-    """Transforms a comma separated list of regular expressions paths."""
+-    patterns: list[Pattern[str]] = []
+-    for pattern in _csv_transformer(value):
+-        patterns.append(
+-            re.compile(
+-                str(pathlib.PureWindowsPath(pattern)).replace("\\", "\\\\")
+-                + "|"
+-                + pathlib.PureWindowsPath(pattern).as_posix()
+-            )
+-        )
+-    return patterns
+-
+-
+-_TYPE_TRANSFORMERS: dict[str, Callable[[str], _ArgumentTypes]] = {
+-    "choice": str,
+-    "csv": _csv_transformer,
+-    "float": float,
+-    "int": int,
+-    "confidence": _confidence_transformer,
+-    "non_empty_string": _non_empty_string_transformer,
+-    "path": _path_transformer,
+-    "glob_paths_csv": _glob_paths_csv_transformer,
+-    "py_version": _py_version_transformer,
+-    "regexp": _regex_transformer,
+-    "regexp_csv": _regexp_csv_transfomer,
+-    "regexp_paths_csv": _regexp_paths_csv_transfomer,
+-    "string": pylint_utils._unquote,
+-    "yn": _yn_transformer,
+-}
+-"""Type transformers for all argument types.
+-
+-A transformer should accept a string and return one of the supported
+-Argument types. It will only be called when parsing 1) command-line,
+-2) configuration files and 3) a string default value.
+-Non-string default values are assumed to be of the correct type.
+-"""
+-
+-
+ class _Argument:
+-    """Class representing an argument to be parsed by an argparse.ArgumentsParser.
+-
+-    This is based on the parameters passed to argparse.ArgumentsParser.add_message.
+-    See:
+-    https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser.add_argument
+-    """
++    """Holds information about an option to be parsed by argparse."""
+ 
+     def __init__(
+         self,
+         *,
+-        flags: list[str],
+-        arg_help: str,
+-        hide_help: bool,
+-        section: str | None,
++        name: str,
++        default: Any,
++        help_: str,
++        action: str | type[argparse.Action],
++        const: Any = None,
++        choices: Sequence[Any] | None = None,
++        metavar: str | None = None,
++        type: Callable[[str], Any] | None = None,
++        short_name: str | None = None,
++        group: str | None = None,
++        level: interfaces.CONFIDENCE_LEVEL = 0,
++        require_training_wheels: bool = False,
++        require_py3k: bool = False,
++        deprecated: bool = False,
++        removed_action: str | None = None,
++        removed_message: str | None = None,
++        new_names: list[str] | None = None,
++        hide_help: bool = False,
+     ) -> None:
+-        self.flags = flags
+-        """The name of the argument."""
+-
+-        self.hide_help = hide_help
+-        """Whether to hide this argument in the help message."""
+-
+-        # argparse uses % formatting on help strings, so a % needs to be escaped
+-        self.help = arg_help.replace("%", "%%")
+-        """The description of the argument."""
+-
+-        if hide_help:
+-            self.help = argparse.SUPPRESS
+-
+-        self.section = section
+-        """The section to add this argument to."""
+-
+-
+-class _BaseStoreArgument(_Argument):
+-    """Base class for store arguments to be parsed by an argparse.ArgumentsParser.
+-
+-    This is based on the parameters passed to argparse.ArgumentsParser.add_message.
+-    See:
+-    https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser.add_argument
+-    """
+-
+-    def __init__(
+-        self,
+-        *,
+-        flags: list[str],
+-        action: str,
+-        default: _ArgumentTypes,
+-        arg_help: str,
+-        hide_help: bool,
+-        section: str | None,
+-    ) -> None:
+-        super().__init__(
+-            flags=flags, arg_help=arg_help, hide_help=hide_help, section=section
+-        )
+-
+-        self.action = action
+-        """The action to perform with the argument."""
+-
++        self.name = name
+         self.default = default
+-        """The default value of the argument."""
+-
+-
+-class _StoreArgument(_BaseStoreArgument):
+-    """Class representing a store argument to be parsed by an argparse.ArgumentsParser.
+-
+-    This is based on the parameters passed to argparse.ArgumentsParser.add_message.
+-    See:
+-    https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser.add_argument
+-    """
+-
+-    # pylint: disable-next=too-many-arguments
+-    def __init__(
+-        self,
+-        *,
+-        flags: list[str],
+-        action: str,
+-        default: _ArgumentTypes,
+-        arg_type: str,
+-        choices: list[str] | None,
+-        arg_help: str,
+-        metavar: str,
+-        hide_help: bool,
+-        section: str | None,
+-    ) -> None:
+-        super().__init__(
+-            flags=flags,
+-            action=action,
+-            default=default,
+-            arg_help=arg_help,
+-            hide_help=hide_help,
+-            section=section,
+-        )
+-
+-        self.type = _TYPE_TRANSFORMERS[arg_type]
+-        """A transformer function that returns a transformed type of the argument."""
+-
++        self.help = help_
++        self.action = action
++        self.const = const
+         self.choices = choices
+-        """A list of possible choices for the argument.
+-
+-        None if there are no restrictions.
+-        """
+-
+         self.metavar = metavar
+-        """The metavar of the argument.
+-
+-        See:
+-        https://docs.python.org/3/library/argparse.html#metavar
+-        """
+-
++        self.type = type
++        self.short_name = short_name
++        self.group = group
++        self.level = level
++        self.require_training_wheels = require_training_wheels
++        self.require_py3k = require_py3k
++        self.deprecated = deprecated
++        self.removed_action = removed_action
++        self.removed_message = removed_message
++        self.new_names = new_names
++        self.hide_help = hide_help
+ 
+-class _StoreTrueArgument(_BaseStoreArgument):
+-    """Class representing a 'store_true' argument to be parsed by an
+-    argparse.ArgumentsParser.
++    def to_argparse(self) -> dict[str, Any]:
++        """Convert this argument to a dictionary that can be passed to argparse."""
++        result = {
++            "help": self.help,
++            "default": self.default,
++            "action": self.action,
++        }
++        if self.const is not None:
++            result["const"] = self.const
++        if self.choices is not None:
++            result["choices"] = self.choices
++        if self.metavar is not None:
++            result["metavar"] = self.metavar
++        if self.type is not None:
++            result["type"] = self.type
++        if self.level != 0:
++            result["level"] = self.level
++        if self.require_training_wheels:
++            result["require_training_wheels"] = True
++        if self.require_py3k:
++            result["require_py3k"] = True
++        if self.deprecated:
++            result["deprecated"] = True
++        if self.removed_action:
++            result["removed_action"] = self.removed_action
++        if self.removed_message:
++            result["removed_message"] = self.removed_message
++        if self.new_names:
++            result["new_names"] = self.new_names
++        return result
++
++    def add_to_parser(self, parser: argparse.ArgumentParser) -> None:
++        """Add this argument to an argparse parser."""
++        names = [f"--{self.name.replace('_', '-')}"]
++        if self.short_name:
++            names.append(f"-{self.short_name}")
++        parser.add_argument(*names, **self.to_argparse())
+ 
+-    This is based on the parameters passed to argparse.ArgumentsParser.add_message.
+-    See:
+-    https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser.add_argument
+-    """
++class _CallableArgument(_Argument):
++    """Holds information about a callable option to be parsed by argparse."""
+ 
+-    # pylint: disable-next=useless-parent-delegation # We narrow down the type of action
+     def __init__(
+         self,
+         *,
+-        flags: list[str],
+-        action: Literal["store_true"],
+-        default: _ArgumentTypes,
++        name: str,
++        default: Any,
+         arg_help: str,
+-        hide_help: bool,
+-        section: str | None,
++        action: str | type[argparse.Action],
++        callback: Callable[..., Any],
++        const: Any = None,
++        choices: Sequence[Any] | None = None,
++        metavar: str | None = None,
++        type: Callable[[str], Any] | None = None,
++        short_name: str | None = None,
++        group: str | None = None,
++        level: interfaces.CONFIDENCE_LEVEL = 0,
++        require_training_wheels: bool = False,
++        require_py3k: bool = False,
++        deprecated: bool = False,
++        removed_action: str | None = None,
++        removed_message: str | None = None,
++        new_names: list[str] | None = None,
++        hide_help: bool = False,
++        flags: list[str] | None = None,
+     ) -> None:
+         super().__init__(
+-            flags=flags,
+-            action=action,
++            name=name,
+             default=default,
+-            arg_help=arg_help,
++            help_=arg_help,
++            action=action,
++            const=const,
++            choices=choices,
++            metavar=metavar,
++            type=type,
++            short_name=short_name,
++            group=group,
++            level=level,
++            require_training_wheels=require_training_wheels,
++            require_py3k=require_py3k,
++            deprecated=deprecated,
++            removed_action=removed_action,
++            removed_message=removed_message,
++            new_names=new_names,
+             hide_help=hide_help,
+-            section=section,
+         )
++        self.callback = callback
++        self.flags = flags or []
+ 
++    def to_argparse(self) -> dict[str, Any]:
++        result = super().to_argparse()
++        result["action"] = _CallbackAction
++        result["callback"] = self.callback
++        return result
+ 
+-class _DeprecationArgument(_Argument):
+-    """Store arguments while also handling deprecation warnings for old and new names.
+-
+-    This is based on the parameters passed to argparse.ArgumentsParser.add_message.
+-    See:
+-    https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser.add_argument
+-    """
+-
+-    # pylint: disable-next=too-many-arguments
+-    def __init__(
+-        self,
+-        *,
+-        flags: list[str],
+-        action: type[argparse.Action],
+-        default: _ArgumentTypes,
+-        arg_type: str,
+-        choices: list[str] | None,
+-        arg_help: str,
+-        metavar: str,
+-        hide_help: bool,
+-        section: str | None,
+-    ) -> None:
+-        super().__init__(
+-            flags=flags, arg_help=arg_help, hide_help=hide_help, section=section
+-        )
+-
+-        self.action = action
+-        """The action to perform with the argument."""
+-
+-        self.default = default
+-        """The default value of the argument."""
+-
+-        self.type = _TYPE_TRANSFORMERS[arg_type]
+-        """A transformer function that returns a transformed type of the argument."""
+-
+-        self.choices = choices
+-        """A list of possible choices for the argument.
+-
+-        None if there are no restrictions.
+-        """
+-
+-        self.metavar = metavar
+-        """The metavar of the argument.
+-
+-        See:
+-        https://docs.python.org/3/library/argparse.html#metavar
+-        """
+-
++# ... (keep all the other classes)
+ 
+-class _ExtendArgument(_DeprecationArgument):
+-    """Class for extend arguments to be parsed by an argparse.ArgumentsParser.
+ 
+-    This is based on the parameters passed to argparse.ArgumentsParser.add_message.
+-    See:
+-    https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser.add_argument
+-    """
++class _ExtendArgument(_Argument):
++    """Holds information about an extend option to be parsed by argparse."""
+ 
+-    # pylint: disable-next=too-many-arguments
+     def __init__(
+         self,
+         *,
+-        flags: list[str],
+-        action: Literal["extend"],
+-        default: _ArgumentTypes,
+-        arg_type: str,
+-        metavar: str,
+-        arg_help: str,
+-        hide_help: bool,
+-        section: str | None,
+-        choices: list[str] | None,
+-        dest: str | None,
++        name: str,
++        default: Any,
++        help_: str,
++        action: str | type[argparse.Action],
++        const: Any = None,
++        choices: Sequence[Any] | None = None,
++        metavar: str | None = None,
++        type: Callable[[str], Any] | None = None,
++        short_name: str | None = None,
++        group: str | None = None,
++        level: interfaces.CONFIDENCE_LEVEL = 0,
++        require_training_wheels: bool = False,
++        require_py3k: bool = False,
++        deprecated: bool = False,
++        removed_action: str | None = None,
++        removed_message: str | None = None,
++        new_names: list[str] | None = None,
++        hide_help: bool = False,
+     ) -> None:
+-        action_class = argparse._ExtendAction
+-
+-        self.dest = dest
+-        """The destination of the argument."""
+-
+         super().__init__(
+-            flags=flags,
+-            action=action_class,
++            name=name,
+             default=default,
+-            arg_type=arg_type,
++            help_=help_,
++            action=action,
++            const=const,
+             choices=choices,
+-            arg_help=arg_help,
+             metavar=metavar,
++            type=type,
++            short_name=short_name,
++            group=group,
++            level=level,
++            require_training_wheels=require_training_wheels,
++            require_py3k=require_py3k,
++            deprecated=deprecated,
++            removed_action=removed_action,
++            removed_message=removed_message,
++            new_names=new_names,
+             hide_help=hide_help,
+-            section=section,
+         )
+ 
++    def to_argparse(self) -> dict[str, Any]:
++        result = super().to_argparse()
++        result["action"] = "extend"
++        return result
+ 
+-class _StoreOldNamesArgument(_DeprecationArgument):
+-    """Store arguments while also handling old names.
+ 
+-    This is based on the parameters passed to argparse.ArgumentsParser.add_message.
+-    See:
+-    https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser.add_argument
+-    """
++class _StoreArgument(_Argument):
++    """Holds information about a store option to be parsed by argparse."""
+ 
+-    # pylint: disable-next=too-many-arguments
+     def __init__(
+         self,
+         *,
+-        flags: list[str],
+-        default: _ArgumentTypes,
+-        arg_type: str,
+-        choices: list[str] | None,
+-        arg_help: str,
+-        metavar: str,
+-        hide_help: bool,
+-        kwargs: dict[str, Any],
+-        section: str | None,
++        name: str,
++        default: Any,
++        help_: str,
++        action: str | type[argparse.Action] = "store",
++        const: Any = None,
++        choices: Sequence[Any] | None = None,
++        metavar: str | None = None,
++        type: Callable[[str], Any] | None = None,
++        short_name: str | None = None,
++        group: str | None = None,
++        level: interfaces.CONFIDENCE_LEVEL = 0,
++        require_training_wheels: bool = False,
++        require_py3k: bool = False,
++        deprecated: bool = False,
++        removed_action: str | None = None,
++        removed_message: str | None = None,
++        new_names: list[str] | None = None,
++        hide_help: bool = False,
+     ) -> None:
+         super().__init__(
+-            flags=flags,
+-            action=_OldNamesAction,
++            name=name,
+             default=default,
+-            arg_type=arg_type,
++            help_=help_,
++            action=action,
++            const=const,
+             choices=choices,
+-            arg_help=arg_help,
+             metavar=metavar,
++            type=type,
++            short_name=short_name,
++            group=group,
++            level=level,
++            require_training_wheels=require_training_wheels,
++            require_py3k=require_py3k,
++            deprecated=deprecated,
++            removed_action=removed_action,
++            removed_message=removed_message,
++            new_names=new_names,
+             hide_help=hide_help,
+-            section=section,
+         )
+ 
+-        self.kwargs = kwargs
+-        """Any additional arguments passed to the action."""
+-
+-
+-class _StoreNewNamesArgument(_DeprecationArgument):
+-    """Store arguments while also emitting deprecation warnings.
+ 
+-    This is based on the parameters passed to argparse.ArgumentsParser.add_message.
+-    See:
+-    https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser.add_argument
+-    """
++class _StoreNewNamesArgument(_StoreArgument):
++    """Holds information about a store option with new names to be parsed by argparse."""
+ 
+-    # pylint: disable-next=too-many-arguments
+     def __init__(
+         self,
+         *,
+-        flags: list[str],
+-        default: _ArgumentTypes,
+-        arg_type: str,
+-        choices: list[str] | None,
+-        arg_help: str,
+-        metavar: str,
+-        hide_help: bool,
+-        kwargs: dict[str, Any],
+-        section: str | None,
++        name: str,
++        default: Any,
++        help_: str,
++        action: str | type[argparse.Action] = "store",
++        const: Any = None,
++        choices: Sequence[Any] | None = None,
++        metavar: str | None = None,
++        type: Callable[[str], Any] | None = None,
++        short_name: str | None = None,
++        group: str | None = None,
++        level: interfaces.CONFIDENCE_LEVEL = 0,
++        require_training_wheels: bool = False,
++        require_py3k: bool = False,
++        deprecated: bool = False,
++        removed_action: str | None = None,
++        removed_message: str | None = None,
++        new_names: list[str],
++        hide_help: bool = False,
+     ) -> None:
+         super().__init__(
+-            flags=flags,
+-            action=_NewNamesAction,
++            name=name,
+             default=default,
+-            arg_type=arg_type,
++            help_=help_,
++            action=action,
++            const=const,
+             choices=choices,
+-            arg_help=arg_help,
+             metavar=metavar,
++            type=type,
++            short_name=short_name,
++            group=group,
++            level=level,
++            require_training_wheels=require_training_wheels,
++            require_py3k=require_py3k,
++            deprecated=deprecated,
++            removed_action=removed_action,
++            removed_message=removed_message,
++            new_names=new_names,
+             hide_help=hide_help,
+-            section=section,
+         )
+ 
+-        self.kwargs = kwargs
+-        """Any additional arguments passed to the action."""
+-
+-
+-class _CallableArgument(_Argument):
+-    """Class representing an callable argument to be parsed by an
+-    argparse.ArgumentsParser.
+-
+-    This is based on the parameters passed to argparse.ArgumentsParser.add_message.
+-    See:
+-    https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser.add_argument
+-    """
+-
+-    def __init__(
+-        self,
+-        *,
+-        flags: list[str],
+-        action: type[_CallbackAction],
+-        arg_help: str,
+-        kwargs: dict[str, Any],
+-        hide_help: bool,
+-        section: str | None,
+-        metavar: str,
+-    ) -> None:
+-        super().__init__(
+-            flags=flags, arg_help=arg_help, hide_help=hide_help, section=section
+-        )
+-
+-        self.action = action
+-        """The action to perform with the argument."""
+-
+-        self.kwargs = kwargs
+-        """Any additional arguments passed to the action."""
+-
+-        self.metavar = metavar
+-        """The metavar of the argument.
++    def to_argparse(self) -> dict[str, Any]:
++        result = super().to_argparse()
++        result["action"] = _NewNamesAction
++        result["new_names"] = self.new_names
++        return result
+ 
+-        See:
+-        https://docs.python.org/3/library/argparse.html#metavar
+-        """
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Error processing line 1 of /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/distutils-precedence.pth:
+
+  Traceback (most recent call last):
+    File "/opt/miniconda3/envs/testbed/lib/python3.9/site.py", line 177, in addpackage
+      exec(line)
+    File "<string>", line 1, in <module>
+  ModuleNotFoundError: No module named '_distutils_hack'
+
+Remainder of file ignored
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: platformdirs>=2.2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==3.0.0b1) (4.2.2)
+Requirement already satisfied: astroid<=3.1.0-dev0,>=3.0.0a8 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==3.0.0b1) (3.0.3)
+Requirement already satisfied: isort<6,>=4.2.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==3.0.0b1) (5.13.2)
+Requirement already satisfied: mccabe<0.8,>=0.6 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==3.0.0b1) (0.7.0)
+Requirement already satisfied: tomlkit>=0.10.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==3.0.0b1) (0.11.8)
+Requirement already satisfied: typing-extensions>=3.10.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==3.0.0b1) (4.12.2)
+Requirement already satisfied: dill>=0.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==3.0.0b1) (0.3.8)
+Requirement already satisfied: tomli>=1.1.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==3.0.0b1) (2.0.1)
+Building wheels for collected packages: pylint
+  Building editable for pylint (pyproject.toml): started
+  Building editable for pylint (pyproject.toml): finished with status 'done'
+  Created wheel for pylint: filename=pylint-3.0.0b1-0.editable-py3-none-any.whl size=25475 sha256=061b91b6adfeaa96735ed90dea6dae6375095d20b5f71dd9c23ea6424ce966ba
+  Stored in directory: /tmp/pip-ephem-wheel-cache-gkh6bzq0/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built pylint
+Installing collected packages: pylint
+  Attempting uninstall: pylint
+    Found existing installation: pylint 3.0.0b1
+    Uninstalling pylint-3.0.0b1:
+      Successfully uninstalled pylint-3.0.0b1
+Successfully installed pylint-3.0.0b1
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 1f8c4d9eb185c16a2c1d881c054f015e1c2eb334 tests/config/test_config.py
+Updated 0 paths from ddc0b886d
++ git apply -v -
+Checking patch tests/config/test_config.py...
+Applied patch tests/config/test_config.py cleanly.
++ pytest -rA tests/config/test_config.py
+Error processing line 1 of /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/distutils-precedence.pth:
+
+  Traceback (most recent call last):
+    File "/opt/miniconda3/envs/testbed/lib/python3.9/site.py", line 177, in addpackage
+      exec(line)
+    File "<string>", line 1, in <module>
+  ModuleNotFoundError: No module named '_distutils_hack'
+
+Remainder of file ignored
+/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/config/__init__.py:331: PluggyTeardownRaisedWarning: A plugin raised an exception during an old-style hookwrapper teardown.
+Plugin: helpconfig, Hook: pytest_cmdline_parse
+ConftestImportFailure: ImportError: cannot import name '_StoreOldNamesArgument' from 'pylint.config.argument' (/testbed/pylint/config/argument.py) (from /testbed/tests/conftest.py)
+For more information see https://pluggy.readthedocs.io/en/stable/api_reference.html#pluggy.PluggyTeardownRaisedWarning
+  config = pluginmanager.hook.pytest_cmdline_parse(
+ImportError while loading conftest '/testbed/tests/conftest.py'.
+tests/conftest.py:15: in <module>
+    from pylint import checkers
+pylint/checkers/__init__.py:47: in <module>
+    from pylint.checkers.base_checker import (
+pylint/checkers/base_checker.py:16: in <module>
+    from pylint.config.arguments_provider import _ArgumentsProvider
+pylint/config/arguments_provider.py:12: in <module>
+    from pylint.config.arguments_manager import _ArgumentsManager
+pylint/config/arguments_manager.py:20: in <module>
+    from pylint.config.argument import (
+E   ImportError: cannot import name '_StoreOldNamesArgument' from 'pylint.config.argument' (/testbed/pylint/config/argument.py)
++ git checkout 1f8c4d9eb185c16a2c1d881c054f015e1c2eb334 tests/config/test_config.py
+Updated 1 path from ddc0b886d

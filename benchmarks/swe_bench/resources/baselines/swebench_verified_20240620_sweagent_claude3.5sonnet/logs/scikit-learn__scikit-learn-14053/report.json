@@ -1,0 +1,35 @@
+{
+    "scikit-learn__scikit-learn-14053": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "sklearn/tree/tests/test_export.py::test_export_text"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "sklearn/tree/tests/test_export.py::test_graphviz_toy",
+                    "sklearn/tree/tests/test_export.py::test_graphviz_errors",
+                    "sklearn/tree/tests/test_export.py::test_friedman_mse_in_graphviz",
+                    "sklearn/tree/tests/test_export.py::test_precision"
+                ],
+                "failure": [
+                    "sklearn/tree/tests/test_export.py::test_export_text_errors"
+                ]
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

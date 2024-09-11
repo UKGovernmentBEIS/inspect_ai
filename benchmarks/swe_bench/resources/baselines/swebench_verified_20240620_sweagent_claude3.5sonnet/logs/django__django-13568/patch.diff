@@ -1,0 +1,68 @@
+
+diff --git a/django/contrib/auth/checks.py b/django/contrib/auth/checks.py
+index 65fc266f7e..a96a9c27d3 100644
+--- a/django/contrib/auth/checks.py
++++ b/django/contrib/auth/checks.py
+@@ -4,6 +4,7 @@ from types import MethodType
+ from django.apps import apps
+ from django.conf import settings
+ from django.core import checks
++from django.db.models import UniqueConstraint
+ 
+ from .management import _get_builtin_permissions
+ 
+@@ -52,7 +53,15 @@ def check_user_model(app_configs=None, **kwargs):
+         )
+ 
+     # Check that the username field is unique
+-    if not cls._meta.get_field(cls.USERNAME_FIELD).unique:
++    username_field = cls._meta.get_field(cls.USERNAME_FIELD)
++    is_unique = username_field.unique
++    if not is_unique:
++        # Check for UniqueConstraint in Meta.constraints
++        for constraint in cls._meta.constraints:
++            if isinstance(constraint, UniqueConstraint) and cls.USERNAME_FIELD in constraint.fields:
++                is_unique = True
++                break
++    if not is_unique:
+         if (settings.AUTHENTICATION_BACKENDS ==
+                 ['django.contrib.auth.backends.ModelBackend']):
+             errors.append(
+diff --git a/tests/auth_tests/test_checks.py b/tests/auth_tests/test_checks.py
+index cfaa4063f8..d2db90472d 100644
+--- a/tests/auth_tests/test_checks.py
++++ b/tests/auth_tests/test_checks.py
+@@ -82,8 +82,31 @@ class UserModelChecksTests(SimpleTestCase):
+                     hint='Ensure that your authentication backend(s) can handle non-unique usernames.',
+                     obj=CustomUserNonUniqueUsername,
+                     id='auth.W004',
+-                ),
+-            ])
++                )])
++
++    def test_username_unique_constraint(self):
++        """
++        A USERNAME_FIELD with a UniqueConstraint should not raise an error.
++        """
++        from django.contrib.auth.models import AbstractBaseUser
++        from django.db import models
++        from django.test.utils import isolate_apps
++        from unittest.mock import patch
++
++        with isolate_apps('auth_tests'):
++            class CustomUserUniqueConstraint(AbstractBaseUser):
++                username = models.CharField(max_length=30)
++                USERNAME_FIELD = 'username'
++
++                class Meta:
++                    app_label = 'auth_tests'
++                    constraints = [
++                        models.UniqueConstraint(fields=['username'], name='unique_username')
++                    ]
++
++            with patch('django.contrib.auth.get_user_model', return_value=CustomUserUniqueConstraint):
++                errors = checks.run_checks()
++                self.assertEqual(errors, [])
+ 
+     @override_settings(AUTH_USER_MODEL='auth_tests.BadUser')
+     def test_is_anonymous_authenticated_methods(self):

@@ -1,0 +1,67 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..f898282a4c
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,18 @@
++from sympy import FiniteSet, ProductSet, Eq
++
++a = FiniteSet(1, 2)
++b = ProductSet(a, a)
++c = FiniteSet((1, 1), (1, 2), (2, 1), (2, 2))
++
++print("b.intersection(c) == c.intersection(b):", b.intersection(c) == c.intersection(b))
++print("b.is_subset(c):", b.is_subset(c))
++print("c.is_subset(b):", c.is_subset(b))
++
++try:
++    print("Eq(b, c).simplify():", Eq(b, c).simplify())
++except Exception as e:
++    print("Error in Eq(b, c).simplify():", str(e))
++
++print("b.rewrite(FiniteSet):", b.rewrite(FiniteSet))
++
++print("Script completed successfully, no errors.")
+diff --git a/sympy/core/relational.py b/sympy/core/relational.py
+index e2e0b7fbcc..012547d83a 100644
+--- a/sympy/core/relational.py
++++ b/sympy/core/relational.py
+@@ -670,7 +670,9 @@ def _eval_simplify(self, **kwargs):
+         if isinstance(eq, Equality):
+             # send back Ne with the new args
+             return self.func(*eq.args)
+-        return eq.negated  # result of Ne is the negated Eq
++        if eq == S.EmptySet:
++            return S.false  # An empty set is never unequal to itself
++        return eq.negated if hasattr(eq, 'negated') else S.false
+ 
+ 
+ Ne = Unequality
+diff --git a/sympy/sets/sets.py b/sympy/sets/sets.py
+index 3c4aa86e36..b47a62d3a1 100644
+--- a/sympy/sets/sets.py
++++ b/sympy/sets/sets.py
+@@ -774,6 +774,22 @@ def _flatten(sets):
+                 else:
+                     yield s
+         return ProductSet(*_flatten(self.sets))
++    def _eval_Eq(self, other):
++        if isinstance(other, ProductSet) and len(self.sets) == len(other.sets):
++            return And(*[Eq(s1, s2) for s1, s2 in zip(self.sets, other.sets)])
++        elif isinstance(other, FiniteSet):
++            return And(*[other.contains(elem) for elem in self])
++        return None
++    def _eval_is_subset(self, other):
++        if isinstance(other, ProductSet) and len(self.sets) == len(other.sets):
++            return And(*[s1.is_subset(s2) for s1, s2 in zip(self.sets, other.sets)])
++        elif isinstance(other, FiniteSet):
++            return And(*[other.contains(elem) for elem in self])
++        return None
++    def _eval_rewrite_as_FiniteSet(self, *args):
++        from itertools import product
++        return FiniteSet(*[tuple(elem) for elem in product(*self.sets)])
++
+ 
+ 
+ 

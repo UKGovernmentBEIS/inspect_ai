@@ -1,0 +1,69 @@
+
+diff --git a/django/http/response.py b/django/http/response.py
+index e00bcacefb..7adafa9e6a 100644
+--- a/django/http/response.py
++++ b/django/http/response.py
+@@ -214,9 +214,10 @@ class HttpResponseBase:
+         # Most browsers ignore the Set-Cookie header if the cookie name starts
+         # with __Host- or __Secure- and the cookie doesn't use the secure flag.
+         secure = key.startswith(('__Secure-', '__Host-'))
++        samesite = self.cookies.get(key, {}).get('samesite')
+         self.set_cookie(
+             key, max_age=0, path=path, domain=domain, secure=secure,
+-            expires='Thu, 01 Jan 1970 00:00:00 GMT',
++            expires='Thu, 01 Jan 1970 00:00:00 GMT', samesite=samesite,
+         )
+ 
+     # Common methods used by subclasses
+diff --git a/docs/ref/request-response.txt b/docs/ref/request-response.txt
+index 705da1842a..c1036829f9 100644
+--- a/docs/ref/request-response.txt
++++ b/docs/ref/request-response.txt
+@@ -899,6 +899,8 @@ Methods
+     values you used in ``set_cookie()`` -- otherwise the cookie may not be
+     deleted.
+ 
++    This method preserves the ``samesite`` attribute of the cookie if it exists.
++
+ .. method:: HttpResponse.close()
+ 
+     This method is called at the end of the request directly by the WSGI
+diff --git a/run_test.py b/run_test.py
+new file mode 100644
+index 0000000000..49a8bd2dbe
+--- /dev/null
++++ b/run_test.py
+@@ -0,0 +1,16 @@
++import os
++import sys
++
++# Add the parent directory to sys.path
++sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
++
++from django.test.utils import get_runner
++from django.conf import settings
++from tests.test_runner import setup
++
++if __name__ == "__main__":
++    setup()
++    TestRunner = get_runner(settings)
++    test_runner = TestRunner(verbosity=1, interactive=True)
++    failures = test_runner.run_tests(["responses.test_cookie.DeleteCookieTests.test_delete_cookie_preserves_samesite"])
++    sys.exit(bool(failures))
+diff --git a/tests/responses/test_cookie.py b/tests/responses/test_cookie.py
+index a52443eefe..2190eed48b 100644
+--- a/tests/responses/test_cookie.py
++++ b/tests/responses/test_cookie.py
+@@ -118,3 +118,12 @@ class DeleteCookieTests(SimpleTestCase):
+                 cookie_name = '__%s-c' % prefix
+                 response.delete_cookie(cookie_name)
+                 self.assertIs(response.cookies[cookie_name]['secure'], True)
++
++    def test_delete_cookie_preserves_samesite(self):
++        """delete_cookie() preserves the samesite attribute of the cookie."""
++        response = HttpResponse()
++        response.set_cookie('example', 'value', samesite='Lax')
++        response.delete_cookie('example')
++        self.assertEqual(response.cookies['example']['samesite'], 'Lax')
++        self.assertEqual(response.cookies['example']['expires'], 'Thu, 01 Jan 1970 00:00:00 GMT')
++        self.assertEqual(response.cookies['example']['max-age'], 0)

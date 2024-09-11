@@ -1,0 +1,48 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..315b7e317d
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,27 @@
++from sympy import Contains, Reals, Symbol, Piecewise, Interval, ConditionSet
++
++x = Symbol('x')
++y = Symbol('y')
++
++print("Test 1: Contains(x, Reals)")
++result1 = Contains(x, Reals).as_set()
++print(f"Contains(x, Reals).as_set() = {result1}")
++print(f"Type of result: {type(result1)}")
++
++print("\nTest 2: Contains(x, Interval(0, 1))")
++result2 = Contains(x, Interval(0, 1)).as_set()
++print(f"Contains(x, Interval(0, 1)).as_set() = {result2}")
++print(f"Type of result: {type(result2)}")
++
++print("\nTest 3: Contains(y, Reals)")
++result3 = Contains(y, Reals).as_set()
++print(f"Contains(y, Reals).as_set() = {result3}")
++print(f"Type of result: {type(result3)}")
++
++print("\nTest 4: Piecewise")
++pw = Piecewise((6, Contains(x, Reals)), (7, True))
++print(f"Piecewise result: {pw}")
++print(f"Type of Piecewise result: {type(pw)}")
++print(f"Piecewise args: {pw.args}")
++
++print("\nScript completed successfully.")
+diff --git a/sympy/sets/contains.py b/sympy/sets/contains.py
+index b2d4268d12..95d23f3252 100644
+--- a/sympy/sets/contains.py
++++ b/sympy/sets/contains.py
+@@ -45,4 +45,8 @@ def binary_symbols(self):
+             isinstance(i, (Eq, Ne))])
+ 
+     def as_set(self):
+-        raise NotImplementedError()
++        from sympy.sets import ConditionSet
++        result = self.args[1].contains(self.args[0])
++        if isinstance(result, Contains):
++            return ConditionSet(self.args[0], self)
++        return result

@@ -1,0 +1,121 @@
+
+diff --git a/django/utils/http.py b/django/utils/http.py
+index 572cfb4347..0c6654346f 100644
+--- a/django/utils/http.py
++++ b/django/utils/http.py
+@@ -35,7 +35,7 @@ __Y = r'(?P<year>\d{4})'
+ __Y2 = r'(?P<year>\d{2})'
+ __T = r'(?P<hour>\d{2}):(?P<min>\d{2}):(?P<sec>\d{2})'
+ RFC1123_DATE = re.compile(r'^\w{3}, %s %s %s %s GMT$' % (__D, __M, __Y, __T))
+-RFC850_DATE = re.compile(r'^\w{6,9}, %s-%s-%s %s GMT$' % (__D, __M, __Y2, __T))
++RFC850_DATE = re.compile(r'^\w{3}, %s %s %s %s GMT$' % (__D, __M, __Y2, __T))
+ ASCTIME_DATE = re.compile(r'^\w{3} %s %s %s %s$' % (__M, __D2, __T, __Y))
+ 
+ RFC3986_GENDELIMS = ":/?#[]@"
+@@ -164,31 +164,45 @@ def parse_http_date(date):
+ 
+     Return an integer expressed in seconds since the epoch, in UTC.
+     """
+-    # email.utils.parsedate() does the job for RFC1123 dates; unfortunately
+-    # RFC7231 makes it mandatory to support RFC850 dates too. So we roll
+-    # our own RFC-compliant parsing.
+-    for regex in RFC1123_DATE, RFC850_DATE, ASCTIME_DATE:
++    # Try the RFC850 format first
++    m = RFC850_DATE.match(date)
++    if m is not None:
++        try:
++            year = int(m.group('year'))
++            # Adjust for two-digit year
++            current_year = datetime.datetime.now().year
++            current_century = current_year - (current_year % 100)
++            if year > (current_year % 100) + 50:
++                year += current_century - 100
++            else:
++                year += current_century
++            month = MONTHS.index(m.group('mon').lower()) + 1
++            day = int(m.group('day'))
++            hour = int(m.group('hour'))
++            min = int(m.group('min'))
++            sec = int(m.group('sec'))
++            result = datetime.datetime(year, month, day, hour, min, sec)
++            return calendar.timegm(result.utctimetuple())
++        except Exception:
++            pass
++
++    # If RFC850 format didn't match, try the other formats
++    for regex in RFC1123_DATE, ASCTIME_DATE:
+         m = regex.match(date)
+         if m is not None:
+-            break
+-    else:
+-        raise ValueError("%r is not in a valid HTTP date format" % date)
+-    try:
+-        year = int(m.group('year'))
+-        if year < 100:
+-            if year < 70:
+-                year += 2000
+-            else:
+-                year += 1900
+-        month = MONTHS.index(m.group('mon').lower()) + 1
+-        day = int(m.group('day'))
+-        hour = int(m.group('hour'))
+-        min = int(m.group('min'))
+-        sec = int(m.group('sec'))
+-        result = datetime.datetime(year, month, day, hour, min, sec)
+-        return calendar.timegm(result.utctimetuple())
+-    except Exception as exc:
+-        raise ValueError("%r is not a valid date" % date) from exc
++            try:
++                year = int(m.group('year'))
++                month = MONTHS.index(m.group('mon').lower()) + 1
++                day = int(m.group('day'))
++                hour = int(m.group('hour'))
++                min = int(m.group('min'))
++                sec = int(m.group('sec'))
++                result = datetime.datetime(year, month, day, hour, min, sec)
++                return calendar.timegm(result.utctimetuple())
++            except Exception:
++                pass
++
++    raise ValueError("%r is not in a valid HTTP date format" % date)
+ 
+ 
+ def parse_http_date_safe(date):
+diff --git a/tests/utils_tests/test_http.py b/tests/utils_tests/test_http.py
+index bc8bcfe977..87889dc5d9 100644
+--- a/tests/utils_tests/test_http.py
++++ b/tests/utils_tests/test_http.py
+@@ -336,5 +336,32 @@ class EscapeLeadingSlashesTests(unittest.TestCase):
+             ('//', '/%2F'),
+         )
+         for url, expected in tests:
+-            with self.subTest(url=url):
+                 self.assertEqual(escape_leading_slashes(url), expected)
++
++
++class ParseHttpDateTests(SimpleTestCase):
++    def test_parse_http_date(self):
++        from django.utils.http import parse_http_date
++        import time
++
++        # Test for dates before 1970 (negative timestamps)
++        self.assertEqual(parse_http_date("Sun, 06 Nov 1994 08:49:37 GMT"), 784111777)
++
++        # Test for dates after 1970
++        self.assertEqual(parse_http_date("Wed, 21 Oct 2015 07:28:00 GMT"), 1445412480)
++
++        # Test for dates with two-digit years
++        current_year = time.gmtime().tm_year
++        current_century = current_year - (current_year % 100)
++
++        # Date that appears to be more than 50 years in the future
++        future_date = f"Wed, 21 Oct {(current_year % 100) + 51:02d} 07:28:00 GMT"
++        expected_year = current_century - 100 + (current_year % 100) + 51
++        expected_timestamp = int(time.mktime(time.strptime(f"{expected_year}-10-21 07:28:00", "%Y-%m-%d %H:%M:%S")))
++        self.assertEqual(parse_http_date(future_date), expected_timestamp)
++
++        # Date that appears to be less than or equal to 50 years in the future
++        recent_date = f"Wed, 21 Oct {(current_year % 100) + 50:02d} 07:28:00 GMT"
++        expected_year = current_century + (current_year % 100) + 50
++        expected_timestamp = int(time.mktime(time.strptime(f"{expected_year}-10-21 07:28:00", "%Y-%m-%d %H:%M:%S")))
++        self.assertEqual(parse_http_date(recent_date), expected_timestamp)

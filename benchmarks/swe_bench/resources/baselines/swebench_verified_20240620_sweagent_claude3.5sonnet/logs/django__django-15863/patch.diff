@@ -1,0 +1,43 @@
+
+diff --git a/django/template/defaultfilters.py b/django/template/defaultfilters.py
+index 7a5b28d159..932c52edb3 100644
+--- a/django/template/defaultfilters.py
++++ b/django/template/defaultfilters.py
+@@ -151,8 +151,11 @@ def floatformat(text, arg=-1):
+             use_l10n = False
+             arg = arg[:-1] or -1
+     try:
+-        input_val = repr(text)
+-        d = Decimal(input_val)
++        if isinstance(text, Decimal):
++            d = text
++        else:
++            input_val = repr(text)
++            d = Decimal(input_val)
+     except InvalidOperation:
+         try:
+             d = Decimal(str(float(text)))
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..3ff45a0596
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,18 @@
++from decimal import Decimal
++from django import setup
++from django.conf import settings
++from django.template import Template, Context
++
++TEMPLATES = [
++    {
++        'BACKEND': 'django.template.backends.django.DjangoTemplates',
++    },
++]
++settings.configure(TEMPLATES=TEMPLATES)
++setup()
++
++t = Template('{{ value|floatformat:20 }}')
++c = Context({'value': Decimal('42.12345678901234567890')})
++print(t.render(c))
++
++print("Script completed successfully, no errors.")

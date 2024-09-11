@@ -1,0 +1,604 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/models/query.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 312049091288dbba2299de8d07ea3e3311ed7238
+Author: André Ericson <de.ericson@gmail.com>
+Date:   Fri Oct 18 21:00:34 2019 +0200
+
+    Fixed #30876 -- Moved classproperty() decorator to the django.utils.functional.
+
+diff --git a/django/db/migrations/recorder.py b/django/db/migrations/recorder.py
+index c3ed4148e7..20f5a7d85e 100644
+--- a/django/db/migrations/recorder.py
++++ b/django/db/migrations/recorder.py
+@@ -1,7 +1,7 @@
+ from django.apps.registry import Apps
+ from django.db import models
+ from django.db.utils import DatabaseError
+-from django.utils.decorators import classproperty
++from django.utils.functional import classproperty
+ from django.utils.timezone import now
+ 
+ from .exceptions import MigrationSchemaMissing
+diff --git a/django/test/selenium.py b/django/test/selenium.py
+index 8910faec98..a114f77d14 100644
+--- a/django/test/selenium.py
++++ b/django/test/selenium.py
+@@ -3,7 +3,7 @@ import unittest
+ from contextlib import contextmanager
+ 
+ from django.test import LiveServerTestCase, tag
+-from django.utils.decorators import classproperty
++from django.utils.functional import classproperty
+ from django.utils.module_loading import import_string
+ from django.utils.text import capfirst
+ 
+diff --git a/django/test/testcases.py b/django/test/testcases.py
+index ca5712ee8d..23459f22cd 100644
+--- a/django/test/testcases.py
++++ b/django/test/testcases.py
+@@ -37,7 +37,7 @@ from django.test.utils import (
+     CaptureQueriesContext, ContextList, compare_xml, modify_settings,
+     override_settings,
+ )
+-from django.utils.decorators import classproperty
++from django.utils.functional import classproperty
+ from django.views.static import serve
+ 
+ __all__ = ('TestCase', 'TransactionTestCase',
+diff --git a/django/utils/decorators.py b/django/utils/decorators.py
+index 8e274b61af..4dc6c18f45 100644
+--- a/django/utils/decorators.py
++++ b/django/utils/decorators.py
+@@ -150,15 +150,3 @@ def make_middleware_decorator(middleware_class):
+             return _wrapped_view
+         return _decorator
+     return _make_decorator
+-
+-
+-class classproperty:
+-    def __init__(self, method=None):
+-        self.fget = method
+-
+-    def __get__(self, instance, cls=None):
+-        return self.fget(cls)
+-
+-    def getter(self, method):
+-        self.fget = method
+-        return self
+diff --git a/django/utils/functional.py b/django/utils/functional.py
+index 1b81d414fa..bc3b65b709 100644
+--- a/django/utils/functional.py
++++ b/django/utils/functional.py
+@@ -49,6 +49,18 @@ class cached_property:
+         return res
+ 
+ 
++class classproperty:
++    def __init__(self, method=None):
++        self.fget = method
++
++    def __get__(self, instance, cls=None):
++        return self.fget(cls)
++
++    def getter(self, method):
++        self.fget = method
++        return self
++
++
+ class Promise:
+     """
+     Base class for the proxy class created in the closure of the lazy function.
+diff --git a/docs/releases/3.1.txt b/docs/releases/3.1.txt
+index 656649f914..300c7a2c26 100644
+--- a/docs/releases/3.1.txt
++++ b/docs/releases/3.1.txt
+@@ -263,6 +263,9 @@ Miscellaneous
+   ``ETag`` header to responses with an empty
+   :attr:`~django.http.HttpResponse.content`.
+ 
++* ``django.utils.decorators.classproperty()`` decorator is moved to
++  ``django.utils.functional.classproperty()``.
++
+ .. _deprecated-features-3.1:
+ 
+ Features deprecated in 3.1
+diff --git a/tests/utils_tests/test_decorators.py b/tests/utils_tests/test_decorators.py
+index fe5db876ef..367e78a4ad 100644
+--- a/tests/utils_tests/test_decorators.py
++++ b/tests/utils_tests/test_decorators.py
+@@ -2,7 +2,7 @@ from django.http import HttpResponse
+ from django.template import engines
+ from django.template.response import TemplateResponse
+ from django.test import RequestFactory, SimpleTestCase
+-from django.utils.decorators import classproperty, decorator_from_middleware
++from django.utils.decorators import decorator_from_middleware
+ 
+ 
+ class ProcessViewMiddleware:
+@@ -108,41 +108,3 @@ class DecoratorFromMiddlewareTests(SimpleTestCase):
+         self.assertTrue(getattr(request, 'process_response_reached', False))
+         # process_response saw the rendered content
+         self.assertEqual(request.process_response_content, b"Hello world")
+-
+-
+-class ClassPropertyTest(SimpleTestCase):
+-    def test_getter(self):
+-        class Foo:
+-            foo_attr = 123
+-
+-            def __init__(self):
+-                self.foo_attr = 456
+-
+-            @classproperty
+-            def foo(cls):
+-                return cls.foo_attr
+-
+-        class Bar:
+-            bar = classproperty()
+-
+-            @bar.getter
+-            def bar(cls):
+-                return 123
+-
+-        self.assertEqual(Foo.foo, 123)
+-        self.assertEqual(Foo().foo, 123)
+-        self.assertEqual(Bar.bar, 123)
+-        self.assertEqual(Bar().bar, 123)
+-
+-    def test_override_getter(self):
+-        class Foo:
+-            @classproperty
+-            def foo(cls):
+-                return 123
+-
+-            @foo.getter
+-            def foo(cls):
+-                return 456
+-
+-        self.assertEqual(Foo.foo, 456)
+-        self.assertEqual(Foo().foo, 456)
+diff --git a/tests/utils_tests/test_functional.py b/tests/utils_tests/test_functional.py
+index af4bd197a6..6e454cfef3 100644
+--- a/tests/utils_tests/test_functional.py
++++ b/tests/utils_tests/test_functional.py
+@@ -1,7 +1,7 @@
+ from unittest import mock
+ 
+ from django.test import SimpleTestCase
+-from django.utils.functional import cached_property, lazy
++from django.utils.functional import cached_property, classproperty, lazy
+ 
+ 
+ class FunctionalTests(SimpleTestCase):
+@@ -218,3 +218,39 @@ class FunctionalTests(SimpleTestCase):
+         with mock.patch.object(__proxy__, '__prepare_class__') as mocked:
+             lazified()
+             mocked.assert_not_called()
++
++    def test_classproperty_getter(self):
++        class Foo:
++            foo_attr = 123
++
++            def __init__(self):
++                self.foo_attr = 456
++
++            @classproperty
++            def foo(cls):
++                return cls.foo_attr
++
++        class Bar:
++            bar = classproperty()
++
++            @bar.getter
++            def bar(cls):
++                return 123
++
++        self.assertEqual(Foo.foo, 123)
++        self.assertEqual(Foo().foo, 123)
++        self.assertEqual(Bar.bar, 123)
++        self.assertEqual(Bar().bar, 123)
++
++    def test_classproperty_override_getter(self):
++        class Foo:
++            @classproperty
++            def foo(cls):
++                return 123
++
++            @foo.getter
++            def foo(cls):
++                return 456
++
++        self.assertEqual(Foo.foo, 456)
++        self.assertEqual(Foo().foo, 456)
++ git diff 312049091288dbba2299de8d07ea3e3311ed7238
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 794e0faae7..7fe9aec2ca 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -471,6 +471,8 @@ class QuerySet:
+         fields = opts.concrete_fields
+         objs = list(objs)
+         self._populate_pk_values(objs)
++        max_batch_size = connection.ops.bulk_batch_size(['pk'] + list(fields), objs)
++        batch_size = min(batch_size, max_batch_size) if batch_size else max_batch_size
+         with transaction.atomic(using=self.db, savepoint=False):
+             objs_with_pk, objs_without_pk = partition(lambda o: o.pk is None, objs)
+             if objs_with_pk:
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (2024.1)
+Requirement already satisfied: sqlparse in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (0.4.4)
+Requirement already satisfied: asgiref in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (3.4.1)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref->Django==3.1) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.1
+    Uninstalling Django-3.1:
+      Successfully uninstalled Django-3.1
+  Running setup.py develop for Django
+Successfully installed Django-3.1
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 312049091288dbba2299de8d07ea3e3311ed7238 tests/bulk_create/tests.py
+Updated 0 paths from f279e94af6
++ git apply -v -
+Checking patch tests/bulk_create/tests.py...
+Applied patch tests/bulk_create/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 bulk_create.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+test_batch_same_vals (bulk_create.tests.BulkCreateTests) ... ok
+test_bulk_insert_expressions (bulk_create.tests.BulkCreateTests) ... ok
+test_bulk_insert_nullable_fields (bulk_create.tests.BulkCreateTests) ... ok
+test_efficiency (bulk_create.tests.BulkCreateTests) ... ok
+test_empty_model (bulk_create.tests.BulkCreateTests) ... ok
+test_explicit_batch_size (bulk_create.tests.BulkCreateTests) ... ok
+test_explicit_batch_size_efficiency (bulk_create.tests.BulkCreateTests) ... ok
+test_explicit_batch_size_respects_max_batch_size (bulk_create.tests.BulkCreateTests) ... FAIL
+test_ignore_conflicts_ignore (bulk_create.tests.BulkCreateTests) ... ok
+test_ignore_conflicts_value_error (bulk_create.tests.BulkCreateTests) ... skipped 'Database has feature(s) supports_ignore_conflicts'
+test_large_batch (bulk_create.tests.BulkCreateTests) ... ok
+test_large_batch_efficiency (bulk_create.tests.BulkCreateTests) ... ok
+test_large_batch_mixed (bulk_create.tests.BulkCreateTests) ... ok
+test_large_batch_mixed_efficiency (bulk_create.tests.BulkCreateTests) ... ok
+test_large_single_field_batch (bulk_create.tests.BulkCreateTests) ... ok
+test_long_and_short_text (bulk_create.tests.BulkCreateTests) ... ok
+test_long_non_ascii_text (bulk_create.tests.BulkCreateTests) ... ok
+test_multi_table_inheritance_unsupported (bulk_create.tests.BulkCreateTests) ... ok
+test_non_auto_increment_pk (bulk_create.tests.BulkCreateTests) ... ok
+test_non_auto_increment_pk_efficiency (bulk_create.tests.BulkCreateTests) ... ok
+test_proxy_inheritance_supported (bulk_create.tests.BulkCreateTests) ... ok
+test_set_pk_and_insert_single_item (bulk_create.tests.BulkCreateTests) ... skipped "Database doesn't support feature(s): can_return_rows_from_bulk_insert"
+test_set_pk_and_query_efficiency (bulk_create.tests.BulkCreateTests) ... skipped "Database doesn't support feature(s): can_return_rows_from_bulk_insert"
+test_set_state (bulk_create.tests.BulkCreateTests) ... skipped "Database doesn't support feature(s): can_return_rows_from_bulk_insert"
+test_set_state_with_pk_specified (bulk_create.tests.BulkCreateTests) ... ok
+test_simple (bulk_create.tests.BulkCreateTests) ... ok
+test_zero_as_autoval (bulk_create.tests.BulkCreateTests) ... skipped 'Database has feature(s) allows_auto_pk_0'
+
+======================================================================
+FAIL: test_explicit_batch_size_respects_max_batch_size (bulk_create.tests.BulkCreateTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/testcases.py", line 1206, in skip_wrapper
+    return test_func(*args, **kwargs)
+  File "/testbed/tests/bulk_create/tests.py", line 224, in test_explicit_batch_size_respects_max_batch_size
+    Country.objects.bulk_create(objs, batch_size=max_batch_size + 1)
+  File "/testbed/django/test/testcases.py", line 84, in __exit__
+    '%d. %s' % (i, query['sql']) for i, query in enumerate(self.captured_queries, start=1)
+AssertionError: 6 != 4 : 6 queries executed, 4 expected
+Captured queries were:
+1. INSERT INTO "bulk_create_country" ("name", "iso_two_letter", "description") SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', ''
+2. INSERT INTO "bulk_create_country" ("name", "iso_two_letter", "description") SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', ''
+3. INSERT INTO "bulk_create_country" ("name", "iso_two_letter", "description") SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', ''
+4. INSERT INTO "bulk_create_country" ("name", "iso_two_letter", "description") SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', ''
+5. INSERT INTO "bulk_create_country" ("name", "iso_two_letter", "description") SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', ''
+6. INSERT INTO "bulk_create_country" ("name", "iso_two_letter", "description") SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', '' UNION ALL SELECT '', '', ''
+
+----------------------------------------------------------------------
+Ran 27 tests in 0.423s
+
+FAILED (failures=1, skipped=5)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application bulk_create
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, bulk_create, contenttypes, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table bulk_create_country
+    Creating table bulk_create_proxymulticountry
+    Creating table bulk_create_restaurant
+    Creating table bulk_create_pizzeria
+    Creating table bulk_create_state
+    Creating table bulk_create_twofields
+    Creating table bulk_create_nofields
+    Creating table bulk_create_nullablefields
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
++ git checkout 312049091288dbba2299de8d07ea3e3311ed7238 tests/bulk_create/tests.py
+Updated 1 path from f279e94af6

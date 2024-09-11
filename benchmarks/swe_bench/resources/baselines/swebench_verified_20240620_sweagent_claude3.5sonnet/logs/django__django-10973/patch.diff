@@ -1,0 +1,182 @@
+
+diff --git a/django/db/backends/postgresql/client.py b/django/db/backends/postgresql/client.py
+index 7fca6eff30..3589149b31 100644
+--- a/django/db/backends/postgresql/client.py
++++ b/django/db/backends/postgresql/client.py
+@@ -2,10 +2,8 @@ import os
+ import signal
+ import subprocess
+ 
+-from django.core.files.temp import NamedTemporaryFile
+ from django.db.backends.base.client import BaseDatabaseClient
+ 
+-
+ def _escape_pgpass(txt):
+     """
+     Escape a fragment of a PostgreSQL .pgpass file.
+@@ -34,38 +32,19 @@ class DatabaseClient(BaseDatabaseClient):
+             args += ['-p', str(port)]
+         args += [dbname]
+ 
+-        temp_pgpass = None
+         sigint_handler = signal.getsignal(signal.SIGINT)
+         try:
+-            if passwd:
+-                # Create temporary .pgpass file.
+-                temp_pgpass = NamedTemporaryFile(mode='w+')
+-                try:
+-                    print(
+-                        _escape_pgpass(host) or '*',
+-                        str(port) or '*',
+-                        _escape_pgpass(dbname) or '*',
+-                        _escape_pgpass(user) or '*',
+-                        _escape_pgpass(passwd),
+-                        file=temp_pgpass,
+-                        sep=':',
+-                        flush=True,
+-                    )
+-                    os.environ['PGPASSFILE'] = temp_pgpass.name
+-                except UnicodeEncodeError:
+-                    # If the current locale can't encode the data, let the
+-                    # user input the password manually.
+-                    pass
+             # Allow SIGINT to pass to psql to abort queries.
+             signal.signal(signal.SIGINT, signal.SIG_IGN)
+-            subprocess.check_call(args)
++            env = os.environ.copy()
++            if passwd:
++                env['PGPASSWORD'] = passwd
++            subprocess.run(args, check=True, env=env)
+         finally:
+             # Restore the original SIGINT handler.
+             signal.signal(signal.SIGINT, sigint_handler)
+-            if temp_pgpass:
+-                temp_pgpass.close()
+-                if 'PGPASSFILE' in os.environ:  # unit tests need cleanup
+-                    del os.environ['PGPASSFILE']
++            if 'PGPASSWORD' in env:
++                del env['PGPASSWORD']
+ 
+     def runshell(self):
+         DatabaseClient.runshell_db(self.connection.get_connection_params())
+diff --git a/run_postgres_tests.py b/run_postgres_tests.py
+new file mode 100644
+index 0000000000..a0b0a2de4d
+--- /dev/null
++++ b/run_postgres_tests.py
+@@ -0,0 +1,21 @@
++import os
++import django
++from django.conf import settings
++
++if __name__ == "__main__":
++    # Set up the Django environment
++    os.environ['DJANGO_SETTINGS_MODULE'] = 'test_settings'
++    
++    django.setup()
++
++    from django.test.utils import get_runner
++
++    # Get the test runner
++    TestRunner = get_runner(settings)
++
++    # Run the tests
++    test_runner = TestRunner(verbosity=1, interactive=False)
++    failures = test_runner.run_tests(["django.db.backends.postgresql"])
++
++    # Exit with non-zero status if there were failures
++    exit(bool(failures))
+diff --git a/test_postgres_client.py b/test_postgres_client.py
+new file mode 100644
+index 0000000000..5d02a2c933
+--- /dev/null
++++ b/test_postgres_client.py
+@@ -0,0 +1,60 @@
++import unittest
++from unittest.mock import patch, MagicMock
++from django.db.backends.postgresql import client
++
++class TestPostgresClient(unittest.TestCase):
++    @patch('django.db.backends.postgresql.client.subprocess')
++    @patch('django.db.backends.postgresql.client.os')
++    @patch('django.db.backends.postgresql.client.signal')
++    def test_runshell_db(self, mock_signal, mock_os, mock_subprocess):
++        # Mock the necessary objects and methods
++        connection = MagicMock()
++        connection.get_connection_params.return_value = {
++            'database': 'test_db',
++            'user': 'test_user',
++            'password': 'test_password',
++            'host': 'localhost',
++            'port': '5432'
++        }
++
++        # Mock os.environ.copy()
++        mock_env = {}
++        mock_os.environ.copy.return_value = mock_env
++        mock_os.environ.copy.side_effect = lambda: print("os.environ.copy() called") or mock_env
++
++        # Call the method we're testing
++        conn_params = connection.get_connection_params.return_value
++        print("conn_params:", conn_params)
++        print("Before runshell_db")
++        client.DatabaseClient(connection).runshell_db(conn_params)
++        print("After runshell_db")
++        print("Final mock_env:", mock_env)
++
++        # Assert that subprocess.run was called with the correct arguments
++        mock_subprocess.run.assert_called_once()
++        args, kwargs = mock_subprocess.run.call_args
++
++        # Debug print statements
++        print("subprocess.run args:", args)
++        print("subprocess.run kwargs:", kwargs)
++        print("mock_os.environ.copy() called:", mock_os.environ.copy.called)
++        print("mock_os.environ.copy() call count:", mock_os.environ.copy.call_count)
++        print("mock_os.environ.copy() return value:", mock_os.environ.copy.return_value)
++        self.assertEqual(args[0][0], 'psql')
++        self.assertIn('test_db', args[0])
++        self.assertIn('test_user', args[0])
++        self.assertIn('localhost', args[0])
++        self.assertIn('5432', args[0])
++
++        # Check that PGPASSWORD is set in the environment passed to subprocess.run
++        self.assertIn('PGPASSWORD', kwargs['env'])
++        self.assertEqual(kwargs['env']['PGPASSWORD'], 'test_password')
++
++        # Check that check=True is set
++        self.assertTrue(kwargs['check'])
++
++        # Check that PGPASSWORD is removed from the environment after the subprocess call
++        self.assertNotIn('PGPASSWORD', mock_env)
++
++if __name__ == '__main__':
++    unittest.main()
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..ae3f8d7131
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,22 @@
++from django.conf.global_settings import *
++
++SECRET_KEY = 'dummy_secret_key_for_testing'
++
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.postgresql',
++        'NAME': 'test_db',
++        'USER': 'postgres',
++        'PASSWORD': 'postgres',
++        'HOST': 'localhost',
++        'PORT': '5432',
++    }
++}
++
++INSTALLED_APPS = [
++    'django.contrib.auth',
++    'django.contrib.contenttypes',
++    'django.contrib.sessions',
++    'django.contrib.messages',
++    'django.contrib.staticfiles',
++]

@@ -1,0 +1,88 @@
+
+diff --git a/setup.py b/setup.py
+index a404f1fa5..2c6848797 100644
+--- a/setup.py
++++ b/setup.py
+@@ -15,22 +15,22 @@ if sys.version_info < (3, 5):
+     sys.exit(1)
+ 
+ install_requires = [
+-    'sphinxcontrib-applehelp',
+-    'sphinxcontrib-devhelp',
++    'sphinxcontrib-applehelp<=1.0.7',
++    'sphinxcontrib-devhelp<=1.0.5',
+     'sphinxcontrib-jsmath',
+-    'sphinxcontrib-htmlhelp',
+-    'sphinxcontrib-serializinghtml',
+-    'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'sphinxcontrib-htmlhelp<=2.0.4',
++    'sphinxcontrib-serializinghtml<=1.1.9',
++    'sphinxcontrib-qthelp<=1.0.6',
++    'Jinja2<3.0',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+     'babel>=1.3',
+-    'alabaster>=0.7,<0.8',
++    'alabaster>=0.7,<0.7.12',
+     'imagesize',
+     'requests>=2.5.0',
+     'setuptools',
+-    'packaging',
++    'packaging', 'markupsafe<=2.0.1',
+ ]
+ 
+ extras_require = {
+diff --git a/sphinx/builders/linkcheck.py b/sphinx/builders/linkcheck.py
+index 9b54afc7c..7ed5ec5e2 100644
+--- a/sphinx/builders/linkcheck.py
++++ b/sphinx/builders/linkcheck.py
+@@ -166,10 +166,11 @@ class CheckExternalLinksBuilder(Builder):
+                     # Read the whole document and see if #anchor exists
+                     response = requests.get(req_url, stream=True, config=self.app.config,
+                                             auth=auth_info, **kwargs)
++                    response.raise_for_status()  # This will raise HTTPError if status is 4xx or 5xx
+                     found = check_anchor(response, unquote(anchor))
+ 
+                     if not found:
+-                        raise Exception(__("Anchor '%s' not found") % anchor)
++                        return 'broken', __("Anchor '%s' not found") % anchor, 0
+                 else:
+                     try:
+                         # try a HEAD request first, which should be easier on
+@@ -191,7 +192,7 @@ class CheckExternalLinksBuilder(Builder):
+                     # We'll take "Service Unavailable" as ignored.
+                     return 'ignored', str(err), 0
+                 else:
+-                    return 'broken', str(err), 0
++                    return 'broken', str(err), err.response.status_code
+             except Exception as err:
+                 if is_ssl_error(err):
+                     return 'ignored', str(err), 0
+diff --git a/tests/test_build_linkcheck.py b/tests/test_build_linkcheck.py
+index 7d85f10c5..1e3d6e1db 100644
+--- a/tests/test_build_linkcheck.py
++++ b/tests/test_build_linkcheck.py
+@@ -73,7 +73,7 @@ def test_defaults_json(app, status, warning):
+         'filename': 'links.txt',
+         'lineno': 18,
+         'status': 'broken',
+-        'code': 0,
++        'code': 404,
+         'uri': 'https://www.google.com/image2.png',
+         'info': '404 Client Error: Not Found for url: https://www.google.com/image2.png'
+     }
+diff --git a/tox.ini b/tox.ini
+index a61299979..e2baccc07 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+     PYTEST_ADDOPTS = --color yes
+ commands=
+-    pytest --durations 25 {posargs}
++    pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

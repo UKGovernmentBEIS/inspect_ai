@@ -1,0 +1,586 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/contrib/admin/options.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	django/contrib/admin/run_test.py
+	django/contrib/admin/test_admin_search.py
+	django/contrib/admin/test_urls.py
+	django/contrib/management/
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit e1d673c373a7d032060872b690a92fc95496612e
+Author: Florian Apolloner <florian@apolloner.eu>
+Date:   Tue Dec 14 12:38:28 2021 +0100
+
+    Fixed unescape_string_literal() crash on empty strings.
+
+diff --git a/django/utils/text.py b/django/utils/text.py
+index 3e4199a1d9..fa337650af 100644
+--- a/django/utils/text.py
++++ b/django/utils/text.py
+@@ -375,7 +375,7 @@ def unescape_string_literal(s):
+         >>> unescape_string_literal("'\'ab\' c'")
+         "'ab' c"
+     """
+-    if s[0] not in "\"'" or s[-1] != s[0]:
++    if not s or s[0] not in "\"'" or s[-1] != s[0]:
+         raise ValueError("Not a string literal: %r" % s)
+     quote = s[0]
+     return s[1:-1].replace(r'\%s' % quote, quote).replace(r'\\', '\\')
+diff --git a/tests/utils_tests/test_text.py b/tests/utils_tests/test_text.py
+index 5d6c53afdd..820a890bc5 100644
+--- a/tests/utils_tests/test_text.py
++++ b/tests/utils_tests/test_text.py
+@@ -226,7 +226,7 @@ class TestUtilsText(SimpleTestCase):
+                 self.assertEqual(text.unescape_string_literal(lazystr(value)), output)
+ 
+     def test_unescape_string_literal_invalid_value(self):
+-        items = ['abc', "'abc\""]
++        items = ['', 'abc', "'abc\""]
+         for item in items:
+             msg = f'Not a string literal: {item!r}'
+             with self.assertRaisesMessage(ValueError, msg):
++ git diff e1d673c373a7d032060872b690a92fc95496612e
+diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py
+index 66f3396a6b..b8e2b25f60 100644
+--- a/django/contrib/admin/options.py
++++ b/django/contrib/admin/options.py
+@@ -1031,14 +1031,15 @@ class ModelAdmin(BaseModelAdmin):
+         if search_fields and search_term:
+             orm_lookups = [construct_search(str(search_field))
+                            for search_field in search_fields]
++            or_queries = models.Q()
+             for bit in smart_split(search_term):
+                 if bit.startswith(('"', "'")) and bit[0] == bit[-1]:
+                     bit = unescape_string_literal(bit)
+-                or_queries = models.Q(
++                or_queries |= models.Q(
+                     *((orm_lookup, bit) for orm_lookup in orm_lookups),
+-                    _connector=models.Q.OR,
++                    _connector=models.Q.OR
+                 )
+-                queryset = queryset.filter(or_queries)
++            queryset = queryset.filter(or_queries)
+             may_have_duplicates |= any(
+                 lookup_spawns_duplicates(self.opts, search_spec)
+                 for search_spec in orm_lookups
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.4.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20211214191944) (3.8.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20211214191944) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from asgiref>=3.4.1->Django==4.1.dev20211214191944) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.1.dev20211214191944-0.editable-py3-none-any.whl size=26873 sha256=b82bc6dd75a23b351b0eddabb2832d9d60c3b461441875ff699387705cb97a30
+  Stored in directory: /tmp/pip-ephem-wheel-cache-vcs6tcsg/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.1.dev20211214191944
+    Uninstalling Django-4.1.dev20211214191944:
+      Successfully uninstalled Django-4.1.dev20211214191944
+Successfully installed Django-4.1.dev20211214191944
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout e1d673c373a7d032060872b690a92fc95496612e tests/admin_changelist/admin.py tests/admin_changelist/tests.py
+Updated 0 paths from 2bebd60e8c
++ git apply -v -
+Checking patch tests/admin_changelist/admin.py...
+Checking patch tests/admin_changelist/tests.py...
+Applied patch tests/admin_changelist/admin.py cleanly.
+Applied patch tests/admin_changelist/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 admin_changelist.admin admin_changelist.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application admin_changelist
+Found 69 test(s).
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: admin_changelist, auth, contenttypes, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table admin_changelist_event
+    Creating table admin_changelist_parent
+    Creating table admin_changelist_child
+    Creating table admin_changelist_genre
+    Creating table admin_changelist_band
+    Creating table admin_changelist_musician
+    Creating table admin_changelist_group
+    Creating table admin_changelist_concert
+    Creating table admin_changelist_membership
+    Creating table admin_changelist_quartet
+    Creating table admin_changelist_chordsmusician
+    Creating table admin_changelist_chordsband
+    Creating table admin_changelist_invitation
+    Creating table admin_changelist_swallow
+    Creating table admin_changelist_swallowonetoone
+    Creating table admin_changelist_unorderedobject
+    Creating table admin_changelist_orderedobject
+    Creating table admin_changelist_customiduser
+    Creating table admin_changelist_charpk
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+test_builtin_lookup_in_search_fields (admin_changelist.tests.ChangeListTests) ... ok
+test_changelist_search_form_validation (admin_changelist.tests.ChangeListTests) ... ok
+test_changelist_view_list_editable_changed_objects_uses_filter (admin_changelist.tests.ChangeListTests)
+list_editable edits use a filtered queryset to limit memory usage. ... ok
+test_clear_all_filters_link (admin_changelist.tests.ChangeListTests) ... ok
+test_clear_all_filters_link_callable_filter (admin_changelist.tests.ChangeListTests) ... ok
+test_computed_list_display_localization (admin_changelist.tests.ChangeListTests)
+Regression test for #13196: output of functions should be  localized ... ok
+test_custom_lookup_in_search_fields (admin_changelist.tests.ChangeListTests) ... ok
+test_custom_lookup_with_pk_shortcut (admin_changelist.tests.ChangeListTests) ... ok
+test_custom_paginator (admin_changelist.tests.ChangeListTests) ... ok
+test_deterministic_order_for_model_ordered_by_its_manager (admin_changelist.tests.ChangeListTests)
+The primary key is used in the ordering of the changelist's results to ... ok
+test_deterministic_order_for_unordered_model (admin_changelist.tests.ChangeListTests)
+The primary key is used in the ordering of the changelist's results to ... ok
+test_dynamic_list_display (admin_changelist.tests.ChangeListTests)
+Regression tests for #14206: dynamic list_display support. ... ok
+test_dynamic_list_display_links (admin_changelist.tests.ChangeListTests)
+Regression tests for #16257: dynamic list_display_links support. ... ok
+test_dynamic_list_filter (admin_changelist.tests.ChangeListTests)
+Regression tests for ticket #17646: dynamic list_filter support. ... ok
+test_dynamic_search_fields (admin_changelist.tests.ChangeListTests) ... ok
+test_get_edited_object_ids (admin_changelist.tests.ChangeListTests) ... ok
+test_get_list_editable_queryset (admin_changelist.tests.ChangeListTests) ... ok
+test_get_list_editable_queryset_with_regex_chars_in_prefix (admin_changelist.tests.ChangeListTests) ... ok
+test_get_select_related_custom_method (admin_changelist.tests.ChangeListTests) ... ok
+test_many_search_terms (admin_changelist.tests.ChangeListTests) ... ok
+test_multiple_search_fields (admin_changelist.tests.ChangeListTests)
+All rows containing each of the searched words are returned, where each ... test_multiuser_edit (admin_changelist.tests.ChangeListTests)
+Simultaneous edits of list_editable fields on the changelist by ... ok
+test_no_clear_all_filters_link (admin_changelist.tests.ChangeListTests) ... ok
+test_no_duplicates_for_inherited_m2m_in_list_filter (admin_changelist.tests.ChangeListTests)
+Regression test for #13902: When using a ManyToMany in list_filter, ... ok
+test_no_duplicates_for_m2m_in_list_filter (admin_changelist.tests.ChangeListTests)
+Regression test for #13902: When using a ManyToMany in list_filter, ... ok
+test_no_duplicates_for_m2m_to_inherited_in_list_filter (admin_changelist.tests.ChangeListTests)
+Regression test for #13902: When using a ManyToMany in list_filter, ... ok
+test_no_duplicates_for_many_to_many_at_second_level_in_search_fields (admin_changelist.tests.ChangeListTests)
+When using a ManyToMany in search_fields at the second level behind a ... ok
+test_no_duplicates_for_non_unique_related_object_in_list_filter (admin_changelist.tests.ChangeListTests)
+Regressions tests for #15819: If a field listed in list_filters is a ... ok
+test_no_duplicates_for_non_unique_related_object_in_search_fields (admin_changelist.tests.ChangeListTests)
+Regressions tests for #15819: If a field listed in search_fields ... ok
+test_no_duplicates_for_through_m2m_at_second_level_in_list_filter (admin_changelist.tests.ChangeListTests)
+When using a ManyToMany in list_filter at the second level behind a ... ok
+test_no_duplicates_for_through_m2m_in_list_filter (admin_changelist.tests.ChangeListTests)
+Regression test for #13902: When using a ManyToMany in list_filter, ... ok
+test_no_exists_for_m2m_in_list_filter_without_params (admin_changelist.tests.ChangeListTests)
+If a ManyToManyField is in list_filter but isn't in any lookup params, ... ok
+test_no_list_display_links (admin_changelist.tests.ChangeListTests)
+#15185 -- Allow no links from the 'change list' view grid. ... ok
+test_object_tools_displayed_no_add_permission (admin_changelist.tests.ChangeListTests)
+When ModelAdmin.has_add_permission() returns False, the object-tools ... ok
+test_pagination (admin_changelist.tests.ChangeListTests)
+Regression tests for #12893: Pagination in admins changelist doesn't ... ok
+test_pagination_page_range (admin_changelist.tests.ChangeListTests)
+Regression tests for ticket #15653: ensure the number of pages ... ok
+test_pk_in_search_fields (admin_changelist.tests.ChangeListTests) ... ok
+test_related_field_multiple_search_terms (admin_changelist.tests.ChangeListTests)
+Searches over multi-valued relationships return rows from related ... FAIL
+test_repr (admin_changelist.tests.ChangeListTests) ... ok
+test_result_list_editable (admin_changelist.tests.ChangeListTests)
+Regression test for #14312: list_editable with pagination ... ok
+test_result_list_editable_html (admin_changelist.tests.ChangeListTests)
+Regression tests for #11791: Inclusion tag result_list generates a ... ok
+test_result_list_empty_changelist_value (admin_changelist.tests.ChangeListTests)
+Regression test for #14982: EMPTY_CHANGELIST_VALUE should be honored ... ok
+test_result_list_html (admin_changelist.tests.ChangeListTests)
+Inclusion tag result_list generates a table when with default ... ok
+test_result_list_set_empty_value_display_in_model_admin (admin_changelist.tests.ChangeListTests)
+Empty value display can be set in ModelAdmin or individual fields. ... ok
+test_result_list_set_empty_value_display_on_admin_site (admin_changelist.tests.ChangeListTests)
+Empty value display can be set on AdminSite. ... ok
+test_search_help_text (admin_changelist.tests.ChangeListTests) ... ok
+test_select_related_as_empty_tuple (admin_changelist.tests.ChangeListTests) ... ok
+test_select_related_as_tuple (admin_changelist.tests.ChangeListTests) ... ok
+test_select_related_preserved (admin_changelist.tests.ChangeListTests)
+Regression test for #10348: ChangeList.get_queryset() shouldn't ... ok
+test_select_related_preserved_when_multi_valued_in_search_fields (admin_changelist.tests.ChangeListTests) ... ok
+test_show_all (admin_changelist.tests.ChangeListTests) ... ok
+test_spanning_relations_with_custom_lookup_in_search_fields (admin_changelist.tests.ChangeListTests) ... ok
+test_specified_ordering_by_f_expression (admin_changelist.tests.ChangeListTests) ... ok
+test_specified_ordering_by_f_expression_without_asc_desc (admin_changelist.tests.ChangeListTests) ... ok
+test_total_ordering_optimization (admin_changelist.tests.ChangeListTests) ... ok
+test_total_ordering_optimization_meta_constraints (admin_changelist.tests.ChangeListTests) ... ok
+test_tuple_list_display (admin_changelist.tests.ChangeListTests) ... ok
+test_custom_user_pk_not_named_id (admin_changelist.tests.GetAdminLogTests)
+{% get_admin_log %} works if the user model's primary key isn't named ... ok
+test_missing_args (admin_changelist.tests.GetAdminLogTests) ... ok
+test_no_user (admin_changelist.tests.GetAdminLogTests)
+{% get_admin_log %} works without specifying a user. ... ok
+test_non_integer_limit (admin_changelist.tests.GetAdminLogTests) ... ok
+test_without_as (admin_changelist.tests.GetAdminLogTests) ... ok
+test_without_for_user (admin_changelist.tests.GetAdminLogTests) ... ok
+test_actions_warn_on_pending_edits (admin_changelist.tests.SeleniumTests) ... skipped 'No browsers specified.'
+test_add_row_selection (admin_changelist.tests.SeleniumTests)
+The status line for selected rows gets updated correctly (#22038). ... skipped 'No browsers specified.'
+test_modifier_allows_multiple_section (admin_changelist.tests.SeleniumTests)
+Selecting a row and then selecting another row whilst holding shift ... skipped 'No browsers specified.'
+test_save_with_changes_warns_on_pending_action (admin_changelist.tests.SeleniumTests) ... skipped 'No browsers specified.'
+test_save_without_changes_warns_on_pending_action (admin_changelist.tests.SeleniumTests) ... skipped 'No browsers specified.'
+test_select_all_across_pages (admin_changelist.tests.SeleniumTests) ... skipped 'No browsers specified.'
+
+======================================================================
+FAIL: test_multiple_search_fields (admin_changelist.tests.ChangeListTests) (search_string='Duo Concert')
+All rows containing each of the searched words are returned, where each
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/admin_changelist/tests.py", line 582, in test_multiple_search_fields
+    self.assertEqual(concert_changelist.queryset.count(), result_count)
+AssertionError: 2 != 1
+
+======================================================================
+FAIL: test_multiple_search_fields (admin_changelist.tests.ChangeListTests) (search_string='Tiny Desk Concert')
+All rows containing each of the searched words are returned, where each
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/admin_changelist/tests.py", line 582, in test_multiple_search_fields
+    self.assertEqual(concert_changelist.queryset.count(), result_count)
+AssertionError: 2 != 1
+
+======================================================================
+FAIL: test_multiple_search_fields (admin_changelist.tests.ChangeListTests) (search_string='Other Concert')
+All rows containing each of the searched words are returned, where each
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/admin_changelist/tests.py", line 582, in test_multiple_search_fields
+    self.assertEqual(concert_changelist.queryset.count(), result_count)
+AssertionError: 2 != 0
+
+======================================================================
+FAIL: test_multiple_search_fields (admin_changelist.tests.ChangeListTests) (search_string='Duo Woodstock')
+All rows containing each of the searched words are returned, where each
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/admin_changelist/tests.py", line 582, in test_multiple_search_fields
+    self.assertEqual(concert_changelist.queryset.count(), result_count)
+AssertionError: 2 != 0
+
+======================================================================
+FAIL: test_multiple_search_fields (admin_changelist.tests.ChangeListTests) (search_string='Finlayson Hype')
+All rows containing each of the searched words are returned, where each
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/admin_changelist/tests.py", line 601, in test_multiple_search_fields
+    self.assertEqual(group_changelist.queryset.count(), result_count)
+AssertionError: 2 != 0
+
+======================================================================
+FAIL: test_multiple_search_fields (admin_changelist.tests.ChangeListTests) (search_string='Mary Jonathan Duo')
+All rows containing each of the searched words are returned, where each
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/admin_changelist/tests.py", line 601, in test_multiple_search_fields
+    self.assertEqual(group_changelist.queryset.count(), result_count)
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_multiple_search_fields (admin_changelist.tests.ChangeListTests) (search_string='Oscar Finlayson Duo')
+All rows containing each of the searched words are returned, where each
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/admin_changelist/tests.py", line 601, in test_multiple_search_fields
+    self.assertEqual(group_changelist.queryset.count(), result_count)
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_related_field_multiple_search_terms (admin_changelist.tests.ChangeListTests)
+Searches over multi-valued relationships return rows from related
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/admin_changelist/tests.py", line 185, in test_related_field_multiple_search_terms
+    self.assertEqual(cl.queryset.count(), 0)
+AssertionError: 1 != 0
+
+----------------------------------------------------------------------
+Ran 69 tests in 2.014s
+
+FAILED (failures=8, skipped=6)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout e1d673c373a7d032060872b690a92fc95496612e tests/admin_changelist/admin.py tests/admin_changelist/tests.py
+Updated 2 paths from 2bebd60e8c

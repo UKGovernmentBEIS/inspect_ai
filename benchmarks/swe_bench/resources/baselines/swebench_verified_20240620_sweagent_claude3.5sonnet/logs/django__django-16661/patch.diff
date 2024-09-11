@@ -1,0 +1,77 @@
+
+diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py
+index 5240b07cd6..04d337431e 100644
+--- a/django/contrib/admin/options.py
++++ b/django/contrib/admin/options.py
+@@ -461,6 +461,10 @@ class BaseModelAdmin(metaclass=forms.MediaDefiningClass):
+                 # Lookups on nonexistent fields are ok, since they're ignored
+                 # later.
+                 break
++            # Allow lookups on foreign keys that are used as primary keys
++            # This fixes an issue where such lookups were incorrectly disallowed
++            if isinstance(field, models.ForeignKey) and field.primary_key:
++                return True
+             # It is allowed to filter on values that would be found from local
+             # model anyways. For example, if you filter on employee__department__id,
+             # then the id value would be found already from employee__department_id.
+@@ -511,6 +515,11 @@ class BaseModelAdmin(metaclass=forms.MediaDefiningClass):
+         if field.primary_key:
+             return True
+ 
++        # Allow lookups on foreign keys that are used as primary keys
++        if isinstance(field, models.ForeignKey) and field.primary_key:
++            return True
++
++
+         # Allow reverse relationships to models defining m2m fields if they
+         # target the specified field.
+         for many_to_many in self.opts.many_to_many:
+diff --git a/docs/releases/5.0.txt b/docs/releases/5.0.txt
+index 08de2a3740..3fac7fa079 100644
+--- a/docs/releases/5.0.txt
++++ b/docs/releases/5.0.txt
+@@ -481,3 +481,10 @@ to remove usage of these features.
+ * Passing ``nulls_first=False`` or ``nulls_last=False`` to ``Expression.asc()``
+   and ``Expression.desc()`` methods, and the ``OrderBy`` expression is no
+   longer allowed.
++
++Bug fixes
++---------
++
++* Fixed an issue in ``ModelAdmin.lookup_allowed()`` where lookups on foreign keys
++  used as primary keys were incorrectly disallowed.
++
+diff --git a/tests/modeladmin/tests.py b/tests/modeladmin/tests.py
+index c6b4a565c8..9ae592c1f7 100644
+--- a/tests/modeladmin/tests.py
++++ b/tests/modeladmin/tests.py
+@@ -807,6 +807,23 @@ class ModelAdminTests(TestCase):
+         )
+ 
+ 
++    @isolate_apps('modeladmin')
++    def test_lookup_allowed_foreign_primary(self):  # Test for foreign key as primary key
++        class Country(models.Model):
++            name = models.CharField(max_length=256)
++        class Place(models.Model):
++            country = models.ForeignKey(Country, models.CASCADE)
++        class Restaurant(models.Model):
++            place = models.OneToOneField(Place, models.CASCADE, primary_key=True)
++        class Waiter(models.Model):
++            restaurant = models.ForeignKey(Restaurant, models.CASCADE)
++        class WaiterAdmin(ModelAdmin):
++            list_filter = [
++                'restaurant__place__country',
++            ]
++        ma = WaiterAdmin(Waiter, self.site)
++        self.assertIs(ma.lookup_allowed('restaurant__place__country', 'test_value'), True)
++
+ class ModelAdminPermissionTests(SimpleTestCase):
+     class MockUser:
+         def has_module_perms(self, app_label):
+@@ -940,3 +957,5 @@ class ModelAdminPermissionTests(SimpleTestCase):
+             self.assertFalse(ma.has_module_permission(request))
+         finally:
+             ma.opts.app_label = original_app_label
++
++

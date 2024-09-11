@@ -1,0 +1,67 @@
+
+diff --git a/reproduce_roc_curve_issue.py b/reproduce_roc_curve_issue.py
+new file mode 100644
+index 000000000..35c0351f9
+--- /dev/null
++++ b/reproduce_roc_curve_issue.py
+@@ -0,0 +1,19 @@
++import numpy as np
++from sklearn.metrics import roc_curve
++
++def test_roc_curve_with_probability_estimates():
++    rng = np.random.RandomState(42)
++    y_true = rng.randint(0, 2, size=10)
++    y_score = rng.rand(10)
++    _, _, thresholds = roc_curve(y_true, y_score)
++    assert np.logical_or(thresholds <= 1, thresholds >= 0).all()
++    print("Thresholds:", thresholds)
++    print("Max threshold:", thresholds.max())
++    if thresholds.max() > 1:
++        print("Issue reproduced: threshold exceeds 1")
++    else:
++        print("Issue not reproduced: all thresholds are <= 1")
++
++if __name__ == "__main__":
++    test_roc_curve_with_probability_estimates()
++    print("Script completed successfully, no errors.")
+diff --git a/run_roc_curve_test.py b/run_roc_curve_test.py
+new file mode 100644
+index 000000000..de141fb58
+--- /dev/null
++++ b/run_roc_curve_test.py
+@@ -0,0 +1,6 @@
++import pytest
++from sklearn.metrics.tests.test_ranking import test_roc_curve_with_probability_estimates
++
++if __name__ == "__main__":
++    pytest.main([__file__, "-v", "-k", "test_roc_curve_with_probability_estimates"])
++    print("Test execution completed.")
+diff --git a/sklearn/metrics/_ranking.py b/sklearn/metrics/_ranking.py
+index 0cdead923..080c44cee 100644
+--- a/sklearn/metrics/_ranking.py
++++ b/sklearn/metrics/_ranking.py
+@@ -1083,7 +1083,7 @@ def roc_curve(
+     # to make sure that the curve starts at (0, 0)
+     tps = np.r_[0, tps]
+     fps = np.r_[0, fps]
+-    thresholds = np.r_[thresholds[0] + 1, thresholds]
++    thresholds = np.r_[min(thresholds[0] + 1, 1), thresholds]
+ 
+     if fps[-1] <= 0:
+         warnings.warn(
+diff --git a/sklearn/metrics/tests/test_ranking.py b/sklearn/metrics/tests/test_ranking.py
+index f38f118c3..77ccc62c4 100644
+--- a/sklearn/metrics/tests/test_ranking.py
++++ b/sklearn/metrics/tests/test_ranking.py
+@@ -2199,3 +2199,11 @@ def test_ranking_metric_pos_label_types(metric, classes):
+         assert not np.isnan(metric_1).any()
+         assert not np.isnan(metric_2).any()
+         assert not np.isnan(thresholds).any()
++
++def test_roc_curve_with_probability_estimates():
++    rng = np.random.RandomState(42)
++    y_true = rng.randint(0, 2, size=10)
++    y_score = rng.rand(10)
++    _, _, thresholds = roc_curve(y_true, y_score)
++    assert np.all(np.logical_or(thresholds <= 1, thresholds >= 0))
++    assert thresholds.max() <= 1, f"Max threshold {thresholds.max()} exceeds 1"

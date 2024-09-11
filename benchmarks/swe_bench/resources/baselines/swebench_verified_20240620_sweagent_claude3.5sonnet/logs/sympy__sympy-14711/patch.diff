@@ -1,0 +1,32 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..450be292e7
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,8 @@
++from sympy.physics.vector import ReferenceFrame, Vector
++from sympy import symbols
++
++N = ReferenceFrame('N')
++result = sum([N.x, (0 * N.x)])
++print(result)
++
++print("Script completed successfully, no errors.")
+diff --git a/sympy/physics/vector/vector.py b/sympy/physics/vector/vector.py
+index a048ee57f1..8918204e95 100644
+--- a/sympy/physics/vector/vector.py
++++ b/sympy/physics/vector/vector.py
+@@ -721,6 +721,9 @@ def __init__(self, other, want):
+ 
+ 
+ def _check_vector(other):
+-    if not isinstance(other, Vector):
+-        raise TypeError('A Vector must be supplied')
+-    return other
++    if isinstance(other, Vector):
++        return other
++    elif other == 0:
++        return Vector(0)
++    else:
++        raise TypeError('A Vector or zero must be supplied')

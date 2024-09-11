@@ -1,0 +1,63 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..3a3950343
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,18 @@
++import sys
++import sklearn
++from sklearn.linear_model import LogisticRegressionCV
++import numpy as np
++
++np.random.seed(29)
++X = np.random.normal(size=(1000, 3))
++beta = np.random.normal(size=3)
++intercept = np.random.normal(size=None)
++y = np.sign(intercept + X @ beta)
++
++LogisticRegressionCV(
++    cv=5,
++    solver='saga',  # same error with 'liblinear'
++    tol=1e-2,
++    refit=False).fit(X, y)
++
++print("Script completed successfully, no errors.")
+diff --git a/sklearn/linear_model/logistic.py b/sklearn/linear_model/logistic.py
+index 1999f1dae..bb5e5b863 100644
+--- a/sklearn/linear_model/logistic.py
++++ b/sklearn/linear_model/logistic.py
+@@ -2174,14 +2174,25 @@ class LogisticRegressionCV(LogisticRegression, BaseEstimator,
+                     w = np.mean([coefs_paths[i, best_indices[i], :]
+                                  for i in range(len(folds))], axis=0)
+                 else:
+-                    w = np.mean([coefs_paths[:, i, best_indices[i], :]
+-                                 for i in range(len(folds))], axis=0)
+-
+-                best_indices_C = best_indices % len(self.Cs_)
+-                self.C_.append(np.mean(self.Cs_[best_indices_C]))
+-
+-                best_indices_l1 = best_indices // len(self.Cs_)
+-                self.l1_ratio_.append(np.mean(l1_ratios_[best_indices_l1]))
++                    if coefs_paths.ndim == 3:
++                        w = np.mean([coefs_paths[i, best_indices[i], :]
++                                     for i in range(len(folds))], axis=0)
++                    elif coefs_paths.ndim == 4:
++                        w = np.mean([coefs_paths[:, i, best_indices[i], :]
++                                     for i in range(len(folds))], axis=0)
++                    else:
++                        raise ValueError("Unexpected shape for coefs_paths")
++
++                if self.refit:
++                    best_indices_C = best_indices % len(self.Cs_)
++                    self.C_.append(np.mean(self.Cs_[best_indices_C]))
++                    best_indices_l1 = best_indices // len(self.Cs_)
++                    l1_ratios_filtered = [r for r in l1_ratios_[best_indices_l1] if r is not None]
++                    self.l1_ratio_.append(np.mean(l1_ratios_filtered) if l1_ratios_filtered else None)
++                else:
++                    self.C_.append(np.mean(self.Cs_))
++                    l1_ratios_filtered = [r for r in l1_ratios_ if r is not None]
++                    self.l1_ratio_.append(np.mean(l1_ratios_filtered) if l1_ratios_filtered else None)
+ 
+             if multi_class == 'multinomial':
+                 self.C_ = np.tile(self.C_, n_classes)

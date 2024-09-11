@@ -1,0 +1,181 @@
+
+diff --git a/db.sqlite3 b/db.sqlite3
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index caa03665ea..a4f96cdb2b 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -21,8 +21,7 @@ from django.utils.dateparse import (
+     parse_date, parse_datetime, parse_duration, parse_time,
+ )
+ from django.utils.duration import duration_microseconds, duration_string
+-from django.utils.functional import Promise, cached_property
+-from django.utils.ipv6 import clean_ipv6_address
++from django.utils.functional import Promise, cached_property, SimpleLazyObject
+ from django.utils.itercompat import is_iterable
+ from django.utils.text import capfirst
+ from django.utils.translation import gettext_lazy as _
+@@ -1711,30 +1710,46 @@ class FloatField(Field):
+ 
+ 
+ class IntegerField(Field):
+-    empty_strings_allowed = False
+-    default_error_messages = {
+-        'invalid': _('“%(value)s” value must be an integer.'),
+-    }
+-    description = _("Integer")
++    def __init__(self, verbose_name=None, name=None, min_value=None, max_value=None, **kwargs):
++        self.min_value, self.max_value = min_value, max_value
++        super().__init__(verbose_name, name, **kwargs)
+ 
+-    def check(self, **kwargs):
+-        return [
+-            *super().check(**kwargs),
+-            *self._check_max_length_warning(),
+-        ]
++    @cached_property
++    def validators(self):
++        # These validators can't be added at field initialization time since
++        # they're based on values retrieved from `connection`.
++        range_validators = []
++        internal_type = self.get_internal_type()
++        min_value, max_value = connection.ops.integer_field_range(internal_type)
++        if self.min_value is not None:
++            range_validators.append(validators.MinValueValidator(self.min_value))
++        if self.max_value is not None:
++            range_validators.append(validators.MaxValueValidator(self.max_value))
++        elif max_value is not None:
++            range_validators.append(validators.MaxValueValidator(max_value))
++        return super().validators + range_validators
+ 
+-    def _check_max_length_warning(self):
+-        if self.max_length is not None:
+-            return [
+-                checks.Warning(
+-                    "'max_length' is ignored when used with %s." % self.__class__.__name__,
+-                    hint="Remove 'max_length' from field",
+-                    obj=self,
+-                    id='fields.W122',
+-                )
+-            ]
+-        return []
++    def get_prep_value(self, value):
++        if value is None or value == '':
++            return None
++        if isinstance(value, SimpleLazyObject):
++            value = value._wrapped
++        if hasattr(value, 'pk'):
++            return value.pk
++        return int(value)
+ 
++    def get_db_prep_value(self, value, connection, prepared=False):
++        if not prepared:
++            value = self.get_prep_value(value)
++        return connection.ops.adapt_integerfield_value(value, self.internal_type)
++
++    def formfield(self, **kwargs):
++        return super().formfield(**{
++            'form_class': forms.IntegerField,
++            **kwargs,
++        })
++
++class BigIntegerField(IntegerField):
+     @cached_property
+     def validators(self):
+         # These validators can't be added at field initialization time since
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..e8230b5a43
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,47 @@
++import os
++import django
++
++os.environ.setdefault("DJANGO_SETTINGS_MODULE", "test_settings")
++django.setup()
++
++from django.test import TestCase
++from django.contrib.auth.models import User
++from django.db import models
++from django.db.models import OuterRef, Subquery
++from django.utils.functional import SimpleLazyObject
++from django.core.management import call_command
++
++# Models
++class A(models.Model):
++    class Meta:
++        app_label = 'test_app'
++
++class B(models.Model):
++    a = models.ForeignKey(A, on_delete=models.CASCADE)
++    class Meta:
++        app_label = 'test_app'
++
++class C(models.Model):
++    owner = models.ForeignKey(User, on_delete=models.CASCADE)
++    class Meta:
++        app_label = 'test_app'
++
++# Test Case
++class BugTestCase(TestCase):
++    def test_bug(self):
++        owner_user = (
++            B.objects.filter(a=OuterRef("pk"))
++            .annotate(owner_user=Subquery(C.objects.values("owner")))
++            .values("owner_user")
++        )
++        user = SimpleLazyObject(lambda: User.objects.create_user("testuser"))
++        A.objects.annotate(owner_user=Subquery(owner_user)).filter(
++            owner_user=user
++        )
++
++# Run migrations and test
++if __name__ == "__main__":
++    call_command('migrate')
++    test_case = BugTestCase()
++    test_case.test_bug()
++    print("Test completed. If no error occurred, the bug might be fixed.")
+diff --git a/test_app/__init__.py b/test_app/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_app/apps.py b/test_app/apps.py
+new file mode 100644
+index 0000000000..85ef4038e6
+--- /dev/null
++++ b/test_app/apps.py
+@@ -0,0 +1,5 @@
++from django.apps import AppConfig
++
++class TestAppConfig(AppConfig):
++    name = 'test_app'
++    default_auto_field = 'django.db.models.BigAutoField'
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..2c223412bd
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,22 @@
++import os
++
++BASE_DIR = os.path.dirname(os.path.abspath(__file__))
++
++SECRET_KEY = 'dummy-secret-key-for-testing'
++
++DEBUG = True
++
++INSTALLED_APPS = [
++    'django.contrib.auth',
++    'django.contrib.contenttypes',
++    'test_app',
++]
++
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++
++USE_TZ = True

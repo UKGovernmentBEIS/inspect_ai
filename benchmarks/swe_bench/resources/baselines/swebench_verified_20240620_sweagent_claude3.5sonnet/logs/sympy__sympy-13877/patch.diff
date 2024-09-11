@@ -1,0 +1,64 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..d13da658dc
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,16 @@
++from sympy import *
++from sympy.abc import a
++
++def f(n):
++    matrix = Matrix([[i + a*j for i in range(n)] for j in range(n)])
++    print(f"Matrix({n}x{n}):")
++    print(matrix)
++    print("Contains symbolic elements:", any(isinstance(e, Symbol) for e in matrix))
++    return det(matrix)
++
++for n in range(1, 7):
++    print(f"\nf({n}):")
++    result = f(n)
++    print("Result:", result)
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sympy/matrices/matrices.py b/sympy/matrices/matrices.py
+index 97cde62e26..8964e37a00 100644
+--- a/sympy/matrices/matrices.py
++++ b/sympy/matrices/matrices.py
+@@ -381,13 +381,12 @@ def cofactor_matrix(self, method="berkowitz"):
+                          lambda i, j: self.cofactor(i, j, method))
+ 
+     def det(self, method="bareiss"):
+-        """Computes the determinant of a matrix.  If the matrix
++        """Computes the determinant of a matrix. If the matrix
+         is at most 3x3, a hard-coded formula is used.
+-        Otherwise, the determinant using the method `method`.
+-
++        Otherwise, the determinant is computed using the method `method`.
+ 
+         Possible values for "method":
+-          bareis
++          bareiss
+           berkowitz
+           lu
+         """
+@@ -401,9 +400,6 @@ def det(self, method="bareiss"):
+         if method not in ("bareiss", "berkowitz", "lu"):
+             raise ValueError("Determinant method '%s' unrecognized" % method)
+ 
+-        # if methods were made internal and all determinant calculations
+-        # passed through here, then these lines could be factored out of
+-        # the method routines
+         if self.rows != self.cols:
+             raise NonSquareMatrixError()
+ 
+@@ -422,6 +418,9 @@ def det(self, method="bareiss"):
+                    - self[0, 0] * self[1, 2] * self[2, 1]
+                    - self[0, 1] * self[1, 0] * self[2, 2])
+ 
++        if any(isinstance(e, Symbol) for e in self):
++            method = "berkowitz"
++
+         if method == "bareiss":
+             return self._eval_det_bareiss()
+         elif method == "berkowitz":

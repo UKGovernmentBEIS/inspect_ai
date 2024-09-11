@@ -1,0 +1,34 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..3cb355333b
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,10 @@
++import inspect
++from sympy import lambdify
++
++print("Single element tuple:")
++print(inspect.getsource(lambdify([], tuple([1]))))
++
++print("\nTwo element tuple:")
++print(inspect.getsource(lambdify([], tuple([1, 2]))))
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sympy/utilities/lambdify.py b/sympy/utilities/lambdify.py
+index da67263b19..34c1467fd0 100644
+--- a/sympy/utilities/lambdify.py
++++ b/sympy/utilities/lambdify.py
+@@ -959,9 +959,11 @@ def _recursive_to_string(doprint, arg):
+             left, right = "[]"
+         elif isinstance(arg, tuple):
+             left, right = "()"
++            if len(arg) == 1:
++                return left + _recursive_to_string(doprint, arg[0]) + "," + right
+         else:
+             raise NotImplementedError("unhandled type: %s, %s" % (type(arg), arg))
+-        return left +', '.join(_recursive_to_string(doprint, e) for e in arg) + right
++        return left + ', '.join(_recursive_to_string(doprint, e) for e in arg) + right
+     elif isinstance(arg, str):
+         return arg
+     else:

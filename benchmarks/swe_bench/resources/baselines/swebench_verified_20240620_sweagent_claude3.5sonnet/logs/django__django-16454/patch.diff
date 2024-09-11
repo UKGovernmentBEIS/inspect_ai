@@ -1,0 +1,93 @@
+
+diff --git a/django/core/management/base.py b/django/core/management/base.py
+index abc6f79a15..fac4458931 100644
+--- a/django/core/management/base.py
++++ b/django/core/management/base.py
+@@ -71,6 +71,31 @@ class CommandParser(ArgumentParser):
+         else:
+             raise CommandError("Error: %s" % message)
+ 
++    def add_subparsers(self, **kwargs):
++        # Get the subparsers action
++        subparsers_action = super().add_subparsers(**kwargs)
++        
++        # Store the original add_parser method
++        original_add_parser = subparsers_action.add_parser
++        
++        # Replace with our custom method
++        subparsers_action.add_parser = lambda name, **sub_kwargs: self.create_subparser(original_add_parser, name, **sub_kwargs)
++        
++        return subparsers_action
++
++    def create_subparser(self, original_add_parser, name, **kwargs):
++        # Ensure that the subparser inherits only necessary attributes
++        for key in ['missing_args_message', 'called_from_command_line']:
++            if key not in kwargs and hasattr(self, key):
++                kwargs[key] = getattr(self, key)
++        
++        # Create the subparser using the original method
++        parser = original_add_parser(name, **kwargs)
++        
++        # Ensure the subparser is also a CommandParser
++        parser.__class__ = CommandParser
++        
++        return parser
+ 
+ def handle_default_options(options):
+     """
+diff --git a/django/core/management/commands/test_subparser.py b/django/core/management/commands/test_subparser.py
+new file mode 100644
+index 0000000000..b31eb668ae
+--- /dev/null
++++ b/django/core/management/commands/test_subparser.py
+@@ -0,0 +1,17 @@
++from django.core.management.base import BaseCommand, CommandError
++
++class Command(BaseCommand):
++    help = 'Test command for subparser functionality'
++
++    def add_arguments(self, parser):
++        subparsers = parser.add_subparsers(dest='subcommand', required=True)
++        
++        create_parser = subparsers.add_parser('create')
++        create_parser.add_argument('name', help='Name for the created object')
++
++    def handle(self, *args, **options):
++        if options['subcommand'] == 'create':
++            self.stdout.write(f"Creating object with name: {options['name']}")
++        else:
++            raise CommandError("Invalid subcommand")
++
+diff --git a/tests/test_subparser_command.py b/tests/test_subparser_command.py
+new file mode 100644
+index 0000000000..3837ba9ab5
+--- /dev/null
++++ b/tests/test_subparser_command.py
+@@ -0,0 +1,27 @@
++from django.core.management import call_command
++from django.core.management.base import CommandError
++from django.test import SimpleTestCase
++from io import StringIO
++import sys
++
++class TestSubparserCommand(SimpleTestCase):
++    def test_subparser_command(self):
++        # Test successful execution
++        out = StringIO()
++        sys.stdout = out
++        call_command('test_subparser', 'create', 'test_object')
++        self.assertIn('Creating object with name: test_object', out.getvalue())
++
++        # Test missing subcommand
++        with self.assertRaises(CommandError) as cm:
++            call_command('test_subparser')
++        self.assertIn('the following arguments are required: subcommand', str(cm.exception))
++
++        # Test missing argument for subcommand
++        with self.assertRaises(CommandError) as cm:
++            call_command('test_subparser', 'create')
++        self.assertIn('the following arguments are required: name', str(cm.exception))
++
++        # Reset stdout
++        sys.stdout = sys.__stdout__
++

@@ -1,0 +1,67 @@
+
+diff --git a/django/utils/autoreload.py b/django/utils/autoreload.py
+index b8efb9f881..8c8ddf21e0 100644
+--- a/django/utils/autoreload.py
++++ b/django/utils/autoreload.py
+@@ -216,31 +216,30 @@ def get_child_arguments():
+     executable is reported to not have the .exe extension which can cause bugs
+     on reloading.
+     """
+-    import django.__main__
+-    django_main_path = Path(django.__main__.__file__)
+-    py_script = Path(sys.argv[0])
+-
++    import __main__
+     args = [sys.executable] + ['-W%s' % o for o in sys.warnoptions]
+-    if py_script == django_main_path:
+-        # The server was started with `python -m django runserver`.
+-        args += ['-m', 'django']
++    
++    if hasattr(__main__, '__spec__') and __main__.__spec__ is not None:
++        # Python was launched with -m
++        if __main__.__spec__.parent:
++            # -m was used with a package
++            args += ['-m', __main__.__spec__.parent]
++        else:
++            # -m was used with a module
++            args += ['-m', __main__.__spec__.name]
+         args += sys.argv[1:]
+-    elif not py_script.exists():
++    elif not Path(sys.argv[0]).exists():
+         # sys.argv[0] may not exist for several reasons on Windows.
+         # It may exist with a .exe extension or have a -script.py suffix.
+-        exe_entrypoint = py_script.with_suffix('.exe')
++        exe_entrypoint = Path(sys.argv[0]).with_suffix('.exe')
+         if exe_entrypoint.exists():
+             # Should be executed directly, ignoring sys.executable.
+-            # TODO: Remove str() when dropping support for PY37.
+-            # args parameter accepts path-like on Windows from Python 3.8.
+             return [str(exe_entrypoint), *sys.argv[1:]]
+-        script_entrypoint = py_script.with_name('%s-script.py' % py_script.name)
++        script_entrypoint = Path(sys.argv[0]).with_name('%s-script.py' % Path(sys.argv[0]).name)
+         if script_entrypoint.exists():
+             # Should be executed as usual.
+-            # TODO: Remove str() when dropping support for PY37.
+-            # args parameter accepts path-like on Windows from Python 3.8.
+             return [*args, str(script_entrypoint), *sys.argv[1:]]
+-        raise RuntimeError('Script %s does not exist.' % py_script)
++        raise RuntimeError('Script %s does not exist.' % sys.argv[0])
+     else:
+         args += sys.argv
+     return args
+diff --git a/test_autoreload.py b/test_autoreload.py
+new file mode 100644
+index 0000000000..949bb2f469
+--- /dev/null
++++ b/test_autoreload.py
+@@ -0,0 +1,10 @@
++import sys
++from django.utils.autoreload import get_child_arguments
++
++def main():
++    print("Original sys.argv:", sys.argv)
++    child_args = get_child_arguments()
++    print("Child arguments:", child_args)
++
++if __name__ == "__main__":
++    main()

@@ -1,0 +1,50 @@
+{
+    "django__django-16642": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "If compressed responses are served with the uncompressed Content-Type"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "Headers are set correctly with a buffer when an absolute filename is",
+                    "test_content_disposition_buffer (responses.test_fileresponse.FileResponseTests.test_content_disposition_buffer)",
+                    "test_content_disposition_buffer_attachment (responses.test_fileresponse.FileResponseTests.test_content_disposition_buffer_attachment)",
+                    "test_content_disposition_buffer_explicit_filename (responses.test_fileresponse.FileResponseTests.test_content_disposition_buffer_explicit_filename)",
+                    "test_content_disposition_escaping (responses.test_fileresponse.FileResponseTests.test_content_disposition_escaping)",
+                    "test_content_disposition_file (responses.test_fileresponse.FileResponseTests.test_content_disposition_file)",
+                    "test_content_length_buffer (responses.test_fileresponse.FileResponseTests.test_content_length_buffer)",
+                    "test_content_length_file (responses.test_fileresponse.FileResponseTests.test_content_length_file)",
+                    "test_content_length_nonzero_starting_position_buffer (responses.test_fileresponse.FileResponseTests.test_content_length_nonzero_starting_position_buffer)",
+                    "test_content_length_nonzero_starting_position_file (responses.test_fileresponse.FileResponseTests.test_content_length_nonzero_starting_position_file)",
+                    "test_content_length_nonzero_starting_position_file_seekable_no_tell (responses.test_fileresponse.FileResponseTests.test_content_length_nonzero_starting_position_file_seekable_no_tell)",
+                    "test_content_type_buffer (responses.test_fileresponse.FileResponseTests.test_content_type_buffer)",
+                    "test_content_type_buffer_explicit (responses.test_fileresponse.FileResponseTests.test_content_type_buffer_explicit)",
+                    "test_content_type_buffer_explicit_default (responses.test_fileresponse.FileResponseTests.test_content_type_buffer_explicit_default)",
+                    "test_content_type_buffer_named (responses.test_fileresponse.FileResponseTests.test_content_type_buffer_named)",
+                    "test_content_type_file (responses.test_fileresponse.FileResponseTests.test_content_type_file)",
+                    "test_file_from_named_pipe_response (responses.test_fileresponse.FileResponseTests.test_file_from_named_pipe_response)",
+                    "test_repr (responses.test_fileresponse.FileResponseTests.test_repr)",
+                    "test_response_buffer (responses.test_fileresponse.FileResponseTests.test_response_buffer)",
+                    "test_response_nonzero_starting_position (responses.test_fileresponse.FileResponseTests.test_response_nonzero_starting_position)",
+                    "test_unicode_attachment (responses.test_fileresponse.FileResponseTests.test_unicode_attachment)"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

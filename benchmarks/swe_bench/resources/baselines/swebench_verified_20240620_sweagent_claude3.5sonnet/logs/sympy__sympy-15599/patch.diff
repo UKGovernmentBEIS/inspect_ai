@@ -1,0 +1,63 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..505387b611
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,15 @@
++from sympy import Symbol, Mod, sympify
++
++i = Symbol('i', integer=True)
++k = Symbol('k')
++
++print("Test 1: Mod(3*i, 2)")
++print(Mod(3*i, 2))
++
++print("\nTest 2: sympify(3*k%2)")
++print(sympify(3*k%2))
++
++print("\nTest 3: Mod(3*i, 2) == Mod(i, 2)")
++print(Mod(3*i, 2) == Mod(i, 2))
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sympy/core/mod.py b/sympy/core/mod.py
+index eae25630cc..77a9179c4d 100644
+--- a/sympy/core/mod.py
++++ b/sympy/core/mod.py
+@@ -92,6 +92,14 @@ def doit(p, q):
+         if rv is not None:
+             return rv
+ 
++        # Simplify Mod(a*i, b) to Mod(i, b) if a and b are integers and gcd(a,b) == 1
++        from sympy import gcd, Integer
++        if (isinstance(p, Mul) and len(p.args) == 2 and
++            isinstance(p.args[0], Integer) and isinstance(q, Integer)):
++            a, i = p.args
++            if gcd(abs(a), q) == 1:
++                return cls(i, q)
++
+         # denest
+         if isinstance(p, cls):
+             qinner = p.args[1]
+@@ -123,9 +131,11 @@ def doit(p, q):
+             for arg in p.args:
+                 both_l[isinstance(arg, cls)].append(arg)
+ 
+-            if mod_l and all(inner.args[1] == q for inner in mod_l):
++            was = non_mod_l[:]
++            non_mod_l = [cls(x, q) for x in non_mod_l]
++            changed = was != non_mod_l
++            if changed or (mod_l and all(inner.args[1] == q for inner in mod_l)):
+                 # finding distributive term
+-                non_mod_l = [cls(x, q) for x in non_mod_l]
+                 mod = []
+                 non_mod = []
+                 for j in non_mod_l:
+@@ -137,7 +147,6 @@ def doit(p, q):
+                 prod_non_mod = Mul(*non_mod)
+                 prod_mod1 = Mul(*[i.args[0] for i in mod_l])
+                 net = prod_mod1*prod_mod
+-                return prod_non_mod*cls(net, q)
+ 
+         # XXX other possibilities?
+ 

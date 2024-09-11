@@ -1,0 +1,14 @@
+
+diff --git a/sklearn/cluster/optics_.py b/sklearn/cluster/optics_.py
+index 4f7eb11ab..f7031658d 100755
+--- a/sklearn/cluster/optics_.py
++++ b/sklearn/cluster/optics_.py
+@@ -437,7 +437,7 @@ if metric=’precomputed’.
+     n_samples = X.shape[0]
+     _validate_size(min_samples, n_samples, 'min_samples')
+     if min_samples <= 1:
+-        min_samples = max(2, min_samples * n_samples)
++        min_samples = int(round(max(2, min_samples * n_samples)))  # round to get the closest integer
+ 
+     # Start all points as 'unprocessed' ##
+     reachability_ = np.empty(n_samples)

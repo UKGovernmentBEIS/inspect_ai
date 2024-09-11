@@ -1,0 +1,751 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   lib/matplotlib/axes/_base.py
+	modified:   lib/matplotlib/cbook.py
+	modified:   lib/matplotlib/figure.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_bug.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 66ba515e671638971bd11a34cff12c107a437e0b
+Merge: d787258e4e a00680eadb
+Author: Oscar Gustafsson <oscar.gustafsson@gmail.com>
+Date:   Mon Feb 27 18:19:17 2023 +0100
+
+    Merge pull request #25334 from xtanion/contour_nan
+    
+    Fix for all NANs in contour
+
++ git diff 66ba515e671638971bd11a34cff12c107a437e0b
+diff --git a/lib/matplotlib/axes/_base.py b/lib/matplotlib/axes/_base.py
+index 8e348fea46..f95cb5ecc3 100644
+--- a/lib/matplotlib/axes/_base.py
++++ b/lib/matplotlib/axes/_base.py
+@@ -556,8 +556,8 @@ class _AxesBase(martist.Artist):
+     # In practice, this is ('x', 'y') for all 2D Axes and ('x', 'y', 'z')
+     # for Axes3D.
+     _axis_names = ("x", "y")
+-    _shared_axes = {name: cbook.Grouper() for name in _axis_names}
+-    _twinned_axes = cbook.Grouper()
++    _shared_axes = {name: cbook.PicklableGrouper() for name in _axis_names}
++    _twinned_axes = cbook.PicklableGrouper()
+ 
+     _subclass_uses_cla = False
+ 
+diff --git a/lib/matplotlib/cbook.py b/lib/matplotlib/cbook.py
+index c9699b2e21..f05af969ea 100644
+--- a/lib/matplotlib/cbook.py
++++ b/lib/matplotlib/cbook.py
+@@ -836,14 +836,62 @@ class Grouper:
+         The iterator is invalid if interleaved with calls to join().
+         """
+         self.clean()
++class PicklableGrouper(Grouper):
++    """
++    A disjoint-set data structure that can be pickled.
++
++    This class is similar to Grouper but uses strong references instead of weak references.
++    """
++
++    def __init__(self, init=()):
++        self._mapping = {_StrongRef(x): [_StrongRef(x)] for x in init}
++
++    def __contains__(self, item):
++        return _StrongRef(item) in self._mapping
++
++    def clean(self):
++        """No need to clean strong references."""
++        pass
++
++    def join(self, a, *args):
++        """
++        Join given arguments into the same set.  Accepts one or more arguments.
++        """
++        mapping = self._mapping
++        set_a = mapping.setdefault(_StrongRef(a), [_StrongRef(a)])
++
++        for arg in args:
++            set_b = mapping.get(_StrongRef(arg), [_StrongRef(arg)])
++            if set_b is not set_a:
++                if len(set_b) > len(set_a):
++                    set_a, set_b = set_b, set_a
++                set_a.extend(set_b)
++                for elem in set_b:
++                    mapping[elem] = set_a
++
++    def joined(self, a, b):
++        """Return whether *a* and *b* are members of the same set."""
++        return (self._mapping.get(_StrongRef(a), object())
++                is self._mapping.get(_StrongRef(b)))
++
++    def remove(self, a):
++        set_a = self._mapping.pop(_StrongRef(a), None)
++        if set_a:
++            set_a.remove(_StrongRef(a))
++
++    def __iter__(self):
++        """
++        Iterate over each of the disjoint sets as a list.
++
++        The iterator is invalid if interleaved with calls to join().
++        """
+         unique_groups = {id(group): group for group in self._mapping.values()}
+         for group in unique_groups.values():
+             yield [x() for x in group]
+ 
+     def get_siblings(self, a):
+         """Return all of the items joined with *a*, including itself."""
+-        self.clean()
+-        siblings = self._mapping.get(weakref.ref(a), [weakref.ref(a)])
++        siblings = self._mapping.get(_StrongRef(a), [_StrongRef(a)])
+         return [x() for x in siblings]
+ 
+ 
+diff --git a/lib/matplotlib/figure.py b/lib/matplotlib/figure.py
+index b4c38368bf..70a9348fcd 100644
+--- a/lib/matplotlib/figure.py
++++ b/lib/matplotlib/figure.py
+@@ -186,7 +186,7 @@ class FigureBase(Artist):
+         # groupers to keep track of x and y labels we want to align.
+         # see self.align_xlabels and self.align_ylabels and
+         # axis._get_tick_boxes_siblings
+-        self._align_label_groups = {"x": cbook.Grouper(), "y": cbook.Grouper()}
++        self._align_label_groups = {"x": cbook.PicklableGrouper(), "y": cbook.PicklableGrouper()}
+ 
+         self.figure = self
+         self._localaxes = []  # track all axes
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval '. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh
+++++ test -n ''
+++++ unset XML_CATALOG_FILES
+++++ unset xml_catalog_files_libxml2
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh
+++++ export GSETTINGS_SCHEMA_DIR=
+++++ GSETTINGS_SCHEMA_DIR=
+++++ unset GSETTINGS_SCHEMA_DIR_CONDA_BACKUP
+++++ '[' -z ']'
+++++ unset GSETTINGS_SCHEMA_DIR
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: contourpy>=1.0.1 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev452+g66ba515e67.d20240725) (1.1.0)
+Requirement already satisfied: cycler>=0.10 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev452+g66ba515e67.d20240725) (0.11.0)
+Requirement already satisfied: fonttools>=4.22.0 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev452+g66ba515e67.d20240725) (4.42.1)
+Requirement already satisfied: kiwisolver>=1.0.1 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev452+g66ba515e67.d20240725) (1.4.5)
+Requirement already satisfied: numpy>=1.21 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev452+g66ba515e67.d20240725) (1.25.2)
+Requirement already satisfied: packaging>=20.0 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev452+g66ba515e67.d20240725) (23.1)
+Requirement already satisfied: pillow>=6.2.0 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev452+g66ba515e67.d20240725) (10.0.0)
+Requirement already satisfied: pyparsing>=2.3.1 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev452+g66ba515e67.d20240725) (3.0.9)
+Requirement already satisfied: python-dateutil>=2.7 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev452+g66ba515e67.d20240725) (2.8.2)
+Requirement already satisfied: setuptools-scm>=7 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from matplotlib==3.8.0.dev452+g66ba515e67.d20240725) (7.1.0)
+Requirement already satisfied: six>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from python-dateutil>=2.7->matplotlib==3.8.0.dev452+g66ba515e67.d20240725) (1.16.0)
+Requirement already satisfied: setuptools in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from setuptools-scm>=7->matplotlib==3.8.0.dev452+g66ba515e67.d20240725) (68.1.2)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.11/site-packages (from setuptools-scm>=7->matplotlib==3.8.0.dev452+g66ba515e67.d20240725) (4.7.1)
+Building wheels for collected packages: matplotlib
+  Building editable for matplotlib (pyproject.toml): started
+  Building editable for matplotlib (pyproject.toml): still running...
+  Building editable for matplotlib (pyproject.toml): finished with status 'done'
+  Created wheel for matplotlib: filename=matplotlib-3.8.0.dev452+g66ba515e67.d20240725-0.editable-cp311-cp311-linux_x86_64.whl size=23293 sha256=94bb213fe9677f1d679b194ceea626fe16b787a2b3c66ee706ced3038751c236
+  Stored in directory: /tmp/pip-ephem-wheel-cache-2z2q91ru/wheels/49/5f/4f/01b7d31ea6ddac9643da788242d33e5fd3467d95d17b032c6b
+Successfully built matplotlib
+Installing collected packages: matplotlib
+  Attempting uninstall: matplotlib
+    Found existing installation: matplotlib 3.8.0.dev452+g66ba515e67
+    Uninstalling matplotlib-3.8.0.dev452+g66ba515e67:
+      Successfully uninstalled matplotlib-3.8.0.dev452+g66ba515e67
+Successfully installed matplotlib-3.8.0.dev452+g66ba515e67.d20240725
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 66ba515e671638971bd11a34cff12c107a437e0b lib/matplotlib/tests/test_pickle.py
+Updated 0 paths from 93d72e7d76
++ git apply -v -
+Checking patch lib/matplotlib/tests/test_pickle.py...
+Applied patch lib/matplotlib/tests/test_pickle.py cleanly.
++ pytest -rA lib/matplotlib/tests/test_pickle.py
+============================= test session starts ==============================
+platform linux -- Python 3.11.9, pytest-8.3.1, pluggy-1.5.0
+rootdir: /testbed
+configfile: pytest.ini
+plugins: cov-5.0.0, rerunfailures-14.0, timeout-2.3.1, xdist-3.6.1
+collected 183 items
+
+lib/matplotlib/tests/test_pickle.py ..F................................. [ 19%]
+........................................................................ [ 59%]
+........................................................................ [ 98%]
+...                                                                      [100%]
+
+=================================== FAILURES ===================================
+____________________ test_pickle_load_from_subprocess[png] _____________________
+
+ext = 'png'
+request = <FixtureRequest for <Function test_pickle_load_from_subprocess[png]>>
+args = ()
+kwargs = {'tmp_path': PosixPath('/tmp/pytest-of-root/pytest-0/test_pickle_load_from_subproce0')}
+file_name = 'test_pickle_load_from_subprocess[png]'
+fig_test = <Figure size 640x480 with 0 Axes>
+fig_ref = <Figure size 1000x600 with 10 Axes>, figs = []
+
+    @pytest.mark.parametrize("ext", extensions)
+    def wrapper(*args, ext, request, **kwargs):
+        if 'ext' in old_sig.parameters:
+            kwargs['ext'] = ext
+        if 'request' in old_sig.parameters:
+            kwargs['request'] = request
+    
+        file_name = "".join(c for c in request.node.name
+                            if c in ALLOWED_CHARS)
+        try:
+            fig_test = plt.figure("test")
+            fig_ref = plt.figure("reference")
+            with _collect_new_figures() as figs:
+>               func(*args, fig_test=fig_test, fig_ref=fig_ref, **kwargs)
+
+lib/matplotlib/testing/decorators.py:472: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/tests/test_pickle.py:143: in test_pickle_load_from_subprocess
+    loaded_fig = pickle.loads(ast.literal_eval(proc.stdout))
+lib/matplotlib/figure.py:3184: in __setstate__
+    _api.warn_external(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+message = 'This figure was saved with matplotlib version 3.8.0.dev452+g66ba515e67.d19700101 and is unlikely to function correctly.'
+category = None
+
+    def warn_external(message, category=None):
+        """
+        `warnings.warn` wrapper that sets *stacklevel* to "outside Matplotlib".
+    
+        The original emitter of the warning can be obtained by patching this
+        function back to `warnings.warn`, i.e. ``_api.warn_external =
+        warnings.warn`` (or ``functools.partial(warnings.warn, stacklevel=2)``,
+        etc.).
+        """
+        frame = sys._getframe()
+        for stacklevel in itertools.count(1):  # lgtm[py/unused-loop-variable]
+            if frame is None:
+                # when called in embedded context may hit frame is None
+                break
+            if not re.match(r"\A(matplotlib|mpl_toolkits)(\Z|\.(?!tests\.))",
+                            # Work around sphinx-gallery not setting __name__.
+                            frame.f_globals.get("__name__", "")):
+                break
+            frame = frame.f_back
+>       warnings.warn(message, category, stacklevel)
+E       UserWarning: This figure was saved with matplotlib version 3.8.0.dev452+g66ba515e67.d19700101 and is unlikely to function correctly.
+
+lib/matplotlib/_api/__init__.py:388: UserWarning
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED lib/matplotlib/tests/test_pickle.py::test_simple
+PASSED lib/matplotlib/tests/test_pickle.py::test_complete[png]
+PASSED lib/matplotlib/tests/test_pickle.py::test_gcf
+PASSED lib/matplotlib/tests/test_pickle.py::test_no_pyplot
+PASSED lib/matplotlib/tests/test_pickle.py::test_renderer
+PASSED lib/matplotlib/tests/test_pickle.py::test_image
+PASSED lib/matplotlib/tests/test_pickle.py::test_polar
+PASSED lib/matplotlib/tests/test_pickle.py::test_transform
+PASSED lib/matplotlib/tests/test_pickle.py::test_rrulewrapper
+PASSED lib/matplotlib/tests/test_pickle.py::test_shared
+PASSED lib/matplotlib/tests/test_pickle.py::test_inset_and_secondary
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap0]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap1]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap2]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap3]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap4]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap5]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap6]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap7]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap8]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap9]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap10]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap11]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap12]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap13]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap14]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap15]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap16]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap17]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap18]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap19]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap20]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap21]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap22]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap23]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap24]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap25]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap26]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap27]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap28]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap29]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap30]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap31]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap32]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap33]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap34]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap35]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap36]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap37]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap38]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap39]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap40]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap41]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap42]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap43]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap44]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap45]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap46]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap47]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap48]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap49]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap50]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap51]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap52]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap53]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap54]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap55]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap56]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap57]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap58]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap59]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap60]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap61]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap62]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap63]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap64]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap65]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap66]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap67]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap68]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap69]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap70]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap71]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap72]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap73]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap74]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap75]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap76]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap77]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap78]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap79]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap80]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap81]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap82]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap83]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap84]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap85]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap86]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap87]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap88]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap89]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap90]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap91]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap92]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap93]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap94]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap95]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap96]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap97]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap98]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap99]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap100]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap101]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap102]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap103]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap104]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap105]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap106]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap107]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap108]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap109]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap110]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap111]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap112]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap113]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap114]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap115]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap116]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap117]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap118]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap119]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap120]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap121]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap122]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap123]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap124]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap125]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap126]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap127]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap128]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap129]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap130]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap131]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap132]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap133]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap134]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap135]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap136]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap137]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap138]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap139]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap140]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap141]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap142]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap143]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap144]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap145]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap146]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap147]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap148]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap149]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap150]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap151]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap152]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap153]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap154]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap155]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap156]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap157]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap158]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap159]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap160]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap161]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap162]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap163]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap164]
+PASSED lib/matplotlib/tests/test_pickle.py::test_cmap[cmap165]
+PASSED lib/matplotlib/tests/test_pickle.py::test_unpickle_canvas
+PASSED lib/matplotlib/tests/test_pickle.py::test_mpl_toolkits
+PASSED lib/matplotlib/tests/test_pickle.py::test_standard_norm
+PASSED lib/matplotlib/tests/test_pickle.py::test_dynamic_norm
+PASSED lib/matplotlib/tests/test_pickle.py::test_vertexselector
+FAILED lib/matplotlib/tests/test_pickle.py::test_pickle_load_from_subprocess[png]
+======================== 1 failed, 182 passed in 13.40s ========================
++ git checkout 66ba515e671638971bd11a34cff12c107a437e0b lib/matplotlib/tests/test_pickle.py
+Updated 1 path from 93d72e7d76

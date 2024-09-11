@@ -1,0 +1,32 @@
+{
+    "sphinx-doc__sphinx-8721": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "tests/test_ext_viewcode.py::test_viewcode_epub_default"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "tests/test_ext_viewcode.py::test_viewcode_epub_enabled",
+                    "tests/test_ext_viewcode.py::test_linkcode",
+                    "tests/test_ext_viewcode.py::test_local_source_files"
+                ]
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

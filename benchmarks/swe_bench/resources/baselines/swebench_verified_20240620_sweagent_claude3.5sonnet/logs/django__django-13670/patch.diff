@@ -1,0 +1,49 @@
+
+diff --git a/django/utils/dateformat.py b/django/utils/dateformat.py
+index afd36d79e0..7020220992 100644
+--- a/django/utils/dateformat.py
++++ b/django/utils/dateformat.py
+@@ -325,8 +325,8 @@ class DateFormat(TimeFormat):
+         return self.data.isocalendar()[1]
+ 
+     def y(self):
+-        "Year, 2 digits; e.g. '99'"
+-        return str(self.data.year)[2:]
++        "Year, 2 digits with leading zeros; e.g. '99', '03', '23'"
++        return f'{self.data.year % 100:02d}'
+ 
+     def Y(self):
+         "Year, 4 digits; e.g. '1999'"
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..e1638e725c
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,27 @@
++import os
++import django
++from django.conf import settings
++
++# Set up minimal Django settings
++settings.configure(
++    INSTALLED_APPS=[
++        'django.contrib.contenttypes',
++        'django.contrib.auth',
++    ],
++    TIME_ZONE='UTC',
++)
++django.setup()
++
++# Now we can import and use Django utilities
++import datetime
++from django.utils import dateformat
++
++test_date = datetime.datetime(123, 4, 5, 6, 7)
++formatted_date = dateformat.format(test_date, "y")
++print(f"Django dateformat: {formatted_date}")
++
++python_formatted = test_date.strftime("%y")
++print(f"Python strftime: {python_formatted}")
++
++print("Expected output: 23")
++print("Script completed successfully, no errors.")

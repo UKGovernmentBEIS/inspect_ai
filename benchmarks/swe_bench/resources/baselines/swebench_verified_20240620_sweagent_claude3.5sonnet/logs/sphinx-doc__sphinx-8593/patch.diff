@@ -1,0 +1,81 @@
+
+diff --git a/example.py b/example.py
+new file mode 100644
+index 000000000..1eacd2d2d
+--- /dev/null
++++ b/example.py
+@@ -0,0 +1 @@
++_foo = None  #: :meta public:
+diff --git a/index.rst b/index.rst
+new file mode 100644
+index 000000000..740c3c182
+--- /dev/null
++++ b/index.rst
+@@ -0,0 +1,2 @@
++.. automodule:: example
++   :members:
+diff --git a/setup.py b/setup.py
+index 8d40de1a8..03f325278 100644
+--- a/setup.py
++++ b/setup.py
+@@ -15,22 +15,22 @@ if sys.version_info < (3, 5):
+     sys.exit(1)
+ 
+ install_requires = [
+-    'sphinxcontrib-applehelp',
+-    'sphinxcontrib-devhelp',
++    'sphinxcontrib-applehelp<=1.0.7',
++    'sphinxcontrib-devhelp<=1.0.5',
+     'sphinxcontrib-jsmath',
+-    'sphinxcontrib-htmlhelp',
+-    'sphinxcontrib-serializinghtml',
+-    'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'sphinxcontrib-htmlhelp<=2.0.4',
++    'sphinxcontrib-serializinghtml<=1.1.9',
++    'sphinxcontrib-qthelp<=1.0.6',
++    'Jinja2<3.0',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+     'babel>=1.3',
+-    'alabaster>=0.7,<0.8',
++    'alabaster>=0.7,<0.7.12',
+     'imagesize',
+     'requests>=2.5.0',
+     'setuptools',
+-    'packaging',
++    'packaging', 'markupsafe<=2.0.1',
+ ]
+ 
+ extras_require = {
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index 76265f5be..96dcb6af0 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -773,7 +773,11 @@ class Documenter:
+                     elif is_filtered_inherited_member(membername, obj):
+                         keep = False
+                     else:
+-                        keep = membername in self.options.private_members
++                        # Check if this is a module-level variable
++                        if isinstance(self, ModuleDocumenter) and not inspect.isfunction(member) and not inspect.isclass(member):
++                            keep = True  # Always keep module-level variables with :meta public:
++                        else:
++                            keep = membername in self.options.private_members
+                 else:
+                     keep = False
+             else:
+diff --git a/tox.ini b/tox.ini
+index dbb705a3a..9f4fc3a32 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -m pytest --durations 25 {posargs}
++    python -X dev -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

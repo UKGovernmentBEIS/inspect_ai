@@ -1,0 +1,99 @@
+
+diff --git a/django/db/migrations/serializer.py b/django/db/migrations/serializer.py
+index d88cda6e20..998b55a810 100644
+--- a/django/db/migrations/serializer.py
++++ b/django/db/migrations/serializer.py
+@@ -168,6 +168,12 @@ class FunctionTypeSerializer(BaseSerializer):
+         ):
+             klass = self.value.__self__
+             module = klass.__module__
++            # Check if it's a nested class
++            if '.' in klass.__qualname__:
++                outer_class, inner_class = klass.__qualname__.rsplit('.', 1)
++                return "%s.%s.%s.%s" % (module, outer_class, inner_class, self.value.__name__), {
++                    "import %s" % module
++                }
+             return "%s.%s.%s" % (module, klass.__name__, self.value.__name__), {
+                 "import %s" % module
+             }
+diff --git a/tests/migrations/test_nested_class_serialization.py b/tests/migrations/test_nested_class_serialization.py
+new file mode 100644
+index 0000000000..4548e85580
+--- /dev/null
++++ b/tests/migrations/test_nested_class_serialization.py
+@@ -0,0 +1,54 @@
++import os
++import sys
++import django
++from django.db import models
++from django.test import TestCase
++from django.test.utils import setup_test_environment
++from django.test.runner import DiscoverRunner
++from django.db.migrations.serializer import serializer_factory
++from django.conf import settings
++
++# Add the parent directory to the Python path
++sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
++
++
++class TestNestedClassSerialization(TestCase):
++    def test_nested_class_method_serialization(self):
++        class TestModel(models.Model):
++            class Capability(models.TextChoices):
++                BASIC = "BASIC", "Basic"
++                PROFESSIONAL = "PROFESSIONAL", "Professional"
++
++                @classmethod
++                def default(cls):
++                    return [cls.BASIC]
++
++            capabilities = models.JSONField(default=Capability.default)
++
++        # Get the capabilities field
++        capabilities_field = TestModel._meta.get_field('capabilities')
++
++        # Create a serializer for the field's default value
++        serializer = serializer_factory(capabilities_field.default)
++
++        # Attempt to serialize the default value
++        serialized, imports = serializer.serialize()
++
++        # Check if the serialized string correctly references the nested class method
++        expected = "tests.migrations.test_nested_class_serialization.TestModel.Capability.default"
++        self.assertIn(expected, serialized)
++
++        # Ensure the serialized string can be evaluated
++        scope = {}
++        exec(f"from django.db import models\n{imports.pop()}\ndef function(): return {serialized}", scope)
++        result = scope['function']()
++
++        # Check if the result matches the expected default value
++        self.assertEqual(result, ["BASIC"])
++
++if __name__ == '__main__':
++    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tests.migrations.test_settings')
++    django.setup()
++    runner = DiscoverRunner(verbosity=2, interactive=True)
++    failures = runner.run_tests(['tests.migrations.test_nested_class_serialization'])
++    exit(bool(failures))
+diff --git a/tests/migrations/test_settings.py b/tests/migrations/test_settings.py
+new file mode 100644
+index 0000000000..631a1ced82
+--- /dev/null
++++ b/tests/migrations/test_settings.py
+@@ -0,0 +1,15 @@
++SECRET_KEY = 'dummy'
++DEBUG = True
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'django.contrib.auth',
++    'tests.migrations',  # Add this line
++]
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++USE_TZ = True
++DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

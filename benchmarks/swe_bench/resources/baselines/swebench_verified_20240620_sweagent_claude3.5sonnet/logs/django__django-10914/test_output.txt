@@ -1,0 +1,607 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/conf/global_settings.py
+	modified:   docs/topics/http/file-uploads.txt
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit e7fd69d051eaa67cb17f172a39b57253e9cb831a
+Author: Tim Graham <timograham@gmail.com>
+Date:   Thu Feb 7 19:10:34 2019 -0500
+
+    Fixed #30166 -- Dropped support for GDAL 1.11.
+
+diff --git a/django/contrib/gis/gdal/geometries.py b/django/contrib/gis/gdal/geometries.py
+index 6bc5df53cf..a3a145ecd4 100644
+--- a/django/contrib/gis/gdal/geometries.py
++++ b/django/contrib/gis/gdal/geometries.py
+@@ -46,7 +46,6 @@ from django.contrib.gis.gdal.base import GDALBase
+ from django.contrib.gis.gdal.envelope import Envelope, OGREnvelope
+ from django.contrib.gis.gdal.error import GDALException, SRSException
+ from django.contrib.gis.gdal.geomtype import OGRGeomType
+-from django.contrib.gis.gdal.libgdal import GDAL_VERSION
+ from django.contrib.gis.gdal.prototypes import geom as capi, srs as srs_api
+ from django.contrib.gis.gdal.srs import CoordTransform, SpatialReference
+ from django.contrib.gis.geometry import hex_regex, json_regex, wkt_regex
+@@ -140,14 +139,7 @@ class OGRGeometry(GDALBase):
+ 
+     @staticmethod
+     def _from_json(geom_input):
+-        ptr = capi.from_json(geom_input)
+-        if GDAL_VERSION < (2, 0):
+-            try:
+-                capi.get_geom_srs(ptr)
+-            except SRSException:
+-                srs = SpatialReference(4326)
+-                capi.assign_srs(ptr, srs.ptr)
+-        return ptr
++        return capi.from_json(geom_input)
+ 
+     @classmethod
+     def from_bbox(cls, bbox):
+diff --git a/django/contrib/gis/gdal/libgdal.py b/django/contrib/gis/gdal/libgdal.py
+index 5232e58717..f76943625c 100644
+--- a/django/contrib/gis/gdal/libgdal.py
++++ b/django/contrib/gis/gdal/libgdal.py
+@@ -20,10 +20,10 @@ if lib_path:
+     lib_names = None
+ elif os.name == 'nt':
+     # Windows NT shared libraries
+-    lib_names = ['gdal203', 'gdal202', 'gdal201', 'gdal20', 'gdal111']
++    lib_names = ['gdal203', 'gdal202', 'gdal201', 'gdal20']
+ elif os.name == 'posix':
+     # *NIX library names.
+-    lib_names = ['gdal', 'GDAL', 'gdal2.3.0', 'gdal2.2.0', 'gdal2.1.0', 'gdal2.0.0', 'gdal1.11.0']
++    lib_names = ['gdal', 'GDAL', 'gdal2.3.0', 'gdal2.2.0', 'gdal2.1.0', 'gdal2.0.0']
+ else:
+     raise ImproperlyConfigured('GDAL is unsupported on OS "%s".' % os.name)
+ 
+diff --git a/django/contrib/gis/gdal/prototypes/ds.py b/django/contrib/gis/gdal/prototypes/ds.py
+index 5a10de3575..907589cf86 100644
+--- a/django/contrib/gis/gdal/prototypes/ds.py
++++ b/django/contrib/gis/gdal/prototypes/ds.py
+@@ -68,8 +68,7 @@ get_field_as_datetime = int_output(
+ )
+ get_field_as_double = double_output(lgdal.OGR_F_GetFieldAsDouble, [c_void_p, c_int])
+ get_field_as_integer = int_output(lgdal.OGR_F_GetFieldAsInteger, [c_void_p, c_int])
+-if GDAL_VERSION >= (2, 0):
+-    get_field_as_integer64 = int64_output(lgdal.OGR_F_GetFieldAsInteger64, [c_void_p, c_int])
++get_field_as_integer64 = int64_output(lgdal.OGR_F_GetFieldAsInteger64, [c_void_p, c_int])
+ if GDAL_VERSION >= (2, 2):
+     is_field_set = bool_output(lgdal.OGR_F_IsFieldSetAndNotNull, [c_void_p, c_int])
+ else:
+diff --git a/docs/ref/contrib/gis/install/geolibs.txt b/docs/ref/contrib/gis/install/geolibs.txt
+index 2ca69a1e76..8ffe864c9d 100644
+--- a/docs/ref/contrib/gis/install/geolibs.txt
++++ b/docs/ref/contrib/gis/install/geolibs.txt
+@@ -10,7 +10,7 @@ Program                   Description                           Required
+ ========================  ====================================  ================================  ===================================
+ :doc:`GEOS <../geos>`     Geometry Engine Open Source           Yes                               3.7, 3.6, 3.5, 3.4
+ `PROJ.4`_                 Cartographic Projections library      Yes (PostgreSQL and SQLite only)  5.2, 5.1, 5.0, 4.x
+-:doc:`GDAL <../gdal>`     Geospatial Data Abstraction Library   Yes                               2.3, 2.2, 2.1, 2.0, 1.11
++:doc:`GDAL <../gdal>`     Geospatial Data Abstraction Library   Yes                               2.3, 2.2, 2.1, 2.0
+ :doc:`GeoIP <../geoip2>`  IP-based geolocation library          No                                2
+ `PostGIS`__               Spatial extensions for PostgreSQL     Yes (PostgreSQL only)             2.5, 2.4, 2.3, 2.2
+ `SpatiaLite`__            Spatial extensions for SQLite         Yes (SQLite only)                 4.3
+@@ -25,7 +25,6 @@ totally fine with GeoDjango. Your mileage may vary.
+     GEOS 3.5.0 2015-08-15
+     GEOS 3.6.0 2016-10-25
+     GEOS 3.7.0 2018-09-10
+-    GDAL 1.11.0 2014-04-25
+     GDAL 2.0.0 2015-06
+     GDAL 2.1.0 2016-04
+     GDAL 2.2.0 2017-05
+diff --git a/docs/releases/3.0.txt b/docs/releases/3.0.txt
+index f089b1bb11..5d9bff086e 100644
+--- a/docs/releases/3.0.txt
++++ b/docs/releases/3.0.txt
+@@ -229,6 +229,8 @@ backends.
+ 
+ * Support for SpatiaLite 4.1 and 4.2 is removed.
+ 
++* Support for GDAL 1.11 is removed.
++
+ Dropped support for PostgreSQL 9.4
+ ----------------------------------
+ 
+diff --git a/tests/gis_tests/gdal_tests/test_ds.py b/tests/gis_tests/gdal_tests/test_ds.py
+index 10ad8436b3..d462bec971 100644
+--- a/tests/gis_tests/gdal_tests/test_ds.py
++++ b/tests/gis_tests/gdal_tests/test_ds.py
+@@ -3,7 +3,7 @@ import re
+ from datetime import datetime
+ 
+ from django.contrib.gis.gdal import (
+-    GDAL_VERSION, DataSource, Envelope, GDALException, OGRGeometry,
++    DataSource, Envelope, GDALException, OGRGeometry,
+ )
+ from django.contrib.gis.gdal.field import (
+     OFTDateTime, OFTInteger, OFTReal, OFTString,
+@@ -38,7 +38,7 @@ ds_list = (
+     ),
+     TestDS(
+         'test_vrt', ext='vrt', nfeat=3, nfld=3, geom='POINT', gtype='Point25D',
+-        driver='OGR_VRT' if GDAL_VERSION >= (2, 0) else 'VRT',
++        driver='OGR_VRT',
+         fields={
+             'POINT_X': OFTString,
+             'POINT_Y': OFTString,
+diff --git a/tests/gis_tests/inspectapp/tests.py b/tests/gis_tests/inspectapp/tests.py
+index 431818ebfd..35fedf8eb6 100644
+--- a/tests/gis_tests/inspectapp/tests.py
++++ b/tests/gis_tests/inspectapp/tests.py
+@@ -74,7 +74,7 @@ class OGRInspectTest(SimpleTestCase):
+             '',
+             'class MyModel(models.Model):',
+             '    float = models.FloatField()',
+-            '    int = models.{}()'.format('BigIntegerField' if GDAL_VERSION >= (2, 0) else 'FloatField'),
++            '    int = models.BigIntegerField()',
+             '    str = models.CharField(max_length=80)',
+             '    geom = models.PolygonField(%s)' % self.expected_srid,
+         ]
+@@ -102,7 +102,7 @@ class OGRInspectTest(SimpleTestCase):
+             '',
+             'class City(models.Model):',
+             '    name = models.CharField(max_length=80)',
+-            '    population = models.{}()'.format('BigIntegerField' if GDAL_VERSION >= (2, 0) else 'FloatField'),
++            '    population = models.BigIntegerField()',
+             '    density = models.FloatField()',
+             '    created = models.DateField()',
+             '    geom = models.PointField(%s)' % self.expected_srid,
++ git diff e7fd69d051eaa67cb17f172a39b57253e9cb831a
+diff --git a/django/conf/global_settings.py b/django/conf/global_settings.py
+index acee9887d2..bdeec80610 100644
+--- a/django/conf/global_settings.py
++++ b/django/conf/global_settings.py
+@@ -304,7 +304,7 @@ FILE_UPLOAD_TEMP_DIR = None
+ 
+ # The numeric mode to set newly-uploaded files to. The value should be a mode
+ # you'd pass directly to os.chmod; see https://docs.python.org/library/os.html#files-and-directories.
+-FILE_UPLOAD_PERMISSIONS = None
++FILE_UPLOAD_PERMISSIONS = 0o644
+ 
+ # The numeric mode to assign to newly-created directories, when uploading files.
+ # The value should be a mode as you'd pass to os.chmod;
+diff --git a/docs/topics/http/file-uploads.txt b/docs/topics/http/file-uploads.txt
+index 21a6f06853..384b70a96e 100644
+--- a/docs/topics/http/file-uploads.txt
++++ b/docs/topics/http/file-uploads.txt
+@@ -16,6 +16,15 @@ and in memory, and how to customize the default behavior.
+     untrusted users! See the security guide's topic on
+     :ref:`user-uploaded-content-security` for mitigation details.
+ 
++.. warning::
++
++    In the absence of explicitly configured FILE_UPLOAD_PERMISSIONS, the permissions
++    for a file uploaded to FileSystemStorage might not be consistent. This depends
++    on whether a MemoryUploadedFile or a TemporaryUploadedFile was used for temporary
++    storage of the uploaded data, which in turn depends on the size of the uploaded file
++    with the default FILE_UPLOAD_HANDLERS. As of the latest update, the default
++    FILE_UPLOAD_PERMISSIONS is set to 0o644 to ensure consistent permissions.
++
+ Basic file uploads
+ ==================
+ 
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0.dev20190208190805) (2024.1)
+Requirement already satisfied: sqlparse in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0.dev20190208190805) (0.4.4)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.0.dev20190208190805
+    Uninstalling Django-3.0.dev20190208190805:
+      Successfully uninstalled Django-3.0.dev20190208190805
+  Running setup.py develop for Django
+Successfully installed Django-3.0.dev20190208190805
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout e7fd69d051eaa67cb17f172a39b57253e9cb831a tests/test_utils/tests.py
+Updated 0 paths from 7960b600c1
++ git apply -v -
+Checking patch tests/test_utils/tests.py...
+Applied patch tests/test_utils/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 test_utils.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')…
+test_failure (test_utils.tests.AssertNumQueriesContextManagerTests) ... ok
+test_simple (test_utils.tests.AssertNumQueriesContextManagerTests) ... ok
+test_with_client (test_utils.tests.AssertNumQueriesContextManagerTests) ... ok
+test_assert_num_queries (test_utils.tests.AssertNumQueriesTests) ... ok
+test_assert_num_queries_with_client (test_utils.tests.AssertNumQueriesTests) ... ok
+test_ordered (test_utils.tests.AssertQuerysetEqualTests) ... ok
+test_repeated_values (test_utils.tests.AssertQuerysetEqualTests) ... ok
+test_transform (test_utils.tests.AssertQuerysetEqualTests) ... ok
+test_undefined_order (test_utils.tests.AssertQuerysetEqualTests) ... ok
+test_unordered (test_utils.tests.AssertQuerysetEqualTests) ... ok
+test_failure (test_utils.tests.CaptureQueriesContextManagerTests) ... ok
+test_nested (test_utils.tests.CaptureQueriesContextManagerTests) ... ok
+test_simple (test_utils.tests.CaptureQueriesContextManagerTests) ... ok
+test_with_client (test_utils.tests.CaptureQueriesContextManagerTests) ... ok
+test_within (test_utils.tests.CaptureQueriesContextManagerTests) ... ok
+test_missing_default_databases (test_utils.tests.SkippingClassTestCase) ... ok
+test_skip_class_unless_db_feature (test_utils.tests.SkippingClassTestCase) ... ok
+test_fixtures_are_skipped (test_utils.tests.SkippingExtraTests) ... skipped 'Fixture loading should not be performed for skipped tests.'
+test_failure_in_setUpTestData_should_rollback_transaction (test_utils.tests.TestBadSetUpTestData) ... ok
+test_allowed_database_chunked_cursor_queries (test_utils.tests.AllowedDatabaseQueriesTests) ... ok
+test_allowed_database_queries (test_utils.tests.AllowedDatabaseQueriesTests) ... ok
+test_assert_field_output (test_utils.tests.AssertFieldOutputTests) ... ok
+test_custom_required_message (test_utils.tests.AssertFieldOutputTests) ... ok
+test_ignores_connection_configuration_queries (test_utils.tests.AssertNumQueriesUponConnectionTests) ... ok
+test_assert_raises_message (test_utils.tests.AssertRaisesMsgTest) ... ok
+test_special_re_chars (test_utils.tests.AssertRaisesMsgTest)
+assertRaisesMessage shouldn't interpret RE special chars. ... ok
+test_assert_used_on_http_response (test_utils.tests.AssertTemplateUsedContextManagerTests) ... ok
+test_error_message (test_utils.tests.AssertTemplateUsedContextManagerTests) ... ok
+test_failure (test_utils.tests.AssertTemplateUsedContextManagerTests) ... ok
+test_nested_usage (test_utils.tests.AssertTemplateUsedContextManagerTests) ... ok
+test_not_used (test_utils.tests.AssertTemplateUsedContextManagerTests) ... ok
+test_usage (test_utils.tests.AssertTemplateUsedContextManagerTests) ... ok
+test_equal (test_utils.tests.AssertURLEqualTests) ... ok
+test_message (test_utils.tests.AssertURLEqualTests) ... ok
+test_msg_prefix (test_utils.tests.AssertURLEqualTests) ... ok
+test_not_equal (test_utils.tests.AssertURLEqualTests) ... ok
+test_callable (test_utils.tests.AssertWarnsMessageTests) ... ok
+test_context_manager (test_utils.tests.AssertWarnsMessageTests) ... ok
+test_context_manager_failure (test_utils.tests.AssertWarnsMessageTests) ... ok
+test_special_re_chars (test_utils.tests.AssertWarnsMessageTests) ... ok
+test_all (test_utils.tests.DatabaseAliasTests) ... ok
+test_close_match (test_utils.tests.DatabaseAliasTests) ... ok
+test_match (test_utils.tests.DatabaseAliasTests) ... ok
+test_no_close_match (test_utils.tests.DatabaseAliasTests) ... ok
+test_disallowed_database_chunked_cursor_queries (test_utils.tests.DisallowedDatabaseQueriesTests) ... ok
+test_disallowed_database_connections (test_utils.tests.DisallowedDatabaseQueriesTests) ... ok
+test_disallowed_database_queries (test_utils.tests.DisallowedDatabaseQueriesTests) ... ok
+test_attributes (test_utils.tests.HTMLEqualTests) ... ok
+test_complex_examples (test_utils.tests.HTMLEqualTests) ... ok
+test_contains_html (test_utils.tests.HTMLEqualTests) ... ok
+test_count (test_utils.tests.HTMLEqualTests) ... ok
+test_html_contain (test_utils.tests.HTMLEqualTests) ... ok
+test_html_parser (test_utils.tests.HTMLEqualTests) ... ok
+test_ignore_comments (test_utils.tests.HTMLEqualTests) ... ok
+test_parse_html_in_script (test_utils.tests.HTMLEqualTests) ... ok
+test_parsing_errors (test_utils.tests.HTMLEqualTests) ... ok
+test_self_closing_tags (test_utils.tests.HTMLEqualTests) ... ok
+test_simple_equal_html (test_utils.tests.HTMLEqualTests) ... ok
+test_unequal_html (test_utils.tests.HTMLEqualTests) ... ok
+test_unicode_handling (test_utils.tests.HTMLEqualTests) ... ok
+test_class_decoration (test_utils.tests.IsolatedAppsTests) ... ok
+test_context_manager (test_utils.tests.IsolatedAppsTests) ... ok
+test_installed_apps (test_utils.tests.IsolatedAppsTests) ... ok
+test_method_decoration (test_utils.tests.IsolatedAppsTests) ... ok
+test_nested (test_utils.tests.IsolatedAppsTests) ... ok
+test_equal_parsing_errors (test_utils.tests.JSONEqualTests) ... ok
+test_not_equal_parsing_errors (test_utils.tests.JSONEqualTests) ... ok
+test_simple_equal (test_utils.tests.JSONEqualTests) ... ok
+test_simple_equal_raise (test_utils.tests.JSONEqualTests) ... ok
+test_simple_equal_unordered (test_utils.tests.JSONEqualTests) ... ok
+test_simple_not_equal (test_utils.tests.JSONEqualTests) ... ok
+test_simple_not_equal_raise (test_utils.tests.JSONEqualTests) ... ok
+test_override_database_routers (test_utils.tests.OverrideSettingsTests) ... ok
+test_override_file_upload_directory_permissions (test_utils.tests.OverrideSettingsTests) ... ok
+test_override_file_upload_permissions (test_utils.tests.OverrideSettingsTests) ... ok
+test_override_media_root (test_utils.tests.OverrideSettingsTests) ... ok
+test_override_media_url (test_utils.tests.OverrideSettingsTests) ... ok
+test_override_static_root (test_utils.tests.OverrideSettingsTests) ... ok
+test_override_static_url (test_utils.tests.OverrideSettingsTests) ... ok
+test_override_staticfiles_dirs (test_utils.tests.OverrideSettingsTests) ... ok
+test_override_staticfiles_finders (test_utils.tests.OverrideSettingsTests) ... ok
+test_override_staticfiles_storage (test_utils.tests.OverrideSettingsTests) ... ok
+test_urlconf_cache (test_utils.tests.OverrideSettingsTests) ... ok
+test_urlconf_first (test_utils.tests.OverrideSettingsTests) ... ok
+test_urlconf_second (test_utils.tests.OverrideSettingsTests) ... ok
+test_allowed_hosts (test_utils.tests.SetupTestEnvironmentTests) ... ok
+test_setup_test_environment_calling_more_than_once (test_utils.tests.SetupTestEnvironmentTests) ... ok
+test_skip_if_db_feature (test_utils.tests.SkippingTestCase) ... ok
+test_skip_unless_db_feature (test_utils.tests.SkippingTestCase) ... ok
+test_exception_in_setup (test_utils.tests.TestContextDecoratorTests)
+An exception is setUp() is reraised after disable() is called. ... ok
+test_comment_root (test_utils.tests.XMLEqualTests) ... ok
+test_parsing_errors (test_utils.tests.XMLEqualTests) ... ok
+test_simple_equal (test_utils.tests.XMLEqualTests) ... ok
+test_simple_equal_raise (test_utils.tests.XMLEqualTests) ... ok
+test_simple_equal_raises_message (test_utils.tests.XMLEqualTests) ... ok
+test_simple_equal_unordered (test_utils.tests.XMLEqualTests) ... ok
+test_simple_equal_with_leading_or_trailing_whitespace (test_utils.tests.XMLEqualTests) ... ok
+test_simple_not_equal (test_utils.tests.XMLEqualTests) ... ok
+test_simple_not_equal_raise (test_utils.tests.XMLEqualTests) ... ok
+test_simple_not_equal_with_whitespace_in_the_middle (test_utils.tests.XMLEqualTests) ... ok
+
+----------------------------------------------------------------------
+Ran 100 tests in 0.182s
+
+OK (skipped=1)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')…
+Testing against Django installed in '/testbed/django'
+Importing application test_utils
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, sessions, staticfiles, test_utils
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables…
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table test_utils_car
+    Creating table test_utils_person
+    Creating table test_utils_possessedcar
+    Running deferred SQL…
+Running migrations:
+  Applying admin.0001_initial… OK
+  Applying admin.0002_logentry_remove_auto_add… OK
+  Applying admin.0003_logentry_add_action_flag_choices… OK
+  Applying sites.0001_initial… OK
+  Applying sites.0002_alter_domain_unique… OK
+System check identified no issues (0 silenced).
++ git checkout e7fd69d051eaa67cb17f172a39b57253e9cb831a tests/test_utils/tests.py
+Updated 1 path from 7960b600c1

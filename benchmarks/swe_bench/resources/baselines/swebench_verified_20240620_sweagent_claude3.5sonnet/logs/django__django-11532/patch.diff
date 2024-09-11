@@ -1,0 +1,54 @@
+
+diff --git a/django/core/mail/message.py b/django/core/mail/message.py
+index e393b4cf5c..704198955d 100644
+--- a/django/core/mail/message.py
++++ b/django/core/mail/message.py
+@@ -17,7 +17,7 @@ from pathlib import Path
+ from django.conf import settings
+ from django.core.mail.utils import DNS_NAME
+ from django.utils.encoding import force_str
+-
++import idna
+ # Don't BASE64-encode UTF-8 messages so that we avoid unwanted attention from
+ # some spam filters.
+ utf8_charset = Charset.Charset('utf-8')
+@@ -257,7 +257,7 @@ class EmailMessage:
+             msg['Date'] = formatdate(localtime=settings.EMAIL_USE_LOCALTIME)
+         if 'message-id' not in header_names:
+             # Use cached DNS_NAME for performance
+-            msg['Message-ID'] = make_msgid(domain=DNS_NAME)
++            msg['Message-ID'] = make_msgid(domain=idna.encode(DNS_NAME).decode('ascii'))
+         for name, value in self.extra_headers.items():
+             if name.lower() != 'from':  # From is already handled
+                 msg[name] = value
+diff --git a/reproduce_email_issue.py b/reproduce_email_issue.py
+new file mode 100644
+index 0000000000..3eb74ded10
+--- /dev/null
++++ b/reproduce_email_issue.py
+@@ -0,0 +1,25 @@
++import os
++from django.conf import settings
++from django.core.mail import EmailMessage
++from unittest.mock import patch
++
++# Configure Django settings
++os.environ['DJANGO_SETTINGS_MODULE'] = 'django.conf.global_settings'
++settings.configure()
++
++def test_unicode_dns():
++    with patch("django.core.mail.message.DNS_NAME", "漢字"):
++        email = EmailMessage('subject', '', 'from@example.com', ['to@example.com'])
++        email.encoding = 'iso-8859-1'
++        try:
++            message = email.message()
++            print("Message-ID:", message['Message-ID'])
++            print("Test passed unexpectedly")
++        except UnicodeEncodeError as e:
++            print(f"UnicodeEncodeError occurred as expected: {e}")
++        except Exception as e:
++            print(f"Unexpected error occurred: {e}")
++
++if __name__ == "__main__":
++    test_unicode_dns()
++    print("Script completed successfully.")

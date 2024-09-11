@@ -1,0 +1,85 @@
+
+diff --git a/src/_pytest/pastebin.py b/src/_pytest/pastebin.py
+index 41576a615..80c7c1704 100644
+--- a/src/_pytest/pastebin.py
++++ b/src/_pytest/pastebin.py
+@@ -73,22 +73,36 @@ def create_new_paste(contents):
+ 
+     if sys.version_info < (3, 0):
+         from urllib import urlopen, urlencode
++        from urllib2 import HTTPError
+     else:
+         from urllib.request import urlopen
+         from urllib.parse import urlencode
++        from urllib.error import HTTPError
+ 
+     params = {
+         "code": contents,
+-        "lexer": "python3" if sys.version_info[0] >= 3 else "python",
++        "lexer": "text",
+         "expiry": "1week",
+     }
+     url = "https://bpaste.net"
+-    response = urlopen(url, data=urlencode(params).encode("ascii")).read()
+-    m = re.search(r'href="/raw/(\w+)"', response.decode("utf-8"))
+-    if m:
+-        return "%s/show/%s" % (url, m.group(1))
+-    else:
+-        return "bad response: " + response
++    
++    max_attempts = 2
++    for attempt in range(max_attempts):
++        try:
++            response = urlopen(url, data=urlencode(params).encode("ascii")).read()
++            if isinstance(response, bytes):
++                response = response.decode("utf-8")
++            m = re.search(r'href="/raw/(\w+)"|<id>(\w+)</id>', response)
++            if m:
++                paste_id = m.group(1) or m.group(2)
++                return "%s/show/%s" % (url, paste_id)
++            else:
++                return "bad response: " + response
++        except HTTPError:
++            if attempt == max_attempts - 1:  # last attempt
++                raise  # re-raise the last exception
++    
++    return "Failed to create paste after {} attempts".format(max_attempts)
+ 
+ 
+ def pytest_terminal_summary(terminalreporter):
+diff --git a/testing/test_pastebin.py b/testing/test_pastebin.py
+index bac8f9802..ae01b3af3 100644
+--- a/testing/test_pastebin.py
++++ b/testing/test_pastebin.py
+@@ -126,8 +126,28 @@ class TestPaste(object):
+         assert len(mocked_urlopen) == 1
+         url, data = mocked_urlopen[0]
+         assert type(data) is bytes
+-        lexer = "python3" if sys.version_info[0] >= 3 else "python"
+         assert url == "https://bpaste.net"
+-        assert "lexer=%s" % lexer in data.decode()
++        assert "lexer=text" in data.decode()
+         assert "code=full-paste-contents" in data.decode()
+-        assert "expiry=1week" in data.decode()
++    def test_lexer_change_to_text(self, pastebin, monkeypatch):
++        import io
++        if sys.version_info[0] >= 3:
++            from urllib.error import HTTPError
++            import urllib.request as urllib_module
++        else:
++            from urllib2 import HTTPError
++            import urllib as urllib_module
++
++        # Mock urlopen to simulate the previous error and then success
++        call_count = [0]
++        def mocked_urlopen(url, data):
++            call_count[0] += 1
++            if call_count[0] == 1:
++                raise HTTPError(url, 400, "Bad Request", {}, io.StringIO())
++            return io.StringIO('<id>1234</id>')
++
++        monkeypatch.setattr(urllib_module, 'urlopen', mocked_urlopen)
++
++        result = pastebin.create_new_paste(b'problematic content')
++        assert 'https://bpaste.net/show/1234' in result
++        assert call_count[0] == 2  # Ensure it succeeded on the second try

@@ -1,0 +1,674 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sklearn/cluster/k_means_.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_kmeans_issue.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 3eacf948e0f95ef957862568d87ce082f378e186
+Author: Stephen Tierney <sjtrny@gmail.com>
+Date:   Mon Aug 12 22:23:07 2019 +1000
+
+    Set diagonal of precomputed matrix to zero in silhoutte_samples (#12258)
+
+diff --git a/doc/whats_new/v0.22.rst b/doc/whats_new/v0.22.rst
+index 188e52a27..7be27894a 100644
+--- a/doc/whats_new/v0.22.rst
++++ b/doc/whats_new/v0.22.rst
+@@ -224,8 +224,15 @@ Changelog
+   to return root mean squared error.
+   :pr:`13467` by :user:`Urvang Patel <urvang96>`.
+ 
++:mod:`sklearn.metrics`
++......................
++
++- |Fix| Raise a ValueError in :func:`metrics.silhouette_score` when a
++  precomputed distance matrix contains non-zero diagonal entries.
++  :pr:`12258` by :user:`Stephen Tierney <sjtrny>`.
++
+ :mod:`sklearn.model_selection`
+-...............................
++..............................
+ 
+ - |Enhancement| :class:`model_selection.learning_curve` now accepts parameter
+   ``return_times`` which can be used to retrieve computation times in order to
+diff --git a/sklearn/metrics/cluster/tests/test_unsupervised.py b/sklearn/metrics/cluster/tests/test_unsupervised.py
+index 02a4e8550..8e88247db 100644
+--- a/sklearn/metrics/cluster/tests/test_unsupervised.py
++++ b/sklearn/metrics/cluster/tests/test_unsupervised.py
+@@ -168,6 +168,22 @@ def test_non_numpy_labels():
+         silhouette_score(list(X), list(y)) == silhouette_score(X, y))
+ 
+ 
++def test_silhouette_nonzero_diag():
++    # Construct a zero-diagonal matrix
++    dists = pairwise_distances(
++        np.array([[0.2, 0.1, 0.12, 1.34, 1.11, 1.6]]).transpose())
++
++    # Construct a nonzero-diagonal distance matrix
++    diag_dists = dists.copy()
++    np.fill_diagonal(diag_dists, 1)
++
++    labels = [0, 0, 0, 1, 1, 1]
++
++    assert_raise_message(ValueError, "distance matrix contains non-zero",
++                         silhouette_samples,
++                         diag_dists, labels, metric='precomputed')
++
++
+ def assert_raises_on_only_one_label(func):
+     """Assert message when there is only one label"""
+     rng = np.random.RandomState(seed=0)
+diff --git a/sklearn/metrics/cluster/unsupervised.py b/sklearn/metrics/cluster/unsupervised.py
+index 05206ab42..0e12c06b4 100644
+--- a/sklearn/metrics/cluster/unsupervised.py
++++ b/sklearn/metrics/cluster/unsupervised.py
+@@ -185,7 +185,8 @@ def silhouette_samples(X, labels, metric='euclidean', **kwds):
+         The metric to use when calculating distance between instances in a
+         feature array. If metric is a string, it must be one of the options
+         allowed by :func:`sklearn.metrics.pairwise.pairwise_distances`. If X is
+-        the distance array itself, use "precomputed" as the metric.
++        the distance array itself, use "precomputed" as the metric. Precomputed
++        distance matrices must have 0 along the diagonal.
+ 
+     `**kwds` : optional keyword parameters
+         Any further parameters are passed directly to the distance function.
+@@ -210,6 +211,15 @@ def silhouette_samples(X, labels, metric='euclidean', **kwds):
+ 
+     """
+     X, labels = check_X_y(X, labels, accept_sparse=['csc', 'csr'])
++
++    # Check for diagonal entries in precomputed distance matrix
++    if metric == 'precomputed':
++        if np.any(np.diagonal(X)):
++            raise ValueError(
++                'The precomputed distance matrix contains non-zero '
++                'elements on the diagonal. Use np.fill_diagonal(X, 0).'
++            )
++
+     le = LabelEncoder()
+     labels = le.fit_transform(labels)
+     n_samples = len(labels)
++ git diff 3eacf948e0f95ef957862568d87ce082f378e186
+diff --git a/sklearn/cluster/k_means_.py b/sklearn/cluster/k_means_.py
+index b7fbdf7da..d7f25c178 100644
+--- a/sklearn/cluster/k_means_.py
++++ b/sklearn/cluster/k_means_.py
+@@ -360,16 +360,18 @@ def k_means(X, n_clusters, sample_weight=None, init='k-means++',
+     else:
+         raise ValueError("Algorithm must be 'auto', 'full' or 'elkan', got"
+                          " %s" % str(algorithm))
++    # Generate seeds outside of the if-else block
++    seeds = random_state.randint(np.iinfo(np.int32).max, size=n_init)
+     if effective_n_jobs(n_jobs) == 1:
+         # For a single thread, less memory is needed if we just store one set
+         # of the best results (as opposed to one set per run per thread).
+-        for it in range(n_init):
++        for it, seed in enumerate(seeds):
+             # run a k-means once
+             labels, inertia, centers, n_iter_ = kmeans_single(
+                 X, sample_weight, n_clusters, max_iter=max_iter, init=init,
+                 verbose=verbose, precompute_distances=precompute_distances,
+                 tol=tol, x_squared_norms=x_squared_norms,
+-                random_state=random_state)
++                random_state=seed)
+             # determine if these results are the best so far
+             if best_inertia is None or inertia < best_inertia:
+                 best_labels = labels.copy()
+@@ -378,21 +380,19 @@ def k_means(X, n_clusters, sample_weight=None, init='k-means++',
+                 best_n_iter = n_iter_
+     else:
+         # parallelisation of k-means runs
+-        seeds = random_state.randint(np.iinfo(np.int32).max, size=n_init)
+         results = Parallel(n_jobs=n_jobs, verbose=0)(
+             delayed(kmeans_single)(X, sample_weight, n_clusters,
+                                    max_iter=max_iter, init=init,
+                                    verbose=verbose, tol=tol,
+                                    precompute_distances=precompute_distances,
+                                    x_squared_norms=x_squared_norms,
+-                                   # Change seed to ensure variety
+                                    random_state=seed)
+             for seed in seeds)
+         # Get results with the lowest inertia
+-        labels, inertia, centers, n_iters = zip(*results)
+-        best = np.argmin(inertia)
++        labels, inertias, centers, n_iters = zip(*results)
++        best = np.argmin(inertias)
+         best_labels = labels[best]
+-        best_inertia = inertia[best]
++        best_inertia = inertias[best]
+         best_centers = centers[best]
+         best_n_iter = n_iters[best]
+ 
+@@ -833,6 +833,11 @@ class KMeans(BaseEstimator, ClusterMixin, TransformerMixin):
+         ``-1`` means using all processors. See :term:`Glossary <n_jobs>`
+         for more details.
+ 
++        Note: The algorithm now produces consistent results regardless of the
++        number of jobs used, addressing previous discrepancies between
++        sequential and parallel executions.
++
++
+     algorithm : "auto", "full" or "elkan", default="auto"
+         K-means algorithm to use. The classical EM-style algorithm is "full".
+         The "elkan" variation is more efficient by using the triangle
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -v --no-use-pep517 --no-build-isolation -e .
+Using pip 21.2.2 from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/pip (python 3.6)
+Obtaining file:///testbed
+    Running command python setup.py egg_info
+    running egg_info
+    creating /tmp/pip-pip-egg-info-hht7_g1h/scikit_learn.egg-info
+    writing /tmp/pip-pip-egg-info-hht7_g1h/scikit_learn.egg-info/PKG-INFO
+    writing dependency_links to /tmp/pip-pip-egg-info-hht7_g1h/scikit_learn.egg-info/dependency_links.txt
+    writing requirements to /tmp/pip-pip-egg-info-hht7_g1h/scikit_learn.egg-info/requires.txt
+    writing top-level names to /tmp/pip-pip-egg-info-hht7_g1h/scikit_learn.egg-info/top_level.txt
+    writing manifest file '/tmp/pip-pip-egg-info-hht7_g1h/scikit_learn.egg-info/SOURCES.txt'
+    reading manifest file '/tmp/pip-pip-egg-info-hht7_g1h/scikit_learn.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    adding license file 'COPYING'
+    writing manifest file '/tmp/pip-pip-egg-info-hht7_g1h/scikit_learn.egg-info/SOURCES.txt'
+    Partial import of sklearn during the build process.
+Requirement already satisfied: numpy>=1.11.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from scikit-learn==0.22.dev0) (1.19.2)
+Requirement already satisfied: scipy>=0.17.0 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from scikit-learn==0.22.dev0) (1.5.2)
+Requirement already satisfied: joblib>=0.11 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from scikit-learn==0.22.dev0) (1.1.1)
+Installing collected packages: scikit-learn
+  Attempting uninstall: scikit-learn
+    Found existing installation: scikit-learn 0.22.dev0
+    Uninstalling scikit-learn-0.22.dev0:
+      Removing file or directory /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/scikit-learn.egg-link
+      Removing pth entries from /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/easy-install.pth:
+      Removing entry: /testbed
+      Successfully uninstalled scikit-learn-0.22.dev0
+  Running setup.py develop for scikit-learn
+    Running command /opt/miniconda3/envs/testbed/bin/python -c 'import io, os, sys, setuptools, tokenize; sys.argv[0] = '"'"'/testbed/setup.py'"'"'; __file__='"'"'/testbed/setup.py'"'"';f = getattr(tokenize, '"'"'open'"'"', open)(__file__) if os.path.exists(__file__) else io.StringIO('"'"'from setuptools import setup; setup()'"'"');code = f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' develop --no-deps
+    C compiler: gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes -fPIC
+
+    compile options: '-c'
+    extra options: '-fopenmp'
+    gcc: test_openmp.c
+    gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wl,--sysroot=/ objects/test_openmp.o -o test_openmp -fopenmp
+    running develop
+    running build_scripts
+    running egg_info
+    running build_src
+    build_src
+    building library "libsvm-skl" sources
+    building extension "sklearn.__check_build._check_build" sources
+    building extension "sklearn.preprocessing._csr_polynomial_expansion" sources
+    building extension "sklearn.cluster._dbscan_inner" sources
+    building extension "sklearn.cluster._hierarchical" sources
+    building extension "sklearn.cluster._k_means_elkan" sources
+    building extension "sklearn.cluster._k_means" sources
+    building extension "sklearn.datasets._svmlight_format" sources
+    building extension "sklearn.decomposition._online_lda" sources
+    building extension "sklearn.decomposition.cdnmf_fast" sources
+    building extension "sklearn.ensemble._gradient_boosting" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting._gradient_boosting" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting.histogram" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting.splitting" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting._binning" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting._predictor" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting._loss" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting.types" sources
+    building extension "sklearn.ensemble._hist_gradient_boosting.utils" sources
+    building extension "sklearn.feature_extraction._hashing" sources
+    building extension "sklearn.manifold._utils" sources
+    building extension "sklearn.manifold._barnes_hut_tsne" sources
+    building extension "sklearn.metrics.cluster.expected_mutual_info_fast" sources
+    building extension "sklearn.metrics.pairwise_fast" sources
+    building extension "sklearn.neighbors.ball_tree" sources
+    building extension "sklearn.neighbors.kd_tree" sources
+    building extension "sklearn.neighbors.dist_metrics" sources
+    building extension "sklearn.neighbors.typedefs" sources
+    building extension "sklearn.neighbors.quad_tree" sources
+    building extension "sklearn.tree._tree" sources
+    building extension "sklearn.tree._splitter" sources
+    building extension "sklearn.tree._criterion" sources
+    building extension "sklearn.tree._utils" sources
+    building extension "sklearn.utils.sparsefuncs_fast" sources
+    building extension "sklearn.utils._cython_blas" sources
+    building extension "sklearn.utils.arrayfuncs" sources
+    building extension "sklearn.utils.murmurhash" sources
+    building extension "sklearn.utils.graph_shortest_path" sources
+    building extension "sklearn.utils.fast_dict" sources
+    building extension "sklearn.utils.seq_dataset" sources
+    building extension "sklearn.utils.weight_vector" sources
+    building extension "sklearn.utils._random" sources
+    building extension "sklearn.utils._logistic_sigmoid" sources
+    building extension "sklearn.svm.libsvm" sources
+    building extension "sklearn.svm.liblinear" sources
+    building extension "sklearn.svm.libsvm_sparse" sources
+    building extension "sklearn.linear_model.cd_fast" sources
+    building extension "sklearn.linear_model.sgd_fast" sources
+    building extension "sklearn.linear_model.sag_fast" sources
+    building extension "sklearn._isotonic" sources
+    building data_files sources
+    build_src: building npy-pkg config files
+    writing scikit_learn.egg-info/PKG-INFO
+    writing dependency_links to scikit_learn.egg-info/dependency_links.txt
+    writing requirements to scikit_learn.egg-info/requires.txt
+    writing top-level names to scikit_learn.egg-info/top_level.txt
+    reading manifest file 'scikit_learn.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    adding license file 'COPYING'
+    writing manifest file 'scikit_learn.egg-info/SOURCES.txt'
+    running build_ext
+    customize UnixCCompiler
+    customize UnixCCompiler using build_clib
+    customize UnixCCompiler
+    customize UnixCCompiler using build_ext_subclass
+    customize UnixCCompiler
+    customize UnixCCompiler using build_ext_subclass
+    Creating /opt/miniconda3/envs/testbed/lib/python3.6/site-packages/scikit-learn.egg-link (link to .)
+    Adding scikit-learn 0.22.dev0 to easy-install.pth file
+
+    Installed /testbed
+    Partial import of sklearn during the build process.
+Successfully installed scikit-learn-0.22.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 3eacf948e0f95ef957862568d87ce082f378e186 sklearn/cluster/tests/test_k_means.py
+Updated 0 paths from 5e4b2c1ed
++ git apply -v -
+Checking patch sklearn/cluster/tests/test_k_means.py...
+Applied patch sklearn/cluster/tests/test_k_means.py cleanly.
++ pytest -rA sklearn/cluster/tests/test_k_means.py
+============================= test session starts ==============================
+platform linux -- Python 3.6.13, pytest-6.2.4, py-1.11.0, pluggy-0.13.1
+rootdir: /testbed, configfile: setup.cfg
+collected 124 items
+
+sklearn/cluster/tests/test_k_means.py .................................. [ 27%]
+........................................................................ [ 85%]
+..................                                                       [100%]
+
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED sklearn/cluster/tests/test_k_means.py::test_kmeans_results[float32-dense-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_kmeans_results[float32-dense-elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_kmeans_results[float32-sparse-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_kmeans_results[float64-dense-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_kmeans_results[float64-dense-elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_kmeans_results[float64-sparse-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_elkan_results[normal]
+PASSED sklearn/cluster/tests/test_k_means.py::test_elkan_results[blobs]
+PASSED sklearn/cluster/tests/test_k_means.py::test_labels_assignment_and_inertia
+PASSED sklearn/cluster/tests/test_k_means.py::test_minibatch_update_consistency
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_new_centers
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_plus_plus_init_2_jobs
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_precompute_distances_flag
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_plus_plus_init_not_precomputed
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_random_init_not_precomputed
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_init[random-dense]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_init[random-sparse]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_init[k-means++-dense]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_init[k-means++-sparse]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_init[init2-dense]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_init[init2-sparse]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_n_init
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_explicit_init_shape[KMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_explicit_init_shape[MiniBatchKMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fortran_aligned_data
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[0-2-1e-07-asarray-float32-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[0-2-1e-07-asarray-float32-elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[0-2-1e-07-asarray-float64-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[0-2-1e-07-asarray-float64-elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[0-2-1e-07-csr_matrix-float32-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[0-2-1e-07-csr_matrix-float32-elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[0-2-1e-07-csr_matrix-float64-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[0-2-1e-07-csr_matrix-float64-elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[1-2-0.1-asarray-float32-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[1-2-0.1-asarray-float32-elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[1-2-0.1-asarray-float64-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[1-2-0.1-asarray-float64-elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[1-2-0.1-csr_matrix-float32-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[1-2-0.1-csr_matrix-float32-elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[1-2-0.1-csr_matrix-float64-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[1-2-0.1-csr_matrix-float64-elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[3-300-1e-07-asarray-float32-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[3-300-1e-07-asarray-float32-elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[3-300-1e-07-asarray-float64-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[3-300-1e-07-asarray-float64-elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[3-300-1e-07-csr_matrix-float32-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[3-300-1e-07-csr_matrix-float32-elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[3-300-1e-07-csr_matrix-float64-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[3-300-1e-07-csr_matrix-float64-elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[4-300-0.1-asarray-float32-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[4-300-0.1-asarray-float32-elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[4-300-0.1-asarray-float64-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[4-300-0.1-asarray-float64-elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[4-300-0.1-csr_matrix-float32-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[4-300-0.1-csr_matrix-float32-elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[4-300-0.1-csr_matrix-float64-full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_fit_predict[4-300-0.1-csr_matrix-float64-elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_mb_kmeans_verbose
+PASSED sklearn/cluster/tests/test_k_means.py::test_minibatch_init_with_large_k
+PASSED sklearn/cluster/tests/test_k_means.py::test_minibatch_k_means_init_multiple_runs_with_explicit_centers
+PASSED sklearn/cluster/tests/test_k_means.py::test_minibatch_k_means_init[random-dense]
+PASSED sklearn/cluster/tests/test_k_means.py::test_minibatch_k_means_init[random-sparse]
+PASSED sklearn/cluster/tests/test_k_means.py::test_minibatch_k_means_init[k-means++-dense]
+PASSED sklearn/cluster/tests/test_k_means.py::test_minibatch_k_means_init[k-means++-sparse]
+PASSED sklearn/cluster/tests/test_k_means.py::test_minibatch_k_means_init[init2-dense]
+PASSED sklearn/cluster/tests/test_k_means.py::test_minibatch_k_means_init[init2-sparse]
+PASSED sklearn/cluster/tests/test_k_means.py::test_minibatch_sensible_reassign_fit
+PASSED sklearn/cluster/tests/test_k_means.py::test_minibatch_sensible_reassign_partial_fit
+PASSED sklearn/cluster/tests/test_k_means.py::test_minibatch_reassign
+PASSED sklearn/cluster/tests/test_k_means.py::test_minibatch_with_many_reassignments
+PASSED sklearn/cluster/tests/test_k_means.py::test_sparse_mb_k_means_callable_init
+PASSED sklearn/cluster/tests/test_k_means.py::test_mini_batch_k_means_random_init_partial_fit
+PASSED sklearn/cluster/tests/test_k_means.py::test_minibatch_default_init_size
+PASSED sklearn/cluster/tests/test_k_means.py::test_minibatch_tol
+PASSED sklearn/cluster/tests/test_k_means.py::test_minibatch_set_init_size
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_invalid_init[KMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_invalid_init[MiniBatchKMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_copyx
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_non_collapsed
+PASSED sklearn/cluster/tests/test_k_means.py::test_score[full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_score[elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_predict[random-dense-KMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_predict[random-dense-MiniBatchKMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_predict[random-sparse-KMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_predict[random-sparse-MiniBatchKMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_predict[k-means++-dense-KMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_predict[k-means++-dense-MiniBatchKMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_predict[k-means++-sparse-KMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_predict[k-means++-sparse-MiniBatchKMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_predict[init2-dense-KMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_predict[init2-dense-MiniBatchKMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_predict[init2-sparse-KMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_predict[init2-sparse-MiniBatchKMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_predict_minibatch_dense_sparse[random]
+PASSED sklearn/cluster/tests/test_k_means.py::test_predict_minibatch_dense_sparse[k-means++]
+PASSED sklearn/cluster/tests/test_k_means.py::test_predict_minibatch_dense_sparse[init2]
+PASSED sklearn/cluster/tests/test_k_means.py::test_int_input
+PASSED sklearn/cluster/tests/test_k_means.py::test_transform
+PASSED sklearn/cluster/tests/test_k_means.py::test_fit_transform
+PASSED sklearn/cluster/tests/test_k_means.py::test_predict_equal_labels[full]
+PASSED sklearn/cluster/tests/test_k_means.py::test_predict_equal_labels[elkan]
+PASSED sklearn/cluster/tests/test_k_means.py::test_full_vs_elkan
+PASSED sklearn/cluster/tests/test_k_means.py::test_n_init
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_function
+PASSED sklearn/cluster/tests/test_k_means.py::test_x_squared_norms_init_centroids
+PASSED sklearn/cluster/tests/test_k_means.py::test_max_iter_error
+PASSED sklearn/cluster/tests/test_k_means.py::test_float_precision[False-KMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_float_precision[False-MiniBatchKMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_float_precision[True-KMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_float_precision[True-MiniBatchKMeans]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_init_centers
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_init_fitted_centers[dense]
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_init_fitted_centers[sparse]
+PASSED sklearn/cluster/tests/test_k_means.py::test_sparse_validate_centers
+PASSED sklearn/cluster/tests/test_k_means.py::test_less_centers_than_unique_points
+PASSED sklearn/cluster/tests/test_k_means.py::test_weighted_vs_repeated
+PASSED sklearn/cluster/tests/test_k_means.py::test_unit_weights_vs_no_weights
+PASSED sklearn/cluster/tests/test_k_means.py::test_scaled_weights
+PASSED sklearn/cluster/tests/test_k_means.py::test_sample_weight_length
+PASSED sklearn/cluster/tests/test_k_means.py::test_check_normalize_sample_weight
+PASSED sklearn/cluster/tests/test_k_means.py::test_iter_attribute
+PASSED sklearn/cluster/tests/test_k_means.py::test_k_means_empty_cluster_relocated
+PASSED sklearn/cluster/tests/test_k_means.py::test_minibatch_kmeans_partial_fit_int_data
+PASSED sklearn/cluster/tests/test_k_means.py::test_result_of_kmeans_equal_in_diff_n_jobs
+====================== 124 passed, 15 warnings in 25.06s =======================
++ git checkout 3eacf948e0f95ef957862568d87ce082f378e186 sklearn/cluster/tests/test_k_means.py
+Updated 1 path from 5e4b2c1ed

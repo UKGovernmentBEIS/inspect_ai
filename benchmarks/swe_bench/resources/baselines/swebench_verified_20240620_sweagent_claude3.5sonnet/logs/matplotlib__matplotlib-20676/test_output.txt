@@ -1,0 +1,994 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   lib/matplotlib/widgets.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_bug.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 6786f437df54ca7780a047203cbcfaa1db8dc542
+Merge: 7a3a465993 2e39575ec7
+Author: hannah <story645@gmail.com>
+Date:   Sun Jul 18 19:11:07 2021 -0400
+
+    Merge pull request #20671 from anntzer/lhd
+    
+    Standardize description of kwargs in legend_handler.
+
++ git diff 6786f437df54ca7780a047203cbcfaa1db8dc542
+diff --git a/lib/matplotlib/widgets.py b/lib/matplotlib/widgets.py
+index a199e45d40..1daf950d94 100644
+--- a/lib/matplotlib/widgets.py
++++ b/lib/matplotlib/widgets.py
+@@ -1873,6 +1873,7 @@ class _SelectorWidget(AxesWidget):
+             self.canvas.blit(self.ax.bbox)
+         else:
+             self.canvas.draw_idle()
++        self._update_axes_limits()
+         return False
+ 
+     def _get_data(self, event):
+@@ -2154,6 +2155,15 @@ class SpanSelector(_SelectorWidget):
+             self.artists[0] = self._rect
+         else:
+             self.artists.append(self._rect)
++        self._update_axes_limits()
++
++    def _update_axes_limits(self):
++        if self.direction == 'horizontal':
++            xmin, xmax = self.ax.get_xlim()
++            self.ax.set_xlim(xmin, xmax)
++        else:
++            ymin, ymax = self.ax.get_ylim()
++            self.ax.set_ylim(ymin, ymax)
+ 
+     def _setup_edge_handle(self, props):
+         self._edge_handles = ToolLineHandles(self.ax, self.extents,
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: cycler>=0.10 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev1371+g6786f437df.d20240724) (0.12.1)
+Requirement already satisfied: kiwisolver>=1.0.1 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev1371+g6786f437df.d20240724) (1.4.5)
+Requirement already satisfied: numpy>=1.17 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev1371+g6786f437df.d20240724) (1.24.4)
+Requirement already satisfied: packaging>=20.0 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev1371+g6786f437df.d20240724) (24.1)
+Requirement already satisfied: pillow>=6.2.0 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev1371+g6786f437df.d20240724) (10.4.0)
+Requirement already satisfied: pyparsing>=2.2.1 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev1371+g6786f437df.d20240724) (2.4.7)
+Requirement already satisfied: python-dateutil>=2.7 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev1371+g6786f437df.d20240724) (2.9.0.post0)
+Requirement already satisfied: setuptools_scm>=4 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from matplotlib==3.5.0.dev1371+g6786f437df.d20240724) (8.1.0)
+Requirement already satisfied: six>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from python-dateutil>=2.7->matplotlib==3.5.0.dev1371+g6786f437df.d20240724) (1.16.0)
+Requirement already satisfied: setuptools in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from setuptools_scm>=4->matplotlib==3.5.0.dev1371+g6786f437df.d20240724) (69.5.1)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from setuptools_scm>=4->matplotlib==3.5.0.dev1371+g6786f437df.d20240724) (4.12.2)
+Requirement already satisfied: tomli>=1 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from setuptools_scm>=4->matplotlib==3.5.0.dev1371+g6786f437df.d20240724) (2.0.1)
+Installing collected packages: matplotlib
+  Attempting uninstall: matplotlib
+    Found existing installation: matplotlib 3.5.0.dev1371+g6786f437df
+    Uninstalling matplotlib-3.5.0.dev1371+g6786f437df:
+      Successfully uninstalled matplotlib-3.5.0.dev1371+g6786f437df
+  Running setup.py develop for matplotlib
+Successfully installed matplotlib-3.5.0.dev1371+g6786f437df.d20240724
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 6786f437df54ca7780a047203cbcfaa1db8dc542 lib/matplotlib/tests/test_widgets.py
+Updated 0 paths from 6bf93602ed
++ git apply -v -
+Checking patch lib/matplotlib/tests/test_widgets.py...
+Applied patch lib/matplotlib/tests/test_widgets.py cleanly.
++ pytest -rA lib/matplotlib/tests/test_widgets.py
+============================= test session starts ==============================
+platform linux -- Python 3.8.19, pytest-8.3.1, pluggy-1.5.0
+rootdir: /testbed
+configfile: pytest.ini
+plugins: cov-5.0.0, rerunfailures-14.0, timeout-2.3.1, xdist-3.6.1
+collected 36 items
+
+lib/matplotlib/tests/test_widgets.py FFFFF.....FFF...........F.....sFFFF [ 97%]
+F                                                                        [100%]
+
+=================================== FAILURES ===================================
+___________________________ test_rectangle_selector ____________________________
+
+    def test_rectangle_selector():
+>       check_rectangle()
+
+lib/matplotlib/tests/test_widgets.py:40: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/tests/test_widgets.py:24: in check_rectangle
+    do_event(tool, 'press', xdata=100, ydata=100, button=1)
+lib/matplotlib/testing/widgets.py:84: in do_event
+    func(event)
+lib/matplotlib/widgets.py:1914: in press
+    self._press(event)
+lib/matplotlib/widgets.py:2709: in _press
+    self.update()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.widgets.RectangleSelector object at 0x7f39ad63ec70>
+
+    def update(self):
+        """Draw using blit() or draw_idle(), depending on ``self.useblit``."""
+        if not self.ax.get_visible() or self.ax.figure._cachedRenderer is None:
+            return False
+        if self.useblit:
+            if self.background is not None:
+                self.canvas.restore_region(self.background)
+            else:
+                self.update_background(None)
+            for artist in self.artists:
+                self.ax.draw_artist(artist)
+            self.canvas.blit(self.ax.bbox)
+        else:
+            self.canvas.draw_idle()
+>       self._update_axes_limits()
+E       AttributeError: 'RectangleSelector' object has no attribute '_update_axes_limits'
+
+lib/matplotlib/widgets.py:1876: AttributeError
+____________________ test_rectangle_drag[True-new_center0] _____________________
+
+drag_from_anywhere = True, new_center = (60, 75)
+
+    @pytest.mark.parametrize('drag_from_anywhere, new_center',
+                             [[True, (60, 75)],
+                              [False, (30, 20)]])
+    def test_rectangle_drag(drag_from_anywhere, new_center):
+        ax = get_ax()
+    
+        def onselect(epress, erelease):
+            pass
+    
+        tool = widgets.RectangleSelector(ax, onselect, interactive=True,
+                                         drag_from_anywhere=drag_from_anywhere)
+        # Create rectangle
+>       do_event(tool, 'press', xdata=0, ydata=10, button=1)
+
+lib/matplotlib/tests/test_widgets.py:70: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/testing/widgets.py:84: in do_event
+    func(event)
+lib/matplotlib/widgets.py:1914: in press
+    self._press(event)
+lib/matplotlib/widgets.py:2709: in _press
+    self.update()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.widgets.RectangleSelector object at 0x7f39ad4ae8b0>
+
+    def update(self):
+        """Draw using blit() or draw_idle(), depending on ``self.useblit``."""
+        if not self.ax.get_visible() or self.ax.figure._cachedRenderer is None:
+            return False
+        if self.useblit:
+            if self.background is not None:
+                self.canvas.restore_region(self.background)
+            else:
+                self.update_background(None)
+            for artist in self.artists:
+                self.ax.draw_artist(artist)
+            self.canvas.blit(self.ax.bbox)
+        else:
+            self.canvas.draw_idle()
+>       self._update_axes_limits()
+E       AttributeError: 'RectangleSelector' object has no attribute '_update_axes_limits'
+
+lib/matplotlib/widgets.py:1876: AttributeError
+____________________ test_rectangle_drag[False-new_center1] ____________________
+
+drag_from_anywhere = False, new_center = (30, 20)
+
+    @pytest.mark.parametrize('drag_from_anywhere, new_center',
+                             [[True, (60, 75)],
+                              [False, (30, 20)]])
+    def test_rectangle_drag(drag_from_anywhere, new_center):
+        ax = get_ax()
+    
+        def onselect(epress, erelease):
+            pass
+    
+        tool = widgets.RectangleSelector(ax, onselect, interactive=True,
+                                         drag_from_anywhere=drag_from_anywhere)
+        # Create rectangle
+>       do_event(tool, 'press', xdata=0, ydata=10, button=1)
+
+lib/matplotlib/tests/test_widgets.py:70: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/testing/widgets.py:84: in do_event
+    func(event)
+lib/matplotlib/widgets.py:1914: in press
+    self._press(event)
+lib/matplotlib/widgets.py:2709: in _press
+    self.update()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.widgets.RectangleSelector object at 0x7f399a6cdb80>
+
+    def update(self):
+        """Draw using blit() or draw_idle(), depending on ``self.useblit``."""
+        if not self.ax.get_visible() or self.ax.figure._cachedRenderer is None:
+            return False
+        if self.useblit:
+            if self.background is not None:
+                self.canvas.restore_region(self.background)
+            else:
+                self.update_background(None)
+            for artist in self.artists:
+                self.ax.draw_artist(artist)
+            self.canvas.blit(self.ax.bbox)
+        else:
+            self.canvas.draw_idle()
+>       self._update_axes_limits()
+E       AttributeError: 'RectangleSelector' object has no attribute '_update_axes_limits'
+
+lib/matplotlib/widgets.py:1876: AttributeError
+_________________________________ test_ellipse _________________________________
+
+    def test_ellipse():
+        """For ellipse, test out the key modifiers"""
+        ax = get_ax()
+    
+        def onselect(epress, erelease):
+            pass
+    
+        tool = widgets.EllipseSelector(ax, onselect=onselect,
+                                       maxdist=10, interactive=True)
+>       tool.extents = (100, 150, 100, 150)
+
+lib/matplotlib/tests/test_widgets.py:102: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/widgets.py:2876: in extents
+    self.update()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.widgets.EllipseSelector object at 0x7f39ad27ce20>
+
+    def update(self):
+        """Draw using blit() or draw_idle(), depending on ``self.useblit``."""
+        if not self.ax.get_visible() or self.ax.figure._cachedRenderer is None:
+            return False
+        if self.useblit:
+            if self.background is not None:
+                self.canvas.restore_region(self.background)
+            else:
+                self.update_background(None)
+            for artist in self.artists:
+                self.ax.draw_artist(artist)
+            self.canvas.blit(self.ax.bbox)
+        else:
+            self.canvas.draw_idle()
+>       self._update_axes_limits()
+E       AttributeError: 'EllipseSelector' object has no attribute '_update_axes_limits'
+
+lib/matplotlib/widgets.py:1876: AttributeError
+____________________________ test_rectangle_handles ____________________________
+
+    def test_rectangle_handles():
+        ax = get_ax()
+    
+        def onselect(epress, erelease):
+            pass
+    
+        tool = widgets.RectangleSelector(ax, onselect=onselect,
+                                         maxdist=10, interactive=True,
+                                         marker_props={'markerfacecolor': 'r',
+                                                       'markeredgecolor': 'b'})
+>       tool.extents = (100, 150, 100, 150)
+
+lib/matplotlib/tests/test_widgets.py:158: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/widgets.py:2876: in extents
+    self.update()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.widgets.RectangleSelector object at 0x7f39ad429250>
+
+    def update(self):
+        """Draw using blit() or draw_idle(), depending on ``self.useblit``."""
+        if not self.ax.get_visible() or self.ax.figure._cachedRenderer is None:
+            return False
+        if self.useblit:
+            if self.background is not None:
+                self.canvas.restore_region(self.background)
+            else:
+                self.update_background(None)
+            for artist in self.artists:
+                self.ax.draw_artist(artist)
+            self.canvas.blit(self.ax.bbox)
+        else:
+            self.canvas.draw_idle()
+>       self._update_axes_limits()
+E       AttributeError: 'RectangleSelector' object has no attribute '_update_axes_limits'
+
+lib/matplotlib/widgets.py:1876: AttributeError
+_____________________ test_span_selector_bound[horizontal] _____________________
+
+direction = 'horizontal'
+
+    @pytest.mark.parametrize('direction', ("horizontal", "vertical"))
+    def test_span_selector_bound(direction):
+        fig, ax = plt.subplots(1, 1)
+        ax.plot([10, 20], [10, 30])
+        ax.figure.canvas.draw()
+        x_bound = ax.get_xbound()
+        y_bound = ax.get_ybound()
+    
+        tool = widgets.SpanSelector(ax, print, direction, interactive=True)
+        assert ax.get_xbound() == x_bound
+        assert ax.get_ybound() == y_bound
+    
+        bound = x_bound if direction == 'horizontal' else y_bound
+>       assert tool._edge_handles.positions == list(bound)
+E       assert [0, 0] == [10.0, 20.0]
+E         
+E         At index 0 diff: 0 != 10.0
+E         Use -v to get more diff
+
+lib/matplotlib/tests/test_widgets.py:318: AssertionError
+______________________ test_span_selector_bound[vertical] ______________________
+
+direction = 'vertical'
+
+    @pytest.mark.parametrize('direction', ("horizontal", "vertical"))
+    def test_span_selector_bound(direction):
+        fig, ax = plt.subplots(1, 1)
+        ax.plot([10, 20], [10, 30])
+        ax.figure.canvas.draw()
+        x_bound = ax.get_xbound()
+        y_bound = ax.get_ybound()
+    
+        tool = widgets.SpanSelector(ax, print, direction, interactive=True)
+        assert ax.get_xbound() == x_bound
+        assert ax.get_ybound() == y_bound
+    
+        bound = x_bound if direction == 'horizontal' else y_bound
+>       assert tool._edge_handles.positions == list(bound)
+E       assert [0, 0] == [10.0, 30.0]
+E         
+E         At index 0 diff: 0 != 10.0
+E         Use -v to get more diff
+
+lib/matplotlib/tests/test_widgets.py:318: AssertionError
+_____________________________ test_lasso_selector ______________________________
+
+    def test_lasso_selector():
+>       check_lasso_selector()
+
+lib/matplotlib/tests/test_widgets.py:350: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/tests/test_widgets.py:343: in check_lasso_selector
+    do_event(tool, 'onmove', xdata=125, ydata=125, button=1)
+lib/matplotlib/testing/widgets.py:84: in do_event
+    func(event)
+lib/matplotlib/widgets.py:1940: in onmove
+    self._onmove(event)
+lib/matplotlib/widgets.py:3103: in _onmove
+    self.update()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.widgets.LassoSelector object at 0x7f39ad3b5220>
+
+    def update(self):
+        """Draw using blit() or draw_idle(), depending on ``self.useblit``."""
+        if not self.ax.get_visible() or self.ax.figure._cachedRenderer is None:
+            return False
+        if self.useblit:
+            if self.background is not None:
+                self.canvas.restore_region(self.background)
+            else:
+                self.update_background(None)
+            for artist in self.artists:
+                self.ax.draw_artist(artist)
+            self.canvas.blit(self.ax.bbox)
+        else:
+            self.canvas.draw_idle()
+>       self._update_axes_limits()
+E       AttributeError: 'LassoSelector' object has no attribute '_update_axes_limits'
+
+lib/matplotlib/widgets.py:1876: AttributeError
+____________________________ test_polygon_selector _____________________________
+
+    def test_polygon_selector():
+        # Simple polygon
+        expected_result = [(50, 50), (150, 50), (50, 150)]
+        event_sequence = (polygon_place_vertex(50, 50)
+                          + polygon_place_vertex(150, 50)
+                          + polygon_place_vertex(50, 150)
+                          + polygon_place_vertex(50, 50))
+>       check_polygon_selector(event_sequence, expected_result, 1)
+
+lib/matplotlib/tests/test_widgets.py:566: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/tests/test_widgets.py:541: in check_polygon_selector
+    do_event(tool, etype, **event_args)
+lib/matplotlib/testing/widgets.py:84: in do_event
+    func(event)
+lib/matplotlib/widgets.py:3263: in onmove
+    self._onmove(event)
+lib/matplotlib/widgets.py:3303: in _onmove
+    self._draw_polygon()
+lib/matplotlib/widgets.py:3346: in _draw_polygon
+    self.update()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.widgets.PolygonSelector object at 0x7f39ad2667f0>
+
+    def update(self):
+        """Draw using blit() or draw_idle(), depending on ``self.useblit``."""
+        if not self.ax.get_visible() or self.ax.figure._cachedRenderer is None:
+            return False
+        if self.useblit:
+            if self.background is not None:
+                self.canvas.restore_region(self.background)
+            else:
+                self.update_background(None)
+            for artist in self.artists:
+                self.ax.draw_artist(artist)
+            self.canvas.blit(self.ax.bbox)
+        else:
+            self.canvas.draw_idle()
+>       self._update_axes_limits()
+E       AttributeError: 'PolygonSelector' object has no attribute '_update_axes_limits'
+
+lib/matplotlib/widgets.py:1876: AttributeError
+_______________________ test_polygon_selector_remove[1] ________________________
+
+idx = 1
+
+    @pytest.mark.parametrize('idx', [1, 2, 3])
+    def test_polygon_selector_remove(idx):
+        verts = [(50, 50), (150, 50), (50, 150)]
+        event_sequence = [polygon_place_vertex(*verts[0]),
+                          polygon_place_vertex(*verts[1]),
+                          polygon_place_vertex(*verts[2]),
+                          # Finish the polygon
+                          polygon_place_vertex(*verts[0])]
+        # Add an extra point
+        event_sequence.insert(idx, polygon_place_vertex(200, 200))
+        # Remove the extra point
+        event_sequence.append(polygon_remove_vertex(200, 200))
+        # Flatten list of lists
+        event_sequence = sum(event_sequence, [])
+>       check_polygon_selector(event_sequence, verts, 2)
+
+lib/matplotlib/tests/test_widgets.py:724: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/tests/test_widgets.py:541: in check_polygon_selector
+    do_event(tool, etype, **event_args)
+lib/matplotlib/testing/widgets.py:84: in do_event
+    func(event)
+lib/matplotlib/widgets.py:3263: in onmove
+    self._onmove(event)
+lib/matplotlib/widgets.py:3303: in _onmove
+    self._draw_polygon()
+lib/matplotlib/widgets.py:3346: in _draw_polygon
+    self.update()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.widgets.PolygonSelector object at 0x7f39ace2a880>
+
+    def update(self):
+        """Draw using blit() or draw_idle(), depending on ``self.useblit``."""
+        if not self.ax.get_visible() or self.ax.figure._cachedRenderer is None:
+            return False
+        if self.useblit:
+            if self.background is not None:
+                self.canvas.restore_region(self.background)
+            else:
+                self.update_background(None)
+            for artist in self.artists:
+                self.ax.draw_artist(artist)
+            self.canvas.blit(self.ax.bbox)
+        else:
+            self.canvas.draw_idle()
+>       self._update_axes_limits()
+E       AttributeError: 'PolygonSelector' object has no attribute '_update_axes_limits'
+
+lib/matplotlib/widgets.py:1876: AttributeError
+_______________________ test_polygon_selector_remove[2] ________________________
+
+idx = 2
+
+    @pytest.mark.parametrize('idx', [1, 2, 3])
+    def test_polygon_selector_remove(idx):
+        verts = [(50, 50), (150, 50), (50, 150)]
+        event_sequence = [polygon_place_vertex(*verts[0]),
+                          polygon_place_vertex(*verts[1]),
+                          polygon_place_vertex(*verts[2]),
+                          # Finish the polygon
+                          polygon_place_vertex(*verts[0])]
+        # Add an extra point
+        event_sequence.insert(idx, polygon_place_vertex(200, 200))
+        # Remove the extra point
+        event_sequence.append(polygon_remove_vertex(200, 200))
+        # Flatten list of lists
+        event_sequence = sum(event_sequence, [])
+>       check_polygon_selector(event_sequence, verts, 2)
+
+lib/matplotlib/tests/test_widgets.py:724: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/tests/test_widgets.py:541: in check_polygon_selector
+    do_event(tool, etype, **event_args)
+lib/matplotlib/testing/widgets.py:84: in do_event
+    func(event)
+lib/matplotlib/widgets.py:3263: in onmove
+    self._onmove(event)
+lib/matplotlib/widgets.py:3303: in _onmove
+    self._draw_polygon()
+lib/matplotlib/widgets.py:3346: in _draw_polygon
+    self.update()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.widgets.PolygonSelector object at 0x7f39ad200b20>
+
+    def update(self):
+        """Draw using blit() or draw_idle(), depending on ``self.useblit``."""
+        if not self.ax.get_visible() or self.ax.figure._cachedRenderer is None:
+            return False
+        if self.useblit:
+            if self.background is not None:
+                self.canvas.restore_region(self.background)
+            else:
+                self.update_background(None)
+            for artist in self.artists:
+                self.ax.draw_artist(artist)
+            self.canvas.blit(self.ax.bbox)
+        else:
+            self.canvas.draw_idle()
+>       self._update_axes_limits()
+E       AttributeError: 'PolygonSelector' object has no attribute '_update_axes_limits'
+
+lib/matplotlib/widgets.py:1876: AttributeError
+_______________________ test_polygon_selector_remove[3] ________________________
+
+idx = 3
+
+    @pytest.mark.parametrize('idx', [1, 2, 3])
+    def test_polygon_selector_remove(idx):
+        verts = [(50, 50), (150, 50), (50, 150)]
+        event_sequence = [polygon_place_vertex(*verts[0]),
+                          polygon_place_vertex(*verts[1]),
+                          polygon_place_vertex(*verts[2]),
+                          # Finish the polygon
+                          polygon_place_vertex(*verts[0])]
+        # Add an extra point
+        event_sequence.insert(idx, polygon_place_vertex(200, 200))
+        # Remove the extra point
+        event_sequence.append(polygon_remove_vertex(200, 200))
+        # Flatten list of lists
+        event_sequence = sum(event_sequence, [])
+>       check_polygon_selector(event_sequence, verts, 2)
+
+lib/matplotlib/tests/test_widgets.py:724: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/tests/test_widgets.py:541: in check_polygon_selector
+    do_event(tool, etype, **event_args)
+lib/matplotlib/testing/widgets.py:84: in do_event
+    func(event)
+lib/matplotlib/widgets.py:3263: in onmove
+    self._onmove(event)
+lib/matplotlib/widgets.py:3303: in _onmove
+    self._draw_polygon()
+lib/matplotlib/widgets.py:3346: in _draw_polygon
+    self.update()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.widgets.PolygonSelector object at 0x7f39add37ee0>
+
+    def update(self):
+        """Draw using blit() or draw_idle(), depending on ``self.useblit``."""
+        if not self.ax.get_visible() or self.ax.figure._cachedRenderer is None:
+            return False
+        if self.useblit:
+            if self.background is not None:
+                self.canvas.restore_region(self.background)
+            else:
+                self.update_background(None)
+            for artist in self.artists:
+                self.ax.draw_artist(artist)
+            self.canvas.blit(self.ax.bbox)
+        else:
+            self.canvas.draw_idle()
+>       self._update_axes_limits()
+E       AttributeError: 'PolygonSelector' object has no attribute '_update_axes_limits'
+
+lib/matplotlib/widgets.py:1876: AttributeError
+___________________ test_polygon_selector_remove_first_point ___________________
+
+    def test_polygon_selector_remove_first_point():
+        verts = [(50, 50), (150, 50), (50, 150)]
+        event_sequence = (polygon_place_vertex(*verts[0]) +
+                          polygon_place_vertex(*verts[1]) +
+                          polygon_place_vertex(*verts[2]) +
+                          polygon_place_vertex(*verts[0]) +
+                          polygon_remove_vertex(*verts[0]))
+>       check_polygon_selector(event_sequence, verts[1:], 2)
+
+lib/matplotlib/tests/test_widgets.py:734: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/tests/test_widgets.py:541: in check_polygon_selector
+    do_event(tool, etype, **event_args)
+lib/matplotlib/testing/widgets.py:84: in do_event
+    func(event)
+lib/matplotlib/widgets.py:3263: in onmove
+    self._onmove(event)
+lib/matplotlib/widgets.py:3303: in _onmove
+    self._draw_polygon()
+lib/matplotlib/widgets.py:3346: in _draw_polygon
+    self.update()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.widgets.PolygonSelector object at 0x7f39ace56dc0>
+
+    def update(self):
+        """Draw using blit() or draw_idle(), depending on ``self.useblit``."""
+        if not self.ax.get_visible() or self.ax.figure._cachedRenderer is None:
+            return False
+        if self.useblit:
+            if self.background is not None:
+                self.canvas.restore_region(self.background)
+            else:
+                self.update_background(None)
+            for artist in self.artists:
+                self.ax.draw_artist(artist)
+            self.canvas.blit(self.ax.bbox)
+        else:
+            self.canvas.draw_idle()
+>       self._update_axes_limits()
+E       AttributeError: 'PolygonSelector' object has no attribute '_update_axes_limits'
+
+lib/matplotlib/widgets.py:1876: AttributeError
+_________________________ test_polygon_selector_redraw _________________________
+
+    def test_polygon_selector_redraw():
+        verts = [(50, 50), (150, 50), (50, 150)]
+        event_sequence = (polygon_place_vertex(*verts[0]) +
+                          polygon_place_vertex(*verts[1]) +
+                          polygon_place_vertex(*verts[2]) +
+                          polygon_place_vertex(*verts[0]) +
+                          # Polygon completed, now remove first two verts
+                          polygon_remove_vertex(*verts[1]) +
+                          polygon_remove_vertex(*verts[2]) +
+                          # At this point the tool should be reset so we can add
+                          # more vertices
+                          polygon_place_vertex(*verts[1]))
+    
+        ax = get_ax()
+    
+        def onselect(vertices):
+            pass
+    
+        tool = widgets.PolygonSelector(ax, onselect)
+        for (etype, event_args) in event_sequence:
+>           do_event(tool, etype, **event_args)
+
+lib/matplotlib/tests/test_widgets.py:757: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+lib/matplotlib/testing/widgets.py:84: in do_event
+    func(event)
+lib/matplotlib/widgets.py:3263: in onmove
+    self._onmove(event)
+lib/matplotlib/widgets.py:3303: in _onmove
+    self._draw_polygon()
+lib/matplotlib/widgets.py:3346: in _draw_polygon
+    self.update()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <matplotlib.widgets.PolygonSelector object at 0x7f399a6d4a60>
+
+    def update(self):
+        """Draw using blit() or draw_idle(), depending on ``self.useblit``."""
+        if not self.ax.get_visible() or self.ax.figure._cachedRenderer is None:
+            return False
+        if self.useblit:
+            if self.background is not None:
+                self.canvas.restore_region(self.background)
+            else:
+                self.update_background(None)
+            for artist in self.artists:
+                self.ax.draw_artist(artist)
+            self.canvas.blit(self.ax.bbox)
+        else:
+            self.canvas.draw_idle()
+>       self._update_axes_limits()
+E       AttributeError: 'PolygonSelector' object has no attribute '_update_axes_limits'
+
+lib/matplotlib/widgets.py:1876: AttributeError
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED lib/matplotlib/tests/test_widgets.py::test_span_selector
+PASSED lib/matplotlib/tests/test_widgets.py::test_span_selector_drag[True]
+PASSED lib/matplotlib/tests/test_widgets.py::test_span_selector_drag[False]
+PASSED lib/matplotlib/tests/test_widgets.py::test_span_selector_direction
+PASSED lib/matplotlib/tests/test_widgets.py::test_tool_line_handle
+PASSED lib/matplotlib/tests/test_widgets.py::test_CheckButtons
+PASSED lib/matplotlib/tests/test_widgets.py::test_TextBox
+PASSED lib/matplotlib/tests/test_widgets.py::test_check_radio_buttons_image[png]
+PASSED lib/matplotlib/tests/test_widgets.py::test_check_bunch_of_radio_buttons[png]
+PASSED lib/matplotlib/tests/test_widgets.py::test_slider_slidermin_slidermax_invalid
+PASSED lib/matplotlib/tests/test_widgets.py::test_slider_slidermin_slidermax
+PASSED lib/matplotlib/tests/test_widgets.py::test_slider_valmin_valmax
+PASSED lib/matplotlib/tests/test_widgets.py::test_slider_valstep_snapping
+PASSED lib/matplotlib/tests/test_widgets.py::test_slider_horizontal_vertical
+PASSED lib/matplotlib/tests/test_widgets.py::test_range_slider[horizontal]
+PASSED lib/matplotlib/tests/test_widgets.py::test_range_slider[vertical]
+PASSED lib/matplotlib/tests/test_widgets.py::test_MultiCursor[True-True]
+PASSED lib/matplotlib/tests/test_widgets.py::test_MultiCursor[True-False]
+PASSED lib/matplotlib/tests/test_widgets.py::test_MultiCursor[False-True]
+PASSED lib/matplotlib/tests/test_widgets.py::test_rect_visibility[png]
+PASSED lib/matplotlib/tests/test_widgets.py::test_rect_visibility[pdf]
+SKIPPED [1] lib/matplotlib/testing/compare.py:274: Don't know how to convert .svg files to png
+FAILED lib/matplotlib/tests/test_widgets.py::test_rectangle_selector - Attrib...
+FAILED lib/matplotlib/tests/test_widgets.py::test_rectangle_drag[True-new_center0]
+FAILED lib/matplotlib/tests/test_widgets.py::test_rectangle_drag[False-new_center1]
+FAILED lib/matplotlib/tests/test_widgets.py::test_ellipse - AttributeError: '...
+FAILED lib/matplotlib/tests/test_widgets.py::test_rectangle_handles - Attribu...
+FAILED lib/matplotlib/tests/test_widgets.py::test_span_selector_bound[horizontal]
+FAILED lib/matplotlib/tests/test_widgets.py::test_span_selector_bound[vertical]
+FAILED lib/matplotlib/tests/test_widgets.py::test_lasso_selector - AttributeE...
+FAILED lib/matplotlib/tests/test_widgets.py::test_polygon_selector - Attribut...
+FAILED lib/matplotlib/tests/test_widgets.py::test_polygon_selector_remove[1]
+FAILED lib/matplotlib/tests/test_widgets.py::test_polygon_selector_remove[2]
+FAILED lib/matplotlib/tests/test_widgets.py::test_polygon_selector_remove[3]
+FAILED lib/matplotlib/tests/test_widgets.py::test_polygon_selector_remove_first_point
+FAILED lib/matplotlib/tests/test_widgets.py::test_polygon_selector_redraw - A...
+================== 14 failed, 21 passed, 1 skipped in 16.95s ===================
++ git checkout 6786f437df54ca7780a047203cbcfaa1db8dc542 lib/matplotlib/tests/test_widgets.py
+Updated 1 path from 6bf93602ed

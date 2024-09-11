@@ -1,0 +1,223 @@
+
+diff --git a/django/utils/autoreload.py b/django/utils/autoreload.py
+index b6af5f5491..4614a4103f 100644
+--- a/django/utils/autoreload.py
++++ b/django/utils/autoreload.py
+@@ -223,9 +223,16 @@ def get_child_arguments():
+     # __spec__ is set when the server was started with the `-m` option,
+     # see https://docs.python.org/3/reference/import.html#main-spec
+     # __spec__ may not exist, e.g. when running in a Conda env.
+-    if getattr(__main__, '__spec__', None) is not None and __main__.__spec__.parent:
+-        args += ['-m', __main__.__spec__.parent]
++    if getattr(__main__, '__spec__', None) is not None:
++        if __main__.__spec__.parent:
++            args += ['-m', __main__.__spec__.parent]
++        else:
++            args += ['-m', __main__.__spec__.name]
+         args += sys.argv[1:]
++    elif sys.argv[0] == '-m':
++        # Handle the case when the script is run with python -m
++        # This allows correct autoreloading for both package and standalone module execution
++        args += ['-m'] + sys.argv[1:]
+     elif not py_script.exists():
+         # sys.argv[0] may not exist for several reasons on Windows.
+         # It may exist with a .exe extension or have a -script.py suffix.
+@@ -239,7 +246,8 @@ def get_child_arguments():
+             return [*args, script_entrypoint, *sys.argv[1:]]
+         raise RuntimeError('Script %s does not exist.' % py_script)
+     else:
+-        args += sys.argv
++        args += [sys.argv[0]]
++        args += sys.argv[1:]
+     return args
+ 
+ 
+diff --git a/docs/releases/4.1.txt b/docs/releases/4.1.txt
+new file mode 100644
+index 0000000000..8a9326d657
+--- /dev/null
++++ b/docs/releases/4.1.txt
+@@ -0,0 +1,43 @@
++============================================
++Django 4.1 release notes - UNDER DEVELOPMENT
++============================================
++
++*Expected August 2022*
++
++Welcome to Django 4.1!
++
++These release notes cover the new features, as well as some backwards
++incompatible changes you'll want to be aware of when upgrading from Django 4.0
++or earlier. We've begun the deprecation process for some features.
++
++See the :doc:`/howto/upgrade-version` guide if you're updating an existing
++project.
++
++Python compatibility
++====================
++
++Django 4.1 supports Python 3.8, 3.9, and 3.10. We **highly recommend** and only
++officially support the latest release of each series.
++
++What's new in Django 4.1
++========================
++
++Minor features
++--------------
++
++:mod:`django.utils.autoreload`
++~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
++
++* The :func:`~django.utils.autoreload.get_child_arguments` function now
++  correctly handles the case when Django is started using `python -m`, allowing
++  proper autoreloading for both package and standalone module execution.
++
++Backwards incompatible changes in 4.1
++=====================================
++
++Database backend API
++--------------------
++
++This section describes changes that may be needed in third-party database
++backends.
++
+diff --git a/run_test.py b/run_test.py
+new file mode 100644
+index 0000000000..a82683983e
+--- /dev/null
++++ b/run_test.py
+@@ -0,0 +1,5 @@
++import sys
++from django.utils import autoreload
++
++if __name__ == "__main__":
++    autoreload.run_with_reloader(lambda: __import__("test_module"))
+diff --git a/simple_autoreloader.py b/simple_autoreloader.py
+new file mode 100644
+index 0000000000..f5a3331eac
+--- /dev/null
++++ b/simple_autoreloader.py
+@@ -0,0 +1,36 @@
++import sys
++import os
++import subprocess
++import importlib
++
++def get_child_arguments():
++    args = [sys.executable]
++    main_module = sys.modules['__main__']
++    if getattr(main_module, '__spec__', None) is not None:
++        if main_module.__spec__.parent:
++            args += ['-m', main_module.__spec__.parent]
++        else:
++            args += ['-m', main_module.__spec__.name]
++    else:
++        args += [sys.argv[0]]
++    args += sys.argv[1:]
++    return args
++
++def restart_with_reloader():
++    new_environ = {**os.environ, "SIMPLE_AUTORELOAD_ENV": "true"}
++    args = get_child_arguments()
++    return subprocess.call(args, env=new_environ, close_fds=False)
++
++def run_with_reloader(main_func):
++    if os.environ.get("SIMPLE_AUTORELOAD_ENV") == "true":
++        main_func()
++    else:
++        while True:
++            exit_code = restart_with_reloader()
++            if exit_code != 3:
++                return exit_code
++
++if __name__ == "__main__":
++    # Simulate running with python -m
++    sys.argv = ['-m', 'test_module']
++    run_with_reloader(lambda: importlib.import_module("test_module"))
+diff --git a/test_autoreload.py b/test_autoreload.py
+new file mode 100644
+index 0000000000..97d9fa60b3
+--- /dev/null
++++ b/test_autoreload.py
+@@ -0,0 +1,42 @@
++import sys
++import os
++from django.utils.autoreload import get_child_arguments
++
++def test_get_child_arguments():
++    # Save the original sys.argv and current working directory
++    original_argv = sys.argv
++    original_cwd = os.getcwd()
++
++    # Change to the directory containing autoreload.py
++    os.chdir('/django__django/django/utils')
++
++    # Test case 1: Normal execution (using autoreload.py)
++    sys.argv = ['autoreload.py', 'arg1', 'arg2']
++    args = get_child_arguments()
++    print("Test case 1 (Normal execution):")
++    print(f"Input: {sys.argv}")
++    print(f"Output: {args}")
++    print()
++
++    # Test case 2: Execution with -m (package)
++    sys.argv = ['-m', 'django.utils.autoreload', 'arg1', 'arg2']
++    args = get_child_arguments()
++    print("Test case 2 (Execution with -m package):")
++    print(f"Input: {sys.argv}")
++    print(f"Output: {args}")
++    print()
++
++    # Test case 3: Execution with -m (module)
++    sys.argv = ['-m', 'autoreload', 'arg1', 'arg2']
++    args = get_child_arguments()
++    print("Test case 3 (Execution with -m module):")
++    print(f"Input: {sys.argv}")
++    print(f"Output: {args}")
++    print()
++
++    # Restore the original sys.argv and working directory
++    sys.argv = original_argv
++    os.chdir(original_cwd)
++
++if __name__ == '__main__':
++    test_get_child_arguments()
+diff --git a/test_module.py b/test_module.py
+new file mode 100644
+index 0000000000..e3ee74c89b
+--- /dev/null
++++ b/test_module.py
+@@ -0,0 +1,5 @@
++import time
++
++print("Test module started")
++time.sleep(2)  # Simulate some work
++print("Test module finished")
+diff --git a/tests/utils_tests/test_autoreload.py b/tests/utils_tests/test_autoreload.py
+index 7b91686bf5..0061c1763b 100644
+--- a/tests/utils_tests/test_autoreload.py
++++ b/tests/utils_tests/test_autoreload.py
+@@ -797,4 +797,22 @@ class StatReloaderTests(ReloaderTests, IntegrationTests):
+         with mock.patch.object(self.reloader, 'watched_files', return_value=[self.existing_file, self.existing_file]):
+             snapshot = list(self.reloader.snapshot_files())
+             self.assertEqual(len(snapshot), 1)
+-            self.assertEqual(snapshot[0][0], self.existing_file)
++
++class TestGetChildArguments(SimpleTestCase):
++    def test_get_child_arguments_with_python_m(self):
++        original_argv = sys.argv
++        try:
++            sys.argv = ['-m', 'django', 'runserver']
++            args = autoreload.get_child_arguments()
++            self.assertEqual(args[:3], [sys.executable, '-m', 'django'])
++        finally:
++            sys.argv = original_argv
++
++    def test_get_child_arguments_with_python_module(self):
++        original_argv = sys.argv
++        try:
++            sys.argv = ['manage.py', 'runserver']
++            args = autoreload.get_child_arguments()
++            self.assertEqual(args[:2], [sys.executable, 'manage.py'])
++        finally:
++            sys.argv = original_argv

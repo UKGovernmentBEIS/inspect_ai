@@ -1,0 +1,529 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	run_test.py
+	test_app/
+
+nothing added to commit but untracked files present (use "git add" to track)
++ git show
+commit 973fa566521037ac140dcece73fceae50ee522f1
+Author: David <smithdc@gmail.com>
+Date:   Tue Jan 4 12:46:20 2022 +0000
+
+    Removed unused comment directive in CBV topic docs.
+
+diff --git a/docs/topics/class-based-views/generic-display.txt b/docs/topics/class-based-views/generic-display.txt
+index cb35296149..cc8d9e21b0 100644
+--- a/docs/topics/class-based-views/generic-display.txt
++++ b/docs/topics/class-based-views/generic-display.txt
+@@ -68,8 +68,6 @@ of built-in generic views to help generate list and detail views of objects.
+ Let's start by looking at some examples of showing a list of objects or an
+ individual object.
+ 
+-.. comment: link here to the other topic pages (form handling, date based, mixins)
+-
+ We'll be using these models::
+ 
+     # models.py
++ git diff 973fa566521037ac140dcece73fceae50ee522f1
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.4.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20220105071113) (3.8.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20220105071113) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from asgiref>=3.4.1->Django==4.1.dev20220105071113) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.1.dev20220105071113-0.editable-py3-none-any.whl size=26895 sha256=4c0c663a53eb73d422aa20eb928d2c641e2a92e481718e2202b6fd4eb412eded
+  Stored in directory: /tmp/pip-ephem-wheel-cache-rcrzmrgv/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.1.dev20220105071113
+    Uninstalling Django-4.1.dev20220105071113:
+      Successfully uninstalled Django-4.1.dev20220105071113
+Successfully installed Django-4.1.dev20220105071113
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 973fa566521037ac140dcece73fceae50ee522f1 tests/prefetch_related/tests.py
+Updated 0 paths from 90963a8d9d
++ git apply -v -
+Checking patch tests/prefetch_related/tests.py...
+Applied patch tests/prefetch_related/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 prefetch_related.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application prefetch_related
+Found 86 test(s).
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, prefetch_related, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table prefetch_related_author
+    Creating table prefetch_related_authorwithage
+    Creating table prefetch_related_favoriteauthors
+    Creating table prefetch_related_authoraddress
+    Creating table prefetch_related_book
+    Creating table prefetch_related_bookwithyear
+    Creating table prefetch_related_bio
+    Creating table prefetch_related_reader
+    Creating table prefetch_related_bookreview
+    Creating table prefetch_related_qualification
+    Creating table prefetch_related_teacher
+    Creating table prefetch_related_department
+    Creating table prefetch_related_taggeditem
+    Creating table prefetch_related_article
+    Creating table prefetch_related_bookmark
+    Creating table prefetch_related_comment
+    Creating table prefetch_related_house
+    Creating table prefetch_related_room
+    Creating table prefetch_related_person
+    Creating table prefetch_related_employee
+    Creating table prefetch_related_lessonentry
+    Creating table prefetch_related_wordentry
+    Creating table prefetch_related_author2
+    Creating table prefetch_related_pet
+    Creating table prefetch_related_flea
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique...Creating test database for alias 'other' ('file:memorydb_other?mode=memory&cache=shared')...
+ OK
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, prefetch_related, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table prefetch_related_author
+    Creating table prefetch_related_authorwithage
+    Creating table prefetch_related_favoriteauthors
+    Creating table prefetch_related_authoraddress
+    Creating table prefetch_related_book
+    Creating table prefetch_related_bookwithyear
+    Creating table prefetch_related_bio
+    Creating table prefetch_related_reader
+    Creating table prefetch_related_bookreview
+    Creating table prefetch_related_qualification
+    Creating table prefetch_related_teacher
+    Creating table prefetch_related_department
+    Creating table prefetch_related_taggeditem
+    Creating table prefetch_related_article
+    Creating table prefetch_related_bookmark
+    Creating table prefetch_related_comment
+    Creating table prefetch_related_house
+    Creating table prefetch_related_room
+    Creating table prefetch_related_person
+    Creating table prefetch_related_employee
+    Creating table prefetch_related_lessonentry
+    Creating table prefetch_related_wordentry
+    Creating table prefetch_related_author2
+    Creating table prefetch_related_pet
+    Creating table prefetch_related_flea
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+test_ambiguous (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_custom_qs (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_filter_deferred (prefetch_related.tests.CustomPrefetchTests)
+Related filtering of prefetched querysets is deferred until necessary. ... ok
+test_generic_rel (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_m2m (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_m2m_through_fk (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_m2m_through_gfk (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_nested_prefetch_related_are_not_overwritten (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_nested_prefetch_related_with_duplicate_prefetcher (prefetch_related.tests.CustomPrefetchTests)
+Nested prefetches whose name clashes with descriptor names ... ok
+test_o2m_through_m2m (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_raw_queryset (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_reverse_m2m (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_to_attr_cached_property (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_to_attr_doesnt_cache_through_attr_as_list (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_traverse_multiple_items_property (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_traverse_qs (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_traverse_single_item_property (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_values_queryset (prefetch_related.tests.CustomPrefetchTests) ... ok
+test_m2m_then_m2m (prefetch_related.tests.DefaultManagerTests) ... ok
+test_add_clears_prefetched_objects (prefetch_related.tests.DirectPrefetchedObjectCacheReuseTests) ... ok
+test_detect_is_fetched (prefetch_related.tests.DirectPrefetchedObjectCacheReuseTests)
+Nested prefetch_related() shouldn't trigger duplicate queries for the same ... ok
+test_detect_is_fetched_with_to_attr (prefetch_related.tests.DirectPrefetchedObjectCacheReuseTests) ... ok
+test_prefetch_reverse_foreign_key (prefetch_related.tests.DirectPrefetchedObjectCacheReuseTests) ... ok
+test_remove_clears_prefetched_objects (prefetch_related.tests.DirectPrefetchedObjectCacheReuseTests) ... ok
+test_foreignkey (prefetch_related.tests.ForeignKeyToFieldTest) ... ok
+test_m2m (prefetch_related.tests.ForeignKeyToFieldTest) ... ok
+test_m2m_manager_reused (prefetch_related.tests.ForeignKeyToFieldTest) ... ok
+test_charfield_GFK (prefetch_related.tests.GenericRelationTests) ... ok
+test_custom_queryset (prefetch_related.tests.GenericRelationTests) ... ok
+test_deleted_GFK (prefetch_related.tests.GenericRelationTests) ... ok
+test_generic_relation (prefetch_related.tests.GenericRelationTests) ... ok
+test_nullable_GFK (prefetch_related.tests.GenericRelationTests) ... ok
+test_prefetch_GFK (prefetch_related.tests.GenericRelationTests) ... ok
+test_prefetch_GFK_fk_pk (prefetch_related.tests.GenericRelationTests) ... ok
+test_prefetch_GFK_nonint_pk (prefetch_related.tests.GenericRelationTests) ... ok
+test_prefetch_GFK_uuid_pk (prefetch_related.tests.GenericRelationTests) ... ok
+test_traverse_GFK (prefetch_related.tests.GenericRelationTests)
+A 'content_object' can be traversed with prefetch_related() and ... ok
+test_order (prefetch_related.tests.LookupOrderingTest) ... ok
+test_using_is_honored_custom_qs (prefetch_related.tests.MultiDbTests) ... ok
+test_using_is_honored_fkey (prefetch_related.tests.MultiDbTests) ... ok
+test_using_is_honored_inheritance (prefetch_related.tests.MultiDbTests) ... ok
+test_using_is_honored_m2m (prefetch_related.tests.MultiDbTests) ... ok
+test_child_link_prefetch (prefetch_related.tests.MultiTableInheritanceTest) ... ok
+test_foreignkey (prefetch_related.tests.MultiTableInheritanceTest) ... ok
+test_foreignkey_to_inherited (prefetch_related.tests.MultiTableInheritanceTest) ... ok
+test_m2m_to_inheriting_model (prefetch_related.tests.MultiTableInheritanceTest) ... ok
+test_parent_link_prefetch (prefetch_related.tests.MultiTableInheritanceTest) ... ok
+test_nested_prefetch_is_not_overwritten_by_related_object (prefetch_related.tests.NestedPrefetchTests)
+The prefetched relationship is used rather than populating the reverse ... FAIL
+test_in_bulk (prefetch_related.tests.NullableTest)
+In-bulk does correctly prefetch objects by not using .iterator() ... ok
+test_prefetch_nullable (prefetch_related.tests.NullableTest) ... ok
+test_traverse_nullable (prefetch_related.tests.NullableTest) ... ok
+test_attribute_error (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_bool (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_clear (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_count (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_exists (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_filter_deferred (prefetch_related.tests.PrefetchRelatedTests)
+Related filtering of prefetched querysets is deferred on m2m and ... ok
+test_foreign_key_then_m2m (prefetch_related.tests.PrefetchRelatedTests)
+A m2m relation can be followed after a relation like ForeignKey that ... ok
+test_foreignkey_forward (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_foreignkey_reverse (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_forward_m2m_to_attr_conflict (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_get (prefetch_related.tests.PrefetchRelatedTests)
+Objects retrieved with .get() get the prefetch behavior. ... ok
+test_in_and_prefetch_related (prefetch_related.tests.PrefetchRelatedTests)
+Regression test for #20242 - QuerySet "in" didn't work the first time ... ok
+test_invalid_final_lookup (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_len (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_m2m_forward (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_m2m_reverse (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_m2m_then_m2m (prefetch_related.tests.PrefetchRelatedTests)
+A m2m can be followed through another m2m. ... ok
+test_m2m_then_m2m_object_ids (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_m2m_then_reverse_fk_object_ids (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_m2m_then_reverse_one_to_one_object_ids (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_named_values_list (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_onetoone_reverse_no_match (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_onetoone_reverse_with_to_field_pk (prefetch_related.tests.PrefetchRelatedTests)
+A model (Bio) with a OneToOneField primary key (author) that references ... ok
+test_overriding_prefetch (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_prefetch_eq (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_reverse_m2m_to_attr_conflict (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_reverse_one_to_one_then_m2m (prefetch_related.tests.PrefetchRelatedTests)
+A m2m relation can be followed after going through the select_related ... ok
+test_survives_clone (prefetch_related.tests.PrefetchRelatedTests) ... ok
+test_basic (prefetch_related.tests.RawQuerySetTests) ... ok
+test_clear (prefetch_related.tests.RawQuerySetTests) ... ok
+test_prefetch_before_raw (prefetch_related.tests.RawQuerySetTests) ... ok
+test_retrieves_results_from_prefetched_objects_cache (prefetch_related.tests.ReadPrefetchedObjectsCacheTests)
+When intermediary results are prefetched without a destination ... ok
+test_bug (prefetch_related.tests.Ticket19607Tests) ... ok
+test_bug (prefetch_related.tests.Ticket21410Tests) ... ok
+test_bug (prefetch_related.tests.Ticket21760Tests) ... ok
+
+======================================================================
+FAIL: test_nested_prefetch_is_not_overwritten_by_related_object (prefetch_related.tests.NestedPrefetchTests)
+The prefetched relationship is used rather than populating the reverse
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/prefetch_related/tests.py", line 1642, in test_nested_prefetch_is_not_overwritten_by_related_object
+    house.rooms.first().house.address
+  File "/testbed/django/test/testcases.py", line 84, in __exit__
+    self.test_case.assertEqual(
+AssertionError: 1 != 0 : 1 queries executed, 0 expected
+Captured queries were:
+1. SELECT "prefetch_related_house"."id", "prefetch_related_house"."address" FROM "prefetch_related_house" WHERE "prefetch_related_house"."id" = 1 LIMIT 21
+
+----------------------------------------------------------------------
+Ran 86 tests in 0.632s
+
+FAILED (failures=1)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Destroying test database for alias 'other' ('file:memorydb_other?mode=memory&cache=shared')...
++ git checkout 973fa566521037ac140dcece73fceae50ee522f1 tests/prefetch_related/tests.py
+Updated 1 path from 90963a8d9d

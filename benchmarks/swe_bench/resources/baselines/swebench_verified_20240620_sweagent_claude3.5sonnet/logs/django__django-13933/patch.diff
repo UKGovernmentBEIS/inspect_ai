@@ -1,0 +1,62 @@
+
+diff --git a/django/forms/models.py b/django/forms/models.py
+index 422bc5d178..e03a3803cd 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -1188,7 +1188,7 @@ class ModelChoiceField(ChoiceField):
+     # This class is a subclass of ChoiceField for purity, but it doesn't
+     # actually use any of ChoiceField's implementation.
+     default_error_messages = {
+-        'invalid_choice': _('Select a valid choice. That choice is not one of'
++        'invalid_choice': _('Select a valid choice. %(value)s is not one of'
+                             ' the available choices.'),
+     }
+     iterator = ModelChoiceIterator
+@@ -1284,7 +1284,11 @@ class ModelChoiceField(ChoiceField):
+                 value = getattr(value, key)
+             value = self.queryset.get(**{key: value})
+         except (ValueError, TypeError, self.queryset.model.DoesNotExist):
+-            raise ValidationError(self.error_messages['invalid_choice'], code='invalid_choice')
++            raise ValidationError(
++                self.error_messages['invalid_choice'],
++                code='invalid_choice',
++                params={'value': value},
++            )
+         return value
+ 
+     def validate(self, value):
+diff --git a/tests/forms_tests/test_modelchoicefield_validation.py b/tests/forms_tests/test_modelchoicefield_validation.py
+new file mode 100644
+index 0000000000..20bfb7341d
+--- /dev/null
++++ b/tests/forms_tests/test_modelchoicefield_validation.py
+@@ -0,0 +1,29 @@
++from django.test import TestCase
++from django.forms import ModelChoiceField, ModelMultipleChoiceField
++from django.core.exceptions import ValidationError
++from django.contrib.auth.models import User
++
++class TestModelChoiceFieldValidation(TestCase):
++    def setUp(self):
++        self.user1 = User.objects.create_user(username="user1", password="password1")
++        self.user2 = User.objects.create_user(username="user2", password="password2")
++
++    def test_modelchoicefield_invalid_choice(self):
++        field = ModelChoiceField(queryset=User.objects.all())
++        
++        # Test with an invalid choice
++        with self.assertRaises(ValidationError) as cm:
++            field.clean('invalid_id')
++        
++        self.assertEqual(cm.exception.code, 'invalid_choice')
++        self.assertIn('invalid_id', str(cm.exception))
++
++    def test_modelmultiplechoicefield_invalid_choice(self):
++        field = ModelMultipleChoiceField(queryset=User.objects.all())
++        
++        # Test with an invalid choice
++        with self.assertRaises(ValidationError) as cm:
++            field.clean(['invalid_id'])
++        
++        self.assertEqual(cm.exception.code, 'invalid_pk_value')
++        self.assertIn('invalid_id', str(cm.exception))

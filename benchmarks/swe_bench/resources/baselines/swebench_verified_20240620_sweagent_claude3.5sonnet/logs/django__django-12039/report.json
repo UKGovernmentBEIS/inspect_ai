@@ -1,0 +1,40 @@
+{
+    "django__django-12039": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "test_descending_columns_list_sql (indexes.tests.SchemaIndexesTests)"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_columns_list_sql (indexes.tests.SchemaIndexesTests)",
+                    "test_index_name (indexes.tests.SchemaIndexesTests)",
+                    "test_index_name_hash (indexes.tests.SchemaIndexesTests)",
+                    "test_index_together (indexes.tests.SchemaIndexesTests)",
+                    "test_index_together_single_list (indexes.tests.SchemaIndexesTests)",
+                    "test_create_index_ignores_opclasses (indexes.tests.SchemaIndexesNotPostgreSQLTests)",
+                    "test_boolean_restriction_partial (indexes.tests.PartialIndexTests)",
+                    "test_integer_restriction_partial (indexes.tests.PartialIndexTests)",
+                    "test_is_null_condition (indexes.tests.PartialIndexTests)",
+                    "test_multiple_conditions (indexes.tests.PartialIndexTests)",
+                    "test_partial_index (indexes.tests.PartialIndexTests)"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

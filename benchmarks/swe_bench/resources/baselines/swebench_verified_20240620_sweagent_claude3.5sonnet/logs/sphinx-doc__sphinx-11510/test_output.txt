@@ -1,0 +1,876 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	conf.py
+	index.rst
+	my_extension.py
+	something-to-include.rst
+	test_timedelta_serialization.py
+	tox.ini.orig
+
+nothing added to commit but untracked files present (use "git add" to track)
++ git show
+commit 6cb783c0024a873722952a67ebb9f41771c8eb6d
+Author: Adam Turner <9087854+aa-turner@users.noreply.github.com>
+Date:   Sun Aug 13 23:21:56 2023 +0100
+
+    Enable SIM105 (use contextlib.suppress)
+
+diff --git a/pyproject.toml b/pyproject.toml
+index 6b79a2512..d553d89e5 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -268,7 +268,6 @@ ignore = [
+     # flake8-simplify
+     "SIM102", # nested 'if' statements
+     "SIM103", # return condition directly
+-    "SIM105", # use contextlib.suppress
+     "SIM108", # use ternary operator
+     # flake8-self
+     "SLF001",  # private member accessed
+diff --git a/sphinx/builders/html/__init__.py b/sphinx/builders/html/__init__.py
+index aa809a013..d26684ad3 100644
+--- a/sphinx/builders/html/__init__.py
++++ b/sphinx/builders/html/__init__.py
+@@ -2,6 +2,7 @@
+ 
+ from __future__ import annotations
+ 
++import contextlib
+ import hashlib
+ import html
+ import os
+@@ -578,12 +579,11 @@ class StandaloneHTMLBuilder(Builder):
+                 # that gracefully
+                 prev = None
+         while related and related[0]:
+-            try:
++            with contextlib.suppress(KeyError):
+                 parents.append(
+                     {'link': self.get_relative_uri(docname, related[0]),
+                      'title': self.render_partial(titles[related[0]])['title']})
+-            except KeyError:
+-                pass
++
+             related = self.relations.get(related[0])
+         if parents:
+             # remove link to the master file; we have a generic
+@@ -1102,7 +1102,7 @@ class StandaloneHTMLBuilder(Builder):
+             templatename = newtmpl
+ 
+         # sort JS/CSS before rendering HTML
+-        try:
++        try:  # NoQA: SIM105
+             # Convert script_files to list to support non-list script_files (refs: #8889)
+             ctx['script_files'] = sorted(ctx['script_files'], key=lambda js: js.priority)
+         except AttributeError:
+@@ -1112,10 +1112,8 @@ class StandaloneHTMLBuilder(Builder):
+             # Note: priority sorting feature will not work in this case.
+             pass
+ 
+-        try:
++        with contextlib.suppress(AttributeError):
+             ctx['css_files'] = sorted(ctx['css_files'], key=lambda css: css.priority)
+-        except AttributeError:
+-            pass
+ 
+         try:
+             output = self.templates.render(templatename, ctx)
+diff --git a/sphinx/builders/linkcheck.py b/sphinx/builders/linkcheck.py
+index 4825d51f6..e1479e01b 100644
+--- a/sphinx/builders/linkcheck.py
++++ b/sphinx/builders/linkcheck.py
+@@ -2,6 +2,7 @@
+ 
+ from __future__ import annotations
+ 
++import contextlib
+ import json
+ import re
+ import socket
+@@ -304,14 +305,12 @@ class HyperlinkAvailabilityCheckWorker(Thread):
+                 break
+ 
+             netloc = urlsplit(uri).netloc
+-            try:
++            with contextlib.suppress(KeyError):
+                 # Refresh rate limit.
+                 # When there are many links in the queue, workers are all stuck waiting
+                 # for responses, but the builder keeps queuing. Links in the queue may
+                 # have been queued before rate limits were discovered.
+                 next_check = self.rate_limits[netloc].next_check
+-            except KeyError:
+-                pass
+             if next_check > time.time():
+                 # Sleep before putting message back in the queue to avoid
+                 # waking up other threads.
+diff --git a/sphinx/cmd/build.py b/sphinx/cmd/build.py
+index 811838c9d..a128fc7e8 100644
+--- a/sphinx/cmd/build.py
++++ b/sphinx/cmd/build.py
+@@ -4,6 +4,7 @@ from __future__ import annotations
+ 
+ import argparse
+ import bdb
++import contextlib
+ import locale
+ import multiprocessing
+ import os
+@@ -265,10 +266,9 @@ def _parse_arguments(argv: list[str] = sys.argv[1:]) -> argparse.Namespace:
+             key, val = val.split('=')
+         except ValueError:
+             parser.error(__('-A option argument must be in the form name=value'))
+-        try:
++        with contextlib.suppress(ValueError):
+             val = int(val)
+-        except ValueError:
+-            pass
++
+         confoverrides['html_context.%s' % key] = val
+ 
+     if args.nitpicky:
+diff --git a/sphinx/domains/javascript.py b/sphinx/domains/javascript.py
+index 0b32e1cef..0de2d081c 100644
+--- a/sphinx/domains/javascript.py
++++ b/sphinx/domains/javascript.py
+@@ -2,6 +2,7 @@
+ 
+ from __future__ import annotations
+ 
++import contextlib
+ from typing import TYPE_CHECKING, Any, cast
+ 
+ from docutils import nodes
+@@ -218,10 +219,9 @@ class JSObject(ObjectDescription[tuple[str, str]]):
+         """
+         objects = self.env.ref_context.setdefault('js:objects', [])
+         if self.allow_nesting:
+-            try:
++            with contextlib.suppress(IndexError):
+                 objects.pop()
+-            except IndexError:
+-                pass
++
+         self.env.ref_context['js:object'] = (objects[-1] if len(objects) > 0
+                                              else None)
+ 
+diff --git a/sphinx/domains/python.py b/sphinx/domains/python.py
+index 618e05d81..159b16328 100644
+--- a/sphinx/domains/python.py
++++ b/sphinx/domains/python.py
+@@ -4,6 +4,7 @@ from __future__ import annotations
+ 
+ import ast
+ import builtins
++import contextlib
+ import inspect
+ import re
+ import token
+@@ -912,10 +913,9 @@ class PyObject(ObjectDescription[tuple[str, str]]):
+         """
+         classes = self.env.ref_context.setdefault('py:classes', [])
+         if self.allow_nesting:
+-            try:
++            with contextlib.suppress(IndexError):
+                 classes.pop()
+-            except IndexError:
+-                pass
++
+         self.env.ref_context['py:class'] = (classes[-1] if len(classes) > 0
+                                             else None)
+         if 'module' in self.options:
+diff --git a/sphinx/events.py b/sphinx/events.py
+index 5b34e56d8..c3fdb37c1 100644
+--- a/sphinx/events.py
++++ b/sphinx/events.py
+@@ -5,6 +5,7 @@ Gracefully adapted from the TextPress system by Armin.
+ 
+ from __future__ import annotations
+ 
++import contextlib
+ from collections import defaultdict
+ from operator import attrgetter
+ from typing import TYPE_CHECKING, Any, Callable, NamedTuple
+@@ -82,12 +83,11 @@ class EventManager:
+     def emit(self, name: str, *args: Any,
+              allowed_exceptions: tuple[type[Exception], ...] = ()) -> list:
+         """Emit a Sphinx event."""
+-        try:
++
++        # not every object likes to be repr()'d (think
++        # random stuff coming via autodoc)
++        with contextlib.suppress(Exception):
+             logger.debug('[app] emitting event: %r%s', name, repr(args)[:100])
+-        except Exception:
+-            # not every object likes to be repr()'d (think
+-            # random stuff coming via autodoc)
+-            pass
+ 
+         results = []
+         listeners = sorted(self.listeners[name], key=attrgetter("priority"))
+diff --git a/sphinx/ext/githubpages.py b/sphinx/ext/githubpages.py
+index ddb8dc75a..c9be928e8 100644
+--- a/sphinx/ext/githubpages.py
++++ b/sphinx/ext/githubpages.py
+@@ -2,6 +2,7 @@
+ 
+ from __future__ import annotations
+ 
++import contextlib
+ import os
+ import urllib.parse
+ from typing import TYPE_CHECKING, Any
+@@ -47,10 +48,8 @@ def create_nojekyll_and_cname(app: Sphinx, env: BuildEnvironment) -> None:
+             # auto-generated by the GitHub UI doesn't have one.
+             f.write(domain)
+     else:
+-        try:
++        with contextlib.suppress(FileNotFoundError):
+             os.unlink(cname_path)
+-        except FileNotFoundError:
+-            pass
+ 
+ 
+ def setup(app: Sphinx) -> dict[str, Any]:
+diff --git a/sphinx/ext/imgmath.py b/sphinx/ext/imgmath.py
+index 5e2a5b109..a5f49d962 100644
+--- a/sphinx/ext/imgmath.py
++++ b/sphinx/ext/imgmath.py
+@@ -3,6 +3,7 @@
+ from __future__ import annotations
+ 
+ import base64
++import contextlib
+ import re
+ import shutil
+ import subprocess
+@@ -298,18 +299,14 @@ def clean_up_files(app: Sphinx, exc: Exception) -> None:
+         return
+ 
+     if hasattr(app.builder, '_imgmath_tempdir'):
+-        try:
++        with contextlib.suppress(Exception):
+             shutil.rmtree(app.builder._imgmath_tempdir)
+-        except Exception:
+-            pass
+ 
+     if app.builder.config.imgmath_embed:
+         # in embed mode, the images are still generated in the math output dir
+         # to be shared across workers, but are not useful to the final document
+-        try:
++        with contextlib.suppress(Exception):
+             shutil.rmtree(path.join(app.builder.outdir, app.builder.imagedir, 'math'))
+-        except Exception:
+-            pass
+ 
+ 
+ def get_tooltip(self: HTML5Translator, node: Element) -> str:
+diff --git a/sphinx/ext/napoleon/docstring.py b/sphinx/ext/napoleon/docstring.py
+index 075f11217..2ffde3918 100644
+--- a/sphinx/ext/napoleon/docstring.py
++++ b/sphinx/ext/napoleon/docstring.py
+@@ -3,6 +3,7 @@
+ from __future__ import annotations
+ 
+ import collections
++import contextlib
+ import inspect
+ import re
+ from functools import partial
+@@ -609,10 +610,9 @@ class GoogleDocstring:
+ 
+         if self._name and self._what in ('attribute', 'data', 'property'):
+             res: list[str] = []
+-            try:
++            with contextlib.suppress(StopIteration):
+                 res = self._parse_attribute_docstring()
+-            except StopIteration:
+-                pass
++
+             self._parsed_lines.extend(res)
+             return
+ 
+diff --git a/sphinx/project.py b/sphinx/project.py
+index d6eaeee2f..57813faff 100644
+--- a/sphinx/project.py
++++ b/sphinx/project.py
+@@ -2,6 +2,7 @@
+ 
+ from __future__ import annotations
+ 
++import contextlib
+ import os
+ from glob import glob
+ from typing import TYPE_CHECKING
+@@ -84,10 +85,9 @@ class Project:
+             return self._path_to_docname[filename]  # type: ignore[index]
+         except KeyError:
+             if os.path.isabs(filename):
+-                try:
++                with contextlib.suppress(ValueError):
+                     filename = os.path.relpath(filename, self.srcdir)
+-                except ValueError:
+-                    pass
++
+             for suffix in self.source_suffix:
+                 if os.path.basename(filename).endswith(suffix):
+                     return path_stabilize(filename).removesuffix(suffix)
+diff --git a/sphinx/pycode/parser.py b/sphinx/pycode/parser.py
+index e872ec63b..a0f855dc3 100644
+--- a/sphinx/pycode/parser.py
++++ b/sphinx/pycode/parser.py
+@@ -3,6 +3,7 @@
+ from __future__ import annotations
+ 
+ import ast
++import contextlib
+ import inspect
+ import itertools
+ import re
+@@ -54,10 +55,9 @@ def get_lvar_names(node: ast.AST, self: ast.arg | None = None) -> list[str]:
+     elif node_name in ('Tuple', 'List'):
+         members = []
+         for elt in node.elts:  # type: ignore[attr-defined]
+-            try:
++            with contextlib.suppress(TypeError):
+                 members.extend(get_lvar_names(elt, self))
+-            except TypeError:
+-                pass
++
+         return members
+     elif node_name == 'Attribute':
+         if (
+diff --git a/sphinx/testing/util.py b/sphinx/testing/util.py
+index c8562bf7e..e76d4010c 100644
+--- a/sphinx/testing/util.py
++++ b/sphinx/testing/util.py
+@@ -1,6 +1,7 @@
+ """Sphinx test suite utilities"""
+ from __future__ import annotations
+ 
++import contextlib
+ import os
+ import re
+ import sys
+@@ -135,10 +136,8 @@ class SphinxTestApp(application.Sphinx):
+                method not in self._saved_nodeclasses:
+                 delattr(nodes.GenericNodeVisitor, 'visit_' + method[6:])
+                 delattr(nodes.GenericNodeVisitor, 'depart_' + method[6:])
+-        try:
++        with contextlib.suppress(FileNotFoundError):
+             os.remove(self.docutils_conf_path)
+-        except FileNotFoundError:
+-            pass
+ 
+     def __repr__(self) -> str:
+         return f'<{self.__class__.__name__} buildername={self.builder.name!r}>'
+diff --git a/sphinx/theming.py b/sphinx/theming.py
+index e127dfda8..a8a3f83f3 100644
+--- a/sphinx/theming.py
++++ b/sphinx/theming.py
+@@ -16,6 +16,8 @@ if sys.version_info >= (3, 10):
+ else:
+     from importlib_metadata import entry_points
+ 
++import contextlib
++
+ from sphinx import package_dir
+ from sphinx.errors import ThemeError
+ from sphinx.locale import __
+@@ -117,10 +119,8 @@ class Theme:
+         else:
+             options = {}
+ 
+-        try:
++        with contextlib.suppress(configparser.NoSectionError):
+             options.update(self.config.items('options'))
+-        except configparser.NoSectionError:
+-            pass
+ 
+         for option, value in overrides.items():
+             if option not in options:
+@@ -133,10 +133,9 @@ class Theme:
+     def cleanup(self) -> None:
+         """Remove temporary directories."""
+         if self.rootdir:
+-            try:
++            with contextlib.suppress(Exception):
+                 shutil.rmtree(self.rootdir)
+-            except Exception:
+-                pass
++
+         if self.base:
+             self.base.cleanup()
+ 
+diff --git a/sphinx/util/osutil.py b/sphinx/util/osutil.py
+index 58fbac730..c6adbe40f 100644
+--- a/sphinx/util/osutil.py
++++ b/sphinx/util/osutil.py
+@@ -74,10 +74,8 @@ def mtimes_of_files(dirnames: list[str], suffix: str) -> Iterator[float]:
+         for root, _dirs, files in os.walk(dirname):
+             for sfile in files:
+                 if sfile.endswith(suffix):
+-                    try:
++                    with contextlib.suppress(OSError):
+                         yield path.getmtime(path.join(root, sfile))
+-                    except OSError:
+-                        pass
+ 
+ 
+ def copytimes(source: str | os.PathLike[str], dest: str | os.PathLike[str]) -> None:
+@@ -93,11 +91,9 @@ def copyfile(source: str | os.PathLike[str], dest: str | os.PathLike[str]) -> No
+     Note: ``copyfile`` skips copying if the file has not been changed"""
+     if not path.exists(dest) or not filecmp.cmp(source, dest):
+         shutil.copyfile(source, dest)
+-        try:
++        with contextlib.suppress(OSError):
+             # don't do full copystat because the source may be read-only
+             copytimes(source, dest)
+-        except OSError:
+-            pass
+ 
+ 
+ no_fn_re = re.compile(r'[^a-zA-Z0-9_-]')
++ git diff 6cb783c0024a873722952a67ebb9f41771c8eb6d
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e '.[test]'
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: sphinxcontrib-applehelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (1.0.8)
+Requirement already satisfied: sphinxcontrib-devhelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (1.0.6)
+Requirement already satisfied: sphinxcontrib-jsmath in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (1.0.1)
+Requirement already satisfied: sphinxcontrib-htmlhelp>=2.0.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (2.0.6)
+Requirement already satisfied: sphinxcontrib-serializinghtml>=1.1.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (1.1.10)
+Requirement already satisfied: sphinxcontrib-qthelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (1.0.8)
+Requirement already satisfied: Jinja2>=3.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (3.1.4)
+Requirement already satisfied: Pygments>=2.14 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (2.18.0)
+Requirement already satisfied: docutils<0.21,>=0.18.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (0.20.1)
+Requirement already satisfied: snowballstemmer>=2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (2.2.0)
+Requirement already satisfied: babel>=2.9 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (2.15.0)
+Requirement already satisfied: alabaster<0.8,>=0.7 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (0.7.16)
+Requirement already satisfied: imagesize>=1.3 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (1.4.1)
+Requirement already satisfied: requests>=2.25.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (2.32.3)
+Requirement already satisfied: packaging>=21.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (24.1)
+Requirement already satisfied: importlib-metadata>=4.8 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (8.2.0)
+Requirement already satisfied: pytest>=4.6 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (8.3.2)
+Requirement already satisfied: html5lib in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (1.1)
+Requirement already satisfied: cython>=3.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (3.0.10)
+Requirement already satisfied: setuptools>=67.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (69.5.1)
+Requirement already satisfied: filelock in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (3.15.4)
+Requirement already satisfied: zipp>=0.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from importlib-metadata>=4.8->Sphinx==7.2.0) (3.19.2)
+Requirement already satisfied: MarkupSafe>=2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Jinja2>=3.0->Sphinx==7.2.0) (2.1.5)
+Requirement already satisfied: iniconfig in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest>=4.6->Sphinx==7.2.0) (2.0.0)
+Requirement already satisfied: pluggy<2,>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest>=4.6->Sphinx==7.2.0) (1.5.0)
+Requirement already satisfied: exceptiongroup>=1.0.0rc8 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest>=4.6->Sphinx==7.2.0) (1.2.2)
+Requirement already satisfied: tomli>=1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest>=4.6->Sphinx==7.2.0) (2.0.1)
+Requirement already satisfied: charset-normalizer<4,>=2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.25.0->Sphinx==7.2.0) (3.3.2)
+Requirement already satisfied: idna<4,>=2.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.25.0->Sphinx==7.2.0) (3.7)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.25.0->Sphinx==7.2.0) (2.2.2)
+Requirement already satisfied: certifi>=2017.4.17 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.25.0->Sphinx==7.2.0) (2024.7.4)
+Requirement already satisfied: six>=1.9 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from html5lib->Sphinx==7.2.0) (1.16.0)
+Requirement already satisfied: webencodings in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from html5lib->Sphinx==7.2.0) (0.5.1)
+Checking if build backend supports build_editable: started
+Checking if build backend supports build_editable: finished with status 'done'
+Building wheels for collected packages: Sphinx
+  Building editable for Sphinx (pyproject.toml): started
+  Building editable for Sphinx (pyproject.toml): finished with status 'done'
+  Created wheel for Sphinx: filename=sphinx-7.2.0-py3-none-any.whl size=4365 sha256=aa586a43fc0691f96ef26531cccc385f6f759a5237c42c8da7fa94fae871200d
+  Stored in directory: /tmp/pip-ephem-wheel-cache-onkvch8h/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Sphinx
+Installing collected packages: Sphinx
+  Attempting uninstall: Sphinx
+    Found existing installation: Sphinx 7.2.0
+    Uninstalling Sphinx-7.2.0:
+      Successfully uninstalled Sphinx-7.2.0
+Successfully installed Sphinx-7.2.0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 6cb783c0024a873722952a67ebb9f41771c8eb6d tests/test_directive_other.py
+Updated 0 paths from 162eea2b8
++ git apply -v -
+Checking patch tests/roots/test-directive-include/baz/baz.rst...
+Checking patch tests/roots/test-directive-include/conf.py...
+Checking patch tests/roots/test-directive-include/foo.rst...
+Checking patch tests/roots/test-directive-include/text.txt...
+Checking patch tests/test_directive_other.py...
+Applied patch tests/roots/test-directive-include/baz/baz.rst cleanly.
+Applied patch tests/roots/test-directive-include/conf.py cleanly.
+Applied patch tests/roots/test-directive-include/foo.rst cleanly.
+Applied patch tests/roots/test-directive-include/text.txt cleanly.
+Applied patch tests/test_directive_other.py cleanly.
++ tox --current-env -epy39 -v -- tests/roots/test-directive-include/baz/baz.rst tests/roots/test-directive-include/conf.py tests/roots/test-directive-include/foo.rst tests/test_directive_other.py
+py39: commands[0]> python -X dev -X warn_default_encoding -m pytest --durations 25 tests/roots/test-directive-include/baz/baz.rst tests/roots/test-directive-include/conf.py tests/roots/test-directive-include/foo.rst tests/test_directive_other.py
+[1m============================= test session starts ==============================[0m
+platform linux -- Python 3.9.19, pytest-8.3.2, pluggy-1.5.0
+cachedir: .tox/py39/.pytest_cache
+libraries: Sphinx-7.2.0+/6cb783c00, docutils-0.20.1
+base tmp_path: /tmp/pytest-of-root/pytest-0
+rootdir: /testbed
+configfile: pyproject.toml
+collected 9 items
+
+tests/test_directive_other.py [32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[31mF[0m[31mF[0m[31m                                  [100%][0m
+
+=================================== FAILURES ===================================
+[31m[1m________________________ test_include_source_read_event ________________________[0m
+
+app = <SphinxTestApp buildername='html'>
+
+    [0m[37m@pytest[39;49;00m.mark.sphinx(testroot=[33m'[39;49;00m[33mdirective-include[39;49;00m[33m'[39;49;00m)[90m[39;49;00m
+    [94mdef[39;49;00m [92mtest_include_source_read_event[39;49;00m(app):[90m[39;49;00m
+        sources_reported = {}[90m[39;49;00m
+    [90m[39;49;00m
+        [94mdef[39;49;00m [92msource_read_handler[39;49;00m(app, doc, source):[90m[39;49;00m
+            sources_reported[doc] = source[[94m0[39;49;00m][90m[39;49;00m
+    [90m[39;49;00m
+        app.connect([33m"[39;49;00m[33msource-read[39;49;00m[33m"[39;49;00m, source_read_handler)[90m[39;49;00m
+        text = ([33m"[39;49;00m[33m.. include:: baz/baz.rst[39;49;00m[33m\n[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+                [33m"[39;49;00m[33m   :start-line: 4[39;49;00m[33m\n[39;49;00m[33m\n[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+                [33m"[39;49;00m[33m.. include:: text.txt[39;49;00m[33m\n[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+                [33m"[39;49;00m[33m   :literal:    [39;49;00m[33m\n[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        app.env.find_files(app.config, app.builder)[90m[39;49;00m
+        restructuredtext.parse(app, text, [33m'[39;49;00m[33mindex[39;49;00m[33m'[39;49;00m)[90m[39;49;00m
+        [94massert[39;49;00m [33m"[39;49;00m[33mindex[39;49;00m[33m"[39;49;00m [95min[39;49;00m sources_reported[90m[39;49;00m
+        [94massert[39;49;00m [33m"[39;49;00m[33mtext.txt[39;49;00m[33m"[39;49;00m [95mnot[39;49;00m [95min[39;49;00m sources_reported  [90m# text was included as literal, no rst parsing[39;49;00m[90m[39;49;00m
+>       [94massert[39;49;00m [33m"[39;49;00m[33mbaz/baz[39;49;00m[33m"[39;49;00m [95min[39;49;00m sources_reported[90m[39;49;00m
+[1m[31mE       AssertionError[0m
+
+[1m[31mtests/test_directive_other.py[0m:169: AssertionError
+--------------------------- Captured stdout teardown ---------------------------
+# testroot: root
+# builder: html
+# srcdir: /tmp/pytest-of-root/pytest-0/directive-include
+# outdir: /tmp/pytest-of-root/pytest-0/directive-include/_build/html
+# status: 
+[01mRunning Sphinx v7.2.0+/6cb783c00[39;49;00m
+
+# warning: 
+
+[31m[1m________________ test_include_source_read_event_nested_includes ________________[0m
+
+app = <SphinxTestApp buildername='html'>
+
+    [0m[37m@pytest[39;49;00m.mark.sphinx(testroot=[33m'[39;49;00m[33mdirective-include[39;49;00m[33m'[39;49;00m)[90m[39;49;00m
+    [94mdef[39;49;00m [92mtest_include_source_read_event_nested_includes[39;49;00m(app):[90m[39;49;00m
+    [90m[39;49;00m
+        [94mdef[39;49;00m [92msource_read_handler[39;49;00m(app, doc, source):[90m[39;49;00m
+            text = source[[94m0[39;49;00m].replace([33m"[39;49;00m[33m#magical[39;49;00m[33m"[39;49;00m, [33m"[39;49;00m[33mamazing[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+            source[[94m0[39;49;00m] = text[90m[39;49;00m
+    [90m[39;49;00m
+        app.connect([33m"[39;49;00m[33msource-read[39;49;00m[33m"[39;49;00m, source_read_handler)[90m[39;49;00m
+        text = ([33m"[39;49;00m[33m.. include:: baz/baz.rst[39;49;00m[33m\n[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        app.env.find_files(app.config, app.builder)[90m[39;49;00m
+        doctree = restructuredtext.parse(app, text, [33m'[39;49;00m[33mindex[39;49;00m[33m'[39;49;00m)[90m[39;49;00m
+        assert_node(doctree, addnodes.document)[90m[39;49;00m
+        [94massert[39;49;00m [96mlen[39;49;00m(doctree.children) == [94m3[39;49;00m[90m[39;49;00m
+        assert_node(doctree.children[[94m1[39;49;00m], nodes.paragraph)[90m[39;49;00m
+>       [94massert[39;49;00m doctree.children[[94m1[39;49;00m].rawsource == [33m"[39;49;00m[33mThe amazing foo.[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+[1m[31mE       AssertionError[0m
+
+[1m[31mtests/test_directive_other.py[0m:187: AssertionError
+--------------------------- Captured stdout teardown ---------------------------
+# testroot: root
+# builder: html
+# srcdir: /tmp/pytest-of-root/pytest-0/directive-include
+# outdir: /tmp/pytest-of-root/pytest-0/directive-include/_build/html
+# status: 
+[01mRunning Sphinx v7.2.0+/6cb783c00[39;49;00m
+
+# warning: 
+
+============================= slowest 25 durations =============================
+1.21s setup    tests/test_directive_other.py::test_toctree
+0.06s call     tests/test_directive_other.py::test_reversed_toctree
+0.05s call     tests/test_directive_other.py::test_toctree
+0.05s setup    tests/test_directive_other.py::test_relative_toctree
+0.05s setup    tests/test_directive_other.py::test_include_source_read_event
+0.04s setup    tests/test_directive_other.py::test_toctree_twice
+0.04s setup    tests/test_directive_other.py::test_reversed_toctree
+0.04s setup    tests/test_directive_other.py::test_toctree_glob
+0.04s setup    tests/test_directive_other.py::test_toctree_glob_and_url
+0.04s setup    tests/test_directive_other.py::test_toctree_urls_and_titles
+0.04s setup    tests/test_directive_other.py::test_include_source_read_event_nested_includes
+0.03s call     tests/test_directive_other.py::test_toctree_glob
+0.02s call     tests/test_directive_other.py::test_include_source_read_event
+0.01s call     tests/test_directive_other.py::test_include_source_read_event_nested_includes
+0.01s teardown tests/test_directive_other.py::test_toctree_urls_and_titles
+0.01s teardown tests/test_directive_other.py::test_toctree
+0.01s call     tests/test_directive_other.py::test_toctree_glob_and_url
+0.01s call     tests/test_directive_other.py::test_toctree_twice
+0.01s call     tests/test_directive_other.py::test_toctree_urls_and_titles
+0.01s call     tests/test_directive_other.py::test_relative_toctree
+0.01s teardown tests/test_directive_other.py::test_relative_toctree
+0.01s teardown tests/test_directive_other.py::test_toctree_glob
+
+(3 durations < 0.005s hidden.  Use -vv to show these durations.)
+[36m[1m=========================== short test summary info ============================[0m
+[31mFAILED[0m tests/test_directive_other.py::[1mtest_include_source_read_event[0m - AssertionError
+[31mFAILED[0m tests/test_directive_other.py::[1mtest_include_source_read_event_nested_includes[0m - AssertionError
+[31m========================= [31m[1m2 failed[0m, [32m7 passed[0m[31m in 2.29s[0m[31m ==========================[0m
+py39: exit 1 (3.43 seconds) /testbed> python -X dev -X warn_default_encoding -m pytest --durations 25 tests/roots/test-directive-include/baz/baz.rst tests/roots/test-directive-include/conf.py tests/roots/test-directive-include/foo.rst tests/test_directive_other.py pid=119
+  py39: FAIL code 1 (3.46=setup[0.03]+cmd[3.43] seconds)
+  evaluation failed :( (3.71 seconds)
++ git checkout 6cb783c0024a873722952a67ebb9f41771c8eb6d tests/test_directive_other.py
+Updated 1 path from 162eea2b8

@@ -1,0 +1,109 @@
+
+diff --git a/test_uuid_inline.py b/test_uuid_inline.py
+new file mode 100644
+index 0000000000..95bbea39b8
+--- /dev/null
++++ b/test_uuid_inline.py
+@@ -0,0 +1,102 @@
++import os
++import django
++from django.conf import settings
++from django.core.management import call_command
++import uuid
++from django.db import models
++from django.contrib import admin
++
++# Set up Django
++os.environ.setdefault("DJANGO_SETTINGS_MODULE", "test_settings")
++
++if not settings.configured:
++    settings.configure(
++        DEBUG=True,
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.admin',
++            'django.contrib.auth',
++            'django.contrib.contenttypes',
++            'django.contrib.sessions',
++        ],
++        ROOT_URLCONF='',
++    )
++
++django.setup()
++
++# Define models
++class UUIDModel(models.Model):
++    pkid = models.BigAutoField(primary_key=True, editable=False)
++    id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
++    
++    class Meta:
++        abstract = True
++        app_label = '__main__'
++
++class Thing(UUIDModel):
++    name = models.CharField(max_length=191)
++
++    class Meta:
++        app_label = '__main__'
++
++class SubThing(models.Model):
++    name = models.CharField(max_length=191)
++    thing = models.ForeignKey(
++        Thing,
++        to_field='id',
++        on_delete=models.CASCADE,
++        related_name='subthings',
++    )
++
++    class Meta:
++        app_label = '__main__'
++
++# Define admin
++class SubThingInline(admin.StackedInline):
++    model = SubThing
++
++@admin.register(Thing)
++class ThingAdmin(admin.ModelAdmin):
++    list_display = ('name',)
++    ordering = ('pkid',)
++    inlines = (SubThingInline,)
++
++# Test function
++# Test function
++def test_uuid_inline():
++    # Create the database tables
++    from django.db import connection
++    with connection.schema_editor() as schema_editor:
++        schema_editor.create_model(Thing)
++        schema_editor.create_model(SubThing)
++    
++    # Create a new Thing instance
++    thing = Thing.objects.create(name="Test Thing")
++    print(f"Created Thing with id: {thing.id}")
++    
++    # Try to create a SubThing inline
++    subthing_data = {
++        'name': 'Test SubThing',
++        'thing': thing,
++    }
++    
++    try:
++        subthing = SubThing.objects.create(**subthing_data)
++        print(f"SubThing created successfully with id: {subthing.id}")
++    except Exception as e:
++        print(f"Error creating SubThing: {str(e)}")
++    
++    # Check if the Thing's id is still set
++    thing.refresh_from_db()
++    if thing.id is None:
++        print("Bug reproduced: Thing's id is set to None")
++    else:
++        print(f"Thing's id is still set: {thing.id}")
++
++if __name__ == "__main__":
++    test_uuid_inline()

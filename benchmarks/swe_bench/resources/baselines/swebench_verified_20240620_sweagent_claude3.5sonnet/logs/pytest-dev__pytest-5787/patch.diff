@@ -1,0 +1,29 @@
+
+diff --git a/test_chained_exceptions.py b/test_chained_exceptions.py
+new file mode 100644
+index 000000000..4ecc2ce96
+--- /dev/null
++++ b/test_chained_exceptions.py
+@@ -0,0 +1,22 @@
++import pytest
++
++def test_chained_exception_with_from():
++    try:
++        try:
++            raise ValueError(11)
++        except Exception as e1:
++            raise ValueError(12) from e1
++    except Exception as e2:
++        raise ValueError(13) from e2
++
++def test_chained_exception_without_from():
++    try:
++        try:
++            raise ValueError(21)
++        except Exception:
++            raise ValueError(22)
++    except Exception:
++        raise ValueError(23)
++
++if __name__ == "__main__":
++    pytest.main([__file__])

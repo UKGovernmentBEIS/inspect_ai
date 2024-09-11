@@ -1,0 +1,53 @@
+
+diff --git a/django/contrib/admindocs/utils.py b/django/contrib/admindocs/utils.py
+index 4c0e7e2a56..8e13c10735 100644
+--- a/django/contrib/admindocs/utils.py
++++ b/django/contrib/admindocs/utils.py
+@@ -34,8 +34,11 @@ def trim_docstring(docstring):
+         return ''
+     # Convert tabs to spaces and split into lines
+     lines = docstring.expandtabs().splitlines()
+-    indent = min(len(line) - len(line.lstrip()) for line in lines if line.lstrip())
+-    trimmed = [lines[0].lstrip()] + [line[indent:].rstrip() for line in lines[1:]]
++    # Check if it's a single-line docstring
++    if len(lines) == 1:
++        return lines[0].strip()
++    indent = min((len(line) - len(line.lstrip()) for line in lines[1:] if line.lstrip()), default=0)
++    trimmed = [lines[0].strip()] + [line[indent:].rstrip() for line in lines[1:]]
+     return "\n".join(trimmed).strip()
+ 
+ 
+diff --git a/test_trim_docstring.py b/test_trim_docstring.py
+new file mode 100644
+index 0000000000..1efcf991e8
+--- /dev/null
++++ b/test_trim_docstring.py
+@@ -0,0 +1,28 @@
++from django.contrib.admindocs.utils import trim_docstring
++
++def test_trim_docstring():
++    # Test case 1: Docstring with first line not empty
++    docstring1 = '''This is a test docstring.
++    It has multiple lines.
++    The first line is not empty.'''
++    print("Test case 1:")
++    print(trim_docstring(docstring1))
++    print()
++
++    # Test case 2: Docstring with first line empty
++    docstring2 = '''
++    This is another test docstring.
++    It also has multiple lines.
++    The first line is empty.'''
++    print("Test case 2:")
++    print(trim_docstring(docstring2))
++    print()
++
++    # Test case 3: Single line docstring
++    docstring3 = '''Single line docstring.'''
++    print("Test case 3:")
++    print(trim_docstring(docstring3))
++    print()
++
++if __name__ == "__main__":
++    test_trim_docstring()

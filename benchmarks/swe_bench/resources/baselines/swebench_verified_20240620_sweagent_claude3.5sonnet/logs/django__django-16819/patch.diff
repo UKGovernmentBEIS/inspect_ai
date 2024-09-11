@@ -1,0 +1,74 @@
+
+diff --git a/django/db/migrations/operations/models.py b/django/db/migrations/operations/models.py
+index 967a91fdc8..cf66c52aec 100644
+--- a/django/db/migrations/operations/models.py
++++ b/django/db/migrations/operations/models.py
+@@ -861,6 +861,12 @@ class AddIndex(IndexOperation):
+     def migration_name_fragment(self):
+         return "%s_%s" % (self.model_name_lower, self.index.name.lower())
+ 
++    def reduce(self, operation, app_label):
++        if isinstance(operation, RemoveIndex) and self.model_name_lower == operation.model_name_lower:
++            # Only reduce if the index names match
++            if self.index.name == operation.name:
++                return []
++        return [self]  # Return the original operation if no reduction
+ 
+ class RemoveIndex(IndexOperation):
+     """Remove an index from a model."""
+@@ -904,6 +910,12 @@ class RemoveIndex(IndexOperation):
+     def migration_name_fragment(self):
+         return "remove_%s_%s" % (self.model_name_lower, self.name.lower())
+ 
++    def reduce(self, operation, app_label):
++        if isinstance(operation, AddIndex) and self.model_name_lower == operation.model_name_lower:
++            # Only reduce if the index names match
++            if self.name == operation.index.name:
++                return []
++        return [self]  # Return the original operation if no reduction
+ 
+ class RenameIndex(IndexOperation):
+     """Rename an index."""
+diff --git a/tests/migrations/test_index_optimization.py b/tests/migrations/test_index_optimization.py
+new file mode 100644
+index 0000000000..fb9b11f179
+--- /dev/null
++++ b/tests/migrations/test_index_optimization.py
+@@ -0,0 +1,37 @@
++from django.db import migrations
++from django.db.migrations.operations.models import AddIndex, RemoveIndex
++from django.db.models import Index
++from django.test import TestCase
++
++class IndexOptimizationTests(TestCase):
++    def test_add_remove_index_reduction(self):
++        index = Index(fields=['name'], name='test_index')
++        add_index = AddIndex('TestModel', index)
++        remove_index = RemoveIndex('TestModel', 'test_index')
++
++        # Test AddIndex followed by RemoveIndex
++        reduced = add_index.reduce(remove_index, 'testapp')
++        self.assertEqual(reduced, [])
++
++        # Test RemoveIndex followed by AddIndex
++        reduced = remove_index.reduce(add_index, 'testapp')
++        self.assertEqual(reduced, [])
++
++    def test_no_reduction_for_different_indexes(self):
++        index1 = Index(fields=['name'], name='test_index_1')
++        index2 = Index(fields=['age'], name='test_index_2')
++        add_index1 = AddIndex('TestModel', index1)
++        add_index2 = AddIndex('TestModel', index2)
++        remove_index1 = RemoveIndex('TestModel', 'test_index_1')
++        remove_index2 = RemoveIndex('TestModel', 'test_index_2')
++
++        # Test no reduction for different indexes
++        reduced = add_index1.reduce(remove_index2, 'testapp')
++        self.assertEqual(reduced, [add_index1])
++
++        reduced = remove_index1.reduce(add_index2, 'testapp')
++        self.assertEqual(reduced, [remove_index1])
++
++if __name__ == '__main__':
++    import unittest
++    unittest.main()

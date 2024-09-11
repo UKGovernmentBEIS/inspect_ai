@@ -1,0 +1,148 @@
+
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index b48d0df9c0..bf27d122d2 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -52,20 +52,19 @@ class ModelIterable(BaseIterable):
+         # and annotations.
+         results = compiler.execute_sql(chunked_fetch=self.chunked_fetch, chunk_size=self.chunk_size)
+         select, klass_info, annotation_col_map = (compiler.select, compiler.klass_info,
+-                                                  compiler.annotation_col_map)
++        compiler.annotation_col_map)
++        field_names = list(select)
+         model_cls = klass_info['model']
+         select_fields = klass_info['select_fields']
+-        model_fields_start, model_fields_end = select_fields[0], select_fields[-1] + 1
++        model_fields_start, model_fields_end = select_fields or (0, len(field_names))
+         init_list = [f[0].target.attname
+                      for f in select[model_fields_start:model_fields_end]]
+         related_populators = get_related_populators(klass_info, select, db)
+         known_related_objects = [
+             (field, related_objs, operator.attrgetter(*[
+-                field.attname
+-                if from_field == 'self' else
+-                queryset.model._meta.get_field(from_field).attname
+-                for from_field in field.from_fields
+-            ])) for field, related_objs in queryset._known_related_objects.items()
++                f.attname for f in field.foreign_related_fields
++            ]))
++            for field, related_objs in queryset._known_related_objects.items()
+         ]
+         for row in compiler.results_iter(results):
+             obj = model_cls.from_db(db, init_list, row[model_fields_start:model_fields_end])
+@@ -77,7 +76,7 @@ class ModelIterable(BaseIterable):
+ 
+             # Add the known related objects to the model.
+             for field, rel_objs, rel_getter in known_related_objects:
+-                # Avoid overwriting objects loaded by, e.g., select_related().
++                # Avoid overwriting objects loaded e.g. by select_related
+                 if field.is_cached(obj):
+                     continue
+                 rel_obj_id = rel_getter(obj)
+@@ -90,7 +89,6 @@ class ModelIterable(BaseIterable):
+ 
+             yield obj
+ 
+-
+ class ValuesIterable(BaseIterable):
+     """
+     Iterable returned by QuerySet.values() that yields a dict for each row.
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..14e2780f97
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,93 @@
++import os
++import unittest
++from django.conf import settings
++from django.apps import AppConfig
++
++class TestsConfig(AppConfig):
++    name = 'tests'
++    label = 'tests'
++
++# Set up Django
++os.environ['DJANGO_SETTINGS_MODULE'] = 'reproduce_bug_settings'
++
++if not settings.configured:
++    settings.configure(
++        DEBUG=True,
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++            'tests',
++        ],
++    )
++
++import django
++django.setup()
++
++from django.db import models, connection
++from django.db.models import Sum
++import pickle
++
++# Define the model
++class Toy(models.Model):
++    name = models.CharField(max_length=16)
++    material = models.CharField(max_length=16)
++    price = models.PositiveIntegerField()
++
++    class Meta:
++        app_label = 'tests'
++
++# Create the database table
++with connection.schema_editor() as schema_editor:
++    schema_editor.create_model(Toy)
++
++class ReproduceBugTest(unittest.TestCase):
++    def setUp(self):
++        # Create some sample data
++        Toy.objects.create(name='foo', price=10, material='wood')
++        Toy.objects.create(name='bar', price=20, material='plastic')
++        Toy.objects.create(name='baz', price=100, material='wood')
++
++    def test_reproduce_bug(self):
++        # Original query
++        prices = Toy.objects.values('material').annotate(total_price=Sum('price'))
++        print("Original query result:")
++        print(list(prices))
++        print("Type of first item in original query:", type(list(prices)[0]))
++
++        # Pickle and unpickle the query
++        pickled_query = pickle.dumps(prices.query)
++        print("\nPickled query:", pickled_query)
++        
++        unpickled_query = pickle.loads(pickled_query)
++        print("\nUnpickled query:", unpickled_query)
++        
++        prices2 = Toy.objects.all()
++        prices2.query = unpickled_query
++
++        print("\nAfter pickling and unpickling:")
++        print("Query:", prices2.query)
++        print("SQL:", prices2.query.sql_with_params())
++        
++        try:
++            result = list(prices2)
++            print("Unpickled query result:")
++            print(result)
++            print("Type of first item in unpickled query:", type(result[0]))
++        except Exception as e:
++            print(f"Error occurred: {type(e).__name__}: {str(e)}")
++            import traceback
++            traceback.print_exc()
++
++        # Try to recreate the original query without pickling
++        prices3 = Toy.objects.values('material').annotate(total_price=Sum('price'))
++        print("\nRecreated query without pickling:")
++        print(list(prices3))
++
++if __name__ == '__main__':
++    unittest.main()

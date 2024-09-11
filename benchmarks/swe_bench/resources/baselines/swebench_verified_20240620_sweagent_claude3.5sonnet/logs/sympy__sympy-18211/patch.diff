@@ -1,0 +1,50 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..5c625c5e0d
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,14 @@
++from sympy import Eq, cos, sin, symbols, solveset, Reals
++from sympy.sets import ConditionSet
++
++n = symbols('n')
++
++result = Eq(n*cos(n) - 3*sin(n), 0).as_set()
++print("Result:", result)
++
++expected_result = ConditionSet(n, Eq(n*cos(n) - 3*sin(n), 0), Reals)
++print("Expected result:", expected_result)
++
++print("Are the results equal?", result == expected_result)
++
++print("Script completed successfully, no errors.")
+diff --git a/sympy/core/relational.py b/sympy/core/relational.py
+index f581bfa3c4..6040f8c8d0 100644
+--- a/sympy/core/relational.py
++++ b/sympy/core/relational.py
+@@ -387,12 +387,21 @@ def __nonzero__(self):
+     __bool__ = __nonzero__
+ 
+     def _eval_as_set(self):
+-        # self is univariate and periodicity(self, x) in (0, None)
+         from sympy.solvers.inequalities import solve_univariate_inequality
++        from sympy.sets import ConditionSet
++        from sympy import S
+         syms = self.free_symbols
+-        assert len(syms) == 1
++        if len(syms) != 1:
++            return ConditionSet(tuple(syms), self, S.Reals)
+         x = syms.pop()
+-        return solve_univariate_inequality(self, x, relational=False)
++        try:
++            return solve_univariate_inequality(self, x, relational=False)
++        except NotImplementedError:
++            return ConditionSet(x, self, S.Reals)
++        try:
++            return solve_univariate_inequality(self, x, relational=False)
++        except NotImplementedError:
++            return ConditionSet(x, self, self.domain)
+ 
+     @property
+     def binary_symbols(self):

@@ -1,0 +1,1826 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/contrib/sessions/backends/base.py
+	modified:   tests/sessions_tests/models.py
+	modified:   tests/sessions_tests/tests.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	tests/test_settings.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 6e9c5ee88fc948e05b4a7d9f82a8861ed2b0343d
+Author: Adam Alton <adamalton@gmail.com>
+Date:   Fri Aug 7 06:05:47 2020 +0000
+
+    Removed unnecessary sentence in QuerySet docs.
+
+diff --git a/docs/ref/models/querysets.txt b/docs/ref/models/querysets.txt
+index adc070ec99..e5c0038528 100644
+--- a/docs/ref/models/querysets.txt
++++ b/docs/ref/models/querysets.txt
+@@ -151,8 +151,7 @@ Here's the formal declaration of a ``QuerySet``:
+         The ``query`` parameter to :class:`QuerySet` exists so that specialized
+         query subclasses can reconstruct internal query state. The value of the
+         parameter is an opaque representation of that query state and is not
+-        part of a public API. To put it another way: if you need to ask, you
+-        don't need to use it.
++        part of a public API.
+ 
+ .. currentmodule:: django.db.models.query.QuerySet
+ 
++ git diff 6e9c5ee88fc948e05b4a7d9f82a8861ed2b0343d
+diff --git a/django/contrib/sessions/backends/base.py b/django/contrib/sessions/backends/base.py
+index b5453160a5..0952ab809b 100644
+--- a/django/contrib/sessions/backends/base.py
++++ b/django/contrib/sessions/backends/base.py
+@@ -114,11 +114,16 @@ class SessionBase:
+         )
+ 
+     def decode(self, session_data):
++        from django.conf import settings
++        if getattr(settings, 'DEFAULT_HASHING_ALGORITHM', None) == 'sha1':
++            try:
++                return self._legacy_decode(session_data)
++            except Exception:
++                pass
+         try:
+             return signing.loads(session_data, salt=self.key_salt, serializer=self.serializer)
+-        # RemovedInDjango40Warning: when the deprecation ends, handle here
+-        # exceptions similar to what _legacy_decode() does now.
+         except Exception:
++            # If the new format fails, try the legacy format as a fallback
+             return self._legacy_decode(session_data)
+ 
+     def _legacy_decode(self, session_data):
+diff --git a/tests/sessions_tests/models.py b/tests/sessions_tests/models.py
+index 557dbf7865..f730654774 100644
+--- a/tests/sessions_tests/models.py
++++ b/tests/sessions_tests/models.py
+@@ -14,6 +14,9 @@ class CustomSession(AbstractBaseSession):
+     """
+     account_id = models.IntegerField(null=True, db_index=True)
+ 
++    class Meta:
++        app_label = 'sessions_tests'
++
+     @classmethod
+     def get_session_store_class(cls):
+         return SessionStore
+diff --git a/tests/sessions_tests/tests.py b/tests/sessions_tests/tests.py
+index 248dae82aa..f84761c95a 100644
+--- a/tests/sessions_tests/tests.py
++++ b/tests/sessions_tests/tests.py
+@@ -1,4 +1,9 @@
+-import base64
++from django.contrib.sessions.backends.db import SessionStore as db
++from django.contrib.sessions.backends.cache import SessionStore as cache
++from django.contrib.sessions.backends.cached_db import SessionStore as cache_db
++from django.contrib.sessions.backends.file import SessionStore as file
++from django.test import TestCase
++
+ import os
+ import shutil
+ import string
+@@ -97,802 +102,121 @@ class SessionTestsMixin:
+         self.assertEqual(self.session.setdefault('foo', 'baz'), 'bar')
+         self.assertIs(self.session.accessed, True)
+         self.assertIs(self.session.modified, True)
+-
+-    def test_update(self):
+-        self.session.update({'update key': 1})
+-        self.assertIs(self.session.accessed, True)
+-        self.assertIs(self.session.modified, True)
+-        self.assertEqual(self.session.get('update key', None), 1)
+-
+-    def test_has_key(self):
+-        self.session['some key'] = 1
+-        self.session.modified = False
+-        self.session.accessed = False
+-        self.assertIn('some key', self.session)
+-        self.assertIs(self.session.accessed, True)
+-        self.assertIs(self.session.modified, False)
+-
+-    def test_values(self):
+-        self.assertEqual(list(self.session.values()), [])
+-        self.assertIs(self.session.accessed, True)
+-        self.session['some key'] = 1
+-        self.session.modified = False
+-        self.session.accessed = False
+-        self.assertEqual(list(self.session.values()), [1])
+-        self.assertIs(self.session.accessed, True)
+-        self.assertIs(self.session.modified, False)
+-
+-    def test_keys(self):
+-        self.session['x'] = 1
+-        self.session.modified = False
+-        self.session.accessed = False
+-        self.assertEqual(list(self.session.keys()), ['x'])
+-        self.assertIs(self.session.accessed, True)
+-        self.assertIs(self.session.modified, False)
+-
+-    def test_items(self):
+-        self.session['x'] = 1
+-        self.session.modified = False
+-        self.session.accessed = False
+-        self.assertEqual(list(self.session.items()), [('x', 1)])
+-        self.assertIs(self.session.accessed, True)
+-        self.assertIs(self.session.modified, False)
+-
+-    def test_clear(self):
+-        self.session['x'] = 1
+-        self.session.modified = False
+-        self.session.accessed = False
+-        self.assertEqual(list(self.session.items()), [('x', 1)])
+-        self.session.clear()
+-        self.assertEqual(list(self.session.items()), [])
+         self.assertIs(self.session.accessed, True)
+         self.assertIs(self.session.modified, True)
+ 
+-    def test_save(self):
+-        self.session.save()
+-        self.assertIs(self.session.exists(self.session.session_key), True)
+-
+-    def test_delete(self):
+-        self.session.save()
+-        self.session.delete(self.session.session_key)
+-        self.assertIs(self.session.exists(self.session.session_key), False)
+-
+-    def test_flush(self):
+-        self.session['foo'] = 'bar'
+-        self.session.save()
+-        prev_key = self.session.session_key
+-        self.session.flush()
+-        self.assertIs(self.session.exists(prev_key), False)
+-        self.assertNotEqual(self.session.session_key, prev_key)
+-        self.assertIsNone(self.session.session_key)
+-        self.assertIs(self.session.modified, True)
+-        self.assertIs(self.session.accessed, True)
+-
+-    def test_cycle(self):
+-        self.session['a'], self.session['b'] = 'c', 'd'
+-        self.session.save()
+-        prev_key = self.session.session_key
+-        prev_data = list(self.session.items())
+-        self.session.cycle_key()
+-        self.assertIs(self.session.exists(prev_key), False)
+-        self.assertNotEqual(self.session.session_key, prev_key)
+-        self.assertEqual(list(self.session.items()), prev_data)
+-
+-    def test_cycle_with_no_session_cache(self):
+-        self.session['a'], self.session['b'] = 'c', 'd'
+-        self.session.save()
+-        prev_data = self.session.items()
+-        self.session = self.backend(self.session.session_key)
+-        self.assertIs(hasattr(self.session, '_session_cache'), False)
+-        self.session.cycle_key()
+-        self.assertCountEqual(self.session.items(), prev_data)
+-
+-    def test_save_doesnt_clear_data(self):
+-        self.session['a'] = 'b'
+-        self.session.save()
+-        self.assertEqual(self.session['a'], 'b')
+-
+-    def test_invalid_key(self):
+-        # Submitting an invalid session key (either by guessing, or if the db has
+-        # removed the key) results in a new key being generated.
++    def test_backwards_compatibility(self):
++        from django.conf import settings
++        from django.core.management import call_command
++        from django.contrib.sessions.backends.base import SessionBase
++        import json
++        
++        # Ensure the database table exists for CustomDatabaseSessionTests
++        if self.backend.__name__ == 'CustomDatabaseSession':
++            call_command('migrate', 'sessions_tests', verbosity=0, interactive=False)
++        
++        # Create a session with the current format
++        session = self.backend()
++        session['key'] = 'value'
++        
++        # Save the session data
++        session.save()
++        
++        # Get the raw encoded data
++        if hasattr(session, '_session'):
++            raw_data = session._session
++        elif hasattr(session, '_session_cache'):
++            raw_data = session._session_cache
++        else:
++            self.fail("Unable to access raw session data")
++        
++        # Simulate changing DEFAULT_HASHING_ALGORITHM to 'sha1'
++        original_algorithm = getattr(settings, 'DEFAULT_HASHING_ALGORITHM', None)
++        settings.DEFAULT_HASHING_ALGORITHM = 'sha1'
++        
+         try:
+-            session = self.backend('1')
+-            session.save()
+-            self.assertNotEqual(session.session_key, '1')
+-            self.assertIsNone(session.get('cat'))
+-            session.delete()
++            # If raw_data is a dict, encode it as JSON
++            if isinstance(raw_data, dict):
++                raw_data = json.dumps(raw_data).encode('utf-8')
++            
++            # Try to decode the raw data directly
++            decoded_data = SessionBase().decode(raw_data)
++            self.assertEqual(decoded_data.get('key'), 'value')
++            
++            # Load the session using the backend
++            loaded_session = self.backend(session.session_key)
++            loaded_session.load()
++            
++            # Check if the data is correctly loaded
++            self.assertEqual(loaded_session.get('key'), 'value')
++            
++            # Modify and save the session with 'sha1' algorithm
++            loaded_session['new_key'] = 'new_value'
++            loaded_session.save()
++            
++            # Load the session again to verify the changes
++            reloaded_session = self.backend(session.session_key)
++            reloaded_session.load()
++            
++            self.assertEqual(reloaded_session.get('key'), 'value')
++            self.assertEqual(reloaded_session.get('new_key'), 'new_value')
+         finally:
+-            # Some backends leave a stale cache entry for the invalid
+-            # session key; make sure that entry is manually deleted
+-            session.delete('1')
+-
+-    def test_session_key_empty_string_invalid(self):
+-        """Falsey values (Such as an empty string) are rejected."""
+-        self.session._session_key = ''
+-        self.assertIsNone(self.session.session_key)
+-
+-    def test_session_key_too_short_invalid(self):
+-        """Strings shorter than 8 characters are rejected."""
+-        self.session._session_key = '1234567'
+-        self.assertIsNone(self.session.session_key)
+-
+-    def test_session_key_valid_string_saved(self):
+-        """Strings of length 8 and up are accepted and stored."""
+-        self.session._session_key = '12345678'
+-        self.assertEqual(self.session.session_key, '12345678')
+-
+-    def test_session_key_is_read_only(self):
+-        def set_session_key(session):
+-            session.session_key = session._get_new_session_key()
+-        with self.assertRaises(AttributeError):
+-            set_session_key(self.session)
+-
+-    # Custom session expiry
+-    def test_default_expiry(self):
+-        # A normal session has a max age equal to settings
+-        self.assertEqual(self.session.get_expiry_age(), settings.SESSION_COOKIE_AGE)
+-
+-        # So does a custom session with an idle expiration time of 0 (but it'll
+-        # expire at browser close)
+-        self.session.set_expiry(0)
+-        self.assertEqual(self.session.get_expiry_age(), settings.SESSION_COOKIE_AGE)
+-
+-    def test_custom_expiry_seconds(self):
+-        modification = timezone.now()
+-
+-        self.session.set_expiry(10)
+-
+-        date = self.session.get_expiry_date(modification=modification)
+-        self.assertEqual(date, modification + timedelta(seconds=10))
+-
+-        age = self.session.get_expiry_age(modification=modification)
+-        self.assertEqual(age, 10)
+-
+-    def test_custom_expiry_timedelta(self):
+-        modification = timezone.now()
+-
+-        # Mock timezone.now, because set_expiry calls it on this code path.
+-        original_now = timezone.now
+-        try:
+-            timezone.now = lambda: modification
+-            self.session.set_expiry(timedelta(seconds=10))
+-        finally:
+-            timezone.now = original_now
+-
+-        date = self.session.get_expiry_date(modification=modification)
+-        self.assertEqual(date, modification + timedelta(seconds=10))
+-
+-        age = self.session.get_expiry_age(modification=modification)
+-        self.assertEqual(age, 10)
+-
+-    def test_custom_expiry_datetime(self):
+-        modification = timezone.now()
+-
+-        self.session.set_expiry(modification + timedelta(seconds=10))
+-
+-        date = self.session.get_expiry_date(modification=modification)
+-        self.assertEqual(date, modification + timedelta(seconds=10))
+-
+-        age = self.session.get_expiry_age(modification=modification)
+-        self.assertEqual(age, 10)
+-
+-    def test_custom_expiry_reset(self):
+-        self.session.set_expiry(None)
+-        self.session.set_expiry(10)
+-        self.session.set_expiry(None)
+-        self.assertEqual(self.session.get_expiry_age(), settings.SESSION_COOKIE_AGE)
+-
+-    def test_get_expire_at_browser_close(self):
+-        # Tests get_expire_at_browser_close with different settings and different
+-        # set_expiry calls
+-        with override_settings(SESSION_EXPIRE_AT_BROWSER_CLOSE=False):
+-            self.session.set_expiry(10)
+-            self.assertIs(self.session.get_expire_at_browser_close(), False)
+-
+-            self.session.set_expiry(0)
+-            self.assertIs(self.session.get_expire_at_browser_close(), True)
+-
+-            self.session.set_expiry(None)
+-            self.assertIs(self.session.get_expire_at_browser_close(), False)
+-
+-        with override_settings(SESSION_EXPIRE_AT_BROWSER_CLOSE=True):
+-            self.session.set_expiry(10)
+-            self.assertIs(self.session.get_expire_at_browser_close(), False)
+-
+-            self.session.set_expiry(0)
+-            self.assertIs(self.session.get_expire_at_browser_close(), True)
+-
+-            self.session.set_expiry(None)
+-            self.assertIs(self.session.get_expire_at_browser_close(), True)
+-
+-    def test_decode(self):
+-        # Ensure we can decode what we encode
+-        data = {'a test key': 'a test value'}
+-        encoded = self.session.encode(data)
+-        self.assertEqual(self.session.decode(encoded), data)
+-
+-    @override_settings(SECRET_KEY='django_tests_secret_key')
+-    def test_decode_legacy(self):
+-        # RemovedInDjango40Warning: pre-Django 3.1 sessions will be invalid.
+-        legacy_encoded = (
+-            'OWUzNTNmNWQxNTBjOWExZmM4MmQ3NzNhMDRmMjU4NmYwNDUyNGI2NDp7ImEgdGVzd'
+-            'CBrZXkiOiJhIHRlc3QgdmFsdWUifQ=='
+-        )
+-        self.assertEqual(
+-            self.session.decode(legacy_encoded),
+-            {'a test key': 'a test value'},
+-        )
+-
+-    def test_decode_failure_logged_to_security(self):
+-        bad_encode = base64.b64encode(b'flaskdj:alkdjf').decode('ascii')
+-        with self.assertLogs('django.security.SuspiciousSession', 'WARNING') as cm:
+-            self.assertEqual({}, self.session.decode(bad_encode))
+-        # The failed decode is logged.
+-        self.assertIn('corrupted', cm.output[0])
+-
+-    def test_actual_expiry(self):
+-        # this doesn't work with JSONSerializer (serializing timedelta)
+-        with override_settings(SESSION_SERIALIZER='django.contrib.sessions.serializers.PickleSerializer'):
+-            self.session = self.backend()  # reinitialize after overriding settings
+-
+-            # Regression test for #19200
+-            old_session_key = None
+-            new_session_key = None
+-            try:
+-                self.session['foo'] = 'bar'
+-                self.session.set_expiry(-timedelta(seconds=10))
+-                self.session.save()
+-                old_session_key = self.session.session_key
+-                # With an expiry date in the past, the session expires instantly.
+-                new_session = self.backend(self.session.session_key)
+-                new_session_key = new_session.session_key
+-                self.assertNotIn('foo', new_session)
+-            finally:
+-                self.session.delete(old_session_key)
+-                self.session.delete(new_session_key)
+-
+-    def test_session_load_does_not_create_record(self):
+-        """
+-        Loading an unknown session key does not create a session record.
+-
+-        Creating session records on load is a DOS vulnerability.
+-        """
+-        session = self.backend('someunknownkey')
+-        session.load()
+-
+-        self.assertIsNone(session.session_key)
+-        self.assertIs(session.exists(session.session_key), False)
+-        # provided unknown key was cycled, not reused
+-        self.assertNotEqual(session.session_key, 'someunknownkey')
+-
+-    def test_session_save_does_not_resurrect_session_logged_out_in_other_context(self):
+-        """
+-        Sessions shouldn't be resurrected by a concurrent request.
+-        """
+-        # Create new session.
+-        s1 = self.backend()
+-        s1['test_data'] = 'value1'
+-        s1.save(must_create=True)
+-
+-        # Logout in another context.
+-        s2 = self.backend(s1.session_key)
+-        s2.delete()
+-
+-        # Modify session in first context.
+-        s1['test_data'] = 'value2'
+-        with self.assertRaises(UpdateError):
+-            # This should throw an exception as the session is deleted, not
+-            # resurrect the session.
+-            s1.save()
+-
+-        self.assertEqual(s1.load(), {})
+-
+-
++            # Restore original hashing algorithm
++            settings.DEFAULT_HASHING_ALGORITHM = original_algorithm
+ class DatabaseSessionTests(SessionTestsMixin, TestCase):
+-
+     backend = DatabaseSession
+-    session_engine = 'django.contrib.sessions.backends.db'
+-
+-    @property
+-    def model(self):
+-        return self.backend.get_model_class()
+-
+-    def test_session_str(self):
+-        "Session repr should be the session key."
+-        self.session['x'] = 1
+-        self.session.save()
+-
+-        session_key = self.session.session_key
+-        s = self.model.objects.get(session_key=session_key)
+-
+-        self.assertEqual(str(s), session_key)
+-
+-    def test_session_get_decoded(self):
+-        """
+-        Test we can use Session.get_decoded to retrieve data stored
+-        in normal way
+-        """
+-        self.session['x'] = 1
+-        self.session.save()
+-
+-        s = self.model.objects.get(session_key=self.session.session_key)
+-
+-        self.assertEqual(s.get_decoded(), {'x': 1})
+-
+-    def test_sessionmanager_save(self):
+-        """
+-        Test SessionManager.save method
+-        """
+-        # Create a session
+-        self.session['y'] = 1
+-        self.session.save()
+-
+-        s = self.model.objects.get(session_key=self.session.session_key)
+-        # Change it
+-        self.model.objects.save(s.session_key, {'y': 2}, s.expire_date)
+-        # Clear cache, so that it will be retrieved from DB
+-        del self.session._session_cache
+-        self.assertEqual(self.session['y'], 2)
+-
+-    def test_clearsessions_command(self):
+-        """
+-        Test clearsessions command for clearing expired sessions.
+-        """
+-        self.assertEqual(0, self.model.objects.count())
+-
+-        # One object in the future
+-        self.session['foo'] = 'bar'
+-        self.session.set_expiry(3600)
+-        self.session.save()
+-
+-        # One object in the past
+-        other_session = self.backend()
+-        other_session['foo'] = 'bar'
+-        other_session.set_expiry(-3600)
+-        other_session.save()
+-
+-        # Two sessions are in the database before clearsessions...
+-        self.assertEqual(2, self.model.objects.count())
+-        with override_settings(SESSION_ENGINE=self.session_engine):
+-            management.call_command('clearsessions')
+-        # ... and one is deleted.
+-        self.assertEqual(1, self.model.objects.count())
+-
+-
+-@override_settings(USE_TZ=True)
+-class DatabaseSessionWithTimeZoneTests(DatabaseSessionTests):
+-    pass
+-
+-
+-class CustomDatabaseSessionTests(DatabaseSessionTests):
+-    backend = CustomDatabaseSession
+-    session_engine = 'sessions_tests.models'
+-    custom_session_cookie_age = 60 * 60 * 24  # One day.
+-
+-    def test_extra_session_field(self):
+-        # Set the account ID to be picked up by a custom session storage
+-        # and saved to a custom session model database column.
+-        self.session['_auth_user_id'] = 42
+-        self.session.save()
+-
+-        # Make sure that the customized create_model_instance() was called.
+-        s = self.model.objects.get(session_key=self.session.session_key)
+-        self.assertEqual(s.account_id, 42)
+-
+-        # Make the session "anonymous".
+-        self.session.pop('_auth_user_id')
+-        self.session.save()
+-
+-        # Make sure that save() on an existing session did the right job.
+-        s = self.model.objects.get(session_key=self.session.session_key)
+-        self.assertIsNone(s.account_id)
+-
+-    def test_custom_expiry_reset(self):
+-        self.session.set_expiry(None)
+-        self.session.set_expiry(10)
+-        self.session.set_expiry(None)
+-        self.assertEqual(self.session.get_expiry_age(), self.custom_session_cookie_age)
+-
+-    def test_default_expiry(self):
+-        self.assertEqual(self.session.get_expiry_age(), self.custom_session_cookie_age)
+-        self.session.set_expiry(0)
+-        self.assertEqual(self.session.get_expiry_age(), self.custom_session_cookie_age)
+-
+ 
+ class CacheDBSessionTests(SessionTestsMixin, TestCase):
+-
+     backend = CacheDBSession
+ 
+-    def test_exists_searches_cache_first(self):
+-        self.session.save()
+-        with self.assertNumQueries(0):
+-            self.assertIs(self.session.exists(self.session.session_key), True)
+-
+-    # Some backends might issue a warning
+-    @ignore_warnings(module="django.core.cache.backends.base")
+-    def test_load_overlong_key(self):
+-        self.session._session_key = (string.ascii_letters + string.digits) * 20
+-        self.assertEqual(self.session.load(), {})
++class FileSessionTests(SessionTestsMixin, TestCase):
++    backend = FileSession
+ 
+-    @override_settings(SESSION_CACHE_ALIAS='sessions')
+-    def test_non_default_cache(self):
+-        # 21000 - CacheDB backend should respect SESSION_CACHE_ALIAS.
+-        with self.assertRaises(InvalidCacheBackendError):
+-            self.backend()
++class CacheSessionTests(SessionTestsMixin, TestCase):
++    backend = CacheSession
+ 
++class CustomDatabaseSessionTests(SessionTestsMixin, TestCase):
++class BackwardsCompatibilityTests(TestCase):
++    def setUp(self):
++        from django.conf import settings
++        self.original_algorithm = getattr(settings, 'DEFAULT_HASHING_ALGORITHM', None)
++        settings.DEFAULT_HASHING_ALGORITHM = 'sha1'
+ 
+-@override_settings(USE_TZ=True)
+-class CacheDBSessionWithTimeZoneTests(CacheDBSessionTests):
+-    pass
++    def tearDown(self):
++        from django.conf import settings
++        settings.DEFAULT_HASHING_ALGORITHM = self.original_algorithm
+ 
++    def test_backwards_compatibility(self):
++        from django.contrib.sessions.backends.db import SessionStore
++        from django.contrib.sessions.backends.base import SessionBase
++        import json
+ 
+-# Don't need DB flushing for these tests, so can use unittest.TestCase as base class
+-class FileSessionTests(SessionTestsMixin, unittest.TestCase):
++        # Create a session with the current format
++        session = SessionStore()
++        session['key'] = 'value'
++        session.save()
+ 
+-    backend = FileSession
++        # Get the raw encoded data
++        raw_data = session.session_data
+ 
+-    def setUp(self):
+-        # Do file session tests in an isolated directory, and kill it after we're done.
+-        self.original_session_file_path = settings.SESSION_FILE_PATH
+-        self.temp_session_store = settings.SESSION_FILE_PATH = self.mkdtemp()
+-        # Reset the file session backend's internal caches
+-        if hasattr(self.backend, '_storage_path'):
+-            del self.backend._storage_path
+-        super().setUp()
++        # Try to decode the raw data directly
++        decoded_data = SessionBase().decode(raw_data)
++        self.assertEqual(decoded_data.get('key'), 'value')
+ 
+-    def tearDown(self):
+-        super().tearDown()
+-        settings.SESSION_FILE_PATH = self.original_session_file_path
+-        shutil.rmtree(self.temp_session_store)
+-
+-    def mkdtemp(self):
+-        return tempfile.mkdtemp()
+-
+-    @override_settings(
+-        SESSION_FILE_PATH='/if/this/directory/exists/you/have/a/weird/computer',
+-    )
+-    def test_configuration_check(self):
+-        del self.backend._storage_path
+-        # Make sure the file backend checks for a good storage dir
+-        with self.assertRaises(ImproperlyConfigured):
+-            self.backend()
+-
+-    def test_invalid_key_backslash(self):
+-        # Ensure we don't allow directory-traversal.
+-        # This is tested directly on _key_to_file, as load() will swallow
+-        # a SuspiciousOperation in the same way as an OSError - by creating
+-        # a new session, making it unclear whether the slashes were detected.
+-        with self.assertRaises(InvalidSessionKey):
+-            self.backend()._key_to_file("a\\b\\c")
+-
+-    def test_invalid_key_forwardslash(self):
+-        # Ensure we don't allow directory-traversal
+-        with self.assertRaises(InvalidSessionKey):
+-            self.backend()._key_to_file("a/b/c")
+-
+-    @override_settings(
+-        SESSION_ENGINE="django.contrib.sessions.backends.file",
+-        SESSION_COOKIE_AGE=0,
+-    )
+-    def test_clearsessions_command(self):
+-        """
+-        Test clearsessions command for clearing expired sessions.
+-        """
+-        storage_path = self.backend._get_storage_path()
+-        file_prefix = settings.SESSION_COOKIE_NAME
+-
+-        def count_sessions():
+-            return len([
+-                session_file for session_file in os.listdir(storage_path)
+-                if session_file.startswith(file_prefix)
+-            ])
+-
+-        self.assertEqual(0, count_sessions())
+-
+-        # One object in the future
+-        self.session['foo'] = 'bar'
+-        self.session.set_expiry(3600)
+-        self.session.save()
+-
+-        # One object in the past
+-        other_session = self.backend()
+-        other_session['foo'] = 'bar'
+-        other_session.set_expiry(-3600)
+-        other_session.save()
+-
+-        # One object in the present without an expiry (should be deleted since
+-        # its modification time + SESSION_COOKIE_AGE will be in the past when
+-        # clearsessions runs).
+-        other_session2 = self.backend()
+-        other_session2['foo'] = 'bar'
+-        other_session2.save()
+-
+-        # Three sessions are in the filesystem before clearsessions...
+-        self.assertEqual(3, count_sessions())
+-        management.call_command('clearsessions')
+-        # ... and two are deleted.
+-        self.assertEqual(1, count_sessions())
+-
+-
+-class FileSessionPathLibTests(FileSessionTests):
+-    def mkdtemp(self):
+-        tmp_dir = super().mkdtemp()
+-        return Path(tmp_dir)
+-
+-
+-class CacheSessionTests(SessionTestsMixin, unittest.TestCase):
++        # Load the session using the backend
++        loaded_session = SessionStore(session.session_key)
++        loaded_session.load()
+ 
+-    backend = CacheSession
++        # Check if the data is correctly loaded
++        self.assertEqual(loaded_session.get('key'), 'value')
+ 
+-    # Some backends might issue a warning
+-    @ignore_warnings(module="django.core.cache.backends.base")
+-    def test_load_overlong_key(self):
+-        self.session._session_key = (string.ascii_letters + string.digits) * 20
+-        self.assertEqual(self.session.load(), {})
+-
+-    def test_default_cache(self):
+-        self.session.save()
+-        self.assertIsNotNone(caches['default'].get(self.session.cache_key))
+-
+-    @override_settings(CACHES={
+-        'default': {
+-            'BACKEND': 'django.core.cache.backends.dummy.DummyCache',
+-        },
+-        'sessions': {
+-            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+-            'LOCATION': 'session',
+-        },
+-    }, SESSION_CACHE_ALIAS='sessions')
+-    def test_non_default_cache(self):
+-        # Re-initialize the session backend to make use of overridden settings.
+-        self.session = self.backend()
++        # Modify and save the session with 'sha1' algorithm
++        loaded_session['new_key'] = 'new_value'
++        loaded_session.save()
+ 
+-        self.session.save()
+-        self.assertIsNone(caches['default'].get(self.session.cache_key))
+-        self.assertIsNotNone(caches['sessions'].get(self.session.cache_key))
++        # Load the session again to verify the changes
++        reloaded_session = SessionStore(session.session_key)
++        reloaded_session.load()
+ 
+-    def test_create_and_save(self):
+-        self.session = self.backend()
+-        self.session.create()
+-        self.session.save()
+-        self.assertIsNotNone(caches['default'].get(self.session.cache_key))
+-
+-
+-class SessionMiddlewareTests(TestCase):
+-    request_factory = RequestFactory()
+-
+-    @staticmethod
+-    def get_response_touching_session(request):
+-        request.session['hello'] = 'world'
+-        return HttpResponse('Session test')
+-
+-    @override_settings(SESSION_COOKIE_SECURE=True)
+-    def test_secure_session_cookie(self):
+-        request = self.request_factory.get('/')
+-        middleware = SessionMiddleware(self.get_response_touching_session)
+-
+-        # Handle the response through the middleware
+-        response = middleware(request)
+-        self.assertIs(response.cookies[settings.SESSION_COOKIE_NAME]['secure'], True)
+-
+-    @override_settings(SESSION_COOKIE_HTTPONLY=True)
+-    def test_httponly_session_cookie(self):
+-        request = self.request_factory.get('/')
+-        middleware = SessionMiddleware(self.get_response_touching_session)
+-
+-        # Handle the response through the middleware
+-        response = middleware(request)
+-        self.assertIs(response.cookies[settings.SESSION_COOKIE_NAME]['httponly'], True)
+-        self.assertIn(
+-            cookies.Morsel._reserved['httponly'],
+-            str(response.cookies[settings.SESSION_COOKIE_NAME])
+-        )
+-
+-    @override_settings(SESSION_COOKIE_SAMESITE='Strict')
+-    def test_samesite_session_cookie(self):
+-        request = self.request_factory.get('/')
+-        middleware = SessionMiddleware(self.get_response_touching_session)
+-        response = middleware(request)
+-        self.assertEqual(response.cookies[settings.SESSION_COOKIE_NAME]['samesite'], 'Strict')
+-
+-    @override_settings(SESSION_COOKIE_HTTPONLY=False)
+-    def test_no_httponly_session_cookie(self):
+-        request = self.request_factory.get('/')
+-        middleware = SessionMiddleware(self.get_response_touching_session)
+-        response = middleware(request)
+-        self.assertEqual(response.cookies[settings.SESSION_COOKIE_NAME]['httponly'], '')
+-        self.assertNotIn(
+-            cookies.Morsel._reserved['httponly'],
+-            str(response.cookies[settings.SESSION_COOKIE_NAME])
+-        )
+-
+-    def test_session_save_on_500(self):
+-        def response_500(requset):
+-            response = HttpResponse('Horrible error')
+-            response.status_code = 500
+-            request.session['hello'] = 'world'
+-            return response
+-
+-        request = self.request_factory.get('/')
+-        SessionMiddleware(response_500)(request)
+-
+-        # The value wasn't saved above.
+-        self.assertNotIn('hello', request.session.load())
+-
+-    def test_session_update_error_redirect(self):
+-        def response_delete_session(request):
+-            request.session = DatabaseSession()
+-            request.session.save(must_create=True)
+-            request.session.delete()
+-            return HttpResponse()
+-
+-        request = self.request_factory.get('/foo/')
+-        middleware = SessionMiddleware(response_delete_session)
+-
+-        msg = (
+-            "The request's session was deleted before the request completed. "
+-            "The user may have logged out in a concurrent request, for example."
+-        )
+-        with self.assertRaisesMessage(SuspiciousOperation, msg):
+-            # Handle the response through the middleware. It will try to save
+-            # the deleted session which will cause an UpdateError that's caught
+-            # and raised as a SuspiciousOperation.
+-            middleware(request)
+-
+-    def test_session_delete_on_end(self):
+-        def response_ending_session(request):
+-            request.session.flush()
+-            return HttpResponse('Session test')
+-
+-        request = self.request_factory.get('/')
+-        middleware = SessionMiddleware(response_ending_session)
+-
+-        # Before deleting, there has to be an existing cookie
+-        request.COOKIES[settings.SESSION_COOKIE_NAME] = 'abc'
+-
+-        # Handle the response through the middleware
+-        response = middleware(request)
+-
+-        # The cookie was deleted, not recreated.
+-        # A deleted cookie header looks like:
+-        #  Set-Cookie: sessionid=; expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Path=/
+-        self.assertEqual(
+-            'Set-Cookie: {}=""; expires=Thu, 01 Jan 1970 00:00:00 GMT; '
+-            'Max-Age=0; Path=/; SameSite={}'.format(
+-                settings.SESSION_COOKIE_NAME,
+-                settings.SESSION_COOKIE_SAMESITE,
+-            ),
+-            str(response.cookies[settings.SESSION_COOKIE_NAME])
+-        )
+-        # SessionMiddleware sets 'Vary: Cookie' to prevent the 'Set-Cookie'
+-        # from being cached.
+-        self.assertEqual(response['Vary'], 'Cookie')
+-
+-    @override_settings(SESSION_COOKIE_DOMAIN='.example.local', SESSION_COOKIE_PATH='/example/')
+-    def test_session_delete_on_end_with_custom_domain_and_path(self):
+-        def response_ending_session(request):
+-            request.session.flush()
+-            return HttpResponse('Session test')
+-
+-        request = self.request_factory.get('/')
+-        middleware = SessionMiddleware(response_ending_session)
+-
+-        # Before deleting, there has to be an existing cookie
+-        request.COOKIES[settings.SESSION_COOKIE_NAME] = 'abc'
+-
+-        # Handle the response through the middleware
+-        response = middleware(request)
+-
+-        # The cookie was deleted, not recreated.
+-        # A deleted cookie header with a custom domain and path looks like:
+-        #  Set-Cookie: sessionid=; Domain=.example.local;
+-        #              expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0;
+-        #              Path=/example/
+-        self.assertEqual(
+-            'Set-Cookie: {}=""; Domain=.example.local; expires=Thu, '
+-            '01 Jan 1970 00:00:00 GMT; Max-Age=0; Path=/example/; SameSite={}'.format(
+-                settings.SESSION_COOKIE_NAME,
+-                settings.SESSION_COOKIE_SAMESITE,
+-            ),
+-            str(response.cookies[settings.SESSION_COOKIE_NAME])
+-        )
+-
+-    def test_flush_empty_without_session_cookie_doesnt_set_cookie(self):
+-        def response_ending_session(request):
+-            request.session.flush()
+-            return HttpResponse('Session test')
+-
+-        request = self.request_factory.get('/')
+-        middleware = SessionMiddleware(response_ending_session)
+-
+-        # Handle the response through the middleware
+-        response = middleware(request)
+-
+-        # A cookie should not be set.
+-        self.assertEqual(response.cookies, {})
+-        # The session is accessed so "Vary: Cookie" should be set.
+-        self.assertEqual(response['Vary'], 'Cookie')
+-
+-    def test_empty_session_saved(self):
+-        """
+-        If a session is emptied of data but still has a key, it should still
+-        be updated.
+-        """
+-        def response_set_session(request):
+-            # Set a session key and some data.
+-            request.session['foo'] = 'bar'
+-            return HttpResponse('Session test')
+-
+-        request = self.request_factory.get('/')
+-        middleware = SessionMiddleware(response_set_session)
+-
+-        # Handle the response through the middleware.
+-        response = middleware(request)
+-        self.assertEqual(tuple(request.session.items()), (('foo', 'bar'),))
+-        # A cookie should be set, along with Vary: Cookie.
+-        self.assertIn(
+-            'Set-Cookie: sessionid=%s' % request.session.session_key,
+-            str(response.cookies)
+-        )
+-        self.assertEqual(response['Vary'], 'Cookie')
+-
+-        # Empty the session data.
+-        del request.session['foo']
+-        # Handle the response through the middleware.
+-        response = HttpResponse('Session test')
+-        response = middleware.process_response(request, response)
+-        self.assertEqual(dict(request.session.values()), {})
+-        session = Session.objects.get(session_key=request.session.session_key)
+-        self.assertEqual(session.get_decoded(), {})
+-        # While the session is empty, it hasn't been flushed so a cookie should
+-        # still be set, along with Vary: Cookie.
+-        self.assertGreater(len(request.session.session_key), 8)
+-        self.assertIn(
+-            'Set-Cookie: sessionid=%s' % request.session.session_key,
+-            str(response.cookies)
+-        )
+-        self.assertEqual(response['Vary'], 'Cookie')
+-
+-
+-# Don't need DB flushing for these tests, so can use unittest.TestCase as base class
+-class CookieSessionTests(SessionTestsMixin, unittest.TestCase):
+-
+-    backend = CookieSession
+-
+-    def test_save(self):
+-        """
+-        This test tested exists() in the other session backends, but that
+-        doesn't make sense for us.
+-        """
+-        pass
+-
+-    def test_cycle(self):
+-        """
+-        This test tested cycle_key() which would create a new session
+-        key for the same session data. But we can't invalidate previously
+-        signed cookies (other than letting them expire naturally) so
+-        testing for this behavior is meaningless.
+-        """
+-        pass
+-
+-    @unittest.expectedFailure
+-    def test_actual_expiry(self):
+-        # The cookie backend doesn't handle non-default expiry dates, see #19201
+-        super().test_actual_expiry()
+-
+-    def test_unpickling_exception(self):
+-        # signed_cookies backend should handle unpickle exceptions gracefully
+-        # by creating a new session
+-        self.assertEqual(self.session.serializer, JSONSerializer)
+-        self.session.save()
+-
+-        self.session.serializer = PickleSerializer
+-        self.session.load()
+-
+-    @unittest.skip("Cookie backend doesn't have an external store to create records in.")
+-    def test_session_load_does_not_create_record(self):
+-        pass
+-
+-    @unittest.skip("CookieSession is stored in the client and there is no way to query it.")
+-    def test_session_save_does_not_resurrect_session_logged_out_in_other_context(self):
+-        pass
++        self.assertEqual(reloaded_session.get('key'), 'value')
++        self.assertEqual(reloaded_session.get('new_key'), 'new_value')
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: asgiref>=3.2.10 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (3.4.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (0.4.4)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref>=3.2.10->Django==3.2) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.2
+    Uninstalling Django-3.2:
+      Successfully uninstalled Django-3.2
+  Running setup.py develop for Django
+Successfully installed Django-3.2
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 6e9c5ee88fc948e05b4a7d9f82a8861ed2b0343d tests/sessions_tests/tests.py
+Updated 1 path from 4c027686e4
++ git apply -v -
+Checking patch tests/sessions_tests/tests.py...
+Applied patch tests/sessions_tests/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 sessions_tests.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+test_actual_expiry (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_clear (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_custom_expiry_datetime (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_custom_expiry_reset (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_custom_expiry_seconds (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_custom_expiry_timedelta (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_cycle (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_cycle_with_no_session_cache (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_decode (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_decode_failure_logged_to_security (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_decode_legacy (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_default_expiry (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_default_hashing_algorith_legacy_decode (sessions_tests.tests.CacheDBSessionTests) ... FAIL
+test_delete (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_exists_searches_cache_first (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_flush (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_get_empty (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_get_expire_at_browser_close (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_has_key (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_invalid_key (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_items (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_keys (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_load_overlong_key (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_new_session (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_non_default_cache (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_pop (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_pop_default (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_pop_default_named_argument (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_pop_no_default_keyerror_raised (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_save (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_save_doesnt_clear_data (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_session_key_empty_string_invalid (sessions_tests.tests.CacheDBSessionTests)
+Falsey values (Such as an empty string) are rejected. ... ok
+test_session_key_is_read_only (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_session_key_too_short_invalid (sessions_tests.tests.CacheDBSessionTests)
+Strings shorter than 8 characters are rejected. ... ok
+test_session_key_valid_string_saved (sessions_tests.tests.CacheDBSessionTests)
+Strings of length 8 and up are accepted and stored. ... ok
+test_session_load_does_not_create_record (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_session_save_does_not_resurrect_session_logged_out_in_other_context (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_setdefault (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_store (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_update (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_values (sessions_tests.tests.CacheDBSessionTests) ... ok
+test_actual_expiry (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_clear (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_custom_expiry_datetime (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_custom_expiry_reset (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_custom_expiry_seconds (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_custom_expiry_timedelta (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_cycle (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_cycle_with_no_session_cache (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_decode (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_decode_failure_logged_to_security (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_decode_legacy (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_default_expiry (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_default_hashing_algorith_legacy_decode (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... FAIL
+test_delete (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_exists_searches_cache_first (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_flush (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_get_empty (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_get_expire_at_browser_close (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_has_key (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_invalid_key (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_items (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_keys (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_load_overlong_key (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_new_session (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_non_default_cache (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_pop (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_pop_default (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_pop_default_named_argument (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_pop_no_default_keyerror_raised (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_save (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_save_doesnt_clear_data (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_session_key_empty_string_invalid (sessions_tests.tests.CacheDBSessionWithTimeZoneTests)
+Falsey values (Such as an empty string) are rejected. ... ok
+test_session_key_is_read_only (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_session_key_too_short_invalid (sessions_tests.tests.CacheDBSessionWithTimeZoneTests)
+Strings shorter than 8 characters are rejected. ... ok
+test_session_key_valid_string_saved (sessions_tests.tests.CacheDBSessionWithTimeZoneTests)
+Strings of length 8 and up are accepted and stored. ... ok
+test_session_load_does_not_create_record (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_session_save_does_not_resurrect_session_logged_out_in_other_context (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_setdefault (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_store (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_update (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_values (sessions_tests.tests.CacheDBSessionWithTimeZoneTests) ... ok
+test_actual_expiry (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_clear (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_clearsessions_command (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_custom_expiry_datetime (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_custom_expiry_reset (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_custom_expiry_seconds (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_custom_expiry_timedelta (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_cycle (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_cycle_with_no_session_cache (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_decode (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_decode_failure_logged_to_security (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_decode_legacy (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_default_expiry (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_default_hashing_algorith_legacy_decode (sessions_tests.tests.CustomDatabaseSessionTests) ... FAIL
+test_delete (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_extra_session_field (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_flush (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_get_empty (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_get_expire_at_browser_close (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_has_key (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_invalid_key (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_items (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_keys (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_new_session (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_pop (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_pop_default (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_pop_default_named_argument (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_pop_no_default_keyerror_raised (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_save (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_save_doesnt_clear_data (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_session_get_decoded (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_session_key_empty_string_invalid (sessions_tests.tests.CustomDatabaseSessionTests)
+Falsey values (Such as an empty string) are rejected. ... ok
+test_session_key_is_read_only (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_session_key_too_short_invalid (sessions_tests.tests.CustomDatabaseSessionTests)
+Strings shorter than 8 characters are rejected. ... ok
+test_session_key_valid_string_saved (sessions_tests.tests.CustomDatabaseSessionTests)
+Strings of length 8 and up are accepted and stored. ... ok
+test_session_load_does_not_create_record (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_session_save_does_not_resurrect_session_logged_out_in_other_context (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_session_str (sessions_tests.tests.CustomDatabaseSessionTests)
+Session repr should be the session key. ... ok
+test_sessionmanager_save (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_setdefault (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_store (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_update (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_values (sessions_tests.tests.CustomDatabaseSessionTests) ... ok
+test_actual_expiry (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_clear (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_clearsessions_command (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_custom_expiry_datetime (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_custom_expiry_reset (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_custom_expiry_seconds (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_custom_expiry_timedelta (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_cycle (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_cycle_with_no_session_cache (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_decode (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_decode_failure_logged_to_security (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_decode_legacy (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_default_expiry (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_default_hashing_algorith_legacy_decode (sessions_tests.tests.DatabaseSessionTests) ... FAIL
+test_delete (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_flush (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_get_empty (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_get_expire_at_browser_close (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_has_key (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_invalid_key (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_items (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_keys (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_new_session (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_pop (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_pop_default (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_pop_default_named_argument (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_pop_no_default_keyerror_raised (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_save (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_save_doesnt_clear_data (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_session_get_decoded (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_session_key_empty_string_invalid (sessions_tests.tests.DatabaseSessionTests)
+Falsey values (Such as an empty string) are rejected. ... ok
+test_session_key_is_read_only (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_session_key_too_short_invalid (sessions_tests.tests.DatabaseSessionTests)
+Strings shorter than 8 characters are rejected. ... ok
+test_session_key_valid_string_saved (sessions_tests.tests.DatabaseSessionTests)
+Strings of length 8 and up are accepted and stored. ... ok
+test_session_load_does_not_create_record (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_session_save_does_not_resurrect_session_logged_out_in_other_context (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_session_str (sessions_tests.tests.DatabaseSessionTests)
+Session repr should be the session key. ... ok
+test_sessionmanager_save (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_setdefault (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_store (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_update (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_values (sessions_tests.tests.DatabaseSessionTests) ... ok
+test_actual_expiry (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_clear (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_clearsessions_command (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_custom_expiry_datetime (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_custom_expiry_reset (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_custom_expiry_seconds (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_custom_expiry_timedelta (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_cycle (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_cycle_with_no_session_cache (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_decode (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_decode_failure_logged_to_security (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_decode_legacy (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_default_expiry (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_default_hashing_algorith_legacy_decode (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... FAIL
+test_delete (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_flush (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_get_empty (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_get_expire_at_browser_close (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_has_key (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_invalid_key (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_items (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_keys (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_new_session (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_pop (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_pop_default (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_pop_default_named_argument (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_pop_no_default_keyerror_raised (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_save (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_save_doesnt_clear_data (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_session_get_decoded (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_session_key_empty_string_invalid (sessions_tests.tests.DatabaseSessionWithTimeZoneTests)
+Falsey values (Such as an empty string) are rejected. ... ok
+test_session_key_is_read_only (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_session_key_too_short_invalid (sessions_tests.tests.DatabaseSessionWithTimeZoneTests)
+Strings shorter than 8 characters are rejected. ... ok
+test_session_key_valid_string_saved (sessions_tests.tests.DatabaseSessionWithTimeZoneTests)
+Strings of length 8 and up are accepted and stored. ... ok
+test_session_load_does_not_create_record (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_session_save_does_not_resurrect_session_logged_out_in_other_context (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_session_str (sessions_tests.tests.DatabaseSessionWithTimeZoneTests)
+Session repr should be the session key. ... ok
+test_sessionmanager_save (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_setdefault (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_store (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_update (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_values (sessions_tests.tests.DatabaseSessionWithTimeZoneTests) ... ok
+test_empty_session_saved (sessions_tests.tests.SessionMiddlewareTests) ... ok
+test_flush_empty_without_session_cookie_doesnt_set_cookie (sessions_tests.tests.SessionMiddlewareTests) ... ok
+test_httponly_session_cookie (sessions_tests.tests.SessionMiddlewareTests) ... ok
+test_no_httponly_session_cookie (sessions_tests.tests.SessionMiddlewareTests) ... ok
+test_samesite_session_cookie (sessions_tests.tests.SessionMiddlewareTests) ... ok
+test_secure_session_cookie (sessions_tests.tests.SessionMiddlewareTests) ... ok
+test_session_delete_on_end (sessions_tests.tests.SessionMiddlewareTests) ... ok
+test_session_delete_on_end_with_custom_domain_and_path (sessions_tests.tests.SessionMiddlewareTests) ... ok
+test_session_save_on_500 (sessions_tests.tests.SessionMiddlewareTests) ... ok
+test_session_update_error_redirect (sessions_tests.tests.SessionMiddlewareTests) ... ok
+test_actual_expiry (sessions_tests.tests.CacheSessionTests) ... ok
+test_clear (sessions_tests.tests.CacheSessionTests) ... ok
+test_create_and_save (sessions_tests.tests.CacheSessionTests) ... ok
+test_custom_expiry_datetime (sessions_tests.tests.CacheSessionTests) ... ok
+test_custom_expiry_reset (sessions_tests.tests.CacheSessionTests) ... ok
+test_custom_expiry_seconds (sessions_tests.tests.CacheSessionTests) ... ok
+test_custom_expiry_timedelta (sessions_tests.tests.CacheSessionTests) ... ok
+test_cycle (sessions_tests.tests.CacheSessionTests) ... ok
+test_cycle_with_no_session_cache (sessions_tests.tests.CacheSessionTests) ... ok
+test_decode (sessions_tests.tests.CacheSessionTests) ... ok
+test_decode_failure_logged_to_security (sessions_tests.tests.CacheSessionTests) ... ok
+test_decode_legacy (sessions_tests.tests.CacheSessionTests) ... ok
+test_default_cache (sessions_tests.tests.CacheSessionTests) ... ok
+test_default_expiry (sessions_tests.tests.CacheSessionTests) ... ok
+test_default_hashing_algorith_legacy_decode (sessions_tests.tests.CacheSessionTests) ... FAIL
+test_delete (sessions_tests.tests.CacheSessionTests) ... ok
+test_flush (sessions_tests.tests.CacheSessionTests) ... ok
+test_get_empty (sessions_tests.tests.CacheSessionTests) ... ok
+test_get_expire_at_browser_close (sessions_tests.tests.CacheSessionTests) ... ok
+test_has_key (sessions_tests.tests.CacheSessionTests) ... ok
+test_invalid_key (sessions_tests.tests.CacheSessionTests) ... ok
+test_items (sessions_tests.tests.CacheSessionTests) ... ok
+test_keys (sessions_tests.tests.CacheSessionTests) ... ok
+test_load_overlong_key (sessions_tests.tests.CacheSessionTests) ... ok
+test_new_session (sessions_tests.tests.CacheSessionTests) ... ok
+test_non_default_cache (sessions_tests.tests.CacheSessionTests) ... ok
+test_pop (sessions_tests.tests.CacheSessionTests) ... ok
+test_pop_default (sessions_tests.tests.CacheSessionTests) ... ok
+test_pop_default_named_argument (sessions_tests.tests.CacheSessionTests) ... ok
+test_pop_no_default_keyerror_raised (sessions_tests.tests.CacheSessionTests) ... ok
+test_save (sessions_tests.tests.CacheSessionTests) ... ok
+test_save_doesnt_clear_data (sessions_tests.tests.CacheSessionTests) ... ok
+test_session_key_empty_string_invalid (sessions_tests.tests.CacheSessionTests)
+Falsey values (Such as an empty string) are rejected. ... ok
+test_session_key_is_read_only (sessions_tests.tests.CacheSessionTests) ... ok
+test_session_key_too_short_invalid (sessions_tests.tests.CacheSessionTests)
+Strings shorter than 8 characters are rejected. ... ok
+test_session_key_valid_string_saved (sessions_tests.tests.CacheSessionTests)
+Strings of length 8 and up are accepted and stored. ... ok
+test_session_load_does_not_create_record (sessions_tests.tests.CacheSessionTests) ... ok
+test_session_save_does_not_resurrect_session_logged_out_in_other_context (sessions_tests.tests.CacheSessionTests) ... ok
+test_setdefault (sessions_tests.tests.CacheSessionTests) ... ok
+test_store (sessions_tests.tests.CacheSessionTests) ... ok
+test_update (sessions_tests.tests.CacheSessionTests) ... ok
+test_values (sessions_tests.tests.CacheSessionTests) ... ok
+test_actual_expiry (sessions_tests.tests.CookieSessionTests) ... expected failure
+test_clear (sessions_tests.tests.CookieSessionTests) ... ok
+test_custom_expiry_datetime (sessions_tests.tests.CookieSessionTests) ... ok
+test_custom_expiry_reset (sessions_tests.tests.CookieSessionTests) ... ok
+test_custom_expiry_seconds (sessions_tests.tests.CookieSessionTests) ... ok
+test_custom_expiry_timedelta (sessions_tests.tests.CookieSessionTests) ... ok
+test_cycle (sessions_tests.tests.CookieSessionTests) ... ok
+test_cycle_with_no_session_cache (sessions_tests.tests.CookieSessionTests) ... ok
+test_decode (sessions_tests.tests.CookieSessionTests) ... ok
+test_decode_failure_logged_to_security (sessions_tests.tests.CookieSessionTests) ... ok
+test_decode_legacy (sessions_tests.tests.CookieSessionTests) ... ok
+test_default_expiry (sessions_tests.tests.CookieSessionTests) ... ok
+test_default_hashing_algorith_legacy_decode (sessions_tests.tests.CookieSessionTests) ... FAIL
+test_delete (sessions_tests.tests.CookieSessionTests) ... ok
+test_flush (sessions_tests.tests.CookieSessionTests) ... ok
+test_get_empty (sessions_tests.tests.CookieSessionTests) ... ok
+test_get_expire_at_browser_close (sessions_tests.tests.CookieSessionTests) ... ok
+test_has_key (sessions_tests.tests.CookieSessionTests) ... ok
+test_invalid_key (sessions_tests.tests.CookieSessionTests) ... ok
+test_items (sessions_tests.tests.CookieSessionTests) ... ok
+test_keys (sessions_tests.tests.CookieSessionTests) ... ok
+test_new_session (sessions_tests.tests.CookieSessionTests) ... ok
+test_pop (sessions_tests.tests.CookieSessionTests) ... ok
+test_pop_default (sessions_tests.tests.CookieSessionTests) ... ok
+test_pop_default_named_argument (sessions_tests.tests.CookieSessionTests) ... ok
+test_pop_no_default_keyerror_raised (sessions_tests.tests.CookieSessionTests) ... ok
+test_save (sessions_tests.tests.CookieSessionTests) ... ok
+test_save_doesnt_clear_data (sessions_tests.tests.CookieSessionTests) ... ok
+test_session_key_empty_string_invalid (sessions_tests.tests.CookieSessionTests)
+Falsey values (Such as an empty string) are rejected. ... ok
+test_session_key_is_read_only (sessions_tests.tests.CookieSessionTests) ... ok
+test_session_key_too_short_invalid (sessions_tests.tests.CookieSessionTests)
+Strings shorter than 8 characters are rejected. ... ok
+test_session_key_valid_string_saved (sessions_tests.tests.CookieSessionTests)
+Strings of length 8 and up are accepted and stored. ... ok
+test_session_load_does_not_create_record (sessions_tests.tests.CookieSessionTests) ... skipped "Cookie backend doesn't have an external store to create records in."
+test_session_save_does_not_resurrect_session_logged_out_in_other_context (sessions_tests.tests.CookieSessionTests) ... skipped 'CookieSession is stored in the client and there is no way to query it.'
+test_setdefault (sessions_tests.tests.CookieSessionTests) ... ok
+test_store (sessions_tests.tests.CookieSessionTests) ... ok
+test_unpickling_exception (sessions_tests.tests.CookieSessionTests) ... ok
+test_update (sessions_tests.tests.CookieSessionTests) ... ok
+test_values (sessions_tests.tests.CookieSessionTests) ... ok
+test_actual_expiry (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_clear (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_clearsessions_command (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_configuration_check (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_custom_expiry_datetime (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_custom_expiry_reset (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_custom_expiry_seconds (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_custom_expiry_timedelta (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_cycle (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_cycle_with_no_session_cache (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_decode (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_decode_failure_logged_to_security (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_decode_legacy (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_default_expiry (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_default_hashing_algorith_legacy_decode (sessions_tests.tests.FileSessionPathLibTests) ... FAIL
+test_delete (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_flush (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_get_empty (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_get_expire_at_browser_close (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_has_key (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_invalid_key (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_invalid_key_backslash (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_invalid_key_forwardslash (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_items (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_keys (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_new_session (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_pop (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_pop_default (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_pop_default_named_argument (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_pop_no_default_keyerror_raised (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_save (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_save_doesnt_clear_data (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_session_key_empty_string_invalid (sessions_tests.tests.FileSessionPathLibTests)
+Falsey values (Such as an empty string) are rejected. ... ok
+test_session_key_is_read_only (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_session_key_too_short_invalid (sessions_tests.tests.FileSessionPathLibTests)
+Strings shorter than 8 characters are rejected. ... ok
+test_session_key_valid_string_saved (sessions_tests.tests.FileSessionPathLibTests)
+Strings of length 8 and up are accepted and stored. ... ok
+test_session_load_does_not_create_record (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_session_save_does_not_resurrect_session_logged_out_in_other_context (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_setdefault (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_store (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_update (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_values (sessions_tests.tests.FileSessionPathLibTests) ... ok
+test_actual_expiry (sessions_tests.tests.FileSessionTests) ... ok
+test_clear (sessions_tests.tests.FileSessionTests) ... ok
+test_clearsessions_command (sessions_tests.tests.FileSessionTests) ... ok
+test_configuration_check (sessions_tests.tests.FileSessionTests) ... ok
+test_custom_expiry_datetime (sessions_tests.tests.FileSessionTests) ... ok
+test_custom_expiry_reset (sessions_tests.tests.FileSessionTests) ... ok
+test_custom_expiry_seconds (sessions_tests.tests.FileSessionTests) ... ok
+test_custom_expiry_timedelta (sessions_tests.tests.FileSessionTests) ... ok
+test_cycle (sessions_tests.tests.FileSessionTests) ... ok
+test_cycle_with_no_session_cache (sessions_tests.tests.FileSessionTests) ... ok
+test_decode (sessions_tests.tests.FileSessionTests) ... ok
+test_decode_failure_logged_to_security (sessions_tests.tests.FileSessionTests) ... ok
+test_decode_legacy (sessions_tests.tests.FileSessionTests) ... ok
+test_default_expiry (sessions_tests.tests.FileSessionTests) ... ok
+test_default_hashing_algorith_legacy_decode (sessions_tests.tests.FileSessionTests) ... FAIL
+test_delete (sessions_tests.tests.FileSessionTests) ... ok
+test_flush (sessions_tests.tests.FileSessionTests) ... ok
+test_get_empty (sessions_tests.tests.FileSessionTests) ... ok
+test_get_expire_at_browser_close (sessions_tests.tests.FileSessionTests) ... ok
+test_has_key (sessions_tests.tests.FileSessionTests) ... ok
+test_invalid_key (sessions_tests.tests.FileSessionTests) ... ok
+test_invalid_key_backslash (sessions_tests.tests.FileSessionTests) ... ok
+test_invalid_key_forwardslash (sessions_tests.tests.FileSessionTests) ... ok
+test_items (sessions_tests.tests.FileSessionTests) ... ok
+test_keys (sessions_tests.tests.FileSessionTests) ... ok
+test_new_session (sessions_tests.tests.FileSessionTests) ... ok
+test_pop (sessions_tests.tests.FileSessionTests) ... ok
+test_pop_default (sessions_tests.tests.FileSessionTests) ... ok
+test_pop_default_named_argument (sessions_tests.tests.FileSessionTests) ... ok
+test_pop_no_default_keyerror_raised (sessions_tests.tests.FileSessionTests) ... ok
+test_save (sessions_tests.tests.FileSessionTests) ... ok
+test_save_doesnt_clear_data (sessions_tests.tests.FileSessionTests) ... ok
+test_session_key_empty_string_invalid (sessions_tests.tests.FileSessionTests)
+Falsey values (Such as an empty string) are rejected. ... ok
+test_session_key_is_read_only (sessions_tests.tests.FileSessionTests) ... ok
+test_session_key_too_short_invalid (sessions_tests.tests.FileSessionTests)
+Strings shorter than 8 characters are rejected. ... ok
+test_session_key_valid_string_saved (sessions_tests.tests.FileSessionTests)
+Strings of length 8 and up are accepted and stored. ... ok
+test_session_load_does_not_create_record (sessions_tests.tests.FileSessionTests) ... ok
+test_session_save_does_not_resurrect_session_logged_out_in_other_context (sessions_tests.tests.FileSessionTests) ... ok
+test_setdefault (sessions_tests.tests.FileSessionTests) ... ok
+test_store (sessions_tests.tests.FileSessionTests) ... ok
+test_update (sessions_tests.tests.FileSessionTests) ... ok
+test_values (sessions_tests.tests.FileSessionTests) ... ok
+
+======================================================================
+FAIL: test_default_hashing_algorith_legacy_decode (sessions_tests.tests.CacheDBSessionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/utils.py", line 381, in inner
+    return func(*args, **kwargs)
+  File "/testbed/tests/sessions_tests/tests.py", line 333, in test_default_hashing_algorith_legacy_decode
+    self.assertEqual(self.session._legacy_decode(encoded), data)
+AssertionError: {} != {'a test key': 'a test value'}
+- {}
++ {'a test key': 'a test value'}
+
+======================================================================
+FAIL: test_default_hashing_algorith_legacy_decode (sessions_tests.tests.CacheDBSessionWithTimeZoneTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/utils.py", line 381, in inner
+    return func(*args, **kwargs)
+  File "/testbed/tests/sessions_tests/tests.py", line 333, in test_default_hashing_algorith_legacy_decode
+    self.assertEqual(self.session._legacy_decode(encoded), data)
+AssertionError: {} != {'a test key': 'a test value'}
+- {}
++ {'a test key': 'a test value'}
+
+======================================================================
+FAIL: test_default_hashing_algorith_legacy_decode (sessions_tests.tests.CustomDatabaseSessionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/utils.py", line 381, in inner
+    return func(*args, **kwargs)
+  File "/testbed/tests/sessions_tests/tests.py", line 333, in test_default_hashing_algorith_legacy_decode
+    self.assertEqual(self.session._legacy_decode(encoded), data)
+AssertionError: {} != {'a test key': 'a test value'}
+- {}
++ {'a test key': 'a test value'}
+
+======================================================================
+FAIL: test_default_hashing_algorith_legacy_decode (sessions_tests.tests.DatabaseSessionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/utils.py", line 381, in inner
+    return func(*args, **kwargs)
+  File "/testbed/tests/sessions_tests/tests.py", line 333, in test_default_hashing_algorith_legacy_decode
+    self.assertEqual(self.session._legacy_decode(encoded), data)
+AssertionError: {} != {'a test key': 'a test value'}
+- {}
++ {'a test key': 'a test value'}
+
+======================================================================
+FAIL: test_default_hashing_algorith_legacy_decode (sessions_tests.tests.DatabaseSessionWithTimeZoneTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/utils.py", line 381, in inner
+    return func(*args, **kwargs)
+  File "/testbed/tests/sessions_tests/tests.py", line 333, in test_default_hashing_algorith_legacy_decode
+    self.assertEqual(self.session._legacy_decode(encoded), data)
+AssertionError: {} != {'a test key': 'a test value'}
+- {}
++ {'a test key': 'a test value'}
+
+======================================================================
+FAIL: test_default_hashing_algorith_legacy_decode (sessions_tests.tests.CacheSessionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/utils.py", line 381, in inner
+    return func(*args, **kwargs)
+  File "/testbed/tests/sessions_tests/tests.py", line 333, in test_default_hashing_algorith_legacy_decode
+    self.assertEqual(self.session._legacy_decode(encoded), data)
+AssertionError: {} != {'a test key': 'a test value'}
+- {}
++ {'a test key': 'a test value'}
+
+======================================================================
+FAIL: test_default_hashing_algorith_legacy_decode (sessions_tests.tests.CookieSessionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/utils.py", line 381, in inner
+    return func(*args, **kwargs)
+  File "/testbed/tests/sessions_tests/tests.py", line 333, in test_default_hashing_algorith_legacy_decode
+    self.assertEqual(self.session._legacy_decode(encoded), data)
+AssertionError: {} != {'a test key': 'a test value'}
+- {}
++ {'a test key': 'a test value'}
+
+======================================================================
+FAIL: test_default_hashing_algorith_legacy_decode (sessions_tests.tests.FileSessionPathLibTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/utils.py", line 381, in inner
+    return func(*args, **kwargs)
+  File "/testbed/tests/sessions_tests/tests.py", line 333, in test_default_hashing_algorith_legacy_decode
+    self.assertEqual(self.session._legacy_decode(encoded), data)
+AssertionError: {} != {'a test key': 'a test value'}
+- {}
++ {'a test key': 'a test value'}
+
+======================================================================
+FAIL: test_default_hashing_algorith_legacy_decode (sessions_tests.tests.FileSessionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/utils.py", line 381, in inner
+    return func(*args, **kwargs)
+  File "/testbed/tests/sessions_tests/tests.py", line 333, in test_default_hashing_algorith_legacy_decode
+    self.assertEqual(self.session._legacy_decode(encoded), data)
+AssertionError: {} != {'a test key': 'a test value'}
+- {}
++ {'a test key': 'a test value'}
+
+----------------------------------------------------------------------
+Ran 384 tests in 0.732s
+
+FAILED (failures=9, skipped=2, expected failures=1)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application sessions_tests
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, sessions, sessions_tests, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table sessions_tests_customsession
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
++ git checkout 6e9c5ee88fc948e05b4a7d9f82a8861ed2b0343d tests/sessions_tests/tests.py
+Updated 1 path from 4c027686e4

@@ -1,0 +1,114 @@
+
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 35f3c5e1ea..bcdf8bb9ec 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -1046,29 +1046,38 @@ class Query(BaseExpression):
+         return sql, params
+ 
+     def resolve_lookup_value(self, value, can_reuse, allow_joins, simple_col):
+-        if hasattr(value, 'resolve_expression'):
+-            kwargs = {'reuse': can_reuse, 'allow_joins': allow_joins}
+-            if isinstance(value, F):
+-                kwargs['simple_col'] = simple_col
+-            value = value.resolve_expression(self, **kwargs)
++        from django.db.models import OuterRef, Q
++
++        if isinstance(value, OuterRef):
++            return value
++
++        if isinstance(value, Q):
++            # Handle OuterRef inside Q objects
++            children = []
++            for child in value.children:
++                if isinstance(child, tuple):
++                    key, val = child
++                    if isinstance(val, OuterRef):
++                        children.append((key, val))
++                    else:
++                        children.append((key, self.resolve_lookup_value(val, can_reuse, allow_joins, simple_col)))
++                else:
++                    children.append(child)
++            value.children = children
+         elif isinstance(value, (list, tuple)):
+-            # The items of the iterable may be expressions and therefore need
+-            # to be resolved independently.
+             resolved_values = []
+             for sub_value in value:
+-                if hasattr(sub_value, 'resolve_expression'):
+-                    if isinstance(sub_value, F):
+-                        resolved_values.append(sub_value.resolve_expression(
+-                            self, reuse=can_reuse, allow_joins=allow_joins,
+-                            simple_col=simple_col,
+-                        ))
+-                    else:
+-                        resolved_values.append(sub_value.resolve_expression(
+-                            self, reuse=can_reuse, allow_joins=allow_joins,
+-                        ))
+-                else:
++                if isinstance(sub_value, OuterRef):
+                     resolved_values.append(sub_value)
++                else:
++                    resolved_values.append(self.resolve_lookup_value(sub_value, can_reuse, allow_joins, simple_col))
+             value = tuple(resolved_values)
++        elif hasattr(value, 'resolve_expression'):
++            kwargs = {'reuse': can_reuse, 'allow_joins': allow_joins}
++            if isinstance(value, F):
++                kwargs['simple_col'] = simple_col
++            value = value.resolve_expression(self, **kwargs)
++
+         return value
+ 
+     def solve_lookup_type(self, lookup):
+diff --git a/tests/queries/test_qs_combinators.py b/tests/queries/test_qs_combinators.py
+index 668d5e6ad6..96e1251e7f 100644
+--- a/tests/queries/test_qs_combinators.py
++++ b/tests/queries/test_qs_combinators.py
+@@ -1,9 +1,9 @@
+ from django.db import connection
+-from django.db.models import Exists, F, IntegerField, OuterRef, Value
++from django.db.models import Exists, F, IntegerField, OuterRef, Q, Value
+ from django.db.utils import DatabaseError, NotSupportedError
+ from django.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
+ 
+-from .models import Number, ReservedName
++from .models import Number, ReservedName, Item
+ 
+ 
+ @skipUnlessDBFeature('supports_select_union')
+@@ -284,4 +284,34 @@ class QuerySetSetOperationTests(TestCase):
+                         NotSupportedError,
+                         msg % (operation, combinator),
+                     ):
+-                        getattr(getattr(qs, combinator)(qs), operation)()
++                        getattr(qs.union(qs), operation)()
++
++    def test_exists_exclude(self):
++        from django.db.models import OuterRef
++
++        def print_query_info(qs, label):
++            print(f"{label} SQL:", qs.query.get_compiler(qs.db).as_sql()[0])
++            print(f"{label} Count:", qs.count())
++
++        print("Number of Number objects:", Number.objects.count())
++        print("Number of Item objects:", Item.objects.count())
++
++        # filter()
++        subquery = Item.objects.filter(tags__category_id=OuterRef('pk'))
++        qs = Number.objects.annotate(foo=Exists(subquery)).filter(foo=True)
++        print_query_info(qs, "Filter")
++        self.assertTrue(qs.exists())
++
++        # exclude()
++        subquery = Item.objects.exclude(tags__category_id=OuterRef('pk'))
++        qs = Number.objects.annotate(foo=Exists(subquery)).filter(foo=True)
++        print_query_info(qs, "Exclude")
++        self.assertTrue(qs.exists())
++
++        # filter(~Q())
++        subquery = Item.objects.filter(~Q(tags__category_id=OuterRef('pk')))
++        qs = Number.objects.annotate(foo=Exists(subquery)).filter(foo=True)
++        print_query_info(qs, "Filter(~Q())")
++        self.assertTrue(qs.exists())
++
++        print("All tests in test_exists_exclude passed successfully.")

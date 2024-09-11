@@ -1,0 +1,59 @@
+
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 00000000..43dd9957
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,17 @@
++import numpy as np
++from xarray import DataArray
++
++empty = np.zeros((2,2))
++D1 = DataArray(empty, dims=['dim1', 'dim2'], coords={'dim1':['x', 'y'], 'dim2':['a', 'b']})
++D2 = DataArray(empty, dims=['dim1', 'method'], coords={'dim1':['x', 'y'], 'method':['a', 'b']})
++
++print("D1 (should work):")
++print(D1.loc[dict(dim1='x', dim2='a')])
++
++print("\nD2 (should not work):")
++try:
++    print(D2.loc[dict(dim1='x', method='a')])
++except Exception as e:
++    print(f"Error: {e}")
++
++print("\nScript completed.")
+diff --git a/xarray/core/dataarray.py b/xarray/core/dataarray.py
+index 32b24ef1..9d6e4d43 100644
+--- a/xarray/core/dataarray.py
++++ b/xarray/core/dataarray.py
+@@ -196,6 +196,12 @@ class _LocIndexer:
+             # expand the indexer so we can handle Ellipsis
+             labels = indexing.expanded_indexer(key, self.data_array.ndim)
+             key = dict(zip(self.data_array.dims, labels))
++        
++        # Handle the case where 'method' is a dimension name
++        if 'method' in self.data_array.dims and 'method' in key:
++            method_value = key.pop('method')
++            return self.data_array.sel(**key).sel(method=method_value)
++        
+         return self.data_array.sel(**key)
+ 
+     def __setitem__(self, key, value) -> None:
+diff --git a/xarray/core/indexing.py b/xarray/core/indexing.py
+index 843feb04..5190c550 100644
+--- a/xarray/core/indexing.py
++++ b/xarray/core/indexing.py
+@@ -188,7 +188,12 @@ def convert_label_indexer(index, label, index_name="", method=None, tolerance=No
+                     )
+                 indexer = index.get_loc(label_value)
+             else:
+-                indexer = index.get_loc(label_value, method=method, tolerance=tolerance)
++                if method is None and label_value == 'method':
++                    indexer = index.get_loc(label_value)
++                elif method is not None:
++                    indexer = index.get_loc(label_value, method=method, tolerance=tolerance)
++                else:
++                    indexer = index.get_loc(label_value)
+         elif label.dtype.kind == "b":
+             indexer = label
+         else:

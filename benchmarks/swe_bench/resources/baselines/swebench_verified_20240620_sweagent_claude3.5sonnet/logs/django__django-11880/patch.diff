@@ -1,0 +1,65 @@
+
+diff --git a/django/forms/fields.py b/django/forms/fields.py
+index 03cd8af8d7..4cc3133ca0 100644
+--- a/django/forms/fields.py
++++ b/django/forms/fields.py
+@@ -200,6 +200,7 @@ class Field:
+         memo[id(self)] = result
+         result.widget = copy.deepcopy(self.widget, memo)
+         result.validators = self.validators[:]
++        result.error_messages = copy.deepcopy(self.error_messages, memo)
+         return result
+ 
+ 
+diff --git a/docs/releases/3.1.txt b/docs/releases/3.1.txt
+index 6b3fa0b49e..5e33d95f60 100644
+--- a/docs/releases/3.1.txt
++++ b/docs/releases/3.1.txt
+@@ -35,6 +35,12 @@ Minor features
+ 
+ * ...
+ 
++:mod:`django.forms`
++~~~~~~~~~~~~~~~~~~~
++
++* The ``Field.__deepcopy__()`` method now correctly creates a deep copy of the ``error_messages`` dictionary, preventing unintended sharing of error messages between copied field instances.
++
++
+ :mod:`django.contrib.admindocs`
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+diff --git a/test_deepcopy.py b/test_deepcopy.py
+new file mode 100644
+index 0000000000..f35092330a
+--- /dev/null
++++ b/test_deepcopy.py
+@@ -0,0 +1,29 @@
++import copy
++
++class Field:
++    def __init__(self):
++        self.error_messages = {'required': 'This field is required.'}
++
++    def __deepcopy__(self, memo):
++        result = copy.copy(self)
++        memo[id(self)] = result
++        result.error_messages = copy.deepcopy(self.error_messages, memo)
++        return result
++
++# Create two instances of the field
++field1 = Field()
++field2 = copy.deepcopy(field1)
++
++# Modify error message in field1
++field1.error_messages['required'] = 'Custom error message for field1'
++
++# Check if the error message in field2 remains unchanged
++print("Field1 error message:", field1.error_messages['required'])
++print("Field2 error message:", field2.error_messages['required'])
++
++if field1.error_messages['required'] != field2.error_messages['required']:
++    print("Test passed: Error messages are different after modification")
++else:
++    print("Test failed: Error messages are the same after modification")
++
++print("Script completed successfully, no errors.")

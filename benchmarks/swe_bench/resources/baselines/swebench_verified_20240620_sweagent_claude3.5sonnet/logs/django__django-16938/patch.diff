@@ -1,0 +1,311 @@
+
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..0e2f0dfa55
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,40 @@
++from django.db import models
++from django.core import serializers
++
++class Manager(models.Manager):
++    pass
++
++class TestTagManager(Manager):
++    def get_queryset(self):
++        qs = super().get_queryset()
++        qs = qs.select_related("master")  # follow master when retrieving object by default
++        return qs
++
++class TestTagMaster(models.Model):
++    name = models.CharField(max_length=120)
++
++class TestTag(models.Model):
++    # default = Manager()  # solution is to define custom default manager, which is used by RelatedManager
++    objects = TestTagManager()
++    name = models.CharField(max_length=120)
++    master = models.ForeignKey(TestTagMaster, on_delete=models.SET_NULL, null=True)
++
++class Test(models.Model):
++    name = models.CharField(max_length=120)
++    tags = models.ManyToManyField(TestTag, blank=True)
++
++# Reproduce the bug
++tag_master = TestTagMaster.objects.create(name="master")
++tag = TestTag.objects.create(name="tag", master=tag_master)
++test = Test.objects.create(name="test")
++test.tags.add(tag)
++test.save()
++
++try:
++    serialized_data = serializers.serialize("json", [test])
++    print("Serialization successful:")
++    print(serialized_data)
++except Exception as e:
++    print(f"Serialization failed with error: {str(e)}")
++
++print("Script completed.")
+diff --git a/test_project/__init__.py b/test_project/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_project/db.sqlite3 b/test_project/db.sqlite3
+new file mode 100644
+index 0000000000..65dd3d879d
+Binary files /dev/null and b/test_project/db.sqlite3 differ
+diff --git a/test_project/manage.py b/test_project/manage.py
+new file mode 100644
+index 0000000000..2fb39583a0
+--- /dev/null
++++ b/test_project/manage.py
+@@ -0,0 +1,15 @@
++#!/usr/bin/env python
++import os
++import sys
++
++if __name__ == "__main__":
++    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "settings")
++    try:
++        from django.core.management import execute_from_command_line
++    except ImportError as exc:
++        raise ImportError(
++            "Couldn't import Django. Are you sure it's installed and "
++            "available on your PYTHONPATH environment variable? Did you "
++            "forget to activate a virtual environment?"
++        ) from exc
++    execute_from_command_line(sys.argv)
+diff --git a/test_project/models.py b/test_project/models.py
+new file mode 100644
+index 0000000000..9186899847
+--- /dev/null
++++ b/test_project/models.py
+@@ -0,0 +1,23 @@
++from django.db import models
++
++class Manager(models.Manager):
++    pass
++
++class TestTagManager(Manager):
++    def get_queryset(self):
++        qs = super().get_queryset()
++        qs = qs.select_related("master")  # follow master when retrieving object by default
++        return qs
++
++class TestTagMaster(models.Model):
++    name = models.CharField(max_length=120)
++
++class TestTag(models.Model):
++    # default = Manager()  # solution is to define custom default manager, which is used by RelatedManager
++    objects = TestTagManager()
++    name = models.CharField(max_length=120)
++    master = models.ForeignKey(TestTagMaster, on_delete=models.SET_NULL, null=True)
++
++class Test(models.Model):
++    name = models.CharField(max_length=120)
++    tags = models.ManyToManyField(TestTag, blank=True)
+diff --git a/test_project/reproduce_bug.py b/test_project/reproduce_bug.py
+new file mode 100644
+index 0000000000..d826c89754
+--- /dev/null
++++ b/test_project/reproduce_bug.py
+@@ -0,0 +1,24 @@
++import os
++import django
++
++os.environ.setdefault("DJANGO_SETTINGS_MODULE", "settings")
++django.setup()
++
++from django.core import serializers
++from testapp.models import TestTagMaster, TestTag, Test
++
++# Reproduce the bug
++tag_master = TestTagMaster.objects.create(name="master")
++tag = TestTag.objects.create(name="tag", master=tag_master)
++test = Test.objects.create(name="test")
++test.tags.add(tag)
++test.save()
++
++try:
++    serialized_data = serializers.serialize("json", [test])
++    print("Serialization successful:")
++    print(serialized_data)
++except Exception as e:
++    print(f"Serialization failed with error: {str(e)}")
++
++print("Script completed.")
+diff --git a/test_project/settings.py b/test_project/settings.py
+new file mode 100644
+index 0000000000..c1139fe27a
+--- /dev/null
++++ b/test_project/settings.py
+@@ -0,0 +1,24 @@
++import os
++import sys
++
++BASE_DIR = os.path.dirname(os.path.abspath(__file__))
++sys.path.append(BASE_DIR)
++
++SECRET_KEY = 'dummy-secret-key'
++
++DEBUG = True
++
++ALLOWED_HOSTS = []
++
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'testapp',
++]
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
++    }
++}
++
++USE_TZ = True
+diff --git a/test_project/testapp/__init__.py b/test_project/testapp/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_project/testapp/admin.py b/test_project/testapp/admin.py
+new file mode 100644
+index 0000000000..8c38f3f3da
+--- /dev/null
++++ b/test_project/testapp/admin.py
+@@ -0,0 +1,3 @@
++from django.contrib import admin
++
++# Register your models here.
+diff --git a/test_project/testapp/apps.py b/test_project/testapp/apps.py
+new file mode 100644
+index 0000000000..5876911b2d
+--- /dev/null
++++ b/test_project/testapp/apps.py
+@@ -0,0 +1,6 @@
++from django.apps import AppConfig
++
++
++class TestappConfig(AppConfig):
++    default_auto_field = "django.db.models.BigAutoField"
++    name = "testapp"
+diff --git a/test_project/testapp/migrations/0001_initial.py b/test_project/testapp/migrations/0001_initial.py
+new file mode 100644
+index 0000000000..bd5e6eb828
+--- /dev/null
++++ b/test_project/testapp/migrations/0001_initial.py
+@@ -0,0 +1,69 @@
++# Generated by Django 5.0.dev20230603100115 on 2024-07-08 07:05
++
++import django.db.models.deletion
++from django.db import migrations, models
++
++
++class Migration(migrations.Migration):
++
++    initial = True
++
++    dependencies = []
++
++    operations = [
++        migrations.CreateModel(
++            name="TestTag",
++            fields=[
++                (
++                    "id",
++                    models.BigAutoField(
++                        auto_created=True,
++                        primary_key=True,
++                        serialize=False,
++                        verbose_name="ID",
++                    ),
++                ),
++                ("name", models.CharField(max_length=120)),
++            ],
++        ),
++        migrations.CreateModel(
++            name="TestTagMaster",
++            fields=[
++                (
++                    "id",
++                    models.BigAutoField(
++                        auto_created=True,
++                        primary_key=True,
++                        serialize=False,
++                        verbose_name="ID",
++                    ),
++                ),
++                ("name", models.CharField(max_length=120)),
++            ],
++        ),
++        migrations.CreateModel(
++            name="Test",
++            fields=[
++                (
++                    "id",
++                    models.BigAutoField(
++                        auto_created=True,
++                        primary_key=True,
++                        serialize=False,
++                        verbose_name="ID",
++                    ),
++                ),
++                ("name", models.CharField(max_length=120)),
++                ("tags", models.ManyToManyField(blank=True, to="testapp.testtag")),
++            ],
++        ),
++        migrations.AddField(
++            model_name="testtag",
++            name="master",
++            field=models.ForeignKey(
++                null=True,
++                on_delete=django.db.models.deletion.SET_NULL,
++                to="testapp.testtagmaster",
++            ),
++        ),
++    ]
+diff --git a/test_project/testapp/migrations/__init__.py b/test_project/testapp/migrations/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_project/testapp/models.py b/test_project/testapp/models.py
+new file mode 100644
+index 0000000000..8869655934
+--- /dev/null
++++ b/test_project/testapp/models.py
+@@ -0,0 +1,21 @@
++from django.db import models
++
++class Manager(models.Manager):
++    pass
++
++class TestTagManager(Manager):
++    def get_queryset(self):
++        return super().get_queryset()
++
++class TestTagMaster(models.Model):
++    name = models.CharField(max_length=120)
++
++class TestTag(models.Model):
++    # default = Manager()  # solution is to define custom default manager, which is used by RelatedManager
++    objects = TestTagManager()
++    name = models.CharField(max_length=120)
++    master = models.ForeignKey(TestTagMaster, on_delete=models.SET_NULL, null=True)
++
++class Test(models.Model):
++    name = models.CharField(max_length=120)
++    tags = models.ManyToManyField(TestTag, blank=True)
+diff --git a/test_project/testapp/tests.py b/test_project/testapp/tests.py
+new file mode 100644
+index 0000000000..7ce503c2dd
+--- /dev/null
++++ b/test_project/testapp/tests.py
+@@ -0,0 +1,3 @@
++from django.test import TestCase
++
++# Create your tests here.
+diff --git a/test_project/testapp/views.py b/test_project/testapp/views.py
+new file mode 100644
+index 0000000000..91ea44a218
+--- /dev/null
++++ b/test_project/testapp/views.py
+@@ -0,0 +1,3 @@
++from django.shortcuts import render
++
++# Create your views here.

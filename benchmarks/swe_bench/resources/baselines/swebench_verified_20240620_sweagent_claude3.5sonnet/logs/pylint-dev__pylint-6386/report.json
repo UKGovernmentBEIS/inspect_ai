@@ -1,0 +1,36 @@
+{
+    "pylint-dev__pylint-6386": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "tests/config/test_config.py::test_short_verbose"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "tests/config/test_config.py::test_can_read_toml_env_variable",
+                    "tests/config/test_config.py::test_unknown_message_id",
+                    "tests/config/test_config.py::test_unknown_option_name",
+                    "tests/config/test_config.py::test_unknown_short_option_name",
+                    "tests/config/test_config.py::test_unknown_confidence",
+                    "tests/config/test_config.py::test_unknown_yes_no",
+                    "tests/config/test_config.py::test_unknown_py_version"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

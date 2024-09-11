@@ -1,0 +1,157 @@
+
+diff --git a/django/db/migrations/executor.py b/django/db/migrations/executor.py
+index 57042a8690..fdec55227d 100644
+--- a/django/db/migrations/executor.py
++++ b/django/db/migrations/executor.py
+@@ -22,6 +22,10 @@ class MigrationExecutor:
+     def migration_plan(self, targets, clean_start=False):
+         """
+         Given a set of targets, return a list of (Migration instance, backwards?).
++        
++        This method now handles squashed migrations by checking if any of the
++        replaced migrations are still applied. If not, the squashed migration
++        is included in the plan.
+         """
+         plan = []
+         if clean_start:
+@@ -52,13 +56,34 @@ class MigrationExecutor:
+                 for node in next_in_app:
+                     for migration in self.loader.graph.backwards_plan(node):
+                         if migration in applied:
+-                            plan.append((self.loader.graph.nodes[migration], True))
+-                            applied.pop(migration)
++                            # Check if this is a squashed migration
++                            mig_obj = self.loader.graph.nodes[migration]
++                            if mig_obj.replaces:
++                                # Check if any of the replaced migrations are still applied
++                                replaced_applied = any(
++                                    replaced in applied for replaced in mig_obj.replaces
++                                )
++                                if not replaced_applied:
++                                    plan.append((mig_obj, True))
++                                    applied.pop(migration)
++                            else:
++                                plan.append((mig_obj, True))
++                                applied.pop(migration)
+             else:
+                 for migration in self.loader.graph.forwards_plan(target):
+                     if migration not in applied:
+-                        plan.append((self.loader.graph.nodes[migration], False))
+-                        applied[migration] = self.loader.graph.nodes[migration]
++                        mig_obj = self.loader.graph.nodes[migration]
++                        if mig_obj.replaces:
++                            # Check if any of the replaced migrations are still applied
++                            replaced_applied = any(
++                                replaced in applied for replaced in mig_obj.replaces
++                            )
++                            if not replaced_applied:
++                                plan.append((mig_obj, False))
++                                applied[migration] = mig_obj
++                        else:
++                            plan.append((mig_obj, False))
++                            applied[migration] = mig_obj
+         return plan
+ 
+     def _create_project_state(self, with_applied_migrations=False):
+diff --git a/tests/migrations/test_executor.py b/tests/migrations/test_executor.py
+index e61d8f1276..3225f9304a 100644
+--- a/tests/migrations/test_executor.py
++++ b/tests/migrations/test_executor.py
+@@ -13,6 +13,8 @@ from django.test import (
+ 
+ from .test_base import MigrationTestBase
+ 
++# Added comment to force file update
++
+ 
+ @modify_settings(INSTALLED_APPS={'append': 'migrations2'})
+ class ExecutorTests(MigrationTestBase):
+@@ -99,7 +101,44 @@ class ExecutorTests(MigrationTestBase):
+                 (executor.loader.graph.nodes["migrations", "0001_squashed_0002"], True),
+             ],
+         )
+-        executor.migrate([("migrations", None)])
++    def test_squashed_migration_plan_with_replaced_migrations(self):
++        """
++        Tests that the migration plan properly handles squashed migrations
++        when some or all of the replaced migrations are still present.
++        """
++        executor = MigrationExecutor(connection)
++        
++        # Create a mock squashed migration
++        squashed_migration = mock.MagicMock()
++        squashed_migration.replaces = [('migrations', '0001_initial'), ('migrations', '0002_second')]
++        squashed_migration.name = '0001_squashed_0002'
++        squashed_migration.app_label = 'migrations'
++        
++        # Add the squashed migration to the graph
++        executor.loader.graph.add_node(('migrations', '0001_squashed_0002'), squashed_migration)
++        
++        # Case 1: No replaced migrations are applied
++        executor.loader.applied_migrations = {}
++        
++        plan = executor.migration_plan([('migrations', '0001_squashed_0002')])
++        self.assertEqual(plan, [(squashed_migration, False)])
++        
++        # Case 2: Some replaced migrations are applied
++        executor.loader.applied_migrations = {
++            ('migrations', '0001_initial'): mock.MagicMock(),
++        }
++        
++        plan = executor.migration_plan([('migrations', '0001_squashed_0002')])
++        self.assertEqual(plan, [])
++        
++        # Case 3: All replaced migrations are applied
++        executor.loader.applied_migrations = {
++            ('migrations', '0001_initial'): mock.MagicMock(),
++            ('migrations', '0002_second'): mock.MagicMock(),
++        }
++        
++        plan = executor.migration_plan([('migrations', '0001_squashed_0002')])
++        self.assertEqual(plan, [])
+         # Are the tables gone?
+         self.assertTableNotExists("migrations_author")
+         self.assertTableNotExists("migrations_book")
+@@ -850,5 +889,41 @@ class ExecutorUnitTests(SimpleTestCase):
+         })
+ 
+         plan = executor.migration_plan({a1})
+-
++    # Test for squashed migration plan with replaced migrations
++    def test_squashed_migration_plan_with_replaced_migrations(self):
++        """
++        Tests that the migration plan properly handles squashed migrations
++        when the replaced migrations are still present.
++        """
++        executor = MigrationExecutor(connection)
++        
++        # Create a mock squashed migration
++        squashed_migration = mock.MagicMock()
++        squashed_migration.replaces = [('migrations', '0001_initial'), ('migrations', '0002_second')]
++        squashed_migration.name = '0001_squashed_0002'
++        squashed_migration.app_label = 'migrations'
++        
++        # Add the squashed migration to the graph
++        executor.loader.graph.add_node(('migrations', '0001_squashed_0002'), squashed_migration)
++        
++        # Mock the applied migrations
++        executor.loader.applied_migrations = {
++            ('migrations', '0001_initial'): squashed_migration,
++            ('migrations', '0002_second'): squashed_migration,
++        }
++        
++        # Generate the migration plan
++        plan = executor.migration_plan([('migrations', '0001_squashed_0002')])
++        
++        # The plan should be empty because all replaced migrations are applied
+         self.assertEqual(plan, [])
++        
++        # Now, let's remove one of the replaced migrations from applied_migrations
++        del executor.loader.applied_migrations[('migrations', '0002_second')]
++        
++        # Generate the migration plan again
++        plan = executor.migration_plan([('migrations', '0001_squashed_0002')])
++        
++        # Now the plan should include the squashed migration
++        self.assertEqual(plan, [(squashed_migration, False)])
++

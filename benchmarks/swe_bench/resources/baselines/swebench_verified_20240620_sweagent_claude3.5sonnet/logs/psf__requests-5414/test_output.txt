@@ -1,0 +1,2633 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   requests/models.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_bug.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 39d0fdd9096f7dceccbc8f82e1eda7dd64717a8e
+Author: Abhinav Vashisth <89785800+vashisthabhinav@users.noreply.github.com>
+Date:   Sun Dec 5 16:22:10 2021 +0530
+
+    Update README.md (#5998)
+
+diff --git a/README.md b/README.md
+index 0bc9379c..546871fa 100644
+--- a/README.md
++++ b/README.md
+@@ -19,7 +19,7 @@
+ 
+ Requests allows you to send HTTP/1.1 requests extremely easily. There’s no need to manually add query strings to your URLs, or to form-encode your `PUT` & `POST` data — but nowadays, just use the `json` method!
+ 
+-Requests is one of the most downloaded Python package today, pulling in around `30M downloads / week`— according to GitHub, Requests is currently [depended upon](https://github.com/psf/requests/network/dependents?package_id=UGFja2FnZS01NzA4OTExNg%3D%3D) by `500,000+` repositories. You may certainly put your trust in this code.
++Requests is one of the most downloaded Python packages today, pulling in around `30M downloads / week`— according to GitHub, Requests is currently [depended upon](https://github.com/psf/requests/network/dependents?package_id=UGFja2FnZS01NzA4OTExNg%3D%3D) by `500,000+` repositories. You may certainly put your trust in this code.
+ 
+ [![Downloads](https://pepy.tech/badge/requests/month)](https://pepy.tech/project/requests)
+ [![Supported Versions](https://img.shields.io/pypi/pyversions/requests.svg)](https://pypi.org/project/requests)
++ git diff 39d0fdd9096f7dceccbc8f82e1eda7dd64717a8e
+diff --git a/requests/models.py b/requests/models.py
+index e7d292d5..271395b7 100644
+--- a/requests/models.py
++++ b/requests/models.py
+@@ -367,7 +367,7 @@ class PreparedRequest(RequestEncodingMixin, RequestHooksMixin):
+         if isinstance(url, bytes):
+             url = url.decode('utf8')
+         else:
+-            url = unicode(url) if is_py2 else str(url)
++            url = str(url)
+ 
+         # Remove leading whitespaces from url
+         url = url.lstrip()
+@@ -382,8 +382,20 @@ class PreparedRequest(RequestEncodingMixin, RequestHooksMixin):
+         # Support for unicode domain names and paths.
+         try:
+             scheme, auth, host, port, path, query, fragment = parse_url(url)
++            if host.startswith('.'):
++                # Remove leading dot from the host to prevent parsing issues
++                host = host[1:]
++                url = f"{scheme}://{host}"
++                if port:
++                    url += f":{port}"
++                url += f"{path or ''}"
++                if query:
++                    url += f"?{query}"
++                if fragment:
++                    url += f"#{fragment}"
++                scheme, auth, host, port, path, query, fragment = parse_url(url)
+         except LocationParseError as e:
+-            raise InvalidURL(*e.args)
++            raise InvalidURL("Invalid URL %r: %s" % (url, str(e)))
+ 
+         if not scheme:
+             error = ("Invalid URL {0!r}: No schema supplied. Perhaps you meant http://{0}?")
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install .
+Processing /testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: urllib3<1.27,>=1.21.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests==2.26.0) (1.26.19)
+Requirement already satisfied: certifi>=2017.4.17 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests==2.26.0) (2024.7.4)
+Requirement already satisfied: charset_normalizer~=2.0.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests==2.26.0) (2.0.12)
+Requirement already satisfied: idna<4,>=2.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests==2.26.0) (3.7)
+Building wheels for collected packages: requests
+  Building wheel for requests (setup.py): started
+  Building wheel for requests (setup.py): finished with status 'done'
+  Created wheel for requests: filename=requests-2.26.0-py2.py3-none-any.whl size=63038 sha256=3574454d394c43c9cd355267a019d9421b3ebf98026bcc74df2415667e80438a
+  Stored in directory: /tmp/pip-ephem-wheel-cache-fm4fkldu/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built requests
+Installing collected packages: requests
+  Attempting uninstall: requests
+    Found existing installation: requests 2.26.0
+    Uninstalling requests-2.26.0:
+      Successfully uninstalled requests-2.26.0
+Successfully installed requests-2.26.0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 39d0fdd9096f7dceccbc8f82e1eda7dd64717a8e tests/test_requests.py
+Updated 0 paths from 53efabc3
++ git apply -v -
+Checking patch tests/test_requests.py...
+Applied patch tests/test_requests.py cleanly.
++ pytest -rA tests/test_requests.py
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.4.4, pluggy-1.0.0
+rootdir: /testbed
+configfile: pytest.ini
+collected 290 items
+
+tests/test_requests.py .....F.F.EEEEEEEEEEE.......EEEEEEEEEEEEEEEEEEEEEE [ 16%]
+EEEEEEEEEEEEEEEEEEEEEE.....EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE [ 41%]
+.EEEEEE.E..........E......EEEEE.EEE....EE.EEEEEEEEEE.EE........E......E. [ 66%]
+.EEEEEExE..E.EEEE.........................EEEEEEE....E.E...........EE... [ 91%]
+.............E.........EE                                                [100%]
+
+==================================== ERRORS ====================================
+__________ ERROR at setup of TestRequests.test_no_content_length[GET] __________
+file /testbed/tests/test_requests.py, line 100
+      @pytest.mark.parametrize('method', ('GET', 'HEAD'))
+      def test_no_content_length(self, httpbin, method):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_________ ERROR at setup of TestRequests.test_no_content_length[HEAD] __________
+file /testbed/tests/test_requests.py, line 100
+      @pytest.mark.parametrize('method', ('GET', 'HEAD'))
+      def test_no_content_length(self, httpbin, method):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_______ ERROR at setup of TestRequests.test_no_body_content_length[POST] _______
+file /testbed/tests/test_requests.py, line 105
+      @pytest.mark.parametrize('method', ('POST', 'PUT', 'PATCH', 'OPTIONS'))
+      def test_no_body_content_length(self, httpbin, method):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_______ ERROR at setup of TestRequests.test_no_body_content_length[PUT] ________
+file /testbed/tests/test_requests.py, line 105
+      @pytest.mark.parametrize('method', ('POST', 'PUT', 'PATCH', 'OPTIONS'))
+      def test_no_body_content_length(self, httpbin, method):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+______ ERROR at setup of TestRequests.test_no_body_content_length[PATCH] _______
+file /testbed/tests/test_requests.py, line 105
+      @pytest.mark.parametrize('method', ('POST', 'PUT', 'PATCH', 'OPTIONS'))
+      def test_no_body_content_length(self, httpbin, method):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_____ ERROR at setup of TestRequests.test_no_body_content_length[OPTIONS] ______
+file /testbed/tests/test_requests.py, line 105
+      @pytest.mark.parametrize('method', ('POST', 'PUT', 'PATCH', 'OPTIONS'))
+      def test_no_body_content_length(self, httpbin, method):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+________ ERROR at setup of TestRequests.test_empty_content_length[POST] ________
+file /testbed/tests/test_requests.py, line 110
+      @pytest.mark.parametrize('method', ('POST', 'PUT', 'PATCH', 'OPTIONS'))
+      def test_empty_content_length(self, httpbin, method):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+________ ERROR at setup of TestRequests.test_empty_content_length[PUT] _________
+file /testbed/tests/test_requests.py, line 110
+      @pytest.mark.parametrize('method', ('POST', 'PUT', 'PATCH', 'OPTIONS'))
+      def test_empty_content_length(self, httpbin, method):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_______ ERROR at setup of TestRequests.test_empty_content_length[PATCH] ________
+file /testbed/tests/test_requests.py, line 110
+      @pytest.mark.parametrize('method', ('POST', 'PUT', 'PATCH', 'OPTIONS'))
+      def test_empty_content_length(self, httpbin, method):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+______ ERROR at setup of TestRequests.test_empty_content_length[OPTIONS] _______
+file /testbed/tests/test_requests.py, line 110
+      @pytest.mark.parametrize('method', ('POST', 'PUT', 'PATCH', 'OPTIONS'))
+      def test_empty_content_length(self, httpbin, method):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_________ ERROR at setup of TestRequests.test_override_content_length __________
+file /testbed/tests/test_requests.py, line 115
+      def test_override_content_length(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__ ERROR at setup of TestRequests.test_mixed_case_scheme_acceptable[http://] ___
+file /testbed/tests/test_requests.py, line 159
+      @pytest.mark.parametrize('scheme', ('http://', 'HTTP://', 'hTTp://', 'HttP://'))
+      def test_mixed_case_scheme_acceptable(self, httpbin, scheme):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__ ERROR at setup of TestRequests.test_mixed_case_scheme_acceptable[HTTP://] ___
+file /testbed/tests/test_requests.py, line 159
+      @pytest.mark.parametrize('scheme', ('http://', 'HTTP://', 'hTTp://', 'HttP://'))
+      def test_mixed_case_scheme_acceptable(self, httpbin, scheme):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__ ERROR at setup of TestRequests.test_mixed_case_scheme_acceptable[hTTp://] ___
+file /testbed/tests/test_requests.py, line 159
+      @pytest.mark.parametrize('scheme', ('http://', 'HTTP://', 'hTTp://', 'HttP://'))
+      def test_mixed_case_scheme_acceptable(self, httpbin, scheme):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__ ERROR at setup of TestRequests.test_mixed_case_scheme_acceptable[HttP://] ___
+file /testbed/tests/test_requests.py, line 159
+      @pytest.mark.parametrize('scheme', ('http://', 'HTTP://', 'hTTp://', 'HttP://'))
+      def test_mixed_case_scheme_acceptable(self, httpbin, scheme):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_______ ERROR at setup of TestRequests.test_HTTP_200_OK_GET_ALTERNATIVE ________
+file /testbed/tests/test_requests.py, line 169
+      def test_HTTP_200_OK_GET_ALTERNATIVE(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_______ ERROR at setup of TestRequests.test_HTTP_302_ALLOW_REDIRECT_GET ________
+file /testbed/tests/test_requests.py, line 178
+      def test_HTTP_302_ALLOW_REDIRECT_GET(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_______ ERROR at setup of TestRequests.test_HTTP_307_ALLOW_REDIRECT_POST _______
+file /testbed/tests/test_requests.py, line 184
+      def test_HTTP_307_ALLOW_REDIRECT_POST(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_HTTP_307_ALLOW_REDIRECT_POST_WITH_SEEKABLE _
+file /testbed/tests/test_requests.py, line 191
+      def test_HTTP_307_ALLOW_REDIRECT_POST_WITH_SEEKABLE(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_______ ERROR at setup of TestRequests.test_HTTP_302_TOO_MANY_REDIRECTS ________
+file /testbed/tests/test_requests.py, line 199
+      def test_HTTP_302_TOO_MANY_REDIRECTS(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_HTTP_302_TOO_MANY_REDIRECTS_WITH_PARAMS __
+file /testbed/tests/test_requests.py, line 210
+      def test_HTTP_302_TOO_MANY_REDIRECTS_WITH_PARAMS(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_______ ERROR at setup of TestRequests.test_http_301_changes_post_to_get _______
+file /testbed/tests/test_requests.py, line 223
+      def test_http_301_changes_post_to_get(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____ ERROR at setup of TestRequests.test_http_301_doesnt_change_head_to_get ____
+file /testbed/tests/test_requests.py, line 230
+      def test_http_301_doesnt_change_head_to_get(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_______ ERROR at setup of TestRequests.test_http_302_changes_post_to_get _______
+file /testbed/tests/test_requests.py, line 238
+      def test_http_302_changes_post_to_get(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____ ERROR at setup of TestRequests.test_http_302_doesnt_change_head_to_get ____
+file /testbed/tests/test_requests.py, line 245
+      def test_http_302_doesnt_change_head_to_get(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_______ ERROR at setup of TestRequests.test_http_303_changes_post_to_get _______
+file /testbed/tests/test_requests.py, line 252
+      def test_http_303_changes_post_to_get(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____ ERROR at setup of TestRequests.test_http_303_doesnt_change_head_to_get ____
+file /testbed/tests/test_requests.py, line 259
+      def test_http_303_doesnt_change_head_to_get(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+___ ERROR at setup of TestRequests.test_header_and_body_removal_on_redirect ____
+file /testbed/tests/test_requests.py, line 266
+      def test_header_and_body_removal_on_redirect(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_____ ERROR at setup of TestRequests.test_transfer_enc_removal_on_redirect _____
+file /testbed/tests/test_requests.py, line 283
+      def test_transfer_enc_removal_on_redirect(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_____ ERROR at setup of TestRequests.test_fragment_maintained_on_redirect ______
+file /testbed/tests/test_requests.py, line 306
+      def test_fragment_maintained_on_redirect(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_______ ERROR at setup of TestRequests.test_HTTP_200_OK_GET_WITH_PARAMS ________
+file /testbed/tests/test_requests.py, line 314
+      def test_HTTP_200_OK_GET_WITH_PARAMS(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____ ERROR at setup of TestRequests.test_HTTP_200_OK_GET_WITH_MIXED_PARAMS _____
+file /testbed/tests/test_requests.py, line 322
+      def test_HTTP_200_OK_GET_WITH_MIXED_PARAMS(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____________ ERROR at setup of TestRequests.test_set_cookie_on_301 _____________
+file /testbed/tests/test_requests.py, line 328
+      def test_set_cookie_on_301(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_________ ERROR at setup of TestRequests.test_cookie_sent_on_redirect __________
+file /testbed/tests/test_requests.py, line 334
+      def test_cookie_sent_on_redirect(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_________ ERROR at setup of TestRequests.test_cookie_removed_on_expire _________
+file /testbed/tests/test_requests.py, line 340
+      def test_cookie_removed_on_expire(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+___________ ERROR at setup of TestRequests.test_cookie_quote_wrapped ___________
+file /testbed/tests/test_requests.py, line 353
+      def test_cookie_quote_wrapped(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_________ ERROR at setup of TestRequests.test_cookie_persists_via_api __________
+file /testbed/tests/test_requests.py, line 358
+      def test_cookie_persists_via_api(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_request_cookie_overrides_session_cookie __
+file /testbed/tests/test_requests.py, line 364
+      def test_request_cookie_overrides_session_cookie(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+______ ERROR at setup of TestRequests.test_request_cookies_not_persisted _______
+file /testbed/tests/test_requests.py, line 372
+      def test_request_cookies_not_persisted(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_________ ERROR at setup of TestRequests.test_generic_cookiejar_works __________
+file /testbed/tests/test_requests.py, line 378
+      def test_generic_cookiejar_works(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__________ ERROR at setup of TestRequests.test_param_cookiejar_works ___________
+file /testbed/tests/test_requests.py, line 389
+      def test_param_cookiejar_works(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_____ ERROR at setup of TestRequests.test_cookielib_cookiejar_on_redirect ______
+file /testbed/tests/test_requests.py, line 397
+      def test_cookielib_cookiejar_on_redirect(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__ ERROR at setup of TestRequests.test_requests_in_history_are_not_overridden __
+file /testbed/tests/test_requests.py, line 429
+      def test_requests_in_history_are_not_overridden(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_________ ERROR at setup of TestRequests.test_history_is_always_a_list _________
+file /testbed/tests/test_requests.py, line 435
+      def test_history_is_always_a_list(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_headers_on_session_with_None_are_not_sent _
+file /testbed/tests/test_requests.py, line 443
+      def test_headers_on_session_with_None_are_not_sent(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__________ ERROR at setup of TestRequests.test_headers_preserve_order __________
+file /testbed/tests/test_requests.py, line 451
+      def test_headers_preserve_order(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_____ ERROR at setup of TestRequests.test_user_agent_transfers[User-agent] _____
+file /testbed/tests/test_requests.py, line 471
+      @pytest.mark.parametrize('key', ('User-agent', 'user-agent'))
+      def test_user_agent_transfers(self, httpbin, key):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_____ ERROR at setup of TestRequests.test_user_agent_transfers[user-agent] _____
+file /testbed/tests/test_requests.py, line 471
+      @pytest.mark.parametrize('key', ('User-agent', 'user-agent'))
+      def test_user_agent_transfers(self, httpbin, key):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_____________ ERROR at setup of TestRequests.test_HTTP_200_OK_HEAD _____________
+file /testbed/tests/test_requests.py, line 479
+      def test_HTTP_200_OK_HEAD(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_____________ ERROR at setup of TestRequests.test_HTTP_200_OK_PUT ______________
+file /testbed/tests/test_requests.py, line 483
+      def test_HTTP_200_OK_PUT(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_____ ERROR at setup of TestRequests.test_BASICAUTH_TUPLE_HTTP_200_OK_GET ______
+file /testbed/tests/test_requests.py, line 487
+      def test_BASICAUTH_TUPLE_HTTP_200_OK_GET(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_________ ERROR at setup of TestRequests.test_set_basicauth[user-pass] _________
+file /testbed/tests/test_requests.py, line 502
+      @pytest.mark.parametrize(
+          'username, password', (
+              ('user', 'pass'),
+              (u'имя'.encode('utf-8'), u'пароль'.encode('utf-8')),
+              (42, 42),
+              (None, None),
+          ))
+      def test_set_basicauth(self, httpbin, username, password):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_set_basicauth[\xd0\xb8\xd0\xbc\xd1\x8f-\xd0\xbf\xd0\xb0\xd1\x80\xd0\xbe\xd0\xbb\xd1\x8c] _
+file /testbed/tests/test_requests.py, line 502
+      @pytest.mark.parametrize(
+          'username, password', (
+              ('user', 'pass'),
+              (u'имя'.encode('utf-8'), u'пароль'.encode('utf-8')),
+              (42, 42),
+              (None, None),
+          ))
+      def test_set_basicauth(self, httpbin, username, password):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+___________ ERROR at setup of TestRequests.test_set_basicauth[42-42] ___________
+file /testbed/tests/test_requests.py, line 502
+      @pytest.mark.parametrize(
+          'username, password', (
+              ('user', 'pass'),
+              (u'имя'.encode('utf-8'), u'пароль'.encode('utf-8')),
+              (42, 42),
+              (None, None),
+          ))
+      def test_set_basicauth(self, httpbin, username, password):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_________ ERROR at setup of TestRequests.test_set_basicauth[None-None] _________
+file /testbed/tests/test_requests.py, line 502
+      @pytest.mark.parametrize(
+          'username, password', (
+              ('user', 'pass'),
+              (u'имя'.encode('utf-8'), u'пароль'.encode('utf-8')),
+              (42, 42),
+              (None, None),
+          ))
+      def test_set_basicauth(self, httpbin, username, password):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__________ ERROR at setup of TestRequests.test_proxy_error_on_bad_url __________
+file /testbed/tests/test_requests.py, line 546
+      def test_proxy_error_on_bad_url(self, httpbin, httpbin_secure):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_respect_proxy_env_on_send_self_prepared_request _
+file /testbed/tests/test_requests.py, line 559
+      def test_respect_proxy_env_on_send_self_prepared_request(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_respect_proxy_env_on_send_session_prepared_request _
+file /testbed/tests/test_requests.py, line 566
+      def test_respect_proxy_env_on_send_session_prepared_request(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_respect_proxy_env_on_send_with_redirects _
+file /testbed/tests/test_requests.py, line 574
+      def test_respect_proxy_env_on_send_with_redirects(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_________ ERROR at setup of TestRequests.test_respect_proxy_env_on_get _________
+file /testbed/tests/test_requests.py, line 583
+      def test_respect_proxy_env_on_get(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_______ ERROR at setup of TestRequests.test_respect_proxy_env_on_request _______
+file /testbed/tests/test_requests.py, line 589
+      def test_respect_proxy_env_on_request(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_proxy_authorization_preserved_on_request _
+file /testbed/tests/test_requests.py, line 595
+      def test_proxy_authorization_preserved_on_request(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+___________ ERROR at setup of TestRequests.test_basicauth_with_netrc ___________
+file /testbed/tests/test_requests.py, line 604
+      def test_basicauth_with_netrc(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__________ ERROR at setup of TestRequests.test_DIGEST_HTTP_200_OK_GET __________
+file /testbed/tests/test_requests.py, line 637
+      def test_DIGEST_HTTP_200_OK_GET(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+________ ERROR at setup of TestRequests.test_DIGEST_AUTH_RETURNS_COOKIE ________
+file /testbed/tests/test_requests.py, line 655
+      def test_DIGEST_AUTH_RETURNS_COOKIE(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_____ ERROR at setup of TestRequests.test_DIGEST_AUTH_SETS_SESSION_COOKIES _____
+file /testbed/tests/test_requests.py, line 666
+      def test_DIGEST_AUTH_SETS_SESSION_COOKIES(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+______________ ERROR at setup of TestRequests.test_DIGEST_STREAM _______________
+file /testbed/tests/test_requests.py, line 675
+      def test_DIGEST_STREAM(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+______ ERROR at setup of TestRequests.test_DIGESTAUTH_WRONG_HTTP_401_GET _______
+file /testbed/tests/test_requests.py, line 687
+      def test_DIGESTAUTH_WRONG_HTTP_401_GET(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_______ ERROR at setup of TestRequests.test_DIGESTAUTH_QUOTES_QOP_VALUE ________
+file /testbed/tests/test_requests.py, line 704
+      def test_DIGESTAUTH_QUOTES_QOP_VALUE(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__________ ERROR at setup of TestRequests.test_POSTBIN_GET_POST_FILES __________
+file /testbed/tests/test_requests.py, line 713
+      def test_POSTBIN_GET_POST_FILES(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+___________ ERROR at setup of TestRequests.test_invalid_files_input ____________
+file /testbed/tests/test_requests.py, line 731
+      def test_invalid_files_input(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____ ERROR at setup of TestRequests.test_POSTBIN_SEEKED_OBJECT_WITH_NO_ITER ____
+file /testbed/tests/test_requests.py, line 739
+      def test_POSTBIN_SEEKED_OBJECT_WITH_NO_ITER(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_____ ERROR at setup of TestRequests.test_POSTBIN_GET_POST_FILES_WITH_DATA _____
+file /testbed/tests/test_requests.py, line 781
+      def test_POSTBIN_GET_POST_FILES_WITH_DATA(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_________ ERROR at setup of TestRequests.test_post_with_custom_mapping _________
+file /testbed/tests/test_requests.py, line 799
+      def test_post_with_custom_mapping(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_________ ERROR at setup of TestRequests.test_conflicting_post_params __________
+file /testbed/tests/test_requests.py, line 824
+      def test_conflicting_post_params(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+______________ ERROR at setup of TestRequests.test_request_ok_set ______________
+file /testbed/tests/test_requests.py, line 832
+      def test_request_ok_set(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+______________ ERROR at setup of TestRequests.test_status_raising ______________
+file /testbed/tests/test_requests.py, line 836
+      def test_status_raising(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_____________ ERROR at setup of TestRequests.test_decompress_gzip ______________
+file /testbed/tests/test_requests.py, line 844
+      def test_decompress_gzip(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+________ ERROR at setup of TestRequests.test_unicode_get[/get-params0] _________
+file /testbed/tests/test_requests.py, line 848
+      @pytest.mark.parametrize(
+          'url, params', (
+              ('/get', {'foo': 'føø'}),
+              ('/get', {'føø': 'føø'}),
+              ('/get', {'føø': 'føø'}),
+              ('/get', {'foo': 'foo'}),
+              ('ø', {'foo': 'foo'}),
+          ))
+      def test_unicode_get(self, httpbin, url, params):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+________ ERROR at setup of TestRequests.test_unicode_get[/get-params1] _________
+file /testbed/tests/test_requests.py, line 848
+      @pytest.mark.parametrize(
+          'url, params', (
+              ('/get', {'foo': 'føø'}),
+              ('/get', {'føø': 'føø'}),
+              ('/get', {'føø': 'føø'}),
+              ('/get', {'foo': 'foo'}),
+              ('ø', {'foo': 'foo'}),
+          ))
+      def test_unicode_get(self, httpbin, url, params):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+________ ERROR at setup of TestRequests.test_unicode_get[/get-params2] _________
+file /testbed/tests/test_requests.py, line 848
+      @pytest.mark.parametrize(
+          'url, params', (
+              ('/get', {'foo': 'føø'}),
+              ('/get', {'føø': 'føø'}),
+              ('/get', {'føø': 'føø'}),
+              ('/get', {'foo': 'foo'}),
+              ('ø', {'foo': 'foo'}),
+          ))
+      def test_unicode_get(self, httpbin, url, params):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+________ ERROR at setup of TestRequests.test_unicode_get[/get-params3] _________
+file /testbed/tests/test_requests.py, line 848
+      @pytest.mark.parametrize(
+          'url, params', (
+              ('/get', {'foo': 'føø'}),
+              ('/get', {'føø': 'føø'}),
+              ('/get', {'føø': 'føø'}),
+              ('/get', {'foo': 'foo'}),
+              ('ø', {'foo': 'foo'}),
+          ))
+      def test_unicode_get(self, httpbin, url, params):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+________ ERROR at setup of TestRequests.test_unicode_get[\xf8-params4] _________
+file /testbed/tests/test_requests.py, line 848
+      @pytest.mark.parametrize(
+          'url, params', (
+              ('/get', {'foo': 'føø'}),
+              ('/get', {'føø': 'føø'}),
+              ('/get', {'føø': 'føø'}),
+              ('/get', {'foo': 'foo'}),
+              ('ø', {'foo': 'foo'}),
+          ))
+      def test_unicode_get(self, httpbin, url, params):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+___________ ERROR at setup of TestRequests.test_unicode_header_name ____________
+file /testbed/tests/test_requests.py, line 859
+      def test_unicode_header_name(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____________ ERROR at setup of TestRequests.test_pyopenssl_redirect ____________
+file /testbed/tests/test_requests.py, line 865
+      def test_pyopenssl_redirect(self, httpbin_secure, httpbin_ca_bundle):
+file /testbed/tests/conftest.py, line 33
+  @pytest.fixture
+  def httpbin_secure(httpbin_secure):
+E       recursive dependency involving fixture 'httpbin_secure' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:33
+_______ ERROR at setup of TestRequests.test_invalid_ca_certificate_path ________
+file /testbed/tests/test_requests.py, line 868
+      def test_invalid_ca_certificate_path(self, httpbin_secure):
+file /testbed/tests/conftest.py, line 33
+  @pytest.fixture
+  def httpbin_secure(httpbin_secure):
+E       recursive dependency involving fixture 'httpbin_secure' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:33
+______ ERROR at setup of TestRequests.test_invalid_ssl_certificate_files _______
+file /testbed/tests/test_requests.py, line 874
+      def test_invalid_ssl_certificate_files(self, httpbin_secure):
+file /testbed/tests/conftest.py, line 33
+  @pytest.fixture
+  def httpbin_secure(httpbin_secure):
+E       recursive dependency involving fixture 'httpbin_secure' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:33
+__________ ERROR at setup of TestRequests.test_http_with_certificate ___________
+file /testbed/tests/test_requests.py, line 884
+      def test_http_with_certificate(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+______________ ERROR at setup of TestRequests.test_https_warnings ______________
+
+tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=<pluggy._tracing.TagTracerSub object at 0x7f099d772b80>, _basetemp=None, _retention_count=3, _retention_policy='all')
+
+    @pytest.fixture
+    def nosan_server(tmp_path_factory):
+        # delay importing until the fixture in order to make it possible
+        # to deselect the test via command-line when trustme is not available
+>       import trustme
+E       ModuleNotFoundError: No module named 'trustme'
+
+tests/conftest.py:42: ModuleNotFoundError
+___________ ERROR at setup of TestRequests.test_certificate_failure ____________
+file /testbed/tests/test_requests.py, line 909
+      def test_certificate_failure(self, httpbin_secure):
+file /testbed/tests/conftest.py, line 33
+  @pytest.fixture
+  def httpbin_secure(httpbin_secure):
+E       recursive dependency involving fixture 'httpbin_secure' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:33
+__ ERROR at setup of TestRequests.test_urlencoded_get_query_multivalued_param __
+file /testbed/tests/test_requests.py, line 918
+      def test_urlencoded_get_query_multivalued_param(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_form_encoded_post_query_multivalued_element _
+file /testbed/tests/test_requests.py, line 924
+      def test_form_encoded_post_query_multivalued_element(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+___ ERROR at setup of TestRequests.test_different_encodings_dont_break_post ____
+file /testbed/tests/test_requests.py, line 930
+      def test_different_encodings_dont_break_post(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+______ ERROR at setup of TestRequests.test_unicode_multipart_post[data0] _______
+file /testbed/tests/test_requests.py, line 937
+      @pytest.mark.parametrize(
+          'data', (
+              {'stuff': u('ëlïxr')},
+              {'stuff': u('ëlïxr').encode('utf-8')},
+              {'stuff': 'elixr'},
+              {'stuff': 'elixr'.encode('utf-8')},
+          ))
+      def test_unicode_multipart_post(self, httpbin, data):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+______ ERROR at setup of TestRequests.test_unicode_multipart_post[data1] _______
+file /testbed/tests/test_requests.py, line 937
+      @pytest.mark.parametrize(
+          'data', (
+              {'stuff': u('ëlïxr')},
+              {'stuff': u('ëlïxr').encode('utf-8')},
+              {'stuff': 'elixr'},
+              {'stuff': 'elixr'.encode('utf-8')},
+          ))
+      def test_unicode_multipart_post(self, httpbin, data):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+______ ERROR at setup of TestRequests.test_unicode_multipart_post[data2] _______
+file /testbed/tests/test_requests.py, line 937
+      @pytest.mark.parametrize(
+          'data', (
+              {'stuff': u('ëlïxr')},
+              {'stuff': u('ëlïxr').encode('utf-8')},
+              {'stuff': 'elixr'},
+              {'stuff': 'elixr'.encode('utf-8')},
+          ))
+      def test_unicode_multipart_post(self, httpbin, data):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+______ ERROR at setup of TestRequests.test_unicode_multipart_post[data3] _______
+file /testbed/tests/test_requests.py, line 937
+      @pytest.mark.parametrize(
+          'data', (
+              {'stuff': u('ëlïxr')},
+              {'stuff': u('ëlïxr').encode('utf-8')},
+              {'stuff': 'elixr'},
+              {'stuff': 'elixr'.encode('utf-8')},
+          ))
+      def test_unicode_multipart_post(self, httpbin, data):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____ ERROR at setup of TestRequests.test_unicode_multipart_post_fieldnames _____
+file /testbed/tests/test_requests.py, line 950
+      def test_unicode_multipart_post_fieldnames(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+___________ ERROR at setup of TestRequests.test_unicode_method_name ____________
+file /testbed/tests/test_requests.py, line 960
+      def test_unicode_method_name(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_unicode_method_name_with_request_object __
+file /testbed/tests/test_requests.py, line 966
+      def test_unicode_method_name_with_request_object(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+___________ ERROR at setup of TestRequests.test_custom_content_type ____________
+file /testbed/tests/test_requests.py, line 985
+      def test_custom_content_type(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_____ ERROR at setup of TestRequests.test_hook_receives_request_arguments ______
+file /testbed/tests/test_requests.py, line 996
+      def test_hook_receives_request_arguments(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_session_hooks_are_used_with_no_request_hooks _
+file /testbed/tests/test_requests.py, line 1006
+      def test_session_hooks_are_used_with_no_request_hooks(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_session_hooks_are_overridden_by_request_hooks _
+file /testbed/tests/test_requests.py, line 1015
+      def test_session_hooks_are_overridden_by_request_hooks(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__________ ERROR at setup of TestRequests.test_prepared_request_hook ___________
+file /testbed/tests/test_requests.py, line 1025
+      def test_prepared_request_hook(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__________ ERROR at setup of TestRequests.test_prepared_from_session ___________
+file /testbed/tests/test_requests.py, line 1039
+      def test_prepared_from_session(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_______ ERROR at setup of TestRequests.test_request_with_bytestring_host _______
+file /testbed/tests/test_requests.py, line 1063
+      def test_request_with_bytestring_host(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____________ ERROR at setup of TestRequests.test_time_elapsed_blank ____________
+file /testbed/tests/test_requests.py, line 1242
+      def test_time_elapsed_blank(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+___ ERROR at setup of TestRequests.test_request_and_response_are_pickleable ____
+file /testbed/tests/test_requests.py, line 1323
+      def test_request_and_response_are_pickleable(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+______ ERROR at setup of TestRequests.test_prepared_request_is_pickleable ______
+file /testbed/tests/test_requests.py, line 1335
+      def test_prepared_request_is_pickleable(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_prepared_request_with_file_is_pickleable _
+file /testbed/tests/test_requests.py, line 1349
+      def test_prepared_request_with_file_is_pickleable(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_prepared_request_with_hook_is_pickleable _
+file /testbed/tests/test_requests.py, line 1365
+      def test_prepared_request_with_hook_is_pickleable(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_____ ERROR at setup of TestRequests.test_cannot_send_unprepared_requests ______
+file /testbed/tests/test_requests.py, line 1381
+      def test_cannot_send_unprepared_requests(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_____________ ERROR at setup of TestRequests.test_session_pickling _____________
+file /testbed/tests/test_requests.py, line 1396
+      def test_session_pickling(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+________________ ERROR at setup of TestRequests.test_fixes_1329 ________________
+file /testbed/tests/test_requests.py, line 1406
+      def test_fixes_1329(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+________ ERROR at setup of TestRequests.test_uppercase_scheme_redirect _________
+file /testbed/tests/test_requests.py, line 1417
+      def test_uppercase_scheme_redirect(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____ ERROR at setup of TestRequests.test_header_remove_is_case_insensitive _____
+file /testbed/tests/test_requests.py, line 1500
+      def test_header_remove_is_case_insensitive(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_____ ERROR at setup of TestRequests.test_params_are_merged_case_sensitive _____
+file /testbed/tests/test_requests.py, line 1507
+      def test_params_are_merged_case_sensitive(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__________ ERROR at setup of TestRequests.test_header_keys_are_native __________
+file /testbed/tests/test_requests.py, line 1522
+      def test_header_keys_are_native(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____________ ERROR at setup of TestRequests.test_header_validation _____________
+file /testbed/tests/test_requests.py, line 1532
+      def test_header_validation(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+___________ ERROR at setup of TestRequests.test_header_value_not_str ___________
+file /testbed/tests/test_requests.py, line 1541
+      def test_header_value_not_str(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__________ ERROR at setup of TestRequests.test_header_no_return_chars __________
+file /testbed/tests/test_requests.py, line 1562
+      def test_header_no_return_chars(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_________ ERROR at setup of TestRequests.test_header_no_leading_space __________
+file /testbed/tests/test_requests.py, line 1580
+      def test_header_no_leading_space(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____ ERROR at setup of TestRequests.test_can_send_objects_with_files[foo0] _____
+file /testbed/tests/test_requests.py, line 1594
+      @pytest.mark.parametrize('files', ('foo', b'foo', bytearray(b'foo')))
+      def test_can_send_objects_with_files(self, httpbin, files):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____ ERROR at setup of TestRequests.test_can_send_objects_with_files[foo1] _____
+file /testbed/tests/test_requests.py, line 1594
+      @pytest.mark.parametrize('files', ('foo', b'foo', bytearray(b'foo')))
+      def test_can_send_objects_with_files(self, httpbin, files):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+___ ERROR at setup of TestRequests.test_can_send_objects_with_files[files2] ____
+file /testbed/tests/test_requests.py, line 1594
+      @pytest.mark.parametrize('files', ('foo', b'foo', bytearray(b'foo')))
+      def test_can_send_objects_with_files(self, httpbin, files):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_can_send_file_object_with_non_string_filename _
+file /testbed/tests/test_requests.py, line 1602
+      def test_can_send_file_object_with_non_string_filename(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_____ ERROR at setup of TestRequests.test_autoset_header_values_are_native _____
+file /testbed/tests/test_requests.py, line 1610
+      def test_autoset_header_values_are_native(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____ ERROR at setup of TestRequests.test_auth_is_stripped_on_http_downgrade ____
+file /testbed/tests/test_requests.py, line 1629
+      def test_auth_is_stripped_on_http_downgrade(self, httpbin, httpbin_secure, httpbin_ca_bundle):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__ ERROR at setup of TestRequests.test_auth_is_retained_for_redirect_on_host ___
+file /testbed/tests/test_requests.py, line 1639
+      def test_auth_is_retained_for_redirect_on_host(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__ ERROR at setup of TestRequests.test_manual_redirect_with_partial_body_read __
+file /testbed/tests/test_requests.py, line 1678
+      def test_manual_redirect_with_partial_body_read(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____ ERROR at setup of TestRequests.test_redirect_with_wrong_gzipped_header ____
+file /testbed/tests/test_requests.py, line 1806
+      def test_redirect_with_wrong_gzipped_header(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+________ ERROR at setup of TestRequests.test_requests_history_is_saved _________
+file /testbed/tests/test_requests.py, line 1822
+      def test_requests_history_is_saved(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____ ERROR at setup of TestRequests.test_json_param_post_content_type_works ____
+file /testbed/tests/test_requests.py, line 1830
+      def test_json_param_post_content_type_works(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_json_param_post_should_not_override_data_param _
+file /testbed/tests/test_requests.py, line 1839
+      def test_json_param_post_should_not_override_data_param(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+___________ ERROR at setup of TestRequests.test_response_iter_lines ____________
+file /testbed/tests/test_requests.py, line 1846
+      def test_response_iter_lines(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_________ ERROR at setup of TestRequests.test_response_context_manager _________
+file /testbed/tests/test_requests.py, line 1854
+      def test_response_context_manager(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_unconsumed_session_response_closes_connection _
+file /testbed/tests/test_requests.py, line 1860
+      def test_unconsumed_session_response_closes_connection(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+________ ERROR at setup of TestRequests.test_session_close_proxy_clear _________
+file /testbed/tests/test_requests.py, line 1878
+      def test_session_close_proxy_clear(self, mocker):
+E       fixture 'mocker' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/test_requests.py:1878
+____ ERROR at setup of TestRequests.test_response_json_when_content_is_None ____
+file /testbed/tests/test_requests.py, line 1899
+      def test_response_json_when_content_is_None(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_empty_stream_with_auth_does_not_set_content_length_header _
+file /testbed/tests/test_requests.py, line 1920
+      def test_empty_stream_with_auth_does_not_set_content_length_header(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_stream_with_auth_does_not_set_transfer_encoding_header _
+file /testbed/tests/test_requests.py, line 1932
+      def test_stream_with_auth_does_not_set_transfer_encoding_header(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestRequests.test_chunked_upload_does_not_set_content_length_header _
+file /testbed/tests/test_requests.py, line 1944
+      def test_chunked_upload_does_not_set_content_length_header(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__________ ERROR at setup of TestRequests.test_custom_redirect_mixin ___________
+file /testbed/tests/test_requests.py, line 1955
+      def test_custom_redirect_mixin(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+______________ ERROR at setup of TestTimeout.test_stream_timeout _______________
+file /testbed/tests/test_requests.py, line 2196
+      def test_stream_timeout(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestTimeout.test_invalid_timeout[timeout0-(connect, read)] _
+file /testbed/tests/test_requests.py, line 2202
+      @pytest.mark.parametrize(
+          'timeout, error_text', (
+              ((3, 4, 5), '(connect, read)'),
+              ('foo', 'must be an int, float or None'),
+          ))
+      def test_invalid_timeout(self, httpbin, timeout, error_text):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestTimeout.test_invalid_timeout[foo-must be an int, float or None] _
+file /testbed/tests/test_requests.py, line 2202
+      @pytest.mark.parametrize(
+          'timeout, error_text', (
+              ((3, 4, 5), '(connect, read)'),
+              ('foo', 'must be an int, float or None'),
+          ))
+      def test_invalid_timeout(self, httpbin, timeout, error_text):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____________ ERROR at setup of TestTimeout.test_none_timeout[None] _____________
+file /testbed/tests/test_requests.py, line 2212
+      @pytest.mark.parametrize(
+          'timeout', (
+              None,
+              Urllib3Timeout(connect=None, read=None)
+          ))
+      def test_none_timeout(self, httpbin, timeout):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__________ ERROR at setup of TestTimeout.test_none_timeout[timeout1] ___________
+file /testbed/tests/test_requests.py, line 2212
+      @pytest.mark.parametrize(
+          'timeout', (
+              None,
+              Urllib3Timeout(connect=None, read=None)
+          ))
+      def test_none_timeout(self, httpbin, timeout):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__________ ERROR at setup of TestTimeout.test_read_timeout[timeout0] ___________
+file /testbed/tests/test_requests.py, line 2229
+      @pytest.mark.parametrize(
+          'timeout', (
+              (None, 0.1),
+              Urllib3Timeout(connect=None, read=0.1)
+          ))
+      def test_read_timeout(self, httpbin, timeout):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+__________ ERROR at setup of TestTimeout.test_read_timeout[timeout1] ___________
+file /testbed/tests/test_requests.py, line 2229
+      @pytest.mark.parametrize(
+          'timeout', (
+              (None, 0.1),
+              Urllib3Timeout(connect=None, read=0.1)
+          ))
+      def test_read_timeout(self, httpbin, timeout):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+______________ ERROR at setup of TestTimeout.test_encoded_methods ______________
+file /testbed/tests/test_requests.py, line 2266
+      def test_encoded_methods(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____________ ERROR at setup of test_requests_are_updated_each_time _____________
+file /testbed/tests/test_requests.py, line 2319
+  def test_requests_are_updated_each_time(httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____________________ ERROR at setup of test_urllib3_retries ____________________
+file /testbed/tests/test_requests.py, line 2411
+  def test_urllib3_retries(httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____________ ERROR at setup of test_urllib3_pool_connection_closed _____________
+file /testbed/tests/test_requests.py, line 2422
+  def test_urllib3_pool_connection_closed(httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+_ ERROR at setup of TestPreparingURLs.test_redirecting_to_bad_url[http://localhost:-1-InvalidURL] _
+file /testbed/tests/test_requests.py, line 2501
+      @pytest.mark.parametrize(
+          'url, exception',
+          (
+              ('http://localhost:-1', InvalidURL),
+          )
+      )
+      def test_redirecting_to_bad_url(self, httpbin, url, exception):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+____________ ERROR at setup of TestPreparingURLs.test_post_json_nan ____________
+file /testbed/tests/test_requests.py, line 2581
+      def test_post_json_nan(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+______ ERROR at setup of TestPreparingURLs.test_json_decode_compatibility ______
+file /testbed/tests/test_requests.py, line 2586
+      def test_json_decode_compatibility(self, httpbin):
+file /testbed/tests/conftest.py, line 28
+  @pytest.fixture
+  def httpbin(httpbin):
+E       recursive dependency involving fixture 'httpbin' detected
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, httpbin, httpbin_secure, monkeypatch, nosan_server, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/tests/conftest.py:28
+=================================== FAILURES ===================================
+______________ TestRequests.test_invalid_url[InvalidURL-http://] _______________
+
+self = <tests.test_requests.TestRequests object at 0x7f099d6d57f0>
+exception = <class 'requests.exceptions.InvalidURL'>, url = 'http://'
+
+    @pytest.mark.parametrize(
+        'exception, url', (
+            (MissingSchema, 'hiwpefhipowhefopw'),
+            (InvalidSchema, 'localhost:3128'),
+            (InvalidSchema, 'localhost.localdomain:3128/'),
+            (InvalidSchema, '10.122.1.1:3128/'),
+            (InvalidURL, 'http://'),
+            (InvalidURL, 'http://*example.com'),
+            (InvalidURL, 'http://.example.com'),
+        ))
+    def test_invalid_url(self, exception, url):
+        with pytest.raises(exception):
+>           requests.get(url)
+
+tests/test_requests.py:89: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+requests/api.py:75: in get
+    return request('get', url, params=params, **kwargs)
+requests/api.py:61: in request
+    return session.request(method=method, url=url, **kwargs)
+requests/sessions.py:515: in request
+    prep = self.prepare_request(req)
+requests/sessions.py:443: in prepare_request
+    p.prepare(
+requests/models.py:318: in prepare
+    self.prepare_url(url, params)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <PreparedRequest [GET]>, url = 'http://', params = OrderedDict()
+
+    def prepare_url(self, url, params):
+        """Prepares the given HTTP URL."""
+        #: Accept objects that have string representations.
+        #: We're unable to blindly call unicode/str functions
+        #: as this will include the bytestring indicator (b'')
+        #: on python 3.x.
+        #: https://github.com/psf/requests/pull/2238
+        if isinstance(url, bytes):
+            url = url.decode('utf8')
+        else:
+            url = str(url)
+    
+        # Remove leading whitespaces from url
+        url = url.lstrip()
+    
+        # Don't do any URL preparation for non-HTTP schemes like `mailto`,
+        # `data` etc to work around exceptions from `url_parse`, which
+        # handles RFC 3986 only.
+        if ':' in url and not url.lower().startswith('http'):
+            self.url = url
+            return
+    
+        # Support for unicode domain names and paths.
+        try:
+            scheme, auth, host, port, path, query, fragment = parse_url(url)
+>           if host.startswith('.'):
+E           AttributeError: 'NoneType' object has no attribute 'startswith'
+
+requests/models.py:385: AttributeError
+________ TestRequests.test_invalid_url[InvalidURL-http://.example.com] _________
+
+self = <tests.test_requests.TestRequests object at 0x7f099d6d5490>
+exception = <class 'requests.exceptions.InvalidURL'>
+url = 'http://.example.com'
+
+    @pytest.mark.parametrize(
+        'exception, url', (
+            (MissingSchema, 'hiwpefhipowhefopw'),
+            (InvalidSchema, 'localhost:3128'),
+            (InvalidSchema, 'localhost.localdomain:3128/'),
+            (InvalidSchema, '10.122.1.1:3128/'),
+            (InvalidURL, 'http://'),
+            (InvalidURL, 'http://*example.com'),
+            (InvalidURL, 'http://.example.com'),
+        ))
+    def test_invalid_url(self, exception, url):
+        with pytest.raises(exception):
+>           requests.get(url)
+E           Failed: DID NOT RAISE <class 'requests.exceptions.InvalidURL'>
+
+tests/test_requests.py:89: Failed
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED tests/test_requests.py::TestRequests::test_entry_points
+PASSED tests/test_requests.py::TestRequests::test_invalid_url[MissingSchema-hiwpefhipowhefopw]
+PASSED tests/test_requests.py::TestRequests::test_invalid_url[InvalidSchema-localhost:3128]
+PASSED tests/test_requests.py::TestRequests::test_invalid_url[InvalidSchema-localhost.localdomain:3128/]
+PASSED tests/test_requests.py::TestRequests::test_invalid_url[InvalidSchema-10.122.1.1:3128/]
+PASSED tests/test_requests.py::TestRequests::test_invalid_url[InvalidURL-http://*example.com]
+PASSED tests/test_requests.py::TestRequests::test_basic_building
+PASSED tests/test_requests.py::TestRequests::test_path_is_not_double_encoded
+PASSED tests/test_requests.py::TestRequests::test_params_are_added_before_fragment[http://example.com/path#fragment-http://example.com/path?a=b#fragment]
+PASSED tests/test_requests.py::TestRequests::test_params_are_added_before_fragment[http://example.com/path?key=value#fragment-http://example.com/path?key=value&a=b#fragment]
+PASSED tests/test_requests.py::TestRequests::test_params_original_order_is_preserved_by_default
+PASSED tests/test_requests.py::TestRequests::test_params_bytes_are_encoded
+PASSED tests/test_requests.py::TestRequests::test_binary_put
+PASSED tests/test_requests.py::TestRequests::test_whitespaces_are_removed_from_url
+PASSED tests/test_requests.py::TestRequests::test_basicauth_encodes_byte_strings
+PASSED tests/test_requests.py::TestRequests::test_errors[http://doesnotexist.google.com-ConnectionError]
+PASSED tests/test_requests.py::TestRequests::test_errors[http://localhost:1-ConnectionError]
+PASSED tests/test_requests.py::TestRequests::test_errors[http://fe80::5054:ff:fe5a:fc0-InvalidURL]
+PASSED tests/test_requests.py::TestRequests::test_proxy_error
+PASSED tests/test_requests.py::TestRequests::test_non_prepared_request_error
+PASSED tests/test_requests.py::TestRequests::test_prepare_request_with_bytestring_url
+PASSED tests/test_requests.py::TestRequests::test_links
+PASSED tests/test_requests.py::TestRequests::test_cookie_parameters
+PASSED tests/test_requests.py::TestRequests::test_cookie_as_dict_keeps_len
+PASSED tests/test_requests.py::TestRequests::test_cookie_as_dict_keeps_items
+PASSED tests/test_requests.py::TestRequests::test_cookie_as_dict_keys
+PASSED tests/test_requests.py::TestRequests::test_cookie_as_dict_values
+PASSED tests/test_requests.py::TestRequests::test_cookie_as_dict_items
+PASSED tests/test_requests.py::TestRequests::test_cookie_duplicate_names_different_domains
+PASSED tests/test_requests.py::TestRequests::test_cookie_duplicate_names_raises_cookie_conflict_error
+PASSED tests/test_requests.py::TestRequests::test_cookie_policy_copy
+PASSED tests/test_requests.py::TestRequests::test_empty_response_has_content_none
+PASSED tests/test_requests.py::TestRequests::test_response_is_iterable
+PASSED tests/test_requests.py::TestRequests::test_response_decode_unicode
+PASSED tests/test_requests.py::TestRequests::test_response_reason_unicode
+PASSED tests/test_requests.py::TestRequests::test_response_reason_unicode_fallback
+PASSED tests/test_requests.py::TestRequests::test_response_chunk_size_type
+PASSED tests/test_requests.py::TestRequests::test_http_error
+PASSED tests/test_requests.py::TestRequests::test_transport_adapter_ordering
+PASSED tests/test_requests.py::TestRequests::test_session_get_adapter_prefix_matching
+PASSED tests/test_requests.py::TestRequests::test_session_get_adapter_prefix_matching_mixed_case
+PASSED tests/test_requests.py::TestRequests::test_session_get_adapter_prefix_matching_is_case_insensitive
+PASSED tests/test_requests.py::TestRequests::test_long_authinfo_in_url
+PASSED tests/test_requests.py::TestRequests::test_nonhttp_schemes_dont_check_URLs
+PASSED tests/test_requests.py::TestRequests::test_should_strip_auth_host_change
+PASSED tests/test_requests.py::TestRequests::test_should_strip_auth_http_downgrade
+PASSED tests/test_requests.py::TestRequests::test_should_strip_auth_https_upgrade
+PASSED tests/test_requests.py::TestRequests::test_should_strip_auth_port_change
+PASSED tests/test_requests.py::TestRequests::test_should_strip_auth_default_port[https://example.com:443/foo-https://example.com/bar]
+PASSED tests/test_requests.py::TestRequests::test_should_strip_auth_default_port[http://example.com:80/foo-http://example.com/bar]
+PASSED tests/test_requests.py::TestRequests::test_should_strip_auth_default_port[https://example.com/foo-https://example.com:443/bar]
+PASSED tests/test_requests.py::TestRequests::test_should_strip_auth_default_port[http://example.com/foo-http://example.com:80/bar]
+PASSED tests/test_requests.py::TestRequests::test_prepare_body_position_non_stream
+PASSED tests/test_requests.py::TestRequests::test_rewind_body
+PASSED tests/test_requests.py::TestRequests::test_rewind_partially_read_body
+PASSED tests/test_requests.py::TestRequests::test_rewind_body_no_seek
+PASSED tests/test_requests.py::TestRequests::test_rewind_body_failed_seek
+PASSED tests/test_requests.py::TestRequests::test_rewind_body_failed_tell
+PASSED tests/test_requests.py::TestRequests::test_basic_auth_str_is_always_native[test-test-Basic dGVzdDp0ZXN0]
+PASSED tests/test_requests.py::TestRequests::test_basic_auth_str_is_always_native[\xd0\xb8\xd0\xbc\xd1\x8f-\xd0\xbf\xd0\xb0\xd1\x80\xd0\xbe\xd0\xbb\xd1\x8c-Basic 0LjQvNGPOtC/0LDRgNC+0LvRjA==]
+PASSED tests/test_requests.py::TestRequests::test_proxy_auth
+PASSED tests/test_requests.py::TestRequests::test_proxy_auth_empty_pass
+PASSED tests/test_requests.py::TestRequests::test_response_without_release_conn
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_init[cid0]
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_init[cid1]
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_init[cid2]
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_docstring_example
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_len
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_getitem
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_fixes_649
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_delitem
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_contains
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_get
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_update
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_update_retains_unchanged
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_iter
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_equality
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_setdefault
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_lower_items
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_preserve_key_case
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_preserve_last_key_case
+PASSED tests/test_requests.py::TestCaseInsensitiveDict::test_copy
+PASSED tests/test_requests.py::TestMorselToCookieExpires::test_expires_valid_str
+PASSED tests/test_requests.py::TestMorselToCookieExpires::test_expires_invalid_int[100-TypeError]
+PASSED tests/test_requests.py::TestMorselToCookieExpires::test_expires_invalid_int[woops-ValueError]
+PASSED tests/test_requests.py::TestMorselToCookieExpires::test_expires_none
+PASSED tests/test_requests.py::TestMorselToCookieMaxAge::test_max_age_valid_int
+PASSED tests/test_requests.py::TestMorselToCookieMaxAge::test_max_age_invalid_str
+PASSED tests/test_requests.py::TestTimeout::test_connect_timeout[timeout0]
+PASSED tests/test_requests.py::TestTimeout::test_connect_timeout[timeout1]
+PASSED tests/test_requests.py::TestTimeout::test_total_timeout_connect[timeout0]
+PASSED tests/test_requests.py::TestTimeout::test_total_timeout_connect[timeout1]
+PASSED tests/test_requests.py::test_json_encodes_as_bytes
+PASSED tests/test_requests.py::test_proxy_env_vars_override_default[http_proxy-http://example.com-socks5://proxy.com:9876]
+PASSED tests/test_requests.py::test_proxy_env_vars_override_default[https_proxy-https://example.com-socks5://proxy.com:9876]
+PASSED tests/test_requests.py::test_proxy_env_vars_override_default[all_proxy-http://example.com-socks5://proxy.com:9876]
+PASSED tests/test_requests.py::test_proxy_env_vars_override_default[all_proxy-https://example.com-socks5://proxy.com:9876]
+PASSED tests/test_requests.py::test_data_argument_accepts_tuples[data0]
+PASSED tests/test_requests.py::test_data_argument_accepts_tuples[data1]
+PASSED tests/test_requests.py::test_data_argument_accepts_tuples[data2]
+PASSED tests/test_requests.py::test_prepared_copy[None]
+PASSED tests/test_requests.py::test_prepared_copy[kwargs1]
+PASSED tests/test_requests.py::test_prepared_copy[kwargs2]
+PASSED tests/test_requests.py::test_prepared_copy[kwargs3]
+PASSED tests/test_requests.py::TestPreparingURLs::test_preparing_url[http://google.com-http://google.com/]
+PASSED tests/test_requests.py::TestPreparingURLs::test_preparing_url[http://\u30b8\u30a7\u30fc\u30d4\u30fc\u30cb\u30c3\u30af.jp-http://xn--hckqz9bzb1cyrb.jp/]
+PASSED tests/test_requests.py::TestPreparingURLs::test_preparing_url[http://xn--n3h.net/-http://xn--n3h.net/0]
+PASSED tests/test_requests.py::TestPreparingURLs::test_preparing_url[http://\xe3\x82\xb8\xe3\x82\xa7\xe3\x83\xbc\xe3\x83\x94\xe3\x83\xbc\xe3\x83\x8b\xe3\x83\x83\xe3\x82\xaf.jp-http://xn--hckqz9bzb1cyrb.jp/]
+PASSED tests/test_requests.py::TestPreparingURLs::test_preparing_url[http://stra\xdfe.de/stra\xdfe-http://xn--strae-oqa.de/stra%C3%9Fe]
+PASSED tests/test_requests.py::TestPreparingURLs::test_preparing_url[http://stra\xc3\x9fe.de/stra\xc3\x9fe-http://xn--strae-oqa.de/stra%C3%9Fe]
+PASSED tests/test_requests.py::TestPreparingURLs::test_preparing_url[http://K\xf6nigsg\xe4\xdfchen.de/stra\xdfe-http://xn--knigsgchen-b4a3dun.de/stra%C3%9Fe]
+PASSED tests/test_requests.py::TestPreparingURLs::test_preparing_url[http://K\xc3\xb6nigsg\xc3\xa4\xc3\x9fchen.de/stra\xc3\x9fe-http://xn--knigsgchen-b4a3dun.de/stra%C3%9Fe]
+PASSED tests/test_requests.py::TestPreparingURLs::test_preparing_url[http://xn--n3h.net/-http://xn--n3h.net/1]
+PASSED tests/test_requests.py::TestPreparingURLs::test_preparing_url[http://[1200:0000:ab00:1234:0000:2552:7777:1313]:12345/-http://[1200:0000:ab00:1234:0000:2552:7777:1313]:12345/0]
+PASSED tests/test_requests.py::TestPreparingURLs::test_preparing_url[http://[1200:0000:ab00:1234:0000:2552:7777:1313]:12345/-http://[1200:0000:ab00:1234:0000:2552:7777:1313]:12345/1]
+PASSED tests/test_requests.py::TestPreparingURLs::test_preparing_bad_url[http://*.google.com0]
+PASSED tests/test_requests.py::TestPreparingURLs::test_preparing_bad_url[http://*0]
+PASSED tests/test_requests.py::TestPreparingURLs::test_preparing_bad_url[http://*.google.com1]
+PASSED tests/test_requests.py::TestPreparingURLs::test_preparing_bad_url[http://*1]
+PASSED tests/test_requests.py::TestPreparingURLs::test_preparing_bad_url[http://\u2603.net/]
+PASSED tests/test_requests.py::TestPreparingURLs::test_url_mutation[http+unix://%2Fvar%2Frun%2Fsocket/path%7E-http+unix://%2Fvar%2Frun%2Fsocket/path~0]
+PASSED tests/test_requests.py::TestPreparingURLs::test_url_mutation[http+unix://%2Fvar%2Frun%2Fsocket/path%7E-http+unix://%2Fvar%2Frun%2Fsocket/path~1]
+PASSED tests/test_requests.py::TestPreparingURLs::test_url_mutation[mailto:user@example.org-mailto:user@example.org0]
+PASSED tests/test_requests.py::TestPreparingURLs::test_url_mutation[mailto:user@example.org-mailto:user@example.org1]
+PASSED tests/test_requests.py::TestPreparingURLs::test_url_mutation[data:SSDimaUgUHl0aG9uIQ==-data:SSDimaUgUHl0aG9uIQ==]
+PASSED tests/test_requests.py::TestPreparingURLs::test_parameters_for_nonstandard_schemes[http+unix://%2Fvar%2Frun%2Fsocket/path-params0-http+unix://%2Fvar%2Frun%2Fsocket/path?key=value]
+PASSED tests/test_requests.py::TestPreparingURLs::test_parameters_for_nonstandard_schemes[http+unix://%2Fvar%2Frun%2Fsocket/path-params1-http+unix://%2Fvar%2Frun%2Fsocket/path?key=value]
+PASSED tests/test_requests.py::TestPreparingURLs::test_parameters_for_nonstandard_schemes[mailto:user@example.org-params2-mailto:user@example.org]
+PASSED tests/test_requests.py::TestPreparingURLs::test_parameters_for_nonstandard_schemes[mailto:user@example.org-params3-mailto:user@example.org]
+XFAIL tests/test_requests.py::TestRequests::test_response_iter_lines_reentrant
+ERROR tests/test_requests.py::TestRequests::test_no_content_length[GET]
+ERROR tests/test_requests.py::TestRequests::test_no_content_length[HEAD]
+ERROR tests/test_requests.py::TestRequests::test_no_body_content_length[POST]
+ERROR tests/test_requests.py::TestRequests::test_no_body_content_length[PUT]
+ERROR tests/test_requests.py::TestRequests::test_no_body_content_length[PATCH]
+ERROR tests/test_requests.py::TestRequests::test_no_body_content_length[OPTIONS]
+ERROR tests/test_requests.py::TestRequests::test_empty_content_length[POST]
+ERROR tests/test_requests.py::TestRequests::test_empty_content_length[PUT]
+ERROR tests/test_requests.py::TestRequests::test_empty_content_length[PATCH]
+ERROR tests/test_requests.py::TestRequests::test_empty_content_length[OPTIONS]
+ERROR tests/test_requests.py::TestRequests::test_override_content_length
+ERROR tests/test_requests.py::TestRequests::test_mixed_case_scheme_acceptable[http://]
+ERROR tests/test_requests.py::TestRequests::test_mixed_case_scheme_acceptable[HTTP://]
+ERROR tests/test_requests.py::TestRequests::test_mixed_case_scheme_acceptable[hTTp://]
+ERROR tests/test_requests.py::TestRequests::test_mixed_case_scheme_acceptable[HttP://]
+ERROR tests/test_requests.py::TestRequests::test_HTTP_200_OK_GET_ALTERNATIVE
+ERROR tests/test_requests.py::TestRequests::test_HTTP_302_ALLOW_REDIRECT_GET
+ERROR tests/test_requests.py::TestRequests::test_HTTP_307_ALLOW_REDIRECT_POST
+ERROR tests/test_requests.py::TestRequests::test_HTTP_307_ALLOW_REDIRECT_POST_WITH_SEEKABLE
+ERROR tests/test_requests.py::TestRequests::test_HTTP_302_TOO_MANY_REDIRECTS
+ERROR tests/test_requests.py::TestRequests::test_HTTP_302_TOO_MANY_REDIRECTS_WITH_PARAMS
+ERROR tests/test_requests.py::TestRequests::test_http_301_changes_post_to_get
+ERROR tests/test_requests.py::TestRequests::test_http_301_doesnt_change_head_to_get
+ERROR tests/test_requests.py::TestRequests::test_http_302_changes_post_to_get
+ERROR tests/test_requests.py::TestRequests::test_http_302_doesnt_change_head_to_get
+ERROR tests/test_requests.py::TestRequests::test_http_303_changes_post_to_get
+ERROR tests/test_requests.py::TestRequests::test_http_303_doesnt_change_head_to_get
+ERROR tests/test_requests.py::TestRequests::test_header_and_body_removal_on_redirect
+ERROR tests/test_requests.py::TestRequests::test_transfer_enc_removal_on_redirect
+ERROR tests/test_requests.py::TestRequests::test_fragment_maintained_on_redirect
+ERROR tests/test_requests.py::TestRequests::test_HTTP_200_OK_GET_WITH_PARAMS
+ERROR tests/test_requests.py::TestRequests::test_HTTP_200_OK_GET_WITH_MIXED_PARAMS
+ERROR tests/test_requests.py::TestRequests::test_set_cookie_on_301
+ERROR tests/test_requests.py::TestRequests::test_cookie_sent_on_redirect
+ERROR tests/test_requests.py::TestRequests::test_cookie_removed_on_expire
+ERROR tests/test_requests.py::TestRequests::test_cookie_quote_wrapped
+ERROR tests/test_requests.py::TestRequests::test_cookie_persists_via_api
+ERROR tests/test_requests.py::TestRequests::test_request_cookie_overrides_session_cookie
+ERROR tests/test_requests.py::TestRequests::test_request_cookies_not_persisted
+ERROR tests/test_requests.py::TestRequests::test_generic_cookiejar_works
+ERROR tests/test_requests.py::TestRequests::test_param_cookiejar_works
+ERROR tests/test_requests.py::TestRequests::test_cookielib_cookiejar_on_redirect
+ERROR tests/test_requests.py::TestRequests::test_requests_in_history_are_not_overridden
+ERROR tests/test_requests.py::TestRequests::test_history_is_always_a_list
+ERROR tests/test_requests.py::TestRequests::test_headers_on_session_with_None_are_not_sent
+ERROR tests/test_requests.py::TestRequests::test_headers_preserve_order
+ERROR tests/test_requests.py::TestRequests::test_user_agent_transfers[User-agent]
+ERROR tests/test_requests.py::TestRequests::test_user_agent_transfers[user-agent]
+ERROR tests/test_requests.py::TestRequests::test_HTTP_200_OK_HEAD
+ERROR tests/test_requests.py::TestRequests::test_HTTP_200_OK_PUT
+ERROR tests/test_requests.py::TestRequests::test_BASICAUTH_TUPLE_HTTP_200_OK_GET
+ERROR tests/test_requests.py::TestRequests::test_set_basicauth[user-pass]
+ERROR tests/test_requests.py::TestRequests::test_set_basicauth[\xd0\xb8\xd0\xbc\xd1\x8f-\xd0\xbf\xd0\xb0\xd1\x80\xd0\xbe\xd0\xbb\xd1\x8c]
+ERROR tests/test_requests.py::TestRequests::test_set_basicauth[42-42]
+ERROR tests/test_requests.py::TestRequests::test_set_basicauth[None-None]
+ERROR tests/test_requests.py::TestRequests::test_proxy_error_on_bad_url
+ERROR tests/test_requests.py::TestRequests::test_respect_proxy_env_on_send_self_prepared_request
+ERROR tests/test_requests.py::TestRequests::test_respect_proxy_env_on_send_session_prepared_request
+ERROR tests/test_requests.py::TestRequests::test_respect_proxy_env_on_send_with_redirects
+ERROR tests/test_requests.py::TestRequests::test_respect_proxy_env_on_get
+ERROR tests/test_requests.py::TestRequests::test_respect_proxy_env_on_request
+ERROR tests/test_requests.py::TestRequests::test_proxy_authorization_preserved_on_request
+ERROR tests/test_requests.py::TestRequests::test_basicauth_with_netrc
+ERROR tests/test_requests.py::TestRequests::test_DIGEST_HTTP_200_OK_GET
+ERROR tests/test_requests.py::TestRequests::test_DIGEST_AUTH_RETURNS_COOKIE
+ERROR tests/test_requests.py::TestRequests::test_DIGEST_AUTH_SETS_SESSION_COOKIES
+ERROR tests/test_requests.py::TestRequests::test_DIGEST_STREAM
+ERROR tests/test_requests.py::TestRequests::test_DIGESTAUTH_WRONG_HTTP_401_GET
+ERROR tests/test_requests.py::TestRequests::test_DIGESTAUTH_QUOTES_QOP_VALUE
+ERROR tests/test_requests.py::TestRequests::test_POSTBIN_GET_POST_FILES
+ERROR tests/test_requests.py::TestRequests::test_invalid_files_input
+ERROR tests/test_requests.py::TestRequests::test_POSTBIN_SEEKED_OBJECT_WITH_NO_ITER
+ERROR tests/test_requests.py::TestRequests::test_POSTBIN_GET_POST_FILES_WITH_DATA
+ERROR tests/test_requests.py::TestRequests::test_post_with_custom_mapping
+ERROR tests/test_requests.py::TestRequests::test_conflicting_post_params
+ERROR tests/test_requests.py::TestRequests::test_request_ok_set
+ERROR tests/test_requests.py::TestRequests::test_status_raising
+ERROR tests/test_requests.py::TestRequests::test_decompress_gzip
+ERROR tests/test_requests.py::TestRequests::test_unicode_get[/get-params0]
+ERROR tests/test_requests.py::TestRequests::test_unicode_get[/get-params1]
+ERROR tests/test_requests.py::TestRequests::test_unicode_get[/get-params2]
+ERROR tests/test_requests.py::TestRequests::test_unicode_get[/get-params3]
+ERROR tests/test_requests.py::TestRequests::test_unicode_get[\xf8-params4]
+ERROR tests/test_requests.py::TestRequests::test_unicode_header_name
+ERROR tests/test_requests.py::TestRequests::test_pyopenssl_redirect
+ERROR tests/test_requests.py::TestRequests::test_invalid_ca_certificate_path
+ERROR tests/test_requests.py::TestRequests::test_invalid_ssl_certificate_files
+ERROR tests/test_requests.py::TestRequests::test_http_with_certificate
+ERROR tests/test_requests.py::TestRequests::test_https_warnings - ModuleNotFo...
+ERROR tests/test_requests.py::TestRequests::test_certificate_failure
+ERROR tests/test_requests.py::TestRequests::test_urlencoded_get_query_multivalued_param
+ERROR tests/test_requests.py::TestRequests::test_form_encoded_post_query_multivalued_element
+ERROR tests/test_requests.py::TestRequests::test_different_encodings_dont_break_post
+ERROR tests/test_requests.py::TestRequests::test_unicode_multipart_post[data0]
+ERROR tests/test_requests.py::TestRequests::test_unicode_multipart_post[data1]
+ERROR tests/test_requests.py::TestRequests::test_unicode_multipart_post[data2]
+ERROR tests/test_requests.py::TestRequests::test_unicode_multipart_post[data3]
+ERROR tests/test_requests.py::TestRequests::test_unicode_multipart_post_fieldnames
+ERROR tests/test_requests.py::TestRequests::test_unicode_method_name
+ERROR tests/test_requests.py::TestRequests::test_unicode_method_name_with_request_object
+ERROR tests/test_requests.py::TestRequests::test_custom_content_type
+ERROR tests/test_requests.py::TestRequests::test_hook_receives_request_arguments
+ERROR tests/test_requests.py::TestRequests::test_session_hooks_are_used_with_no_request_hooks
+ERROR tests/test_requests.py::TestRequests::test_session_hooks_are_overridden_by_request_hooks
+ERROR tests/test_requests.py::TestRequests::test_prepared_request_hook
+ERROR tests/test_requests.py::TestRequests::test_prepared_from_session
+ERROR tests/test_requests.py::TestRequests::test_request_with_bytestring_host
+ERROR tests/test_requests.py::TestRequests::test_time_elapsed_blank
+ERROR tests/test_requests.py::TestRequests::test_request_and_response_are_pickleable
+ERROR tests/test_requests.py::TestRequests::test_prepared_request_is_pickleable
+ERROR tests/test_requests.py::TestRequests::test_prepared_request_with_file_is_pickleable
+ERROR tests/test_requests.py::TestRequests::test_prepared_request_with_hook_is_pickleable
+ERROR tests/test_requests.py::TestRequests::test_cannot_send_unprepared_requests
+ERROR tests/test_requests.py::TestRequests::test_session_pickling
+ERROR tests/test_requests.py::TestRequests::test_fixes_1329
+ERROR tests/test_requests.py::TestRequests::test_uppercase_scheme_redirect
+ERROR tests/test_requests.py::TestRequests::test_header_remove_is_case_insensitive
+ERROR tests/test_requests.py::TestRequests::test_params_are_merged_case_sensitive
+ERROR tests/test_requests.py::TestRequests::test_header_keys_are_native
+ERROR tests/test_requests.py::TestRequests::test_header_validation
+ERROR tests/test_requests.py::TestRequests::test_header_value_not_str
+ERROR tests/test_requests.py::TestRequests::test_header_no_return_chars
+ERROR tests/test_requests.py::TestRequests::test_header_no_leading_space
+ERROR tests/test_requests.py::TestRequests::test_can_send_objects_with_files[foo0]
+ERROR tests/test_requests.py::TestRequests::test_can_send_objects_with_files[foo1]
+ERROR tests/test_requests.py::TestRequests::test_can_send_objects_with_files[files2]
+ERROR tests/test_requests.py::TestRequests::test_can_send_file_object_with_non_string_filename
+ERROR tests/test_requests.py::TestRequests::test_autoset_header_values_are_native
+ERROR tests/test_requests.py::TestRequests::test_auth_is_stripped_on_http_downgrade
+ERROR tests/test_requests.py::TestRequests::test_auth_is_retained_for_redirect_on_host
+ERROR tests/test_requests.py::TestRequests::test_manual_redirect_with_partial_body_read
+ERROR tests/test_requests.py::TestRequests::test_redirect_with_wrong_gzipped_header
+ERROR tests/test_requests.py::TestRequests::test_requests_history_is_saved
+ERROR tests/test_requests.py::TestRequests::test_json_param_post_content_type_works
+ERROR tests/test_requests.py::TestRequests::test_json_param_post_should_not_override_data_param
+ERROR tests/test_requests.py::TestRequests::test_response_iter_lines
+ERROR tests/test_requests.py::TestRequests::test_response_context_manager
+ERROR tests/test_requests.py::TestRequests::test_unconsumed_session_response_closes_connection
+ERROR tests/test_requests.py::TestRequests::test_session_close_proxy_clear
+ERROR tests/test_requests.py::TestRequests::test_response_json_when_content_is_None
+ERROR tests/test_requests.py::TestRequests::test_empty_stream_with_auth_does_not_set_content_length_header
+ERROR tests/test_requests.py::TestRequests::test_stream_with_auth_does_not_set_transfer_encoding_header
+ERROR tests/test_requests.py::TestRequests::test_chunked_upload_does_not_set_content_length_header
+ERROR tests/test_requests.py::TestRequests::test_custom_redirect_mixin
+ERROR tests/test_requests.py::TestTimeout::test_stream_timeout
+ERROR tests/test_requests.py::TestTimeout::test_invalid_timeout[timeout0-(connect, read)]
+ERROR tests/test_requests.py::TestTimeout::test_invalid_timeout[foo-must be an int, float or None]
+ERROR tests/test_requests.py::TestTimeout::test_none_timeout[None]
+ERROR tests/test_requests.py::TestTimeout::test_none_timeout[timeout1]
+ERROR tests/test_requests.py::TestTimeout::test_read_timeout[timeout0]
+ERROR tests/test_requests.py::TestTimeout::test_read_timeout[timeout1]
+ERROR tests/test_requests.py::TestTimeout::test_encoded_methods
+ERROR tests/test_requests.py::test_requests_are_updated_each_time
+ERROR tests/test_requests.py::test_urllib3_retries
+ERROR tests/test_requests.py::test_urllib3_pool_connection_closed
+ERROR tests/test_requests.py::TestPreparingURLs::test_redirecting_to_bad_url[http://localhost:-1-InvalidURL]
+ERROR tests/test_requests.py::TestPreparingURLs::test_post_json_nan
+ERROR tests/test_requests.py::TestPreparingURLs::test_json_decode_compatibility
+FAILED tests/test_requests.py::TestRequests::test_invalid_url[InvalidURL-http://]
+FAILED tests/test_requests.py::TestRequests::test_invalid_url[InvalidURL-http://.example.com]
+============= 2 failed, 129 passed, 1 xfailed, 158 errors in 1.79s =============
++ git checkout 39d0fdd9096f7dceccbc8f82e1eda7dd64717a8e tests/test_requests.py
+Updated 1 path from 53efabc3

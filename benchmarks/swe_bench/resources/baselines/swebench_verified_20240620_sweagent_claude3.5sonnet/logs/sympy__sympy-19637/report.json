@@ -1,0 +1,69 @@
+{
+    "sympy__sympy-19637": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": true,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "test_kernS"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_issue_3538",
+                    "test_sympify1",
+                    "test_sympify_Fraction",
+                    "test_sympify_gmpy",
+                    "test_sympify_mpmath",
+                    "test_sympify2",
+                    "test_sympify3",
+                    "test_sympify_keywords",
+                    "test_sympify_float",
+                    "test_sympify_bool",
+                    "test_sympyify_iterables",
+                    "test_issue_16859",
+                    "test_sympify4",
+                    "test_sympify_text",
+                    "test_sympify_function",
+                    "test_sympify_poly",
+                    "test_sympify_factorial",
+                    "test_sage",
+                    "test_issue_3595",
+                    "test_lambda",
+                    "test_lambda_raises",
+                    "test_sympify_raises",
+                    "test__sympify",
+                    "test_sympifyit",
+                    "test_int_float",
+                    "test_issue_4133",
+                    "test_issue_3982",
+                    "test_S_sympify",
+                    "test_issue_4788",
+                    "test_issue_4798_None",
+                    "test_issue_3218",
+                    "test_issue_4988_builtins",
+                    "test_geometry",
+                    "test_issue_6540_6552",
+                    "test_issue_6046",
+                    "test_issue_8821_highprec_from_str",
+                    "test_Range",
+                    "test_sympify_set",
+                    "test_issue_5939",
+                    "test_issue_16759"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

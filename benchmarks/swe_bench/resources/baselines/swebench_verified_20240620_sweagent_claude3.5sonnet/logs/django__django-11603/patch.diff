@@ -1,0 +1,63 @@
+
+diff --git a/django/db/models/aggregates.py b/django/db/models/aggregates.py
+index da4ff928aa..12fd327f7f 100644
+--- a/django/db/models/aggregates.py
++++ b/django/db/models/aggregates.py
+@@ -98,7 +98,7 @@ class Aggregate(Func):
+ 
+ class Avg(FixDurationInputMixin, NumericOutputFieldMixin, Aggregate):
+     function = 'AVG'
+-    name = 'Avg'
++    allow_distinct = True
+ 
+ 
+ class Count(Aggregate):
+@@ -121,11 +121,13 @@ class Count(Aggregate):
+ class Max(Aggregate):
+     function = 'MAX'
+     name = 'Max'
++    allow_distinct = True
+ 
+ 
+ class Min(Aggregate):
+     function = 'MIN'
+     name = 'Min'
++    allow_distinct = True
+ 
+ 
+ class StdDev(NumericOutputFieldMixin, Aggregate):
+@@ -142,7 +144,7 @@ class StdDev(NumericOutputFieldMixin, Aggregate):
+ class Sum(FixDurationInputMixin, Aggregate):
+     function = 'SUM'
+     name = 'Sum'
+-
++    allow_distinct = True
+ 
+ class Variance(NumericOutputFieldMixin, Aggregate):
+     name = 'Variance'
+diff --git a/test_aggregates.py b/test_aggregates.py
+new file mode 100644
+index 0000000000..14a8244220
+--- /dev/null
++++ b/test_aggregates.py
+@@ -0,0 +1,20 @@
++from django.test import TestCase
++from django.db.models import Avg, Sum, Min, Max
++
++class AggregateTestCase(TestCase):
++    def test_allow_distinct(self):
++        self.assertTrue(Avg.allow_distinct)
++        self.assertTrue(Sum.allow_distinct)
++        self.assertTrue(Min.allow_distinct)
++        self.assertTrue(Max.allow_distinct)
++
++if __name__ == '__main__':
++    import django
++    from django.conf import settings
++    settings.configure(DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3'}})
++    django.setup()
++    from django.test.utils import get_runner
++    TestRunner = get_runner(settings)
++    test_runner = TestRunner()
++    failures = test_runner.run_tests(["test_aggregates"])
++    print("Test failures:", failures)

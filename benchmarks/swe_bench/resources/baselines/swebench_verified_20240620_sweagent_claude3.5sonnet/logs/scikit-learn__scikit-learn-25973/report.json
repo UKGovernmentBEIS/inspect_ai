@@ -1,0 +1,101 @@
+{
+    "scikit-learn__scikit-learn-25973": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "sklearn/feature_selection/tests/test_sequential.py::test_cv_generator_support"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "sklearn/feature_selection/tests/test_sequential.py::test_bad_n_features_to_select",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_n_features_to_select[1-forward]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_n_features_to_select[1-backward]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_n_features_to_select[5-forward]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_n_features_to_select[5-backward]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_n_features_to_select[9-forward]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_n_features_to_select[9-backward]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_n_features_to_select[auto-forward]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_n_features_to_select[auto-backward]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_n_features_to_select_auto[forward]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_n_features_to_select_auto[backward]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_n_features_to_select_stopping_criterion[forward]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_n_features_to_select_stopping_criterion[backward]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_n_features_to_select_float[0.1-1-forward]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_n_features_to_select_float[0.1-1-backward]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_n_features_to_select_float[1.0-10-forward]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_n_features_to_select_float[1.0-10-backward]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_n_features_to_select_float[0.5-5-forward]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_n_features_to_select_float[0.5-5-backward]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-forward-0]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-forward-1]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-forward-2]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-forward-3]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-forward-4]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-forward-5]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-forward-6]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-forward-7]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-forward-8]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-forward-9]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-backward-0]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-backward-1]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-backward-2]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-backward-3]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-backward-4]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-backward-5]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-backward-6]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-backward-7]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-backward-8]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[2-expected_selected_features0-backward-9]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-forward-0]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-forward-1]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-forward-2]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-forward-3]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-forward-4]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-forward-5]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-forward-6]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-forward-7]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-forward-8]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-forward-9]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-backward-0]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-backward-1]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-backward-2]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-backward-3]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-backward-4]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-backward-5]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-backward-6]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-backward-7]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-backward-8]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sanity[1-expected_selected_features1-backward-9]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_sparse_support",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_nan_support",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_pipeline_support",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_raise_deprecation_warning",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_unsupervised_model_fit[2]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_unsupervised_model_fit[3]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_no_y_validation_model_fit[no_validation]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_no_y_validation_model_fit[1j]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_no_y_validation_model_fit[99.9]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_no_y_validation_model_fit[nan]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_no_y_validation_model_fit[3]",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_forward_neg_tol_error",
+                    "sklearn/feature_selection/tests/test_sequential.py::test_backward_neg_tol"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

@@ -1,0 +1,42 @@
+
+diff --git a/reproduce_colormap_issue.py b/reproduce_colormap_issue.py
+new file mode 100644
+index 0000000000..98a890aeda
+--- /dev/null
++++ b/reproduce_colormap_issue.py
+@@ -0,0 +1,31 @@
++import matplotlib
++import matplotlib.pyplot as plt
++from matplotlib import colormaps
++from matplotlib.colors import LinearSegmentedColormap
++
++print(f"Matplotlib version: {matplotlib.__version__}")
++
++my_cmap_data = [[1.5e-03, 4.7e-04, 1.4e-02],
++                [2.3e-03, 1.3e-03, 1.8e-02],
++                [3.3e-03, 2.3e-03, 2.4e-02]]
++my_cmap = LinearSegmentedColormap.from_list('my_cmap_name', my_cmap_data)
++colormaps.register(cmap=my_cmap)
++
++plt.set_cmap('my_cmap_name')
++
++try:
++    plt.imshow([[1, 1], [2, 2]])
++    plt.colorbar()
++    plt.savefig('test_plot.png')
++    print("Plot saved successfully.")
++except ValueError as e:
++    print(f"ValueError occurred: {e}")
++
++print("Attempting to get the colormap manually:")
++try:
++    cmap = colormaps['my_cmap_name']
++    print(f"Successfully retrieved colormap: {cmap}")
++except ValueError as e:
++    print(f"ValueError occurred: {e}")
++
++print("Script completed.")
+diff --git a/test_plot.png b/test_plot.png
+new file mode 100644
+index 0000000000..0ae737e2f5
+Binary files /dev/null and b/test_plot.png differ

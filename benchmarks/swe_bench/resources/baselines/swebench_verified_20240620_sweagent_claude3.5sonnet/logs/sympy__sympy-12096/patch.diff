@@ -1,0 +1,36 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..445e0b521f
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,13 @@
++from sympy.utilities.lambdify import implemented_function
++from sympy import Symbol
++
++x = Symbol('x')
++f = implemented_function('f', lambda x: x ** 2)
++g = implemented_function('g', lambda x: 2 * x)
++
++print("f(2).evalf():", f(2).evalf())
++print("g(2).evalf():", g(2).evalf())
++print("f(g(2)).evalf():", f(g(2)).evalf())
++print("f(g(x)).evalf(subs={x: 2}):", f(g(x)).evalf(subs={x: 2}))
++
++print("Script completed successfully, no errors.")
+diff --git a/sympy/core/function.py b/sympy/core/function.py
+index 1b8005e1d2..4949a7f538 100644
+--- a/sympy/core/function.py
++++ b/sympy/core/function.py
+@@ -507,7 +507,10 @@ def _eval_evalf(self, prec):
+             func = getattr(mpmath, fname)
+         except (AttributeError, KeyError):
+             try:
+-                return Float(self._imp_(*self.args), prec)
++                result = self._imp_(*self.args)
++                if result != self:
++                    return result.evalf(prec)
++                return Float(result, prec)
+             except (AttributeError, TypeError, ValueError):
+                 return
+ 

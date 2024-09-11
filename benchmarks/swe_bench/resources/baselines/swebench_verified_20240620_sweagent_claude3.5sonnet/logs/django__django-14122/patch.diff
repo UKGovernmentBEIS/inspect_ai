@@ -1,0 +1,71 @@
+
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 6c728d17bf..7c23a045f4 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -2028,13 +2028,31 @@ class Query(BaseExpression):
+                     })
+                     seen_models.add(model)
+ 
+-        group_by = list(self.select)
++        group_by = []
++        ordering_fields = set(self.order_by)
++        ordering_aliases = set(item.split('.')[-1].strip('"') for item in ordering_fields if '.' in item)
++        ordering_full_cols = set(item.replace('"', '') for item in ordering_fields)
++        for item in self.select:
++            if isinstance(item, str):
++                column = item.split('.')[-1].strip('"')
++                full_col = item.replace('"', '')
++                if (column not in ordering_aliases and 
++                    item not in ordering_fields and 
++                    full_col not in ordering_full_cols and
++                    not any(full_col.endswith(f'.{field}') for field in ordering_aliases) and
++                    not any(item.endswith(f'"{field}"') for field in ordering_aliases) and
++                    not any(f'"{field}"' in item for field in ordering_aliases) and
++                    not any(item.endswith(f'.{field}') for field in ordering_aliases) and
++                    not any(f'.{field}' in item for field in ordering_aliases)):
++                    group_by.append(item)
++            else:
++                group_by.append(item)
+         if self.annotation_select:
+             for alias, annotation in self.annotation_select.items():
+                 if not allow_aliases or alias in column_names:
+                     alias = None
+                 group_by_cols = annotation.get_group_by_cols(alias=alias)
+-                group_by.extend(group_by_cols)
++                group_by.extend(col for col in group_by_cols if col not in ordering_fields)
+         self.group_by = tuple(group_by)
+ 
+     def add_select_related(self, fields):
+diff --git a/tests/queries/tests.py b/tests/queries/tests.py
+index b9b0a72686..43495b8c14 100644
+--- a/tests/queries/tests.py
++++ b/tests/queries/tests.py
+@@ -3930,4 +3930,26 @@ class Ticket23622Tests(TestCase):
+             set(Ticket23605A.objects.filter(qx).values_list('pk', flat=True)),
+             set(Ticket23605A.objects.filter(qy).values_list('pk', flat=True))
+         )
+-        self.assertSequenceEqual(Ticket23605A.objects.filter(qx), [a2])
++class TestMetaOrderingGroupBy(TestCase):
++    @classmethod
++    def setUpTestData(cls):
++        cls.extra1 = ExtraInfo.objects.create()
++        cls.extra2 = ExtraInfo.objects.create()
++        cls.author1 = Author.objects.create(name='Author 1', num=1, extra=cls.extra1)
++        cls.author2 = Author.objects.create(name='Author 2', num=2, extra=cls.extra2)
++
++    def test_meta_ordering_not_in_group_by(self):
++        from django.db import models, connection
++        from django.test.utils import CaptureQueriesContext
++
++        # Set up a query that uses both aggregation and ordering
++        query = Author.objects.values('extra').annotate(max_num=models.Max('num')).order_by('name')
++        
++        # Execute the query and capture the SQL
++        with CaptureQueriesContext(connection) as context:
++            list(query)  # Force query execution
++        
++        # Check that the captured SQL does not include 'name' in the GROUP BY clause
++        sql = context.captured_queries[0]['sql'].lower()
++        self.assertIn('group by', sql)
++        self.assertNotIn('name', sql.split('group by')[1])

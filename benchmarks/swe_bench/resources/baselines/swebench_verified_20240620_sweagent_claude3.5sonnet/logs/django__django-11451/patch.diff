@@ -1,0 +1,33 @@
+
+diff --git a/django/contrib/auth/backends.py b/django/contrib/auth/backends.py
+index f4b1722757..99b90c8565 100644
+--- a/django/contrib/auth/backends.py
++++ b/django/contrib/auth/backends.py
+@@ -37,6 +37,8 @@ class ModelBackend(BaseBackend):
+     """
+ 
+     def authenticate(self, request, username=None, password=None, **kwargs):
++        if username is None and password is None:
++            return None
+         if username is None:
+             username = kwargs.get(UserModel.USERNAME_FIELD)
+         try:
+diff --git a/tests/auth_tests/test_auth_backends.py b/tests/auth_tests/test_auth_backends.py
+index 6447edefc9..b6e8b25c9a 100644
+--- a/tests/auth_tests/test_auth_backends.py
++++ b/tests/auth_tests/test_auth_backends.py
+@@ -260,6 +260,14 @@ class ModelBackendTest(BaseModelBackendTest, TestCase):
+             username='test', email='test@example.com', password='test',
+         )
+         self.assertEqual(authenticate(username='test', password='test'), user)
++    def test_authenticate_with_none_username_and_password(self):
++        """
++        When both username and password are None, authenticate() should return None.
++        """
++        self.assertIsNone(authenticate(username=None, password=None))
++        # Ensure no database query was made
++        with self.assertNumQueries(0):
++            authenticate(username=None, password=None)
+ 
+ 
+ @override_settings(AUTH_USER_MODEL='auth_tests.ExtensionUser')

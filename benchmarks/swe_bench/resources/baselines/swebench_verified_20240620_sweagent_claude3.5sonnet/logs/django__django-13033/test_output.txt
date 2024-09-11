@@ -1,0 +1,501 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/models/sql/query.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test_app/
+	test_foreign_key_ordering.py
+	test_settings.py
+	tests/migrations/0001_initial.py
+	tests/models.py
+	tests/queries/test_self_referential_fk.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit a59de6e89e8dc1f3e71c9a5a5bbceb373ea5247e
+Author: Hasan Ramezani <hasan.r67@gmail.com>
+Date:   Tue Jun 9 21:55:49 2020 +0200
+
+    Fixed #31675 -- Added warning to ExceptionReporter when exception chain has a cycle.
+
+diff --git a/django/views/debug.py b/django/views/debug.py
+index bc95cbf6b0..c85b86c913 100644
+--- a/django/views/debug.py
++++ b/django/views/debug.py
+@@ -2,6 +2,7 @@ import functools
+ import re
+ import sys
+ import types
++import warnings
+ from pathlib import Path
+ 
+ from django.conf import settings
+@@ -28,6 +29,10 @@ DEBUG_ENGINE = Engine(
+ CURRENT_DIR = Path(__file__).parent
+ 
+ 
++class ExceptionCycleWarning(UserWarning):
++    pass
++
++
+ class CallableSettingWrapper:
+     """
+     Object to wrap callable appearing in settings.
+@@ -401,6 +406,11 @@ class ExceptionReporter:
+             exceptions.append(exc_value)
+             exc_value = explicit_or_implicit_cause(exc_value)
+             if exc_value in exceptions:
++                warnings.warn(
++                    "Cycle in the exception chain detected: exception '%s' "
++                    "encountered again." % exc_value,
++                    ExceptionCycleWarning,
++                )
+                 # Avoid infinite loop if there's a cyclic reference (#29393).
+                 break
+ 
+diff --git a/tests/view_tests/tests/test_debug.py b/tests/view_tests/tests/test_debug.py
+index a305b77a1b..c3ae2cc600 100644
+--- a/tests/view_tests/tests/test_debug.py
++++ b/tests/view_tests/tests/test_debug.py
+@@ -23,8 +23,8 @@ from django.utils.functional import SimpleLazyObject
+ from django.utils.regex_helper import _lazy_re_compile
+ from django.utils.safestring import mark_safe
+ from django.views.debug import (
+-    CallableSettingWrapper, ExceptionReporter, Path as DebugPath,
+-    SafeExceptionReporterFilter, default_urlconf,
++    CallableSettingWrapper, ExceptionCycleWarning, ExceptionReporter,
++    Path as DebugPath, SafeExceptionReporterFilter, default_urlconf,
+     get_default_exception_reporter_filter, technical_404_response,
+     technical_500_response,
+ )
+@@ -518,7 +518,12 @@ class ExceptionReporterTests(SimpleTestCase):
+ 
+         tb_frames = None
+         tb_generator = threading.Thread(target=generate_traceback_frames, daemon=True)
+-        tb_generator.start()
++        msg = (
++            "Cycle in the exception chain detected: exception 'inner' "
++            "encountered again."
++        )
++        with self.assertWarnsMessage(ExceptionCycleWarning, msg):
++            tb_generator.start()
+         tb_generator.join(timeout=5)
+         if tb_generator.is_alive():
+             # tb_generator is a daemon that runs until the main thread/process
++ git diff a59de6e89e8dc1f3e71c9a5a5bbceb373ea5247e
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index d65141b834..3be41cc6b4 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -1634,7 +1634,10 @@ class Query(BaseExpression):
+         """
+         joins = joins[:]
+         for pos, info in enumerate(reversed(path)):
+-            if len(joins) == 1 or not info.direct:
++            if len(joins) == 1:
++                break
++            if not info.direct:
++                # Don't trim reverse joins
+                 break
+             if info.filtered_relation:
+                 break
+@@ -1642,9 +1645,20 @@ class Query(BaseExpression):
+             cur_targets = {t.column for t in targets}
+             if not cur_targets.issubset(join_targets):
+                 break
+-            targets_dict = {r[1].column: r[0] for r in info.join_field.related_fields if r[1].column in cur_targets}
+-            targets = tuple(targets_dict[t.column] for t in targets)
+-            self.unref_alias(joins.pop())
++            # Check if this is a self-referential foreign key
++            if info.from_opts == info.to_opts:
++                # For self-referential foreign keys, we can trim the join if the current targets
++                # are a subset of the join targets and the join is not filtered
++                if cur_targets.issubset(join_targets) and not info.filtered_relation:
++                    targets_dict = {r[1].column: r[0] for r in info.join_field.related_fields if r[1].column in cur_targets}
++                    targets = tuple(targets_dict[t.column] for t in targets)
++                    self.unref_alias(joins.pop())
++                else:
++                    break
++            else:
++                targets_dict = {r[1].column: r[0] for r in info.join_field.related_fields if r[1].column in cur_targets}
++                targets = tuple(targets_dict[t.column] for t in targets)
++                self.unref_alias(joins.pop())
+         return targets, joins[-1], joins
+ 
+     @classmethod
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: asgiref>=3.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (3.4.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (0.4.4)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref>=3.2->Django==3.2) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.2
+    Uninstalling Django-3.2:
+      Successfully uninstalled Django-3.2
+  Running setup.py develop for Django
+Successfully installed Django-3.2
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout a59de6e89e8dc1f3e71c9a5a5bbceb373ea5247e tests/ordering/models.py tests/ordering/tests.py
+Updated 0 paths from 4af5159c39
++ git apply -v -
+Checking patch tests/ordering/models.py...
+Checking patch tests/ordering/tests.py...
+Applied patch tests/ordering/models.py cleanly.
+Applied patch tests/ordering/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 ordering.models ordering.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+test_default_ordering (ordering.tests.OrderingTests) ... ok
+test_default_ordering_by_f_expression (ordering.tests.OrderingTests)
+F expressions can be used in Meta.ordering. ... ok
+test_default_ordering_override (ordering.tests.OrderingTests) ... ok
+test_extra_ordering (ordering.tests.OrderingTests) ... ok
+test_extra_ordering_quoting (ordering.tests.OrderingTests) ... ok
+test_extra_ordering_with_table_name (ordering.tests.OrderingTests) ... ok
+test_no_reordering_after_slicing (ordering.tests.OrderingTests) ... ok
+test_order_by_constant_value (ordering.tests.OrderingTests) ... ok
+test_order_by_constant_value_without_output_field (ordering.tests.OrderingTests) ... ok
+test_order_by_f_expression (ordering.tests.OrderingTests) ... ok
+test_order_by_f_expression_duplicates (ordering.tests.OrderingTests) ... ok
+test_order_by_fk_attname (ordering.tests.OrderingTests) ... ok
+test_order_by_nulls_first (ordering.tests.OrderingTests) ... ok
+test_order_by_nulls_first_and_last (ordering.tests.OrderingTests) ... ok
+test_order_by_nulls_last (ordering.tests.OrderingTests) ... ok
+test_order_by_override (ordering.tests.OrderingTests) ... ok
+test_order_by_pk (ordering.tests.OrderingTests) ... ok
+test_order_by_ptr_field_with_default_ordering_by_expression (ordering.tests.OrderingTests) ... ok
+test_order_by_self_referential_fk (ordering.tests.OrderingTests) ... FAIL
+test_orders_nulls_first_on_filtered_subquery (ordering.tests.OrderingTests) ... ok
+test_random_ordering (ordering.tests.OrderingTests) ... ok
+test_related_ordering_duplicate_table_reference (ordering.tests.OrderingTests) ... ok
+test_reverse_meta_ordering_pure (ordering.tests.OrderingTests) ... ok
+test_reverse_ordering_pure (ordering.tests.OrderingTests) ... ok
+test_reversed_ordering (ordering.tests.OrderingTests) ... ok
+test_stop_slicing (ordering.tests.OrderingTests) ... ok
+test_stop_start_slicing (ordering.tests.OrderingTests) ... Testing against Django installed in '/testbed/django'
+Importing application ordering
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, ordering, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table ordering_author
+    Creating table ordering_article
+    Creating table ordering_childarticle
+    Creating table ordering_reference
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+ok
+
+======================================================================
+FAIL: test_order_by_self_referential_fk (ordering.tests.OrderingTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/ordering/tests.py", line 359, in test_order_by_self_referential_fk
+    attrgetter('headline'),
+  File "/testbed/django/test/testcases.py", line 1054, in assertQuerysetEqual
+    return self.assertEqual(list(items), values, msg=msg)
+AssertionError: Lists differ: ['Article 2', 'Article 1'] != ['Article 1', 'Article 2']
+
+First differing element 0:
+'Article 2'
+'Article 1'
+
+- ['Article 2', 'Article 1']
+?           ^            ^
+
++ ['Article 1', 'Article 2']
+?           ^            ^
+
+
+----------------------------------------------------------------------
+Ran 27 tests in 0.148s
+
+FAILED (failures=1)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout a59de6e89e8dc1f3e71c9a5a5bbceb373ea5247e tests/ordering/models.py tests/ordering/tests.py
+Updated 2 paths from 4af5159c39

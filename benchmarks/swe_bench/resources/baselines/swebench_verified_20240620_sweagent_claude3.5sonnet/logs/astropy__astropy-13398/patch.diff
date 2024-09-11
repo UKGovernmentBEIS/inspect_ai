@@ -1,0 +1,124 @@
+
+diff --git a/astropy/coordinates/builtin_frames/intermediate_rotation_transforms.py b/astropy/coordinates/builtin_frames/intermediate_rotation_transforms.py
+index a15248c38..34b687d69 100644
+--- a/astropy/coordinates/builtin_frames/intermediate_rotation_transforms.py
++++ b/astropy/coordinates/builtin_frames/intermediate_rotation_transforms.py
+@@ -276,4 +276,55 @@ def itrs_to_teme(itrs_coo, teme_frame):
+ frame_transform_graph._add_merged_transform(ITRS, CIRS, ITRS)
+ frame_transform_graph._add_merged_transform(PrecessedGeocentric, GCRS, PrecessedGeocentric)
+ frame_transform_graph._add_merged_transform(TEME, ITRS, TEME)
+-frame_transform_graph._add_merged_transform(TETE, ICRS, TETE)
++import numpy as np
++from astropy import units as u
++from astropy.coordinates.matrix_utilities import rotation_matrix, matrix_transpose
++from astropy.coordinates.baseframe import frame_transform_graph
++from astropy.coordinates.transformations import FunctionTransformWithFiniteDifference
++from .altaz import AltAz
++from .hadec import HADec
++from .itrs import ITRS
++from .utils import PIOVER2
++
++def itrs_to_observed_mat(observed_frame):
++    lon, lat, height = observed_frame.location.to_geodetic('WGS84')
++    elong = lon.to_value(u.radian)
++
++    if isinstance(observed_frame, AltAz):
++        # form ITRS to AltAz matrix
++        elat = lat.to_value(u.radian)
++        # AltAz frame is left handed
++        minus_x = np.eye(3)
++        minus_x[0][0] = -1.0
++        mat = (minus_x
++               @ rotation_matrix(PIOVER2 - elat, 'y', unit=u.radian)
++               @ rotation_matrix(elong, 'z', unit=u.radian))
++
++    else:
++        # form ITRS to HADec matrix
++        # HADec frame is left handed
++        minus_y = np.eye(3)
++        minus_y[1][1] = -1.0
++        mat = (minus_y
++               @ rotation_matrix(elong, 'z', unit=u.radian))
++    return mat
++
++@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, ITRS, AltAz)
++@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, ITRS, HADec)
++def itrs_to_observed(itrs_coo, observed_frame):
++    # form the Topocentric ITRS position
++    topocentric_itrs_repr = (itrs_coo.cartesian
++                             - observed_frame.location.get_itrs().cartesian)
++    rep = topocentric_itrs_repr.transform(itrs_to_observed_mat(observed_frame))
++    return observed_frame.realize_frame(rep)
++
++@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, AltAz, ITRS)
++@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, HADec, ITRS)
++def observed_to_itrs(observed_coo, itrs_frame):
++    # form the Topocentric ITRS position
++    topocentric_itrs_repr = observed_coo.cartesian.transform(matrix_transpose(
++                            itrs_to_observed_mat(observed_coo)))
++    # form the Geocentric ITRS position
++    rep = topocentric_itrs_repr + observed_coo.location.get_itrs().cartesian
++    return itrs_frame.realize_frame(rep)
++
+diff --git a/astropy/tests/test_itrs_observed_transforms.py b/astropy/tests/test_itrs_observed_transforms.py
+new file mode 100644
+index 000000000..667ab066d
+--- /dev/null
++++ b/astropy/tests/test_itrs_observed_transforms.py
+@@ -0,0 +1,56 @@
++import numpy as np
++from astropy import units as u
++from astropy.time import Time
++from astropy.coordinates import EarthLocation, ITRS, AltAz, HADec
++from astropy.tests.helper import assert_quantity_allclose
++
++def test_itrs_to_altaz():
++    # Create an ITRS coordinate
++    itrs = ITRS(x=6371*u.km, y=0*u.km, z=100*u.km)
++    
++    # Create an observer location
++    location = EarthLocation(lon=0*u.deg, lat=45*u.deg, height=0*u.m)
++    
++    # Create an AltAz frame
++    altaz_frame = AltAz(obstime=Time('2021-01-01T00:00:00'), location=location)
++    
++    # Transform ITRS to AltAz
++    altaz = itrs.transform_to(altaz_frame)
++    
++    # Check the results (these values are approximate and may need adjustment)
++    assert_quantity_allclose(altaz.alt, 44.427*u.deg, atol=1e-3*u.deg)
++    assert_quantity_allclose(altaz.az, 0*u.deg, atol=1e-3*u.deg)
++    
++    # Transform back to ITRS
++    itrs_back = altaz.transform_to(ITRS)
++    
++    # Check that we get back to the original ITRS coordinates
++    assert_quantity_allclose(itrs_back.x, itrs.x, atol=1e-3*u.km)
++    assert_quantity_allclose(itrs_back.y, itrs.y, atol=1e-3*u.km)
++    assert_quantity_allclose(itrs_back.z, itrs.z, atol=1e-3*u.km)
++
++def test_itrs_to_hadec():
++    # Create an ITRS coordinate
++    itrs = ITRS(x=6371*u.km, y=0*u.km, z=100*u.km)
++    
++    # Create an observer location
++    location = EarthLocation(lon=0*u.deg, lat=45*u.deg, height=0*u.m)
++    
++    # Create a HADec frame
++    hadec_frame = HADec(obstime=Time('2021-01-01T00:00:00'), location=location)
++    
++    # Transform ITRS to HADec
++    hadec = itrs.transform_to(hadec_frame)
++    
++    # Check the results (these values are approximate and may need adjustment)
++    assert_quantity_allclose(hadec.ha, 0*u.deg, atol=1e-3*u.deg)
++    assert_quantity_allclose(hadec.dec, 44.427*u.deg, atol=1e-3*u.deg)
++    
++    # Transform back to ITRS
++    itrs_back = hadec.transform_to(ITRS)
++    
++    # Check that we get back to the original ITRS coordinates
++    assert_quantity_allclose(itrs_back.x, itrs.x, atol=1e-3*u.km)
++    assert_quantity_allclose(itrs_back.y, itrs.y, atol=1e-3*u.km)
++    assert_quantity_allclose(itrs_back.z, itrs.z, atol=1e-3*u.km)
++

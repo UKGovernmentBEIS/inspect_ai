@@ -1,0 +1,18 @@
+
+diff --git a/bug_reproduction.png b/bug_reproduction.png
+new file mode 100644
+index 0000000000..63ecf6a312
+Binary files /dev/null and b/bug_reproduction.png differ
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..75d9bfc53e
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,7 @@
++import matplotlib.pyplot as plt
++
++figs = plt.figure().subfigures(2, 2, wspace=0, hspace=0)
++for fig in figs.flat:
++    fig.subplots().plot([1, 2])
++plt.savefig('bug_reproduction.png')
++print("Script completed successfully, no errors.")

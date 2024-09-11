@@ -1,0 +1,47 @@
+
+diff --git a/django/conf/global_settings.py b/django/conf/global_settings.py
+index 09c9b95d26..8bb59a4037 100644
+--- a/django/conf/global_settings.py
++++ b/django/conf/global_settings.py
+@@ -637,6 +637,6 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+ SECURE_HSTS_PRELOAD = False
+ SECURE_HSTS_SECONDS = 0
+ SECURE_REDIRECT_EXEMPT = []
+-SECURE_REFERRER_POLICY = None
++SECURE_REFERRER_POLICY = 'same-origin'
+ SECURE_SSL_HOST = None
+ SECURE_SSL_REDIRECT = False
+diff --git a/docs/ref/settings.txt b/docs/ref/settings.txt
+index b4a5bdc48f..e7a6b0946f 100644
+--- a/docs/ref/settings.txt
++++ b/docs/ref/settings.txt
+@@ -2395,11 +2395,12 @@ from URL paths, so patterns shouldn't include them, e.g.
+ 
+ .. versionadded:: 3.0
+ 
+-Default: ``None``
++Default: ``'same-origin'``
+ 
+ If configured, the :class:`~django.middleware.security.SecurityMiddleware` sets
+ the :ref:`referrer-policy` header on all responses that do not already have it
+-to the value provided.
++to the value provided. The default value 'same-origin' is set to make Django
++applications leak less information to third-party sites.
+ 
+ .. setting:: SECURE_SSL_HOST
+ 
+diff --git a/docs/releases/3.1.txt b/docs/releases/3.1.txt
+index 4a165156e1..108e2fd167 100644
+--- a/docs/releases/3.1.txt
++++ b/docs/releases/3.1.txt
+@@ -56,6 +56,10 @@ Minor features
+   instead of deprecated ``PASSWORD_RESET_TIMEOUT_DAYS``, which will be removed
+   in Django 4.0.
+ 
++* The default value of :setting:`SECURE_REFERRER_POLICY` is changed from ``None``
++  to ``'same-origin'``. This makes Django sites more secure by default, preventing
++  information leakage to third-party sites.
++
+ :mod:`django.contrib.contenttypes`
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 

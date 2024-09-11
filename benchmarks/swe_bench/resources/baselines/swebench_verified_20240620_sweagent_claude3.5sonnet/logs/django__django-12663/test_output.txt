@@ -1,0 +1,760 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/models/fields/__init__.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	db.sqlite3
+	reproduce_bug.py
+	test_app/
+	test_settings.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit fa5e7e46d875d4143510944f19d79df7b1739bab
+Author: Simon Charette <charette.s@gmail.com>
+Date:   Sat Apr 4 20:28:54 2020 +0200
+
+    Fixed #31423 -- Clarified nested atomic() example.
+
+diff --git a/docs/topics/db/transactions.txt b/docs/topics/db/transactions.txt
+index 12e695b2f6..cebec3d7d1 100644
+--- a/docs/topics/db/transactions.txt
++++ b/docs/topics/db/transactions.txt
+@@ -146,10 +146,10 @@ Django provides a single API to control database transactions.
+     In this example, even if ``generate_relationships()`` causes a database
+     error by breaking an integrity constraint, you can execute queries in
+     ``add_children()``, and the changes from ``create_parent()`` are still
+-    there. Note that any operations attempted in ``generate_relationships()``
+-    will already have been rolled back safely when ``handle_exception()`` is
+-    called, so the exception handler can also operate on the database if
+-    necessary.
++    there and bound to the same transaction. Note that any operations attempted
++    in ``generate_relationships()`` will already have been rolled back safely
++    when ``handle_exception()`` is called, so the exception handler can also
++    operate on the database if necessary.
+ 
+     .. admonition:: Avoid catching exceptions inside ``atomic``!
+ 
++ git diff fa5e7e46d875d4143510944f19d79df7b1739bab
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index caa03665ea..a4f96cdb2b 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -21,8 +21,7 @@ from django.utils.dateparse import (
+     parse_date, parse_datetime, parse_duration, parse_time,
+ )
+ from django.utils.duration import duration_microseconds, duration_string
+-from django.utils.functional import Promise, cached_property
+-from django.utils.ipv6 import clean_ipv6_address
++from django.utils.functional import Promise, cached_property, SimpleLazyObject
+ from django.utils.itercompat import is_iterable
+ from django.utils.text import capfirst
+ from django.utils.translation import gettext_lazy as _
+@@ -1711,30 +1710,46 @@ class FloatField(Field):
+ 
+ 
+ class IntegerField(Field):
+-    empty_strings_allowed = False
+-    default_error_messages = {
+-        'invalid': _('“%(value)s” value must be an integer.'),
+-    }
+-    description = _("Integer")
++    def __init__(self, verbose_name=None, name=None, min_value=None, max_value=None, **kwargs):
++        self.min_value, self.max_value = min_value, max_value
++        super().__init__(verbose_name, name, **kwargs)
+ 
+-    def check(self, **kwargs):
+-        return [
+-            *super().check(**kwargs),
+-            *self._check_max_length_warning(),
+-        ]
++    @cached_property
++    def validators(self):
++        # These validators can't be added at field initialization time since
++        # they're based on values retrieved from `connection`.
++        range_validators = []
++        internal_type = self.get_internal_type()
++        min_value, max_value = connection.ops.integer_field_range(internal_type)
++        if self.min_value is not None:
++            range_validators.append(validators.MinValueValidator(self.min_value))
++        if self.max_value is not None:
++            range_validators.append(validators.MaxValueValidator(self.max_value))
++        elif max_value is not None:
++            range_validators.append(validators.MaxValueValidator(max_value))
++        return super().validators + range_validators
+ 
+-    def _check_max_length_warning(self):
+-        if self.max_length is not None:
+-            return [
+-                checks.Warning(
+-                    "'max_length' is ignored when used with %s." % self.__class__.__name__,
+-                    hint="Remove 'max_length' from field",
+-                    obj=self,
+-                    id='fields.W122',
+-                )
+-            ]
+-        return []
++    def get_prep_value(self, value):
++        if value is None or value == '':
++            return None
++        if isinstance(value, SimpleLazyObject):
++            value = value._wrapped
++        if hasattr(value, 'pk'):
++            return value.pk
++        return int(value)
+ 
++    def get_db_prep_value(self, value, connection, prepared=False):
++        if not prepared:
++            value = self.get_prep_value(value)
++        return connection.ops.adapt_integerfield_value(value, self.internal_type)
++
++    def formfield(self, **kwargs):
++        return super().formfield(**{
++            'form_class': forms.IntegerField,
++            **kwargs,
++        })
++
++class BigIntegerField(IntegerField):
+     @cached_property
+     def validators(self):
+         # These validators can't be added at field initialization time since
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: asgiref>=3.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (3.4.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (0.4.4)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref>=3.2->Django==3.1) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.1
+    Uninstalling Django-3.1:
+      Successfully uninstalled Django-3.1
+  Running setup.py develop for Django
+Successfully installed Django-3.1
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout fa5e7e46d875d4143510944f19d79df7b1739bab tests/expressions/models.py tests/expressions/tests.py
+Updated 0 paths from 134f91e7bc
++ git apply -v -
+Checking patch tests/expressions/models.py...
+Checking patch tests/expressions/tests.py...
+Applied patch tests/expressions/models.py cleanly.
+Applied patch tests/expressions/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 expressions.models expressions.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+ERROR
+ERROR
+ERROR
+test_F_reuse (expressions.tests.ExpressionsTests) ... ERROR
+test_insensitive_patterns_escape (expressions.tests.ExpressionsTests) ... ERROR
+test_patterns_escape (expressions.tests.ExpressionsTests) ... ERROR
+test_date_case_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_date_comparison (expressions.tests.FTimeDeltaTests) ... ok
+test_date_minus_duration (expressions.tests.FTimeDeltaTests) ... ok
+test_date_subquery_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_date_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_datetime_subquery_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_datetime_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_datetime_subtraction_microseconds (expressions.tests.FTimeDeltaTests) ... ok
+test_delta_add (expressions.tests.FTimeDeltaTests) ... ok
+test_delta_subtract (expressions.tests.FTimeDeltaTests) ... ok
+test_delta_update (expressions.tests.FTimeDeltaTests) ... ok
+test_duration_with_datetime (expressions.tests.FTimeDeltaTests) ... ok
+test_duration_with_datetime_microseconds (expressions.tests.FTimeDeltaTests) ... ok
+test_durationfield_add (expressions.tests.FTimeDeltaTests) ... ok
+test_exclude (expressions.tests.FTimeDeltaTests) ... ok
+test_invalid_operator (expressions.tests.FTimeDeltaTests) ... ok
+test_mixed_comparisons1 (expressions.tests.FTimeDeltaTests) ... skipped "Database doesn't support feature(s): supports_mixed_date_datetime_comparisons"
+test_mixed_comparisons2 (expressions.tests.FTimeDeltaTests) ... ok
+test_multiple_query_compilation (expressions.tests.FTimeDeltaTests) ... ok
+test_negative_timedelta_update (expressions.tests.FTimeDeltaTests) ... ok
+test_query_clone (expressions.tests.FTimeDeltaTests) ... ok
+test_time_subquery_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_time_subtraction (expressions.tests.FTimeDeltaTests) ... ok
+test_month_aggregation (expressions.tests.FieldTransformTests) ... ok
+test_multiple_transforms_in_values (expressions.tests.FieldTransformTests) ... ok
+test_transform_in_values (expressions.tests.FieldTransformTests) ... ok
+ERROR
+test_deconstruct (expressions.tests.ValueTests) ... ok
+test_deconstruct_output_field (expressions.tests.ValueTests) ... ok
+test_equal (expressions.tests.ValueTests) ... ok
+test_equal_output_field (expressions.tests.ValueTests) ... ok
+test_hash (expressions.tests.ValueTests) ... ok
+test_raise_empty_expressionlist (expressions.tests.ValueTests) ... ok
+test_update_TimeField_using_Value (expressions.tests.ValueTests) ... ok
+test_update_UUIDField_using_Value (expressions.tests.ValueTests) ... ok
+test_and (expressions.tests.CombinableTests) ... ok
+test_negation (expressions.tests.CombinableTests) ... ok
+test_or (expressions.tests.CombinableTests) ... ok
+test_reversed_and (expressions.tests.CombinableTests) ... ok
+test_reversed_or (expressions.tests.CombinableTests) ... ok
+test_deconstruct (expressions.tests.FTests) ... ok
+test_deepcopy (expressions.tests.FTests) ... ok
+test_equal (expressions.tests.FTests) ... ok
+test_hash (expressions.tests.FTests) ... ok
+test_not_equal_Value (expressions.tests.FTests) ... ok
+test_aggregates (expressions.tests.ReprTests) ... ok
+test_distinct_aggregates (expressions.tests.ReprTests) ... ok
+test_expressions (expressions.tests.ReprTests) ... ok
+test_filtered_aggregates (expressions.tests.ReprTests) ... ok
+test_functions (expressions.tests.ReprTests) ... ok
+test_equal (expressions.tests.SimpleExpressionTests) ... ok
+test_hash (expressions.tests.SimpleExpressionTests) ... ok
+
+======================================================================
+ERROR: setUpClass (expressions.tests.BasicExpressionsTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/testcases.py", line 1123, in setUpClass
+    cls.setUpTestData()
+  File "/testbed/tests/expressions/tests.py", line 37, in setUpTestData
+    ceo=Employee.objects.create(firstname="Joe", lastname="Smith", salary=10)
+  File "/testbed/django/db/models/manager.py", line 82, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 443, in create
+    obj.save(force_insert=True, using=self.db)
+  File "/testbed/django/db/models/base.py", line 750, in save
+    force_update=force_update, update_fields=update_fields)
+  File "/testbed/django/db/models/base.py", line 788, in save_base
+    force_update, using, update_fields,
+  File "/testbed/django/db/models/base.py", line 891, in _save_table
+    results = self._do_insert(cls._base_manager, using, fields, returning_fields, raw)
+  File "/testbed/django/db/models/base.py", line 931, in _do_insert
+    using=using, raw=raw,
+  File "/testbed/django/db/models/manager.py", line 82, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1235, in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+  File "/testbed/django/db/models/sql/compiler.py", line 1380, in execute_sql
+    for sql, params in self.as_sql():
+  File "/testbed/django/db/models/sql/compiler.py", line 1325, in as_sql
+    for obj in self.query.objs
+  File "/testbed/django/db/models/sql/compiler.py", line 1325, in <listcomp>
+    for obj in self.query.objs
+  File "/testbed/django/db/models/sql/compiler.py", line 1324, in <listcomp>
+    [self.prepare_value(field, self.pre_save_val(field, obj)) for field in fields]
+  File "/testbed/django/db/models/sql/compiler.py", line 1265, in prepare_value
+    value = field.get_db_prep_save(value, connection=self.connection)
+  File "/testbed/django/db/models/fields/__init__.py", line 820, in get_db_prep_save
+    return self.get_db_prep_value(value, connection=connection, prepared=False)
+  File "/testbed/django/db/models/fields/__init__.py", line 1744, in get_db_prep_value
+    return connection.ops.adapt_integerfield_value(value, self.internal_type)
+AttributeError: 'DatabaseOperations' object has no attribute 'adapt_integerfield_value'
+
+======================================================================
+ERROR: setUpClass (expressions.tests.ExpressionOperatorTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/testcases.py", line 1123, in setUpClass
+    cls.setUpTestData()
+  File "/testbed/tests/expressions/tests.py", line 1124, in setUpTestData
+    cls.n = Number.objects.create(integer=42, float=15.5)
+  File "/testbed/django/db/models/manager.py", line 82, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 443, in create
+    obj.save(force_insert=True, using=self.db)
+  File "/testbed/django/db/models/base.py", line 750, in save
+    force_update=force_update, update_fields=update_fields)
+  File "/testbed/django/db/models/base.py", line 788, in save_base
+    force_update, using, update_fields,
+  File "/testbed/django/db/models/base.py", line 891, in _save_table
+    results = self._do_insert(cls._base_manager, using, fields, returning_fields, raw)
+  File "/testbed/django/db/models/base.py", line 931, in _do_insert
+    using=using, raw=raw,
+  File "/testbed/django/db/models/manager.py", line 82, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1235, in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+  File "/testbed/django/db/models/sql/compiler.py", line 1380, in execute_sql
+    for sql, params in self.as_sql():
+  File "/testbed/django/db/models/sql/compiler.py", line 1325, in as_sql
+    for obj in self.query.objs
+  File "/testbed/django/db/models/sql/compiler.py", line 1325, in <listcomp>
+    for obj in self.query.objs
+  File "/testbed/django/db/models/sql/compiler.py", line 1324, in <listcomp>
+    [self.prepare_value(field, self.pre_save_val(field, obj)) for field in fields]
+  File "/testbed/django/db/models/sql/compiler.py", line 1265, in prepare_value
+    value = field.get_db_prep_save(value, connection=self.connection)
+  File "/testbed/django/db/models/fields/__init__.py", line 820, in get_db_prep_save
+    return self.get_db_prep_value(value, connection=connection, prepared=False)
+  File "/testbed/django/db/models/fields/__init__.py", line 1744, in get_db_prep_value
+    return connection.ops.adapt_integerfield_value(value, self.internal_type)
+AttributeError: 'DatabaseOperations' object has no attribute 'adapt_integerfield_value'
+
+======================================================================
+ERROR: setUpClass (expressions.tests.ExpressionsNumericTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/testcases.py", line 1123, in setUpClass
+    cls.setUpTestData()
+  File "/testbed/tests/expressions/tests.py", line 1070, in setUpTestData
+    Number(integer=-1).save()
+  File "/testbed/django/db/models/base.py", line 750, in save
+    force_update=force_update, update_fields=update_fields)
+  File "/testbed/django/db/models/base.py", line 788, in save_base
+    force_update, using, update_fields,
+  File "/testbed/django/db/models/base.py", line 869, in _save_table
+    forced_update)
+  File "/testbed/django/db/models/base.py", line 922, in _do_update
+    return filtered._update(values) > 0
+  File "/testbed/django/db/models/query.py", line 789, in _update
+    return query.get_compiler(self.db).execute_sql(CURSOR)
+  File "/testbed/django/db/models/sql/compiler.py", line 1499, in execute_sql
+    cursor = super().execute_sql(result_type)
+  File "/testbed/django/db/models/sql/compiler.py", line 1127, in execute_sql
+    sql, params = self.as_sql()
+  File "/testbed/django/db/models/sql/compiler.py", line 1465, in as_sql
+    val = field.get_db_prep_save(val, connection=self.connection)
+  File "/testbed/django/db/models/fields/__init__.py", line 820, in get_db_prep_save
+    return self.get_db_prep_value(value, connection=connection, prepared=False)
+  File "/testbed/django/db/models/fields/__init__.py", line 1744, in get_db_prep_value
+    return connection.ops.adapt_integerfield_value(value, self.internal_type)
+AttributeError: 'DatabaseOperations' object has no attribute 'adapt_integerfield_value'
+
+======================================================================
+ERROR: test_F_reuse (expressions.tests.ExpressionsTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions/tests.py", line 941, in test_F_reuse
+    n = Number.objects.create(integer=-1)
+  File "/testbed/django/db/models/manager.py", line 82, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 443, in create
+    obj.save(force_insert=True, using=self.db)
+  File "/testbed/django/db/models/base.py", line 750, in save
+    force_update=force_update, update_fields=update_fields)
+  File "/testbed/django/db/models/base.py", line 788, in save_base
+    force_update, using, update_fields,
+  File "/testbed/django/db/models/base.py", line 891, in _save_table
+    results = self._do_insert(cls._base_manager, using, fields, returning_fields, raw)
+  File "/testbed/django/db/models/base.py", line 931, in _do_insert
+    using=using, raw=raw,
+  File "/testbed/django/db/models/manager.py", line 82, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1235, in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+  File "/testbed/django/db/models/sql/compiler.py", line 1380, in execute_sql
+    for sql, params in self.as_sql():
+  File "/testbed/django/db/models/sql/compiler.py", line 1325, in as_sql
+    for obj in self.query.objs
+  File "/testbed/django/db/models/sql/compiler.py", line 1325, in <listcomp>
+    for obj in self.query.objs
+  File "/testbed/django/db/models/sql/compiler.py", line 1324, in <listcomp>
+    [self.prepare_value(field, self.pre_save_val(field, obj)) for field in fields]
+  File "/testbed/django/db/models/sql/compiler.py", line 1265, in prepare_value
+    value = field.get_db_prep_save(value, connection=self.connection)
+  File "/testbed/django/db/models/fields/__init__.py", line 820, in get_db_prep_save
+    return self.get_db_prep_value(value, connection=connection, prepared=False)
+  File "/testbed/django/db/models/fields/__init__.py", line 1744, in get_db_prep_value
+    return connection.ops.adapt_integerfield_value(value, self.internal_type)
+AttributeError: 'DatabaseOperations' object has no attribute 'adapt_integerfield_value'
+
+======================================================================
+ERROR: test_insensitive_patterns_escape (expressions.tests.ExpressionsTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions/tests.py", line 1001, in test_insensitive_patterns_escape
+    Employee(firstname="Johnny", lastname="_ohn"),
+  File "/testbed/django/db/models/manager.py", line 82, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 491, in bulk_create
+    objs_with_pk, fields, batch_size, ignore_conflicts=ignore_conflicts,
+  File "/testbed/django/db/models/query.py", line 1258, in _batched_insert
+    self._insert(item, fields=fields, using=self.db, ignore_conflicts=ignore_conflicts)
+  File "/testbed/django/db/models/query.py", line 1235, in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+  File "/testbed/django/db/models/sql/compiler.py", line 1380, in execute_sql
+    for sql, params in self.as_sql():
+  File "/testbed/django/db/models/sql/compiler.py", line 1325, in as_sql
+    for obj in self.query.objs
+  File "/testbed/django/db/models/sql/compiler.py", line 1325, in <listcomp>
+    for obj in self.query.objs
+  File "/testbed/django/db/models/sql/compiler.py", line 1324, in <listcomp>
+    [self.prepare_value(field, self.pre_save_val(field, obj)) for field in fields]
+  File "/testbed/django/db/models/sql/compiler.py", line 1265, in prepare_value
+    value = field.get_db_prep_save(value, connection=self.connection)
+  File "/testbed/django/db/models/fields/__init__.py", line 820, in get_db_prep_save
+    return self.get_db_prep_value(value, connection=connection, prepared=False)
+  File "/testbed/django/db/models/fields/__init__.py", line 1744, in get_db_prep_value
+    return connection.ops.adapt_integerfield_value(value, self.internal_type)
+AttributeError: 'DatabaseOperations' object has no attribute 'adapt_integerfield_value'
+
+======================================================================
+ERROR: test_patterns_escape (expressions.tests.ExpressionsTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions/tests.py", line 968, in test_patterns_escape
+    Employee(firstname="Johnny", lastname="_ohn"),
+  File "/testbed/django/db/models/manager.py", line 82, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 491, in bulk_create
+    objs_with_pk, fields, batch_size, ignore_conflicts=ignore_conflicts,
+  File "/testbed/django/db/models/query.py", line 1258, in _batched_insert
+    self._insert(item, fields=fields, using=self.db, ignore_conflicts=ignore_conflicts)
+  File "/testbed/django/db/models/query.py", line 1235, in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+  File "/testbed/django/db/models/sql/compiler.py", line 1380, in execute_sql
+    for sql, params in self.as_sql():
+  File "/testbed/django/db/models/sql/compiler.py", line 1325, in as_sql
+    for obj in self.query.objs
+  File "/testbed/django/db/models/sql/compiler.py", line 1325, in <listcomp>
+    for obj in self.query.objs
+  File "/testbed/django/db/models/sql/compiler.py", line 1324, in <listcomp>
+    [self.prepare_value(field, self.pre_save_val(field, obj)) for field in fields]
+  File "/testbed/django/db/models/sql/compiler.py", line 1265, in prepare_value
+    value = field.get_db_prep_save(value, connection=self.connection)
+  File "/testbed/django/db/models/fields/__init__.py", line 820, in get_db_prep_save
+    return self.get_db_prep_value(value, connection=connection, prepared=False)
+  File "/testbed/django/db/models/fields/__init__.py", line 1744, in get_db_prep_value
+    return connection.ops.adapt_integerfield_value(value, self.internal_type)
+AttributeError: 'DatabaseOperations' object has no attribute 'adapt_integerfield_value'
+
+======================================================================
+ERROR: setUpClass (expressions.tests.IterableLookupInnerExpressionsTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/testcases.py", line 1123, in setUpClass
+    cls.setUpTestData()
+  File "/testbed/tests/expressions/tests.py", line 769, in setUpTestData
+    ceo = Employee.objects.create(firstname='Just', lastname='Doit', salary=30)
+  File "/testbed/django/db/models/manager.py", line 82, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 443, in create
+    obj.save(force_insert=True, using=self.db)
+  File "/testbed/django/db/models/base.py", line 750, in save
+    force_update=force_update, update_fields=update_fields)
+  File "/testbed/django/db/models/base.py", line 788, in save_base
+    force_update, using, update_fields,
+  File "/testbed/django/db/models/base.py", line 891, in _save_table
+    results = self._do_insert(cls._base_manager, using, fields, returning_fields, raw)
+  File "/testbed/django/db/models/base.py", line 931, in _do_insert
+    using=using, raw=raw,
+  File "/testbed/django/db/models/manager.py", line 82, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1235, in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+  File "/testbed/django/db/models/sql/compiler.py", line 1380, in execute_sql
+    for sql, params in self.as_sql():
+  File "/testbed/django/db/models/sql/compiler.py", line 1325, in as_sql
+    for obj in self.query.objs
+  File "/testbed/django/db/models/sql/compiler.py", line 1325, in <listcomp>
+    for obj in self.query.objs
+  File "/testbed/django/db/models/sql/compiler.py", line 1324, in <listcomp>
+    [self.prepare_value(field, self.pre_save_val(field, obj)) for field in fields]
+  File "/testbed/django/db/models/sql/compiler.py", line 1265, in prepare_value
+    value = field.get_db_prep_save(value, connection=self.connection)
+  File "/testbed/django/db/models/fields/__init__.py", line 820, in get_db_prep_save
+    return self.get_db_prep_value(value, connection=connection, prepared=False)
+  File "/testbed/django/db/models/fields/__init__.py", line 1744, in get_db_prep_value
+    return connection.ops.adapt_integerfield_value(value, self.internal_type)
+AttributeError: 'DatabaseOperations' object has no attribute 'adapt_integerfield_value'
+
+----------------------------------------------------------------------
+Ran 54 tests in 0.254s
+
+FAILED (errors=7, skipped=1)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application expressions
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, expressions, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table expressions_manager
+    Creating table expressions_employee
+    Creating table expressions_remoteemployee
+    Creating table expressions_company
+    Creating table expressions_number
+    Creating table expressions_ExPeRiMeNt
+    Creating table expressions_result
+    Creating table expressions_time
+    Creating table expressions_simulationrun
+    Creating table expressions_uuidpk
+    Creating table expressions_uuid
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
++ git checkout fa5e7e46d875d4143510944f19d79df7b1739bab tests/expressions/models.py tests/expressions/tests.py
+Updated 2 paths from 134f91e7bc

@@ -1,0 +1,14 @@
+
+diff --git a/django/http/response.py b/django/http/response.py
+index f62dec8ce9..f8fca3de06 100644
+--- a/django/http/response.py
++++ b/django/http/response.py
+@@ -612,6 +612,8 @@ class FileResponse(StreamingHttpResponse):
+                     "bzip2": "application/x-bzip",
+                     "gzip": "application/gzip",
+                     "xz": "application/x-xz",
++                    "br": "application/x-brotli",
++                    "Z": "application/x-compress",
+                 }.get(encoding, content_type)
+                 self.headers["Content-Type"] = (
+                     content_type or "application/octet-stream"

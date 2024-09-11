@@ -1,0 +1,90 @@
+
+diff --git a/django/contrib/admin/options.py b/django/contrib/admin/options.py
+index 880a2cc17b..15a29fe1c7 100644
+--- a/django/contrib/admin/options.py
++++ b/django/contrib/admin/options.py
+@@ -2049,6 +2049,11 @@ class InlineModelAdmin(BaseModelAdmin):
+         can_add = self.has_add_permission(request, obj) if request else True
+ 
+         class DeleteProtectedModelForm(base_model_form):
++            def __init__(self, *args, **kwargs):
++                super().__init__(*args, **kwargs)
++                if not can_change:
++                    for field in self.fields.values():
++                        field.disabled = True
+ 
+             def hand_clean_DELETE(self):
+                 """
+@@ -2089,7 +2094,7 @@ class InlineModelAdmin(BaseModelAdmin):
+ 
+             def has_changed(self):
+                 # Protect against unauthorized edits.
+-                if not can_change and not self.instance._state.adding:
++                if not can_change:
+                     return False
+                 if not can_add and self.instance._state.adding:
+                     return False
+diff --git a/django/contrib/admin/templates/admin/edit_inline/stacked.html b/django/contrib/admin/templates/admin/edit_inline/stacked.html
+index 8af4d54791..debb594ef9 100644
+--- a/django/contrib/admin/templates/admin/edit_inline/stacked.html
++++ b/django/contrib/admin/templates/admin/edit_inline/stacked.html
+@@ -12,11 +12,11 @@
+   <h3><b>{{ inline_admin_formset.opts.verbose_name|capfirst }}:</b>&nbsp;<span class="inline_label">{% if inline_admin_form.original %}{{ inline_admin_form.original }}{% if inline_admin_form.model_admin.show_change_link and inline_admin_form.model_admin.has_registered_model %} <a href="{% url inline_admin_form.model_admin.opts|admin_urlname:'change' inline_admin_form.original.pk|admin_urlquote %}" class="{% if inline_admin_formset.has_change_permission %}inlinechangelink{% else %}inlineviewlink{% endif %}">{% if inline_admin_formset.has_change_permission %}{% trans "Change" %}{% else %}{% trans "View" %}{% endif %}</a>{% endif %}
+ {% else %}#{{ forloop.counter }}{% endif %}</span>
+       {% if inline_admin_form.show_url %}<a href="{{ inline_admin_form.absolute_url }}">{% trans "View on site" %}</a>{% endif %}
+-    {% if inline_admin_formset.formset.can_delete and inline_admin_form.original %}<span class="delete">{{ inline_admin_form.deletion_field.field }} {{ inline_admin_form.deletion_field.label_tag }}</span>{% endif %}
++    {% if inline_admin_formset.formset.can_delete and inline_admin_formset.has_change_permission and inline_admin_form.original %}<span class="delete">{{ inline_admin_form.deletion_field.field }} {{ inline_admin_form.deletion_field.label_tag }}</span>{% endif %}
+   </h3>
+   {% if inline_admin_form.form.non_field_errors %}{{ inline_admin_form.form.non_field_errors }}{% endif %}
+   {% for fieldset in inline_admin_form %}
+-    {% include "admin/includes/fieldset.html" %}
++    {% include "admin/includes/fieldset.html" with has_change_permission=inline_admin_formset.has_change_permission %}
+   {% endfor %}
+   {% if inline_admin_form.needs_explicit_pk_field %}{{ inline_admin_form.pk_field.field }}{% endif %}
+   {% if inline_admin_form.fk_field %}{{ inline_admin_form.fk_field.field }}{% endif %}
+diff --git a/django/contrib/admin/templates/admin/edit_inline/tabular.html b/django/contrib/admin/templates/admin/edit_inline/tabular.html
+index 531d7b6a21..d3860f6277 100644
+--- a/django/contrib/admin/templates/admin/edit_inline/tabular.html
++++ b/django/contrib/admin/templates/admin/edit_inline/tabular.html
+@@ -17,7 +17,7 @@
+          </th>
+        {% endif %}
+      {% endfor %}
+-     {% if inline_admin_formset.formset.can_delete %}<th>{% trans "Delete?" %}</th>{% endif %}
++     {% if inline_admin_formset.formset.can_delete and inline_admin_formset.has_change_permission %}<th>{% trans "Delete?" %}</th>{% endif %}
+      </tr></thead>
+ 
+      <tbody>
+@@ -52,8 +52,8 @@
+             {% for field in line %}
+               {% if field.is_readonly or not field.field.is_hidden %}
+               <td{% if field.field.name %} class="field-{{ field.field.name }}"{% endif %}>
+-              {% if field.is_readonly %}
+-                  <p>{{ field.contents }}</p>
++              {% if field.is_readonly or not inline_admin_formset.has_change_permission %}
++                  <p>{{ field.contents|linebreaksbr }}</p>
+               {% else %}
+                   {{ field.field.errors.as_ul }}
+                   {{ field.field }}
+@@ -63,7 +63,7 @@
+             {% endfor %}
+           {% endfor %}
+         {% endfor %}
+-        {% if inline_admin_formset.formset.can_delete %}
++        {% if inline_admin_formset.formset.can_delete and inline_admin_formset.has_change_permission %}
+           <td class="delete">{% if inline_admin_form.original %}{{ inline_admin_form.deletion_field.field }}{% endif %}</td>
+         {% endif %}
+         </tr>
+diff --git a/django/contrib/admin/templates/admin/includes/fieldset.html b/django/contrib/admin/templates/admin/includes/fieldset.html
+index 218fd5a4c1..cc9012cf6e 100644
+--- a/django/contrib/admin/templates/admin/includes/fieldset.html
++++ b/django/contrib/admin/templates/admin/includes/fieldset.html
+@@ -13,7 +13,7 @@
+                         {{ field.field }}{{ field.label_tag }}
+                     {% else %}
+                         {{ field.label_tag }}
+-                        {% if field.is_readonly %}
++                        {% if not has_change_permission or field.is_readonly %}
+                             <div class="readonly">{{ field.contents }}</div>
+                         {% else %}
+                             {{ field.field }}

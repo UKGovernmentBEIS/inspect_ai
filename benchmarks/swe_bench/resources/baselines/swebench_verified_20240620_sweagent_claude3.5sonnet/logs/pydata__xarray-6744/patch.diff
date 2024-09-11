@@ -1,0 +1,67 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 00000000..85d9b504
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,19 @@
++import xarray as xr
++import numpy as np
++
++my_data = xr.DataArray(np.arange(1,10), dims="x")
++
++# Option 1: take a center-justified rolling average
++result1 = my_data.rolling(x=3, center=True).mean().values
++print("Result 1 (built-in mean):", result1)
++
++# Option 2: try to manually iterate, but the result is not centered
++my_data_rolling = my_data.rolling(x=3, center=True)
++result2 = [window.mean().values.item() for label, window in my_data_rolling]
++print("Result 2 (manual iteration before fix):", result2)
++
++# Option 3: manually iterate after the fix
++result3 = [window.mean().values.item() for label, window in my_data.rolling(x=3, center=True)]
++print("Result 3 (manual iteration after fix):", result3)
++
++print("Script completed successfully, no errors.")
+diff --git a/xarray/core/rolling.py b/xarray/core/rolling.py
+index aef290f6..49b33829 100644
+--- a/xarray/core/rolling.py
++++ b/xarray/core/rolling.py
+@@ -270,13 +270,31 @@ class DataArrayRolling(Rolling["DataArray"]):
+     def __iter__(self) -> Iterator[tuple[RollingKey, DataArray]]:
+         if self.ndim > 1:
+             raise ValueError("__iter__ is only supported for 1d-rolling")
+-        stops = np.arange(1, len(self.window_labels) + 1)
+-        starts = stops - int(self.window[0])
+-        starts[: int(self.window[0])] = 0
++        window_size = int(self.window[0])
++        dim = self.dim[0]
++        
++        if isinstance(self.center, bool):
++            center = self.center
++        elif isinstance(self.center, Mapping):
++            center = self.center.get(dim, False)
++        else:  # assume it's a list or similar
++            center = self.center[0] if self.center else False
++
++        if center:
++            offset = (window_size - 1) // 2
++            stops = np.arange(1, len(self.window_labels) + 1) + offset
++            starts = stops - window_size
++        else:
++            stops = np.arange(1, len(self.window_labels) + 1)
++            starts = stops - window_size
++
++        starts = np.maximum(starts, 0)
++        stops = np.minimum(stops, len(self.window_labels))
++
+         for (label, start, stop) in zip(self.window_labels, starts, stops):
+-            window = self.obj.isel({self.dim[0]: slice(start, stop)})
++            window = self.obj.isel({dim: slice(start, stop)})
+ 
+-            counts = window.count(dim=self.dim[0])
++            counts = window.count(dim=dim)
+             window = window.where(counts >= self.min_periods)
+ 
+             yield (label, window)

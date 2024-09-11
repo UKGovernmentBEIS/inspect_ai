@@ -1,0 +1,18 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..ef4687ff7
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,11 @@
++import numpy as np
++import astropy.units as u
++
++# Attempt to reproduce the issue
++try:
++    result = (1 * u.m) + (1 * u.mm)
++    print("Operation successful:", result)
++except ValueError as e:
++    print("ValueError caught:", str(e))
++
++print("Script completed.")

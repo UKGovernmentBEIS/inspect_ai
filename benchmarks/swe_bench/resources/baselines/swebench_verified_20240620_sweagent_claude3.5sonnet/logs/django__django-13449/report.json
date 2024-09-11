@@ -1,0 +1,76 @@
+{
+    "django__django-13449": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "test_lag_decimalfield (expressions_window.tests.WindowFunctionTests)"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_frame_empty_group_by_cols (expressions_window.tests.NonQueryWindowTests)",
+                    "test_frame_window_frame_notimplemented (expressions_window.tests.NonQueryWindowTests)",
+                    "test_window_frame_repr (expressions_window.tests.NonQueryWindowTests)"
+                ],
+                "failure": [
+                    "test_conditional_annotation (expressions_window.tests.NonQueryWindowTests)",
+                    "test_empty_group_by_cols (expressions_window.tests.NonQueryWindowTests)",
+                    "test_invalid_filter (expressions_window.tests.NonQueryWindowTests)",
+                    "test_invalid_order_by (expressions_window.tests.NonQueryWindowTests)",
+                    "test_invalid_source_expression (expressions_window.tests.NonQueryWindowTests)",
+                    "test_window_repr (expressions_window.tests.NonQueryWindowTests)",
+                    "test_unsupported_backend (expressions_window.tests.WindowUnsupportedTests)",
+                    "test_avg_salary_department (expressions_window.tests.WindowFunctionTests)",
+                    "test_cume_dist (expressions_window.tests.WindowFunctionTests)",
+                    "test_dense_rank (expressions_window.tests.WindowFunctionTests)",
+                    "test_department_salary (expressions_window.tests.WindowFunctionTests)",
+                    "Window expressions can't be used in an INSERT statement.",
+                    "Window expressions can't be used in an UPDATE statement.",
+                    "test_first_value (expressions_window.tests.WindowFunctionTests)",
+                    "test_function_list_of_values (expressions_window.tests.WindowFunctionTests)",
+                    "test_invalid_end_value_range (expressions_window.tests.WindowFunctionTests)",
+                    "test_invalid_start_value_range (expressions_window.tests.WindowFunctionTests)",
+                    "test_invalid_type_end_row_range (expressions_window.tests.WindowFunctionTests)",
+                    "test_invalid_type_end_value_range (expressions_window.tests.WindowFunctionTests)",
+                    "test_invalid_type_start_row_range (expressions_window.tests.WindowFunctionTests)",
+                    "test_invalid_type_start_value_range (expressions_window.tests.WindowFunctionTests)",
+                    "test_lag (expressions_window.tests.WindowFunctionTests)",
+                    "test_last_value (expressions_window.tests.WindowFunctionTests)",
+                    "test_lead (expressions_window.tests.WindowFunctionTests)",
+                    "test_lead_default (expressions_window.tests.WindowFunctionTests)",
+                    "test_lead_offset (expressions_window.tests.WindowFunctionTests)",
+                    "test_max_per_year (expressions_window.tests.WindowFunctionTests)",
+                    "An alternative way to specify a query for FirstValue.",
+                    "test_multiple_ordering (expressions_window.tests.WindowFunctionTests)",
+                    "test_multiple_partitioning (expressions_window.tests.WindowFunctionTests)",
+                    "test_nth_returns_null (expressions_window.tests.WindowFunctionTests)",
+                    "test_nthvalue (expressions_window.tests.WindowFunctionTests)",
+                    "test_ntile (expressions_window.tests.WindowFunctionTests)",
+                    "test_percent_rank (expressions_window.tests.WindowFunctionTests)",
+                    "test_range_n_preceding_and_following (expressions_window.tests.WindowFunctionTests)",
+                    "A query with RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING.",
+                    "test_rank (expressions_window.tests.WindowFunctionTests)",
+                    "test_related_ordering_with_count (expressions_window.tests.WindowFunctionTests)",
+                    "test_row_number (expressions_window.tests.WindowFunctionTests)",
+                    "test_row_number_no_ordering (expressions_window.tests.WindowFunctionTests)",
+                    "test_row_range_rank (expressions_window.tests.WindowFunctionTests)",
+                    "test_subquery_row_range_rank (expressions_window.tests.WindowFunctionTests)",
+                    "test_window_expression_within_subquery (expressions_window.tests.WindowFunctionTests)"
+                ]
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

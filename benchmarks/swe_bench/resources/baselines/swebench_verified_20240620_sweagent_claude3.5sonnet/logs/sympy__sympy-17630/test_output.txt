@@ -1,0 +1,495 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sympy/matrices/expressions/blockmatrix.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_issue.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 58e78209c8577b9890e957b624466e5beed7eb08
+Merge: 30b12bacf3 a3354324c4
+Author: Aaron Meurer <asmeurer@gmail.com>
+Date:   Wed Sep 18 00:45:42 2019 -0500
+
+    Merge pull request #17623 from cbm755/dollars_stirling
+    
+    docs: stirling: try dollar signs instead of ticks
+
++ git diff 58e78209c8577b9890e957b624466e5beed7eb08
+diff --git a/sympy/matrices/expressions/blockmatrix.py b/sympy/matrices/expressions/blockmatrix.py
+index 95302a05ca..ca286717af 100644
+--- a/sympy/matrices/expressions/blockmatrix.py
++++ b/sympy/matrices/expressions/blockmatrix.py
+@@ -79,14 +79,14 @@ class BlockMatrix(MatrixExpr):
+     def __new__(cls, *args, **kwargs):
+         from sympy.matrices.immutable import ImmutableDenseMatrix
+         from sympy.utilities.iterables import is_sequence
+-        isMat = lambda i: getattr(i, 'is_Matrix', False)
+-        if len(args) != 1 or \
+-                not is_sequence(args[0]) or \
+-                len(set([isMat(r) for r in args[0]])) != 1:
++        isMat = lambda i: isinstance(i, MatrixExpr)
++        if len(args) != 1 or not is_sequence(args[0]):
+             raise ValueError(filldedent('''
+                 expecting a sequence of 1 or more rows
+                 containing Matrices.'''))
+         rows = args[0] if args else []
++        if not rows:
++            return ZeroMatrix(0, 0)
+         if not isMat(rows):
+             if rows and isMat(rows[0]):
+                 rows = [rows]  # rows is not list of lists or []
+@@ -107,16 +107,6 @@ def __new__(cls, *args, **kwargs):
+                     if not ok:
+                         break
+             if not ok:
+-                # same total cols in each row
+-                ok = len(set([
+-                    sum([i.cols for i in r]) for r in rows])) == 1
+-                if blocky and ok:
+-                    raise ValueError(filldedent('''
+-                        Although this matrix is comprised of blocks,
+-                        the blocks do not fill the matrix in a
+-                        size-symmetric fashion. To create a full matrix
+-                        from these arguments, pass them directly to
+-                        Matrix.'''))
+                 raise ValueError(filldedent('''
+                     When there are not the same number of rows in each
+                     row's matrices or there are not the same number of
+@@ -126,8 +116,10 @@ def __new__(cls, *args, **kwargs):
+                     Matrix.irregular.'''))
+         mat = ImmutableDenseMatrix(rows, evaluate=False)
+         obj = Basic.__new__(cls, mat)
++        obj._block_structure = mat
+         return obj
+ 
++
+     @property
+     def shape(self):
+         numrows = numcols = 0
+@@ -162,18 +154,32 @@ def structurally_equal(self, other):
+             and self.colblocksizes == other.colblocksizes)
+ 
+     def _blockmul(self, other):
++        from sympy import ZeroMatrix, MatrixSymbol
++        from sympy.core.numbers import Zero
++        from sympy.matrices.dense import MutableDenseMatrix
+         if (isinstance(other, BlockMatrix) and
+                 self.colblocksizes == other.rowblocksizes):
+-            return BlockMatrix(self.blocks*other.blocks)
+-
++            result = []
++            for i in range(self.blockshape[0]):
++                row = []
++                for j in range(other.blockshape[1]):
++                    elem = None
++                    for k in range(self.blockshape[1]):
++                        term = self.blocks[i,k] * other.blocks[k,j]
++                        if elem is None:
++                            elem = term
++                        elif not isinstance(term, Zero):
++                            if isinstance(elem, Zero):
++                                elem = term
++                            else:
++                                elem += term
++                    if isinstance(elem, Zero):
++                        elem = ZeroMatrix(self.blocks[i,0].rows, other.blocks[0,j].cols)
++                    row.append(elem)
++                result.append(row)
++            return BlockMatrix(result)
+         return self * other
+ 
+-    def _blockadd(self, other):
+-        if (isinstance(other, BlockMatrix)
+-                and self.structurally_equal(other)):
+-            return BlockMatrix(self.blocks + other.blocks)
+-
+-        return self + other
+ 
+     def _eval_transpose(self):
+         # Flip all the individual matrices
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: mpmath>=0.19 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from sympy==1.5.dev0) (1.3.0)
+Installing collected packages: sympy
+  Attempting uninstall: sympy
+    Found existing installation: sympy 1.5.dev0
+    Uninstalling sympy-1.5.dev0:
+      Successfully uninstalled sympy-1.5.dev0
+  Running setup.py develop for sympy
+Successfully installed sympy-1.5.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 58e78209c8577b9890e957b624466e5beed7eb08 sympy/matrices/expressions/tests/test_blockmatrix.py sympy/matrices/expressions/tests/test_matadd.py
+Updated 0 paths from 6511a0ce9f
++ git apply -v -
+Checking patch sympy/matrices/expressions/tests/test_blockmatrix.py...
+Checking patch sympy/matrices/expressions/tests/test_matadd.py...
+Applied patch sympy/matrices/expressions/tests/test_blockmatrix.py cleanly.
+Applied patch sympy/matrices/expressions/tests/test_matadd.py cleanly.
++ PYTHONWARNINGS=ignore::UserWarning,ignore::SyntaxWarning
++ bin/test -C --verbose sympy/matrices/expressions/tests/test_blockmatrix.py sympy/matrices/expressions/tests/test_matadd.py
+============================= test process starts ==============================
+executable:         /opt/miniconda3/envs/testbed/bin/python  (3.9.19-final-0) [CPython]
+architecture:       64-bit
+cache:              no
+ground types:       python 
+numpy:              None
+random seed:        3905499
+hash randomization: on (PYTHONHASHSEED=781766336)
+
+sympy/matrices/expressions/tests/test_blockmatrix.py[16] 
+test_bc_matmul ok
+test_bc_matadd E
+test_bc_transpose F
+test_bc_dist_diag ok
+test_block_plus_ident ok
+test_BlockMatrix F
+test_block_collapse_explicit_matrices ok
+test_issue_17624 ok
+test_BlockMatrix_trace ok
+test_BlockMatrix_Determinant ok
+test_squareBlockMatrix E
+test_BlockDiagMatrix E
+test_blockcut ok
+test_reblock_2x2 ok
+test_deblock ok
+test_block_collapse_type ok                                               [FAIL]
+
+sympy/matrices/expressions/tests/test_matadd.py[7] 
+test_sort_key ok
+test_matadd_sympify ok
+test_matadd_of_matrices ok
+test_doit_args ok
+test_generic_identity ok
+test_zero_matrix_add F
+test_matrix_add_with_scalar f                                             [FAIL]
+
+
+________________________________________________________________________________
+_____ sympy/matrices/expressions/tests/test_blockmatrix.py:test_bc_matadd ______
+Traceback (most recent call last):
+  File "/testbed/sympy/matrices/expressions/tests/test_blockmatrix.py", line 27, in test_bc_matadd
+    assert bc_matadd(BlockMatrix([[G, H]]) + BlockMatrix([[H, H]])) == \
+  File "/testbed/sympy/matrices/expressions/blockmatrix.py", line 420, in bc_matadd
+    block = block._blockadd(b)
+AttributeError: 'BlockMatrix' object has no attribute '_blockadd'
+________________________________________________________________________________
+_ sympy/matrices/expressions/tests/test_blockmatrix.py:test_squareBlockMatrix __
+Traceback (most recent call last):
+  File "/testbed/sympy/matrices/expressions/tests/test_blockmatrix.py", line 139, in test_squareBlockMatrix
+    assert (block_collapse(Q) ==
+  File "/testbed/sympy/matrices/expressions/blockmatrix.py", line 399, in block_collapse
+    result = rule(expr)
+  File "/testbed/sympy/strategies/core.py", line 11, in exhaustive_rl
+    new, old = rule(expr), expr
+  File "/testbed/sympy/strategies/core.py", line 44, in chain_rl
+    expr = rule(expr)
+  File "/testbed/sympy/strategies/core.py", line 13, in exhaustive_rl
+    new, old = rule(new), new
+  File "/testbed/sympy/strategies/core.py", line 33, in conditioned_rl
+    return rule(expr)
+  File "/testbed/sympy/strategies/core.py", line 95, in switch_rl
+    return rl(expr)
+  File "/testbed/sympy/strategies/core.py", line 85, in do_one_rl
+    result = rl(expr)
+  File "/testbed/sympy/matrices/expressions/blockmatrix.py", line 420, in bc_matadd
+    block = block._blockadd(b)
+  File "/testbed/sympy/matrices/expressions/blockmatrix.py", line 351, in _blockadd
+    return BlockMatrix._blockadd(self, other)
+AttributeError: type object 'BlockMatrix' has no attribute '_blockadd'
+________________________________________________________________________________
+__ sympy/matrices/expressions/tests/test_blockmatrix.py:test_BlockDiagMatrix ___
+Traceback (most recent call last):
+  File "/testbed/sympy/matrices/expressions/tests/test_blockmatrix.py", line 187, in test_BlockDiagMatrix
+    assert (X._blockadd(M)).is_MatAdd
+  File "/testbed/sympy/matrices/expressions/blockmatrix.py", line 351, in _blockadd
+    return BlockMatrix._blockadd(self, other)
+AttributeError: type object 'BlockMatrix' has no attribute '_blockadd'
+
+________________________________________________________________________________
+____ sympy/matrices/expressions/tests/test_blockmatrix.py:test_bc_transpose ____
+Traceback (most recent call last):
+  File "/testbed/sympy/matrices/expressions/tests/test_blockmatrix.py", line 31, in test_bc_transpose
+    assert bc_transpose(Transpose(BlockMatrix([[A, B], [C, D]]))) == \
+AssertionError
+________________________________________________________________________________
+____ sympy/matrices/expressions/tests/test_blockmatrix.py:test_BlockMatrix _____
+Traceback (most recent call last):
+  File "/testbed/sympy/matrices/expressions/tests/test_blockmatrix.py", line 68, in test_BlockMatrix
+    assert X.shape == (l + n, k + m)
+AssertionError
+________________________________________________________________________________
+_____ sympy/matrices/expressions/tests/test_matadd.py:test_zero_matrix_add _____
+Traceback (most recent call last):
+  File "/testbed/sympy/matrices/expressions/tests/test_matadd.py", line 37, in test_zero_matrix_add
+    assert Add(ZeroMatrix(2, 2), ZeroMatrix(2, 2)) == ZeroMatrix(2, 2)
+AssertionError
+
+ tests finished: 16 passed, 3 failed, 1 expected to fail, 3 exceptions, 
+in 0.59 seconds 
+DO *NOT* COMMIT!
++ git checkout 58e78209c8577b9890e957b624466e5beed7eb08 sympy/matrices/expressions/tests/test_blockmatrix.py sympy/matrices/expressions/tests/test_matadd.py
+Updated 2 paths from 6511a0ce9f

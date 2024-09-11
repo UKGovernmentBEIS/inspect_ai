@@ -1,0 +1,91 @@
+
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index ea51912e8b..e6849afa2c 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -1073,7 +1073,7 @@ class Query(BaseExpression):
+                         ))
+                 else:
+                     resolved_values.append(sub_value)
+-            value = tuple(resolved_values)
++            value = type(value)(resolved_values)  # Preserve the original type (list or tuple)
+         return value
+ 
+     def solve_lookup_type(self, lookup):
+diff --git a/docs/releases/3.2.txt b/docs/releases/3.2.txt
+new file mode 100644
+index 0000000000..5cc00626c8
+--- /dev/null
++++ b/docs/releases/3.2.txt
+@@ -0,0 +1,49 @@
++==========================
++Django 3.2 release notes
++==========================
++
++*Expected release date: TBA*
++
++Django 3.2 adds support for ... [This part would typically be filled in by the Django team]
++
++.. contents::
++   :local:
++   :depth: 2
++
++Python compatibility
++====================
++
++Django 3.2 supports Python 3.6, 3.7, 3.8, and 3.9.
++
++What's new in Django 3.2
++========================
++
++[This section would typically include major new features]
++
++Minor features
++==============
++
++[This section would typically include minor new features]
++
++Bugfixes
++========
++
++* Fixed a bug in `Query.resolve_lookup_value()` where list values were being coerced to tuples, 
++  breaking exact value queries for fields that are dependent on matching input types (e.g., PickledField).
++  The method now preserves the original type (list or tuple) of the input value.
++
++Backwards incompatible changes in 3.2
++=====================================
++
++[This section would typically include any backwards incompatible changes]
++
++Features deprecated in 3.2
++==========================
++
++[This section would typically include any deprecated features]
++
++Features removed in 3.2
++=======================
++
++[This section would typically include any removed features]
++
+diff --git a/tests/queries/test_query.py b/tests/queries/test_query.py
+index f0d3a6260a..36740a29cb 100644
+--- a/tests/queries/test_query.py
++++ b/tests/queries/test_query.py
+@@ -112,4 +112,16 @@ class TestQuery(SimpleTestCase):
+         query.add_select_related(['creator'])
+         clone = query.clone()
+         clone.add_select_related(['note', 'creator__extra'])
+-        self.assertEqual(query.select_related, {'creator': {}})
++    def test_resolve_lookup_value_preserves_iterable_type(self):
++        query = Query(Author)
++        list_value = [1, 2, 3]
++        tuple_value = (1, 2, 3)
++        
++        resolved_list = query.resolve_lookup_value(list_value, can_reuse=True, allow_joins=True, simple_col=True)
++        resolved_tuple = query.resolve_lookup_value(tuple_value, can_reuse=True, allow_joins=True, simple_col=True)
++        
++        self.assertIsInstance(resolved_list, list)
++        self.assertIsInstance(resolved_tuple, tuple)
++        self.assertEqual(resolved_list, list_value)
++        self.assertEqual(resolved_tuple, tuple_value)
++

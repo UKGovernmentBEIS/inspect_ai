@@ -1,0 +1,61 @@
+
+diff --git a/django/forms/formsets.py b/django/forms/formsets.py
+index a89c35599f..979b7901b8 100644
+--- a/django/forms/formsets.py
++++ b/django/forms/formsets.py
+@@ -333,7 +333,7 @@ class BaseFormSet:
+         self._non_form_errors.
+         """
+         self._errors = []
+-        self._non_form_errors = self.error_class()
++        self._non_form_errors = self.error_class(nonform_errors=True)
+         empty_forms_count = 0
+ 
+         if not self.is_bound:  # Stop further processing.
+@@ -380,7 +380,7 @@ class BaseFormSet:
+             # Give self.clean() a chance to do cross-form validation.
+             self.clean()
+         except ValidationError as e:
+-            self._non_form_errors = self.error_class(e.error_list)
++            self._non_form_errors = self.error_class(e.error_list, nonform_errors=True)
+ 
+     def clean(self):
+         """
+diff --git a/django/forms/utils.py b/django/forms/utils.py
+index 50412f414b..322dddf0c2 100644
+--- a/django/forms/utils.py
++++ b/django/forms/utils.py
+@@ -81,13 +81,16 @@ class ErrorList(UserList, list):
+     """
+     A collection of errors that knows how to display itself in various formats.
+     """
+-    def __init__(self, initlist=None, error_class=None):
++    def __init__(self, initlist=None, error_class=None, nonform_errors=False):
+         super().__init__(initlist)
+ 
+         if error_class is None:
+             self.error_class = 'errorlist'
+         else:
+             self.error_class = 'errorlist {}'.format(error_class)
++        
++        if nonform_errors:
++            self.error_class += ' nonform'
+ 
+     def as_data(self):
+         return ValidationError(self.data).error_list
+diff --git a/docs/topics/forms/formsets.txt b/docs/topics/forms/formsets.txt
+index 1f2c7c3fad..20ecda4346 100644
+--- a/docs/topics/forms/formsets.txt
++++ b/docs/topics/forms/formsets.txt
+@@ -152,6 +152,11 @@ protects against memory exhaustion attacks using forged ``POST`` requests::
+     >>> formset.non_form_errors()
+     ['Please submit at most 1000 forms.']
+ 
++Non-form errors in formsets now have a 'nonform' CSS class added to them. This allows
++for easier styling and differentiation between form field errors, non-field errors
++(forms), and non-form errors (formsets) when rendering error messages.
++
++
+ When ``absolute_max`` is ``None``, it defaults to ``max_num + 1000``. (If
+ ``max_num`` is ``None``, it defaults to ``2000``).
+ 

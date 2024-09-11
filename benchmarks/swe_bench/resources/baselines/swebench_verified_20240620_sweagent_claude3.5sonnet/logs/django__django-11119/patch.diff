@@ -1,0 +1,86 @@
+
+diff --git a/django/template/base.py b/django/template/base.py
+index 9f4fe3363d..b912d9b844 100644
+--- a/django/template/base.py
++++ b/django/template/base.py
+@@ -155,6 +155,9 @@ class Template:
+         self.source = str(template_string)  # May be lazy.
+         self.nodelist = self.compile_nodelist()
+ 
++    @property
++    def autoescape(self):
++        return self.engine.autoescape
+     def __iter__(self):
+         for node in self.nodelist:
+             yield from node
+diff --git a/django/template/engine.py b/django/template/engine.py
+index dfaa67ba12..40bf8fd06e 100644
+--- a/django/template/engine.py
++++ b/django/template/engine.py
+@@ -155,12 +155,11 @@ class Engine:
+             t = self.select_template(template_name)
+         else:
+             t = self.get_template(template_name)
+-        # Django < 1.8 accepted a Context in `context` even though that's
+-        # unintended. Preserve this ability but don't rewrap `context`.
+-        if isinstance(context, Context):
+-            return t.render(context)
+-        else:
+-            return t.render(Context(context))
++        if context is None:
++            context = {}
++        if not isinstance(context, Context):
++            context = Context(context, autoescape=self.autoescape)
++        return t.render(context)
+ 
+     def select_template(self, template_name_list):
+         """
+diff --git a/tests/template_tests/test_engine_autoescape.py b/tests/template_tests/test_engine_autoescape.py
+new file mode 100644
+index 0000000000..766e1a2a07
+--- /dev/null
++++ b/tests/template_tests/test_engine_autoescape.py
+@@ -0,0 +1,43 @@
++from django.template import Engine, Template, Context
++from django.test import SimpleTestCase
++
++class EngineAutoescapeTest(SimpleTestCase):
++    def test_render_to_string_honors_autoescape_with_dict(self):
++        template_string = "{{ text }}"
++        context_dict = {"text": "<script>alert('XSS');</script>"}
++        
++        engine = Engine(autoescape=False)
++        template = engine.from_string(template_string)
++        result = template.render(Context(context_dict))
++        self.assertEqual(result, "<script>alert('XSS');</script>")
++        
++        engine_with_autoescape = Engine(autoescape=True)
++        template_with_autoescape = engine_with_autoescape.from_string(template_string)
++        result_with_autoescape = template_with_autoescape.render(Context(context_dict))
++        self.assertEqual(result_with_autoescape, "&lt;script&gt;alert('XSS');&lt;/script&gt;")
++
++    def test_render_to_string_honors_autoescape_with_context(self):
++        template_string = "{{ text }}"
++        context_dict = {"text": "<script>alert('XSS');</script>"}
++        
++        engine = Engine(autoescape=False)
++        template = engine.from_string(template_string)
++        context = Context(context_dict, autoescape=False)
++        result = template.render(context)
++        self.assertEqual(result, "<script>alert('XSS');</script>")
++        
++        engine_with_autoescape = Engine(autoescape=True)
++        template_with_autoescape = engine_with_autoescape.from_string(template_string)
++        context_with_autoescape = Context(context_dict, autoescape=True)
++        result_with_autoescape = template_with_autoescape.render(context_with_autoescape)
++        self.assertEqual(result_with_autoescape, "&lt;script&gt;alert('XSS');&lt;/script&gt;")
++
++    def test_engine_autoescape_overrides_context_autoescape(self):
++        template_string = "{{ text }}"
++        context_dict = {"text": "<script>alert('XSS');</script>"}
++        
++        engine = Engine(autoescape=True)
++        template = engine.from_string(template_string)
++        context = Context(context_dict, autoescape=False)
++        result = template.render(context)
++        self.assertEqual(result, "&lt;script&gt;alert('XSS');&lt;/script&gt;")

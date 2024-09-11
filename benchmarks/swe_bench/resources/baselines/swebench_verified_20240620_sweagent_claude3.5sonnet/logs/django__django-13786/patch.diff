@@ -1,0 +1,60 @@
+
+diff --git a/django/db/migrations/operations/models.py b/django/db/migrations/operations/models.py
+index dddf7c679c..d368da937b 100644
+--- a/django/db/migrations/operations/models.py
++++ b/django/db/migrations/operations/models.py
+@@ -137,11 +137,16 @@ class CreateModel(ModelOperation):
+                 ),
+             ]
+         elif isinstance(operation, AlterModelOptions) and self.name_lower == operation.name_lower:
++            new_options = self.options.copy()
++            for key in list(new_options.keys()):
++                if key not in operation.options:
++                    del new_options[key]
++            new_options.update(operation.options)
+             return [
+                 CreateModel(
+                     self.name,
+                     fields=self.fields,
+-                    options={**self.options, **operation.options},
++                    options=new_options,
+                     bases=self.bases,
+                     managers=self.managers,
+                 ),
+diff --git a/tests/migrations/test_operations.py b/tests/migrations/test_operations.py
+index 38ad6a2d18..5943b050e9 100644
+--- a/tests/migrations/test_operations.py
++++ b/tests/migrations/test_operations.py
+@@ -3427,7 +3427,31 @@ class SwappableOperationTests(OperationTestBase):
+         with connection.schema_editor() as editor:
+             operation.database_forwards('test_rminigsw', editor, project_state, new_state)
+             operation.database_backwards('test_rminigsw', editor, new_state, project_state)
+-
++    def test_create_model_with_altered_options(self):
++        """
++        Tests that CreateModel operation correctly handles AlterModelOptions.
++        """
++        project_state = ProjectState()
++        
++        # Create the model
++        create_operation = migrations.CreateModel(
++            "Pony",
++            [("id", models.AutoField(primary_key=True))],
++            options={"verbose_name": "Pony"}
++        )
++        new_state = project_state.clone()
++        create_operation.state_forwards("test_crmoalo", new_state)
++        
++        # Now alter the options
++        alter_operation = migrations.AlterModelOptions("Pony", {})
++        
++        # Test the reduction
++        reduced_operation = create_operation.reduce(alter_operation, "test_crmoalo")
++        self.assertEqual(len(reduced_operation), 1)
++        self.assertIsInstance(reduced_operation[0], migrations.CreateModel)
++        self.assertEqual(reduced_operation[0].options, {})
++
++    
+ 
+ class TestCreateModel(SimpleTestCase):
+ 

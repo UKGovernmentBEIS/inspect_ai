@@ -1,0 +1,240 @@
+
+diff --git a/setup.py b/setup.py
+index a404f1fa5..2c6848797 100644
+--- a/setup.py
++++ b/setup.py
+@@ -15,22 +15,22 @@ if sys.version_info < (3, 5):
+     sys.exit(1)
+ 
+ install_requires = [
+-    'sphinxcontrib-applehelp',
+-    'sphinxcontrib-devhelp',
++    'sphinxcontrib-applehelp<=1.0.7',
++    'sphinxcontrib-devhelp<=1.0.5',
+     'sphinxcontrib-jsmath',
+-    'sphinxcontrib-htmlhelp',
+-    'sphinxcontrib-serializinghtml',
+-    'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'sphinxcontrib-htmlhelp<=2.0.4',
++    'sphinxcontrib-serializinghtml<=1.1.9',
++    'sphinxcontrib-qthelp<=1.0.6',
++    'Jinja2<3.0',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+     'babel>=1.3',
+-    'alabaster>=0.7,<0.8',
++    'alabaster>=0.7,<0.7.12',
+     'imagesize',
+     'requests>=2.5.0',
+     'setuptools',
+-    'packaging',
++    'packaging', 'markupsafe<=2.0.1',
+ ]
+ 
+ extras_require = {
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index 8c3509c3b..6f8e67818 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -20,6 +20,7 @@ from typing import (
+ )
+ 
+ from docutils.statemachine import StringList
++from docutils.parsers.rst import directives
+ 
+ import sphinx
+ from sphinx.application import Sphinx
+@@ -28,6 +29,29 @@ from sphinx.deprecation import RemovedInSphinx40Warning, RemovedInSphinx50Warnin
+ from sphinx.environment import BuildEnvironment
+ from sphinx.ext.autodoc.importer import import_object, get_module_members, get_object_members
+ from sphinx.ext.autodoc.mock import mock
++
++def bool_or_members_option(arg: Any) -> Union[bool, List[str], None]:
++    """
++    Parse the 'private-members' option value.
++    
++    This function allows the 'private-members' option to accept either a boolean value,
++    a list of member names, or None.
++    
++    :param arg: The option value to parse.
++    :return: Either a boolean value, a list of strings, or None.
++    :raises ValueError: If the input is neither a boolean, None, nor a valid string for members_option.
++    """
++    if arg is None:
++        return None
++    if isinstance(arg, bool):
++        return arg
++    elif isinstance(arg, str):
++        return directives.members_option(arg)
++    else:
++        raise ValueError('Expected boolean, None, or string value')
++
++
++
+ from sphinx.locale import _, __
+ from sphinx.pycode import ModuleAnalyzer, PycodeError
+ from sphinx.util import inspect
+@@ -563,7 +587,7 @@ class Documenter:
+         Members are skipped if
+ 
+         - they are private (except if given explicitly or the private-members
+-          option is set)
++          option is set to True, or the member name is in the private-members list)
+         - they are special methods (except if given explicitly or the
+           special-members option is set)
+         - they are undocumented (except if the undoc-members option is set)
+@@ -616,55 +640,74 @@ class Documenter:
+             has_doc = bool(doc)
+ 
+             metadata = extract_metadata(doc)
++            keep = False  # Initialize keep to False
+             if 'private' in metadata:
+                 # consider a member private if docstring has "private" metadata
+                 isprivate = True
+             elif 'public' in metadata:
+                 # consider a member public if docstring has "public" metadata
+                 isprivate = False
++                keep = True  # Always keep members with 'public' metadata
+             else:
+                 isprivate = membername.startswith('_')
+ 
+-            keep = False
+-            if safe_getattr(member, '__sphinx_mock__', False):
+-                # mocked module or object
+-                pass
+-            elif (self.options.exclude_members not in (None, ALL) and
+-                  membername in self.options.exclude_members):
+-                # remove members given by exclude-members
+-                keep = False
+-            elif want_all and membername.startswith('__') and \
+-                    membername.endswith('__') and len(membername) > 4:
+-                # special __methods__
+-                if self.options.special_members is ALL:
+-                    if membername == '__doc__':
+-                        keep = False
+-                    elif is_filtered_inherited_member(membername):
+-                        keep = False
++            if not keep:  # If not already decided to keep (i.e., not 'public')
++                if safe_getattr(member, '__sphinx_mock__', False):
++                    # mocked module or object
++                    keep = False
++                elif (self.options.exclude_members not in (None, ALL) and
++                      membername in self.options.exclude_members):
++                    # remove members given by exclude-members
++                    keep = False
++                elif want_all and membername.startswith('__') and \
++                        membername.endswith('__') and len(membername) > 4:
++                    # special __methods__
++                    if self.options.special_members is ALL:
++                        if membername == '__doc__':
++                            keep = False
++                        elif is_filtered_inherited_member(membername):
++                            keep = False
++                        else:
++                            keep = has_doc or self.options.undoc_members
++                    elif self.options.special_members:
++                        if membername in self.options.special_members:
++                            keep = has_doc or self.options.undoc_members
++                elif (namespace, membername) in attr_docs:
++                    if want_all and isprivate:
++                        # ignore members whose name starts with _ by default
++                        if self.options.private_members is ALL:
++                            keep = True
++                        elif isinstance(self.options.private_members, list):
++                            keep = membername in self.options.private_members
++                        elif self.options.private_members:
++                            keep = True
++                        else:
++                            keep = False
+                     else:
+-                        keep = has_doc or self.options.undoc_members
+-                elif self.options.special_members:
+-                    if membername in self.options.special_members:
+-                        keep = has_doc or self.options.undoc_members
+-            elif (namespace, membername) in attr_docs:
+-                if want_all and isprivate:
++                        # keep documented attributes
++                        keep = True
++                    isattr = True
++                elif want_all and isprivate:
+                     # ignore members whose name starts with _ by default
+-                    keep = self.options.private_members
+-                else:
+-                    # keep documented attributes
+-                    keep = True
+-                isattr = True
+-            elif want_all and isprivate:
+-                # ignore members whose name starts with _ by default
+-                keep = self.options.private_members and \
+-                    (has_doc or self.options.undoc_members)
+-            else:
+-                if self.options.members is ALL and is_filtered_inherited_member(membername):
+-                    keep = False
++                    if self.options.private_members is ALL:
++                        keep = True
++                    elif isinstance(self.options.private_members, list):
++                        keep = membername in self.options.private_members
++                    elif self.options.private_members:
++                        keep = True
++                    else:
++                        keep = False
+                 else:
+-                    # ignore undocumented members if :undoc-members: is not given
+-                    keep = has_doc or self.options.undoc_members
++                    # ignore members whose name starts with _ by default
++                    keep = not isprivate
++
++            # Always keep members with 'public' metadata, regardless of other conditions
++            if 'public' in metadata:
++                keep = True
+ 
++            # If private_members is None (not specified), only keep public members
++            if self.options.private_members is None and isprivate and 'public' not in metadata:
++                keep = False
+             # give the user a chance to decide whether this member
+             # should be skipped
+             if self.env.app:
+@@ -698,8 +741,8 @@ class Documenter:
+             self.env.temp_data['autodoc:class'] = self.objpath[0]
+ 
+         want_all = all_members or self.options.inherited_members or \
+-            self.options.members is ALL
+-        # find out which members are documentable
++            self.options.members is ALL or \
++            (isinstance(self.options.private_members, bool) and self.options.private_members)
+         members_check_module, members = self.get_object_members(want_all)
+ 
+         # document non-skipped members
+@@ -859,7 +902,7 @@ class ModuleDocumenter(Documenter):
+         'show-inheritance': bool_option, 'synopsis': identity,
+         'platform': identity, 'deprecated': bool_option,
+         'member-order': member_order_option, 'exclude-members': members_set_option,
+-        'private-members': bool_option, 'special-members': members_option,
++        'private-members': bool_or_members_option, 'special-members': members_option,
+         'imported-members': bool_option, 'ignore-module-all': bool_option
+     }  # type: Dict[str, Callable]
+ 
+@@ -1279,7 +1322,7 @@ class ClassDocumenter(DocstringSignatureMixin, ModuleLevelDocumenter):  # type:
+         'noindex': bool_option, 'inherited-members': inherited_members_option,
+         'show-inheritance': bool_option, 'member-order': member_order_option,
+         'exclude-members': members_set_option,
+-        'private-members': bool_option, 'special-members': members_option,
++        'private-members': bool_or_members_option, 'special-members': members_option,
+     }  # type: Dict[str, Callable]
+ 
+     _signature_class = None  # type: Any
+diff --git a/tox.ini b/tox.ini
+index bddd822a6..34baee205 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -27,7 +27,7 @@ extras =
+ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+ commands=
+-    pytest --durations 25 {posargs}
++    pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

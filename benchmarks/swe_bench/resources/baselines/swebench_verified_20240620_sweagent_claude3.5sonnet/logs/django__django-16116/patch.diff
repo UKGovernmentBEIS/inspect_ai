@@ -1,0 +1,44 @@
+
+diff --git a/django/core/management/commands/makemigrations.py b/django/core/management/commands/makemigrations.py
+index 2e97d9064b..fad9f22221 100644
+--- a/django/core/management/commands/makemigrations.py
++++ b/django/core/management/commands/makemigrations.py
+@@ -100,6 +100,15 @@ class Command(BaseCommand):
+ 
+     @no_translations
+     def handle(self, *app_labels, **options):
++        """
++        Creates new migration(s) for apps.
++
++        When --check is used, exits with a non-zero status if model changes are missing migrations,
++        without actually creating new migrations. This makes it suitable for use in CI environments.
++
++        When both --check and --dry-run are used, it will show what migrations would be made
++        without actually creating them or exiting with a non-zero status.
++        """
+         self.written_files = []
+         self.verbosity = options["verbosity"]
+         self.interactive = options["interactive"]
+@@ -248,12 +257,20 @@ class Command(BaseCommand):
+                 else:
+                     self.log("No changes detected")
+         else:
++            if check_changes:
++                self.log("Changes detected")
++                sys.exit(1)
++            if self.dry_run:
++                if self.verbosity >= 1:
++                    self.log("Migrations would be created:")
++                    for app_label, app_migrations in changes.items():
++                        for migration in app_migrations:
++                            self.log(f"  {app_label}.{migration.name}")
++                return
+             if self.update:
+                 self.write_to_last_migration_files(changes)
+             else:
+                 self.write_migration_files(changes)
+-            if check_changes:
+-                sys.exit(1)
+ 
+     def write_to_last_migration_files(self, changes):
+         loader = MigrationLoader(connections[DEFAULT_DB_ALIAS])

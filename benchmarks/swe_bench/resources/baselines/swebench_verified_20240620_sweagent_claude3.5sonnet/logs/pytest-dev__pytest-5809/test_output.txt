@@ -1,0 +1,480 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   src/_pytest/pastebin.py
+	modified:   testing/test_pastebin.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 8aba863a634f40560e25055d179220f0eefabe9a
+Merge: 117f52dcf aa79b1c00
+Author: Anthony Sottile <asottile@umich.edu>
+Date:   Thu Aug 29 10:30:54 2019 -0700
+
+    Merge pull request #5801 from asottile/flake8_2020
+    
+    [4.6] fixes for python4
+
++ git diff 8aba863a634f40560e25055d179220f0eefabe9a
+diff --git a/src/_pytest/pastebin.py b/src/_pytest/pastebin.py
+index 41576a615..80c7c1704 100644
+--- a/src/_pytest/pastebin.py
++++ b/src/_pytest/pastebin.py
+@@ -73,22 +73,36 @@ def create_new_paste(contents):
+ 
+     if sys.version_info < (3, 0):
+         from urllib import urlopen, urlencode
++        from urllib2 import HTTPError
+     else:
+         from urllib.request import urlopen
+         from urllib.parse import urlencode
++        from urllib.error import HTTPError
+ 
+     params = {
+         "code": contents,
+-        "lexer": "python3" if sys.version_info[0] >= 3 else "python",
++        "lexer": "text",
+         "expiry": "1week",
+     }
+     url = "https://bpaste.net"
+-    response = urlopen(url, data=urlencode(params).encode("ascii")).read()
+-    m = re.search(r'href="/raw/(\w+)"', response.decode("utf-8"))
+-    if m:
+-        return "%s/show/%s" % (url, m.group(1))
+-    else:
+-        return "bad response: " + response
++    
++    max_attempts = 2
++    for attempt in range(max_attempts):
++        try:
++            response = urlopen(url, data=urlencode(params).encode("ascii")).read()
++            if isinstance(response, bytes):
++                response = response.decode("utf-8")
++            m = re.search(r'href="/raw/(\w+)"|<id>(\w+)</id>', response)
++            if m:
++                paste_id = m.group(1) or m.group(2)
++                return "%s/show/%s" % (url, paste_id)
++            else:
++                return "bad response: " + response
++        except HTTPError:
++            if attempt == max_attempts - 1:  # last attempt
++                raise  # re-raise the last exception
++    
++    return "Failed to create paste after {} attempts".format(max_attempts)
+ 
+ 
+ def pytest_terminal_summary(terminalreporter):
+diff --git a/testing/test_pastebin.py b/testing/test_pastebin.py
+index bac8f9802..ae01b3af3 100644
+--- a/testing/test_pastebin.py
++++ b/testing/test_pastebin.py
+@@ -126,8 +126,28 @@ class TestPaste(object):
+         assert len(mocked_urlopen) == 1
+         url, data = mocked_urlopen[0]
+         assert type(data) is bytes
+-        lexer = "python3" if sys.version_info[0] >= 3 else "python"
+         assert url == "https://bpaste.net"
+-        assert "lexer=%s" % lexer in data.decode()
++        assert "lexer=text" in data.decode()
+         assert "code=full-paste-contents" in data.decode()
+-        assert "expiry=1week" in data.decode()
++    def test_lexer_change_to_text(self, pastebin, monkeypatch):
++        import io
++        if sys.version_info[0] >= 3:
++            from urllib.error import HTTPError
++            import urllib.request as urllib_module
++        else:
++            from urllib2 import HTTPError
++            import urllib as urllib_module
++
++        # Mock urlopen to simulate the previous error and then success
++        call_count = [0]
++        def mocked_urlopen(url, data):
++            call_count[0] += 1
++            if call_count[0] == 1:
++                raise HTTPError(url, 400, "Bad Request", {}, io.StringIO())
++            return io.StringIO('<id>1234</id>')
++
++        monkeypatch.setattr(urllib_module, 'urlopen', mocked_urlopen)
++
++        result = pastebin.create_new_paste(b'problematic content')
++        assert 'https://bpaste.net/show/1234' in result
++        assert call_count[0] == 2  # Ensure it succeeded on the second try
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: py>=1.5.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==4.6.6.dev9+g8aba863a6.d20240725) (1.11.0)
+Requirement already satisfied: six>=1.10.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==4.6.6.dev9+g8aba863a6.d20240725) (1.16.0)
+Requirement already satisfied: packaging in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==4.6.6.dev9+g8aba863a6.d20240725) (23.1)
+Requirement already satisfied: attrs>=17.4.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==4.6.6.dev9+g8aba863a6.d20240725) (23.1.0)
+Requirement already satisfied: atomicwrites>=1.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==4.6.6.dev9+g8aba863a6.d20240725) (1.4.1)
+Requirement already satisfied: pluggy<1.0,>=0.12 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==4.6.6.dev9+g8aba863a6.d20240725) (0.13.1)
+Requirement already satisfied: importlib-metadata>=0.12 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==4.6.6.dev9+g8aba863a6.d20240725) (8.2.0)
+Requirement already satisfied: wcwidth in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==4.6.6.dev9+g8aba863a6.d20240725) (0.2.6)
+Requirement already satisfied: more-itertools>=4.0.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==4.6.6.dev9+g8aba863a6.d20240725) (10.1.0)
+Requirement already satisfied: zipp>=0.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from importlib-metadata>=0.12->pytest==4.6.6.dev9+g8aba863a6.d20240725) (3.19.2)
+Building wheels for collected packages: pytest
+  Building editable for pytest (pyproject.toml): started
+  Building editable for pytest (pyproject.toml): finished with status 'done'
+  Created wheel for pytest: filename=pytest-4.6.6.dev9+g8aba863a6.d20240725-0.editable-py2.py3-none-any.whl size=4989 sha256=1add0fed9943cd1f6d7c8305381e4feebb7d263a8fcc5b1474fc8d2a288f9946
+  Stored in directory: /tmp/pip-ephem-wheel-cache-h29ixrl6/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built pytest
+Installing collected packages: pytest
+  Attempting uninstall: pytest
+    Found existing installation: pytest 4.6.6.dev9+g8aba863a6
+    Uninstalling pytest-4.6.6.dev9+g8aba863a6:
+      Successfully uninstalled pytest-4.6.6.dev9+g8aba863a6
+Successfully installed pytest-4.6.6.dev9+g8aba863a6.d20240725
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 8aba863a634f40560e25055d179220f0eefabe9a testing/test_pastebin.py
+Updated 1 path from c079ecfca
++ git apply -v -
+Checking patch testing/test_pastebin.py...
+Applied patch testing/test_pastebin.py cleanly.
++ pytest -rA testing/test_pastebin.py
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-4.6.6.dev9+g8aba863a6.d20240725, py-1.11.0, pluggy-0.13.1
+rootdir: /testbed, inifile: tox.ini
+collected 4 items
+
+testing/test_pastebin.py ....                                            [100%]
+
+==================================== PASSES ====================================
+_________________________ TestPasteCapture.test_failed _________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-4.6.6.dev9+g8aba863a6.d20240725, py-1.11.0, pluggy-0.13.1 -- /opt/miniconda3/envs/testbed/bin/python
+rootdir: /tmp/pytest-of-root/pytest-0/test_failed0
+collected 3 items
+
+test_failed.py .Fs                                                       [100%]
+
+=================================== FAILURES ===================================
+__________________________________ test_fail ___________________________________
+
+    def test_fail():
+>       assert 0
+E       assert 0
+
+test_failed.py:5: AssertionError
+===================== Sending information to Paste Service =====================
+test_failed.py:5: AssertionError --> None
+================ 1 failed, 1 passed, 1 skipped in 0.04 seconds =================
+__________________________ TestPasteCapture.test_all ___________________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-4.6.6.dev9+g8aba863a6.d20240725, py-1.11.0, pluggy-0.13.1 -- /opt/miniconda3/envs/testbed/bin/python
+cachedir: .pytest_cache
+rootdir: /tmp/pytest-of-root/pytest-0/test_all0
+collecting ... collected 3 items
+
+test_all.py::test_pass PASSED                                            [ 33%]
+test_all.py::test_fail FAILED                                            [ 66%]
+test_all.py::test_skip SKIPPED                                           [100%]
+
+=================================== FAILURES ===================================
+__________________________________ test_fail ___________________________________
+
+    def test_fail():
+>       assert 0
+E       assert 0
+
+test_all.py:5: AssertionError
+================ 1 failed, 1 passed, 1 skipped in 0.02 seconds =================
+===================== Sending information to Paste Service =====================
+pastebin session-log: None
+
+__________________ TestPasteCapture.test_non_ascii_paste_text __________________
+----------------------------- Captured stdout call -----------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-4.6.6.dev9+g8aba863a6.d20240725, py-1.11.0, pluggy-0.13.1 -- /opt/miniconda3/envs/testbed/bin/python
+rootdir: /tmp/pytest-of-root/pytest-0/test_non_ascii_paste_text0
+collected 1 item
+
+test_unicode.py F                                                        [100%]
+
+=================================== FAILURES ===================================
+_____________________________________ test _____________________________________
+
+    def test():
+>       assert '☺' == 1
+E       AssertionError: assert '☺' == 1
+
+test_unicode.py:3: AssertionError
+=========================== 1 failed in 0.02 seconds ===========================
+===================== Sending information to Paste Service =====================
+pastebin session-log: https://bpaste.net/show/KJQQ
+
+=========================== short test summary info ============================
+PASSED testing/test_pastebin.py::TestPaste::test_create_new_paste
+PASSED testing/test_pastebin.py::TestPasteCapture::test_failed
+PASSED testing/test_pastebin.py::TestPasteCapture::test_all
+PASSED testing/test_pastebin.py::TestPasteCapture::test_non_ascii_paste_text
+=========================== 4 passed in 1.71 seconds ===========================
++ git checkout 8aba863a634f40560e25055d179220f0eefabe9a testing/test_pastebin.py
+Updated 1 path from c079ecfca

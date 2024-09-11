@@ -1,0 +1,155 @@
+
+diff --git a/lib/matplotlib/axes/_axes.py b/lib/matplotlib/axes/_axes.py
+index 5369eadbde..cd85cd28c2 100644
+--- a/lib/matplotlib/axes/_axes.py
++++ b/lib/matplotlib/axes/_axes.py
+@@ -4847,9 +4847,9 @@ default: :rc:`scatter.edgecolors`
+         yscale : {'linear', 'log'}, default: 'linear'
+             Use a linear or log10 scale on the vertical axis.
+ 
+-        mincnt : int > 0, default: *None*
+-            If not *None*, only display cells with more than *mincnt*
+-            number of points in the cell.
++        mincnt : int > 0, default: None
++            If not None, only display cells with at least *mincnt* number of points in the cell.
++            When C is specified, it applies to the number of points in the cell, not the value of C.
+ 
+         marginals : bool, default: *False*
+             If marginals is *True*, plot the marginal density as
+@@ -5014,7 +5014,7 @@ default: :rc:`scatter.edgecolors`
+             if mincnt is None:
+                 mincnt = 0
+             accum = np.array(
+-                [reduce_C_function(acc) if len(acc) > mincnt else np.nan
++                [reduce_C_function(acc) if len(acc) >= mincnt else np.nan
+                  for Cs_at_i in [Cs_at_i1, Cs_at_i2]
+                  for acc in Cs_at_i[1:]],  # [1:] drops out-of-range points.
+                 float)
+diff --git a/lib/matplotlib/tests/test_axes_hexbin.py b/lib/matplotlib/tests/test_axes_hexbin.py
+new file mode 100644
+index 0000000000..d9961253bf
+--- /dev/null
++++ b/lib/matplotlib/tests/test_axes_hexbin.py
+@@ -0,0 +1,66 @@
++import numpy as np
++import matplotlib.pyplot as plt
++from matplotlib.testing.decorators import image_comparison
++
++@image_comparison(baseline_images=['hexbin_mincnt'], extensions=['png'])
++def test_hexbin_mincnt():
++    # Generate sample data
++    np.random.seed(42)
++    x, y = np.random.multivariate_normal([0, 0], [[1, 0.5], [0.5, 1]], size=1000).T
++    z = np.ones_like(x)
++
++    fig, axs = plt.subplots(2, 3, figsize=(15, 10))
++    axs = axs.flatten()
++
++    cases = [
++        ("No mincnt, no C", {}),
++        ("mincnt=1, no C", {"mincnt": 1}),
++        ("No mincnt, C specified", {"C": z}),
++        ("mincnt=1, C specified", {"C": z, "mincnt": 1}),
++        ("mincnt=0, C specified", {"C": z, "mincnt": 0}),
++    ]
++
++    for ax, (title, kwargs) in zip(axs, cases):
++        hb = ax.hexbin(x, y, gridsize=20, **kwargs)
++        ax.set_title(title)
++        ax.set_aspect('equal')
++        
++        # Count visible hexbins
++        visible = np.sum(hb.get_array() > 0)
++        ax.text(0.5, -0.1, f"Visible: {visible}", transform=ax.transAxes, ha='center')
++
++    # Remove the unused subplot
++    fig.delaxes(axs[-1])
++    
++    plt.tight_layout()
++
++def test_hexbin_mincnt_counts():
++    np.random.seed(42)
++    x, y = np.random.multivariate_normal([0, 0], [[1, 0.5], [0.5, 1]], size=1000).T
++    z = np.ones_like(x)
++
++    cases = [
++        ("No mincnt, no C", {}),
++        ("mincnt=1, no C", {"mincnt": 1}),
++        ("No mincnt, C specified", {"C": z}),
++        ("mincnt=1, C specified", {"C": z, "mincnt": 1}),
++        ("mincnt=0, C specified", {"C": z, "mincnt": 0}),
++    ]
++
++    results = []
++    for title, kwargs in cases:
++        hb = plt.hexbin(x, y, gridsize=20, **kwargs)
++        visible = np.sum(hb.get_array() > 0)
++        results.append(visible)
++        plt.close()
++
++    # Check that all cases have the same number of visible hexbins
++    assert all(r == results[0] for r in results), "All cases should have the same number of visible hexbins"
++
++    # Check that mincnt=1 cases have no hexbins with count < 1
++    for title, kwargs in cases:
++        if kwargs.get('mincnt', 0) == 1:
++            hb = plt.hexbin(x, y, gridsize=20, **kwargs)
++            assert np.all(hb.get_array()[hb.get_array() > 0] >= 1), f"Case '{title}' has hexbins with count < 1"
++            plt.close()
++
+diff --git a/reproduce_hexbin_bug.py b/reproduce_hexbin_bug.py
+new file mode 100644
+index 0000000000..5276f58de3
+--- /dev/null
++++ b/reproduce_hexbin_bug.py
+@@ -0,0 +1,50 @@
++import matplotlib
++matplotlib.use('Agg')  # Use non-interactive backend
++from matplotlib import pyplot
++import numpy as np
++
++np.random.seed(42)
++
++X, Y = np.random.multivariate_normal([0.0, 0.0], [[1.0, 0.1], [0.1, 1.0]], size=1000).T
++Z = np.ones_like(X)
++
++def hexbin_info(hb):
++    counts = hb.get_array()
++    total = len(counts)
++    visible = np.sum(counts > 0)
++    min_count = np.min(counts[counts > 0]) if visible > 0 else 0
++    return f"{visible} visible out of {total} total hexbins, min count: {min_count}, max count: {np.max(counts)}"
++
++
++# Test cases
++
++extent = [-5., 5., -5., 5.]
++gridsize = (20, 20)
++
++def count_visible_hexbins(ax):
++    return len([p for p in ax.collections[0].get_paths() if p.vertices.size > 0])
++
++test_cases = [
++    ("No mincnt, no C", {}),
++    ("mincnt=1, no C", {"mincnt": 1}),
++    ("No mincnt, C specified", {"C": Z, "reduce_C_function": np.sum}),
++    ("mincnt=1, C specified", {"C": Z, "reduce_C_function": np.sum, "mincnt": 1}),
++    ("mincnt=0, C specified", {"C": Z, "reduce_C_function": np.sum, "mincnt": 0})
++]
++
++for case_name, kwargs in test_cases:
++    fig, ax = pyplot.subplots(1, 1)
++    hb = ax.hexbin(
++        X, Y,
++        extent=extent,
++        gridsize=gridsize,
++        linewidth=0.0,
++        cmap='Blues',
++        **kwargs
++    )
++    ax.set_facecolor("green")
++    info = hexbin_info(hb)
++    print(f"{case_name}: {info}")
++    pyplot.close(fig)
++
++print("Script completed successfully, no errors.")

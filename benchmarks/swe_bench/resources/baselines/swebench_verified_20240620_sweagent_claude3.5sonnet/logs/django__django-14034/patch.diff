@@ -1,0 +1,206 @@
+
+diff --git a/django/forms/fields.py b/django/forms/fields.py
+index 65d6a9ec82..e94321e542 100644
+--- a/django/forms/fields.py
++++ b/django/forms/fields.py
+@@ -998,6 +998,9 @@ class MultiValueField(Field):
+                 # required validation will be handled by MultiValueField, not
+                 # by those individual fields.
+                 f.required = False
++            # Preserve the original required attribute when require_all_fields is False
++            elif not self.required:
++                f.required = f.required and self.required
+         self.fields = fields
+ 
+     def __deepcopy__(self, memo):
+@@ -1035,17 +1038,14 @@ class MultiValueField(Field):
+             except IndexError:
+                 field_value = None
+             if field_value in self.empty_values:
+-                if self.require_all_fields:
+-                    # Raise a 'required' error if the MultiValueField is
+-                    # required and any field is empty.
++                if field.required:
++                    # Raise a 'required' error if the field is required, regardless of require_all_fields
++                    raise ValidationError(field.error_messages['required'], code='required')
++                elif self.require_all_fields:
+                     if self.required:
+                         raise ValidationError(self.error_messages['required'], code='required')
+-                elif field.required:
+-                    # Otherwise, add an 'incomplete' error to the list of
+-                    # collected errors and skip field cleaning, if a required
+-                    # field is empty.
+-                    if field.error_messages['incomplete'] not in errors:
+-                        errors.append(field.error_messages['incomplete'])
++                elif not self.required:
++                    # If the field is not required and require_all_fields is False, continue to the next field
+                     continue
+             try:
+                 clean_data.append(field.clean(field_value))
+@@ -1056,12 +1056,10 @@ class MultiValueField(Field):
+                 errors.extend(m for m in e.error_list if m not in errors)
+         if errors:
+             raise ValidationError(errors)
+-
+         out = self.compress(clean_data)
+         self.validate(out)
+         self.run_validators(out)
+         return out
+-
+     def compress(self, data_list):
+         """
+         Return a single value for the given list of values. The values can be
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..a909d48ffa
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,78 @@
++import os
++import django
++from django.conf import settings
++
++# Set up Django configuration
++if not settings.configured:
++    settings.configure(
++        DEBUG=True,
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++        ],
++    )
++    django.setup()
++
++from django.forms import (
++    Form,
++    CharField,
++    MultiValueField,
++    MultiWidget,
++    ValidationError,
++)
++
++class MF(MultiValueField):
++    def __init__(self):
++        fields = [
++            CharField(required=False),
++            CharField(required=True),
++        ]
++        widgets = [f.widget for f in fields]
++        super().__init__(
++            fields=fields,
++            widget=MultiWidget(widgets=widgets),
++            require_all_fields=False,
++            required=False,
++        )
++
++    def compress(self, data_list):
++        if data_list:
++            return ' '.join(data_list)
++        return None
++
++    def clean(self, value):
++        if not value or len(value) < 2 or not value[1]:
++            raise ValidationError("Second field is required.")
++        return super().clean(value)
++
++class F(Form):
++    mf = MF()
++
++# Test case 1: Both fields empty (should now fail)
++f1 = F({
++    'mf_0': '',
++    'mf_1': '',
++})
++print("Test case 1 (both empty):")
++print(f"is_valid: {f1.is_valid()}")
++print(f"errors: {f1.errors}")
++
++# Test case 2: First field non-empty, second field empty (should fail)
++f2 = F({
++    'mf_0': 'xxx',
++    'mf_1': '',
++})
++print("\nTest case 2 (first non-empty, second empty):")
++print(f"is_valid: {f2.is_valid()}")
++print(f"errors: {f2.errors}")
++
++# Test case 3: Both fields non-empty (should pass)
++f3 = F({
++    'mf_0': 'xxx',
++    'mf_1': 'yyy',
++})
++print("\nTest case 3 (both non-empty):")
++print(f"is_valid: {f3.is_valid()}")
++print(f"errors: {f3.errors}")
++
++print("\nScript completed successfully, no errors.")
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..1f2565d38e
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,64 @@
++import os
++import django
++from django.conf import settings
++
++# Set up Django configuration
++if not settings.configured:
++    settings.configure(
++        DEBUG=True,
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++        ],
++    )
++    django.setup()
++
++from django.forms import (
++    Form,
++    CharField,
++    MultiValueField,
++    MultiWidget,
++)
++
++class MF(MultiValueField):
++    widget = MultiWidget
++    def __init__(self):
++        fields = [
++            CharField(required=False),
++            CharField(required=True),
++        ]
++        widget = self.widget(widgets=[
++            f.widget
++            for f in fields
++        ], attrs={})
++        super(MF, self).__init__(
++            fields=fields,
++            widget=widget,
++            require_all_fields=False,
++            required=False,
++        )
++    def compress(self, value):
++        return []
++
++class F(Form):
++    mf = MF()
++
++# Test case 1: Both fields empty
++f1 = F({
++    'mf_0': '',
++    'mf_1': '',
++})
++print("Test case 1 (both empty):")
++print(f"is_valid: {f1.is_valid()}")
++print(f"errors: {f1.errors}")
++
++# Test case 2: First field non-empty, second field empty
++f2 = F({
++    'mf_0': 'xxx',
++    'mf_1': '',
++})
++print("\nTest case 2 (first non-empty, second empty):")
++print(f"is_valid: {f2.is_valid()}")
++print(f"errors: {f2.errors}")
++
++print("\nScript completed successfully, no errors.")

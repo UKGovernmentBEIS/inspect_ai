@@ -1,0 +1,1165 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/utils/html.py
+	modified:   tests/utils_tests/test_html.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	tests/test_settings.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 28d5262fa3315690395f04e3619ed554dbaf725b
+Author: Jon Dufresne <jon.dufresne@gmail.com>
+Date:   Thu Apr 25 02:56:06 2019 -0700
+
+    Removed redundant os.path.abspath() call.
+
+diff --git a/django/core/management/commands/loaddata.py b/django/core/management/commands/loaddata.py
+index 979ba9d2dc..fb7cf303f2 100644
+--- a/django/core/management/commands/loaddata.py
++++ b/django/core/management/commands/loaddata.py
+@@ -300,7 +300,7 @@ class Command(BaseCommand):
+                 dirs.append(app_dir)
+         dirs.extend(fixture_dirs)
+         dirs.append('')
+-        return [os.path.abspath(os.path.realpath(d)) for d in dirs]
++        return [os.path.realpath(d) for d in dirs]
+ 
+     def parse_name(self, fixture_name):
+         """
++ git diff 28d5262fa3315690395f04e3619ed554dbaf725b
+diff --git a/django/utils/html.py b/django/utils/html.py
+index 9c519978f5..22d0ac1c0a 100644
+--- a/django/utils/html.py
++++ b/django/utils/html.py
+@@ -1,5 +1,6 @@
+ """HTML utilities suitable for global use."""
+ 
++import html
+ import json
+ import re
+ from html.parser import HTMLParser
+@@ -24,15 +25,6 @@ word_split_re = re.compile(r'''([\s<>"']+)''')
+ simple_url_re = re.compile(r'^https?://\[?\w', re.IGNORECASE)
+ simple_url_2_re = re.compile(r'^www\.|^(?!http)\w[^@]+\.(com|edu|gov|int|mil|net|org)($|/.*)$', re.IGNORECASE)
+ 
+-_html_escapes = {
+-    ord('&'): '&amp;',
+-    ord('<'): '&lt;',
+-    ord('>'): '&gt;',
+-    ord('"'): '&quot;',
+-    ord("'"): '&#39;',
+-}
+-
+-
+ @keep_lazy(str, SafeString)
+ def escape(text):
+     """
+@@ -42,8 +34,12 @@ def escape(text):
+     Always escape input, even if it's already escaped and marked as such.
+     This may result in double-escaping. If this is a concern, use
+     conditional_escape() instead.
++
++    Note: This function now uses html.escape() from the Python standard library.
++    As a result, single quotes (') are now escaped as &#x27; instead of &#39;.
++    These are functionally equivalent in HTML.
+     """
+-    return mark_safe(str(text).translate(_html_escapes))
++    return mark_safe(html.escape(str(text)))
+ 
+ 
+ _js_escapes = {
+diff --git a/tests/utils_tests/test_html.py b/tests/utils_tests/test_html.py
+index d87927cdfe..e45198457b 100644
+--- a/tests/utils_tests/test_html.py
++++ b/tests/utils_tests/test_html.py
+@@ -9,6 +9,8 @@ from django.utils.html import (
+ )
+ from django.utils.safestring import mark_safe
+ 
++strip_tags_files = ('strip_tags1.html', 'strip_tags2.txt')
++
+ 
+ class TestUtilsHtml(SimpleTestCase):
+ 
+@@ -27,7 +29,7 @@ class TestUtilsHtml(SimpleTestCase):
+             ('<', '&lt;'),
+             ('>', '&gt;'),
+             ('"', '&quot;'),
+-            ("'", '&#39;'),
++            ("'", '&#x27;'),  # Changed from '&#39;' to '&#x27;'
+         )
+         # Substitution patterns for testing the above items.
+         patterns = ("%s", "asdf%sfdsa", "%s1", "1%sb")
+@@ -96,18 +98,16 @@ class TestUtilsHtml(SimpleTestCase):
+ 
+     def test_strip_tags_files(self):
+         # Test with more lengthy content (also catching performance regressions)
+-        for filename in ('strip_tags1.html', 'strip_tags2.txt'):
++        for filename in strip_tags_files:
+             with self.subTest(filename=filename):
+-                path = os.path.join(os.path.dirname(__file__), 'files', filename)
+-                with open(path) as fp:
++                with open(os.path.join(os.path.dirname(__file__), "files", filename), encoding='utf-8') as fp:
+                     content = fp.read()
+-                    start = datetime.now()
+-                    stripped = strip_tags(content)
+-                    elapsed = datetime.now() - start
++                start = datetime.now()
++                stripped = strip_tags(content)
++                elapsed = datetime.now() - start
+                 self.assertEqual(elapsed.seconds, 0)
+                 self.assertIn("Please try again.", stripped)
+                 self.assertNotIn('<', stripped)
+-
+     def test_strip_spaces_between_tags(self):
+         # Strings that should come out untouched.
+         items = (' <adf>', '<adf> ', ' </adf> ', ' <f> x</f>')
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0.dev20190425095605) (2024.1)
+Requirement already satisfied: sqlparse in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.0.dev20190425095605) (0.4.4)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.0.dev20190425095605
+    Uninstalling Django-3.0.dev20190425095605:
+      Successfully uninstalled Django-3.0.dev20190425095605
+  Running setup.py develop for Django
+Successfully installed Django-3.0.dev20190425095605
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 28d5262fa3315690395f04e3619ed554dbaf725b tests/admin_docs/test_views.py tests/auth_tests/test_forms.py tests/forms_tests/tests/test_forms.py tests/forms_tests/widget_tests/base.py tests/forms_tests/widget_tests/test_clearablefileinput.py tests/model_forms/tests.py tests/template_tests/filter_tests/test_addslashes.py tests/template_tests/filter_tests/test_make_list.py tests/template_tests/filter_tests/test_title.py tests/template_tests/filter_tests/test_urlize.py tests/template_tests/syntax_tests/test_url.py tests/utils_tests/test_html.py tests/view_tests/tests/test_csrf.py tests/view_tests/tests/test_debug.py
+Updated 1 path from 84bb94de1b
++ git apply -v -
+Checking patch tests/admin_docs/test_views.py...
+Checking patch tests/auth_tests/test_forms.py...
+Checking patch tests/forms_tests/tests/test_forms.py...
+Checking patch tests/forms_tests/widget_tests/base.py...
+Checking patch tests/forms_tests/widget_tests/test_clearablefileinput.py...
+Checking patch tests/model_forms/tests.py...
+Checking patch tests/template_tests/filter_tests/test_addslashes.py...
+Checking patch tests/template_tests/filter_tests/test_make_list.py...
+Checking patch tests/template_tests/filter_tests/test_title.py...
+Checking patch tests/template_tests/filter_tests/test_urlize.py...
+Checking patch tests/template_tests/syntax_tests/test_url.py...
+Checking patch tests/utils_tests/test_html.py...
+Checking patch tests/view_tests/tests/test_csrf.py...
+Checking patch tests/view_tests/tests/test_debug.py...
+Applied patch tests/admin_docs/test_views.py cleanly.
+Applied patch tests/auth_tests/test_forms.py cleanly.
+Applied patch tests/forms_tests/tests/test_forms.py cleanly.
+Applied patch tests/forms_tests/widget_tests/base.py cleanly.
+Applied patch tests/forms_tests/widget_tests/test_clearablefileinput.py cleanly.
+Applied patch tests/model_forms/tests.py cleanly.
+Applied patch tests/template_tests/filter_tests/test_addslashes.py cleanly.
+Applied patch tests/template_tests/filter_tests/test_make_list.py cleanly.
+Applied patch tests/template_tests/filter_tests/test_title.py cleanly.
+Applied patch tests/template_tests/filter_tests/test_urlize.py cleanly.
+Applied patch tests/template_tests/syntax_tests/test_url.py cleanly.
+Applied patch tests/utils_tests/test_html.py cleanly.
+Applied patch tests/view_tests/tests/test_csrf.py cleanly.
+Applied patch tests/view_tests/tests/test_debug.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 admin_docs.test_views auth_tests.test_forms forms_tests.tests.test_forms forms_tests.widget_tests.base forms_tests.widget_tests.test_clearablefileinput model_forms.tests template_tests.filter_tests.test_addslashes template_tests.filter_tests.test_make_list template_tests.filter_tests.test_title template_tests.filter_tests.test_urlize template_tests.syntax_tests.test_url utils_tests.test_html view_tests.tests.test_csrf view_tests.tests.test_debug
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+test_bookmarklets (admin_docs.test_views.AdminDocViewTests) ... ok
+test_index (admin_docs.test_views.AdminDocViewTests) ... ok
+test_missing_docutils (admin_docs.test_views.AdminDocViewTests) ... ok
+test_model_index (admin_docs.test_views.AdminDocViewTests) ... ok
+test_namespaced_view_detail (admin_docs.test_views.AdminDocViewTests) ... ok
+test_no_sites_framework (admin_docs.test_views.AdminDocViewTests) ... ok
+test_template_detail (admin_docs.test_views.AdminDocViewTests) ... ok
+test_templatefilter_index (admin_docs.test_views.AdminDocViewTests) ... ok
+test_templatetag_index (admin_docs.test_views.AdminDocViewTests) ... ok
+test_view_detail (admin_docs.test_views.AdminDocViewTests) ... ok
+test_view_detail_as_method (admin_docs.test_views.AdminDocViewTests) ... ok
+test_view_detail_illegal_import (admin_docs.test_views.AdminDocViewTests) ... ok
+test_view_index (admin_docs.test_views.AdminDocViewTests) ... ok
+test_view_index_with_method (admin_docs.test_views.AdminDocViewTests) ... ok
+test_bookmarklets (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_index (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_missing_docutils (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_model_index (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_namespaced_view_detail (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_no_sites_framework (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_template_detail (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_templatefilter_index (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_templatetag_index (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_view_detail (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_view_detail_as_method (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_view_detail_illegal_import (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_view_index (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_view_index_with_method (admin_docs.test_views.AdminDocViewWithMultipleEngines) ... ok
+test_app_not_found (admin_docs.test_views.TestModelDetailView) ... ok
+test_descriptions_render_correctly (admin_docs.test_views.TestModelDetailView) ... ok
+test_instance_of_property_methods_are_displayed (admin_docs.test_views.TestModelDetailView)
+Model properties are displayed as fields. ... ok
+test_method_data_types (admin_docs.test_views.TestModelDetailView) ... ok
+test_method_excludes (admin_docs.test_views.TestModelDetailView) ... ok
+test_methods_with_arguments (admin_docs.test_views.TestModelDetailView) ... ok
+test_methods_with_arguments_display_arguments (admin_docs.test_views.TestModelDetailView) ... ok
+test_methods_with_arguments_display_arguments_default_value (admin_docs.test_views.TestModelDetailView) ... ok
+test_methods_with_multiple_arguments_display_arguments (admin_docs.test_views.TestModelDetailView) ... ok
+test_model_detail_title (admin_docs.test_views.TestModelDetailView) ... ok
+test_model_docstring_renders_correctly (admin_docs.test_views.TestModelDetailView) ... ok
+test_model_not_found (admin_docs.test_views.TestModelDetailView) ... ok
+test_model_with_many_to_one (admin_docs.test_views.TestModelDetailView) ... ok
+test_model_with_no_backward_relations_render_only_relevant_fields (admin_docs.test_views.TestModelDetailView) ... ok
+test_missing_passwords (auth_tests.test_forms.AdminPasswordChangeFormTest) ... ok
+test_non_matching_passwords (auth_tests.test_forms.AdminPasswordChangeFormTest) ... ok
+test_one_password (auth_tests.test_forms.AdminPasswordChangeFormTest) ... ok
+test_password_whitespace_not_stripped (auth_tests.test_forms.AdminPasswordChangeFormTest) ... ok
+test_success (auth_tests.test_forms.AdminPasswordChangeFormTest) ... ok
+test_custom_login_allowed_policy (auth_tests.test_forms.AuthenticationFormTest) ... ok
+test_get_invalid_login_error (auth_tests.test_forms.AuthenticationFormTest) ... ok
+test_inactive_user (auth_tests.test_forms.AuthenticationFormTest) ... ok
+test_inactive_user_i18n (auth_tests.test_forms.AuthenticationFormTest) ... ok
+test_inactive_user_incorrect_password (auth_tests.test_forms.AuthenticationFormTest)
+An invalid login doesn't leak the inactive status of a user. ... ok
+test_integer_username (auth_tests.test_forms.AuthenticationFormTest) ... ok
+test_invalid_username (auth_tests.test_forms.AuthenticationFormTest) ... ok
+test_login_failed (auth_tests.test_forms.AuthenticationFormTest) ... ok
+test_password_whitespace_not_stripped (auth_tests.test_forms.AuthenticationFormTest) ... ok
+test_success (auth_tests.test_forms.AuthenticationFormTest) ... ok
+test_unicode_username (auth_tests.test_forms.AuthenticationFormTest) ... ok
+test_username_field_autocapitalize_none (auth_tests.test_forms.AuthenticationFormTest) ... ok
+test_username_field_label (auth_tests.test_forms.AuthenticationFormTest) ... ok
+test_username_field_label_empty_string (auth_tests.test_forms.AuthenticationFormTest) ... ok
+test_username_field_label_not_set (auth_tests.test_forms.AuthenticationFormTest) ... ok
+test_username_field_max_length_defaults_to_254 (auth_tests.test_forms.AuthenticationFormTest) ... ok
+test_username_field_max_length_matches_user_model (auth_tests.test_forms.AuthenticationFormTest) ... ok
+test_field_order (auth_tests.test_forms.PasswordChangeFormTest) ... ok
+test_incorrect_password (auth_tests.test_forms.PasswordChangeFormTest) ... ok
+test_password_verification (auth_tests.test_forms.PasswordChangeFormTest) ... ok
+test_password_whitespace_not_stripped (auth_tests.test_forms.PasswordChangeFormTest) ... ok
+test_success (auth_tests.test_forms.PasswordChangeFormTest) ... ok
+test_cleaned_data (auth_tests.test_forms.PasswordResetFormTest) ... ok
+test_custom_email_constructor (auth_tests.test_forms.PasswordResetFormTest) ... ok
+test_custom_email_field (auth_tests.test_forms.PasswordResetFormTest) ... ok
+test_custom_email_subject (auth_tests.test_forms.PasswordResetFormTest) ... ok
+test_inactive_user (auth_tests.test_forms.PasswordResetFormTest) ... ok
+test_invalid_email (auth_tests.test_forms.PasswordResetFormTest) ... ok
+test_nonexistent_email (auth_tests.test_forms.PasswordResetFormTest) ... ok
+test_preserve_username_case (auth_tests.test_forms.PasswordResetFormTest) ... ok
+test_save_html_email_template_name (auth_tests.test_forms.PasswordResetFormTest) ... ok
+test_save_plaintext_email (auth_tests.test_forms.PasswordResetFormTest) ... ok
+test_unusable_password (auth_tests.test_forms.PasswordResetFormTest) ... ok
+test_help_text_translation (auth_tests.test_forms.SetPasswordFormTest) ... ok
+test_password_verification (auth_tests.test_forms.SetPasswordFormTest) ... ok
+test_password_whitespace_not_stripped (auth_tests.test_forms.SetPasswordFormTest) ... ok
+test_success (auth_tests.test_forms.SetPasswordFormTest) ... ok
+test_validates_password (auth_tests.test_forms.SetPasswordFormTest) ... ok
+test_bug_14242 (auth_tests.test_forms.UserChangeFormTest) ... ok
+test_bug_17944_empty_password (auth_tests.test_forms.UserChangeFormTest) ... ok
+test_bug_17944_unknown_password_algorithm (auth_tests.test_forms.UserChangeFormTest) ... ok
+test_bug_17944_unmanageable_password (auth_tests.test_forms.UserChangeFormTest) ... ok
+test_bug_19133 (auth_tests.test_forms.UserChangeFormTest)
+The change form does not return the password value ... ok
+test_bug_19349_bound_password_field (auth_tests.test_forms.UserChangeFormTest) ... ok
+test_custom_form (auth_tests.test_forms.UserChangeFormTest) ... ok
+test_password_excluded (auth_tests.test_forms.UserChangeFormTest) ... ok
+test_unusable_password (auth_tests.test_forms.UserChangeFormTest) ... ok
+test_username_field_autocapitalize_none (auth_tests.test_forms.UserChangeFormTest) ... ok
+test_username_validity (auth_tests.test_forms.UserChangeFormTest) ... ok
+test_both_passwords (auth_tests.test_forms.UserCreationFormTest) ... ok
+test_custom_form (auth_tests.test_forms.UserCreationFormTest) ... ok
+test_custom_form_hidden_username_field (auth_tests.test_forms.UserCreationFormTest) ... ok
+test_custom_form_with_different_username_field (auth_tests.test_forms.UserCreationFormTest) ... ok
+test_duplicate_normalized_unicode (auth_tests.test_forms.UserCreationFormTest) ... ok
+test_invalid_data (auth_tests.test_forms.UserCreationFormTest) ... ok
+test_normalize_username (auth_tests.test_forms.UserCreationFormTest) ... ok
+test_password_help_text (auth_tests.test_forms.UserCreationFormTest) ... ok
+test_password_verification (auth_tests.test_forms.UserCreationFormTest) ... ok
+test_password_whitespace_not_stripped (auth_tests.test_forms.UserCreationFormTest) ... ok
+test_success (auth_tests.test_forms.UserCreationFormTest) ... ok
+test_unicode_username (auth_tests.test_forms.UserCreationFormTest) ... ok
+test_user_already_exists (auth_tests.test_forms.UserCreationFormTest) ... ok
+test_user_create_form_validates_password_with_all_data (auth_tests.test_forms.UserCreationFormTest)
+UserCreationForm password validation uses all of the form's data. ... ok
+test_username_field_autocapitalize_none (auth_tests.test_forms.UserCreationFormTest) ... ok
+test_validates_password (auth_tests.test_forms.UserCreationFormTest) ... ok
+test_model_form_clean_applies_to_model (model_forms.tests.CustomCleanTests) ... ok
+test_override_clean (model_forms.tests.CustomCleanTests) ... ok
+test_clean_false (model_forms.tests.FileAndImageFieldTests) ... ok
+test_clean_false_required (model_forms.tests.FileAndImageFieldTests) ... ok
+test_clear_and_file_contradiction (model_forms.tests.FileAndImageFieldTests) ... ok
+test_custom_file_field_save (model_forms.tests.FileAndImageFieldTests) ... ok
+test_file_field_data (model_forms.tests.FileAndImageFieldTests) ... ok
+test_file_field_multiple_save (model_forms.tests.FileAndImageFieldTests) ... ok
+test_file_path_field_blank (model_forms.tests.FileAndImageFieldTests)
+FilePathField(blank=True) includes the empty option. ... ok
+test_filefield_required_false (model_forms.tests.FileAndImageFieldTests) ... ok
+test_full_clear (model_forms.tests.FileAndImageFieldTests) ... ok
+test_image_field (model_forms.tests.FileAndImageFieldTests) ... ok
+test_render_empty_file_field (model_forms.tests.FileAndImageFieldTests) ... ok
+test_callable_called_each_time_form_is_instantiated (model_forms.tests.LimitChoicesToTests) ... ok
+test_custom_field_with_queryset_but_no_limit_choices_to (model_forms.tests.LimitChoicesToTests) ... ok
+test_fields_for_model_applies_limit_choices_to (model_forms.tests.LimitChoicesToTests) ... ok
+test_limit_choices_to_callable_for_fk_rel (model_forms.tests.LimitChoicesToTests) ... ok
+test_limit_choices_to_callable_for_m2m_rel (model_forms.tests.LimitChoicesToTests) ... ok
+test_model_form_applies_localize_to_all_fields (model_forms.tests.LocalizedModelFormTest) ... ok
+test_model_form_applies_localize_to_some_fields (model_forms.tests.LocalizedModelFormTest) ... ok
+test_model_form_refuses_arbitrary_string (model_forms.tests.LocalizedModelFormTest) ... ok
+test_article_form (model_forms.tests.ModelFormBaseTest) ... ok
+test_bad_form (model_forms.tests.ModelFormBaseTest) ... ok
+test_base_form (model_forms.tests.ModelFormBaseTest) ... ok
+test_blank_false_with_null_true_foreign_key_field (model_forms.tests.ModelFormBaseTest) ... ok
+test_blank_with_null_foreign_key_field (model_forms.tests.ModelFormBaseTest) ... ok
+test_confused_form (model_forms.tests.ModelFormBaseTest) ... ok
+test_default_filefield (model_forms.tests.ModelFormBaseTest) ... ok
+test_default_not_populated_on_checkboxselectmultiple (model_forms.tests.ModelFormBaseTest) ... ok
+test_default_not_populated_on_optional_checkbox_input (model_forms.tests.ModelFormBaseTest) ... ok
+test_default_not_populated_on_selectmultiple (model_forms.tests.ModelFormBaseTest) ... ok
+test_default_populated_on_optional_field (model_forms.tests.ModelFormBaseTest) ... ok
+test_default_selectdatewidget (model_forms.tests.ModelFormBaseTest) ... ok
+test_default_splitdatetime_field (model_forms.tests.ModelFormBaseTest) ... ok
+test_empty_fields_on_modelform (model_forms.tests.ModelFormBaseTest) ... ok
+test_empty_fields_to_construct_instance (model_forms.tests.ModelFormBaseTest) ... ok
+test_empty_fields_to_fields_for_model (model_forms.tests.ModelFormBaseTest) ... ok
+test_exclude_and_validation (model_forms.tests.ModelFormBaseTest) ... ok
+test_exclude_fields (model_forms.tests.ModelFormBaseTest) ... ok
+test_exclude_fields_with_string (model_forms.tests.ModelFormBaseTest) ... ok
+test_exclude_nonexistent_field (model_forms.tests.ModelFormBaseTest) ... ok
+test_extra_declared_field_model_form (model_forms.tests.ModelFormBaseTest) ... ok
+test_extra_field_model_form (model_forms.tests.ModelFormBaseTest) ... ok
+test_extra_field_modelform_factory (model_forms.tests.ModelFormBaseTest) ... ok
+test_extra_fields (model_forms.tests.ModelFormBaseTest) ... ok
+test_invalid_meta_model (model_forms.tests.ModelFormBaseTest) ... ok
+test_limit_fields_with_string (model_forms.tests.ModelFormBaseTest) ... ok
+test_limit_nonexistent_field (model_forms.tests.ModelFormBaseTest) ... ok
+test_missing_fields_attribute (model_forms.tests.ModelFormBaseTest) ... ok
+test_mixmodel_form (model_forms.tests.ModelFormBaseTest) ... ok
+test_no_model_class (model_forms.tests.ModelFormBaseTest) ... ok
+test_orderfields2_form (model_forms.tests.ModelFormBaseTest) ... ok
+test_orderfields_form (model_forms.tests.ModelFormBaseTest) ... ok
+test_override_field (model_forms.tests.ModelFormBaseTest) ... ok
+test_prefixed_form_with_default_field (model_forms.tests.ModelFormBaseTest) ... ok
+test_renderer_kwarg (model_forms.tests.ModelFormBaseTest) ... ok
+test_replace_field (model_forms.tests.ModelFormBaseTest) ... ok
+test_replace_field_variant_2 (model_forms.tests.ModelFormBaseTest) ... ok
+test_replace_field_variant_3 (model_forms.tests.ModelFormBaseTest) ... ok
+test_save_blank_false_with_required_false (model_forms.tests.ModelFormBaseTest) ... ok
+test_save_blank_null_unique_charfield_saves_null (model_forms.tests.ModelFormBaseTest) ... ok
+test_subcategory_form (model_forms.tests.ModelFormBaseTest) ... ok
+test_subclassmeta_form (model_forms.tests.ModelFormBaseTest) ... ok
+test_auto_id (model_forms.tests.ModelFormBasicTests) ... ok
+test_base_form (model_forms.tests.ModelFormBasicTests) ... ok
+test_basic_creation (model_forms.tests.ModelFormBasicTests) ... ok
+test_custom_form_fields (model_forms.tests.ModelFormBasicTests) ... ok
+test_initial_values (model_forms.tests.ModelFormBasicTests) ... ok
+test_m2m_editing (model_forms.tests.ModelFormBasicTests) ... ok
+test_m2m_initial_callable (model_forms.tests.ModelFormBasicTests) ... ok
+test_multi_fields (model_forms.tests.ModelFormBasicTests) ... ok
+test_recleaning_model_form_instance (model_forms.tests.ModelFormBasicTests) ... ok
+test_runtime_choicefield_populated (model_forms.tests.ModelFormBasicTests) ... ok
+test_save_commit_false (model_forms.tests.ModelFormBasicTests) ... ok
+test_save_with_data_errors (model_forms.tests.ModelFormBasicTests) ... ok
+test_subset_fields (model_forms.tests.ModelFormBasicTests) ... ok
+test_clean_does_deduplicate_values (model_forms.tests.ModelMultipleChoiceFieldTests) ... ok
+test_model_multiple_choice_field (model_forms.tests.ModelMultipleChoiceFieldTests) ... ok
+test_model_multiple_choice_field_22745 (model_forms.tests.ModelMultipleChoiceFieldTests) ... ok
+test_model_multiple_choice_number_of_queries (model_forms.tests.ModelMultipleChoiceFieldTests) ... ok
+test_model_multiple_choice_required_false (model_forms.tests.ModelMultipleChoiceFieldTests) ... ok
+test_model_multiple_choice_run_validators (model_forms.tests.ModelMultipleChoiceFieldTests) ... ok
+test_model_multiple_choice_show_hidden_initial (model_forms.tests.ModelMultipleChoiceFieldTests) ... ok
+test_show_hidden_initial_changed_queries_efficiently (model_forms.tests.ModelMultipleChoiceFieldTests) ... ok
+test_to_field_name_with_initial_data (model_forms.tests.ModelMultipleChoiceFieldTests) ... ok
+test_assignment_of_none (model_forms.tests.ModelOneToOneFieldTests) ... ok
+test_assignment_of_none_null_false (model_forms.tests.ModelOneToOneFieldTests) ... ok
+test_modelform_onetoonefield (model_forms.tests.ModelOneToOneFieldTests) ... ok
+test_modelform_subclassed_model (model_forms.tests.ModelOneToOneFieldTests) ... ok
+test_onetoonefield (model_forms.tests.ModelOneToOneFieldTests) ... ok
+test_many_to_many (model_forms.tests.ModelToDictTests)
+Data for a ManyToManyField is a list rather than a lazy QuerySet. ... ok
+test_callable_field_default (model_forms.tests.OtherModelFormTests) ... ok
+test_choices_type (model_forms.tests.OtherModelFormTests) ... ok
+test_foreignkeys_which_use_to_field (model_forms.tests.OtherModelFormTests) ... ok
+test_iterable_model_m2m (model_forms.tests.OtherModelFormTests) ... ok
+test_media_on_modelform (model_forms.tests.OtherModelFormTests) ... ok
+test_model_field_that_returns_none_to_exclude_itself_with_explicit_fields (model_forms.tests.OtherModelFormTests) ... ok
+test_prefetch_related_queryset (model_forms.tests.OtherModelFormTests) ... ok
+test_abstract_inherited_unique (model_forms.tests.UniqueTest) ... ok
+test_abstract_inherited_unique_together (model_forms.tests.UniqueTest) ... ok
+test_explicitpk_unique (model_forms.tests.UniqueTest)
+Ensure keys and blank character strings are tested for uniqueness. ... ok
+test_explicitpk_unspecified (model_forms.tests.UniqueTest)
+Test for primary_key being in the form and failing validation. ... ok
+test_inherited_unique (model_forms.tests.UniqueTest) ... ok
+test_inherited_unique_for_date (model_forms.tests.UniqueTest) ... ok
+test_inherited_unique_together (model_forms.tests.UniqueTest) ... ok
+test_multiple_field_unique_together (model_forms.tests.UniqueTest) ... ok
+test_override_unique_for_date_message (model_forms.tests.UniqueTest) ... ok
+test_override_unique_message (model_forms.tests.UniqueTest) ... ok
+test_override_unique_together_message (model_forms.tests.UniqueTest) ... ok
+test_simple_unique (model_forms.tests.UniqueTest) ... ok
+test_unique_for_date (model_forms.tests.UniqueTest) ... ok
+test_unique_for_date_in_exclude (model_forms.tests.UniqueTest) ... ok
+test_unique_for_date_with_nullable_date (model_forms.tests.UniqueTest) ... ok
+test_unique_null (model_forms.tests.UniqueTest) ... ok
+test_unique_together (model_forms.tests.UniqueTest)
+ModelForm test of unique_together constraint ... ok
+test_unique_together_exclusion (model_forms.tests.UniqueTest) ... ok
+test_simplify_regex (admin_docs.test_views.AdminDocViewFunctionsTests) ... ok
+test_bug_19349_render_with_none_value (auth_tests.test_forms.ReadOnlyPasswordHashTest) ... ok
+test_readonly_field_has_changed (auth_tests.test_forms.ReadOnlyPasswordHashTest) ... ok
+test_render (auth_tests.test_forms.ReadOnlyPasswordHashTest) ... ok
+test_accessing_clean (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_auto_id (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_auto_id_false (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_auto_id_on_form_and_field (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_auto_id_true (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_baseform_repr (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_baseform_repr_dont_trigger_validation (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_basic_processing_in_view (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_bool (forms_tests.tests.test_forms.FormsTestCase)
+BoundField without any choices (subwidgets) evaluates to True. ... ok
+test_boundfield_empty_label (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_id_for_label (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_id_for_label_override_by_attrs (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_initial_called_once (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_label_tag (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_label_tag_custom_widget_id_for_label (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_label_tag_no_id (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_slice (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_value_disabled_callable_initial (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_values (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_callable_initial_data (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_changed_data (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_changing_cleaned_data_in_clean (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_changing_cleaned_data_nothing_returned (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_checkbox_auto_id (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_class_prefix (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_cleaned_data_only_fields (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_custom_boundfield (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_custom_empty_values (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_datetime_changed_data_callable_with_microseconds (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_datetime_clean_initial_callable_disabled (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_dynamic_construction (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_dynamic_initial_data (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_empty_data_files_multi_value_dict (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_empty_dict (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_empty_permitted (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_empty_permitted_and_use_required_attribute (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_empty_querydict_args (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_error_dict (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_error_dict_as_json_escape_html (forms_tests.tests.test_forms.FormsTestCase)
+#21962 - adding html escape flag to ErrorDict ... ok
+test_error_escaping (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_error_html_required_html_classes (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_error_list (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_error_list_class_has_one_class_specified (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_error_list_class_not_specified (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_error_list_with_hidden_field_errors_has_correct_class (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_error_list_with_non_field_errors_has_correct_class (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_errorlist_override (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_escaping (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_explicit_field_order (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_extracting_hidden_and_visible (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_field_name (forms_tests.tests.test_forms.FormsTestCase)
+#5749 - `field_name` may be used as a key in _html_output(). ... ok
+test_field_name_with_hidden_input (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_field_name_with_hidden_input_and_non_matching_row_ender (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_field_named_data (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_field_order (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_field_with_css_class (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_field_without_css_classes (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_filefield_initial_callable (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_form (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_form_html_attributes (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_form_with_disabled_fields (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_form_with_iterable_boundfield (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_form_with_iterable_boundfield_id (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_form_with_noniterable_boundfield (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_forms_with_choices (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_forms_with_file_fields (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_forms_with_multiple_choice (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_forms_with_null_boolean (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_forms_with_prefixes (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_forms_with_radio (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_get_initial_for_field (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_has_error (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_help_text (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_hidden_data (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_hidden_initial_gets_id (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_hidden_widget (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_html_safe (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_id_on_field (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_initial_data (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_initial_datetime_values (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_iterable_boundfield_select (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_label_has_required_css_class (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_label_split_datetime_not_displayed (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_label_suffix (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_label_tag_override (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_multipart_encoded_form (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_multiple_choice_checkbox (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_multiple_choice_list_data (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_multiple_hidden (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_multivalue_deep_copy (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_multivalue_field_validation (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_multivalue_initial_data (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_multivalue_optional_subfields (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_only_hidden_fields (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_optional_data (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_specifying_labels (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_subclassing_forms (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_templates_with_forms (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_unbound_form (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_unicode_values (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_update_error_dict (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_use_required_attribute_false (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_use_required_attribute_true (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_validating_multiple_fields (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_validators_independence (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_various_boolean_values (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_widget_output (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_attribute_class (forms_tests.tests.test_forms.RendererTests) ... ok
+test_attribute_instance (forms_tests.tests.test_forms.RendererTests) ... ok
+test_attribute_override (forms_tests.tests.test_forms.RendererTests) ... ok
+test_default (forms_tests.tests.test_forms.RendererTests) ... ok
+test_kwarg_class (forms_tests.tests.test_forms.RendererTests) ... ok
+test_kwarg_instance (forms_tests.tests.test_forms.RendererTests) ... ok
+test_clear_input_checked_returns_false (forms_tests.widget_tests.test_clearablefileinput.ClearableFileInputTest) ... ok
+test_clear_input_checked_returns_false_only_if_not_required (forms_tests.widget_tests.test_clearablefileinput.ClearableFileInputTest) ... ok
+test_clear_input_renders (forms_tests.widget_tests.test_clearablefileinput.ClearableFileInputTest) ... ok
+test_clear_input_renders_only_if_initial (forms_tests.widget_tests.test_clearablefileinput.ClearableFileInputTest) ... ok
+test_clear_input_renders_only_if_not_required (forms_tests.widget_tests.test_clearablefileinput.ClearableFileInputTest) ... ok
+test_html_does_not_mask_exceptions (forms_tests.widget_tests.test_clearablefileinput.ClearableFileInputTest) ... ok
+test_html_escaped (forms_tests.widget_tests.test_clearablefileinput.ClearableFileInputTest) ... ok
+test_render_as_subwidget (forms_tests.widget_tests.test_clearablefileinput.ClearableFileInputTest)
+A ClearableFileInput as a subwidget of MultiWidget. ... ok
+test_return_false_if_url_does_not_exists (forms_tests.widget_tests.test_clearablefileinput.ClearableFileInputTest) ... ok
+test_url_as_property (forms_tests.widget_tests.test_clearablefileinput.ClearableFileInputTest) ... ok
+test_use_required_attribute (forms_tests.widget_tests.test_clearablefileinput.ClearableFileInputTest) ... ok
+test_value_omitted_from_data (forms_tests.widget_tests.test_clearablefileinput.ClearableFileInputTest) ... ok
+test_modelform_factory_metaclass (model_forms.tests.CustomMetaclassTestCase) ... ok
+test_bad_callback (model_forms.tests.FormFieldCallbackTests) ... ok
+test_baseform_with_widgets_in_meta (model_forms.tests.FormFieldCallbackTests)
+Regression for #13095: Using base forms with widgets defined in Meta should not raise errors. ... ok
+test_custom_callback (model_forms.tests.FormFieldCallbackTests)
+A custom formfield_callback is used if provided ... ok
+test_factory_with_widget_argument (model_forms.tests.FormFieldCallbackTests)
+Regression for #15315: modelform_factory should accept widgets ... ok
+test_inherit_after_custom_callback (model_forms.tests.FormFieldCallbackTests) ... ok
+test_modelform_factory_with_all_fields (model_forms.tests.FormFieldCallbackTests)
+Regression for #19733 ... ok
+test_modelform_factory_without_fields (model_forms.tests.FormFieldCallbackTests)
+Regression for #19733 ... ok
+test_custom_error_messages (model_forms.tests.ModelFormCustomErrorTests) ... ok
+test_model_clean_error_messages (model_forms.tests.ModelFormCustomErrorTests) ... ok
+test_field_removal (model_forms.tests.ModelFormInheritanceTests) ... ok
+test_field_removal_name_clashes (model_forms.tests.ModelFormInheritanceTests) ... ok
+test_form_subclass_inheritance (model_forms.tests.ModelFormInheritanceTests) ... ok
+test_big_integer_field (model_forms.tests.ModelOtherFieldTests) ... ok
+test_http_prefixing (model_forms.tests.ModelOtherFieldTests) ... ok
+test_modelform_non_editable_field (model_forms.tests.ModelOtherFieldTests) ... ok
+test_url_on_modelform (model_forms.tests.ModelOtherFieldTests)
+Check basic URL field validation on model forms ... ok
+test_setattr_raises_validation_error_field_specific (model_forms.tests.StrictAssignmentTests) ... ok
+test_setattr_raises_validation_error_non_field (model_forms.tests.StrictAssignmentTests) ... ok
+test_error_messages_overrides (model_forms.tests.TestFieldOverridesByFormMeta) ... ok
+test_field_type_overrides (model_forms.tests.TestFieldOverridesByFormMeta) ... ok
+test_help_text_overrides (model_forms.tests.TestFieldOverridesByFormMeta) ... ok
+test_label_overrides (model_forms.tests.TestFieldOverridesByFormMeta) ... ok
+test_widget_overrides (model_forms.tests.TestFieldOverridesByFormMeta) ... ok
+test_notrequired_overrides_notblank (model_forms.tests.ValidationTest) ... ok
+test_validates_with_replaced_field_excluded (model_forms.tests.ValidationTest) ... ok
+test_validates_with_replaced_field_not_specified (model_forms.tests.ValidationTest) ... ok
+test_addslashes01 (template_tests.filter_tests.test_addslashes.AddslashesTests) ... ok
+test_addslashes02 (template_tests.filter_tests.test_addslashes.AddslashesTests) ... ok
+test_backslashes (template_tests.filter_tests.test_addslashes.FunctionTests) ... ok
+test_non_string_input (template_tests.filter_tests.test_addslashes.FunctionTests) ... ok
+test_quotes (template_tests.filter_tests.test_addslashes.FunctionTests) ... ok
+test_integer (template_tests.filter_tests.test_make_list.FunctionTests) ... ok
+test_string (template_tests.filter_tests.test_make_list.FunctionTests) ... ok
+test_make_list01 (template_tests.filter_tests.test_make_list.MakeListTests) ... ok
+test_make_list02 (template_tests.filter_tests.test_make_list.MakeListTests) ... ok
+test_make_list03 (template_tests.filter_tests.test_make_list.MakeListTests) ... ok
+test_make_list04 (template_tests.filter_tests.test_make_list.MakeListTests) ... ok
+test_non_string_input (template_tests.filter_tests.test_title.FunctionTests) ... ok
+test_title (template_tests.filter_tests.test_title.FunctionTests) ... ok
+test_unicode (template_tests.filter_tests.test_title.FunctionTests) ... ok
+test_title1 (template_tests.filter_tests.test_title.TitleTests) ... ok
+test_title2 (template_tests.filter_tests.test_title.TitleTests) ... ok
+test_autoescape (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_autoescape_off (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_brackets (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_email (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_exclamation_marks (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_https (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_idn (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_invalid_email (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_ipv4 (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_ipv6 (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_lazystring (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_malformed (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_nofollow (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_non_string_input (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_parenthesis (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_quotation_marks (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_quote_commas (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_quoting (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_tlds (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_trailing_multiple_punctuation (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_trailing_period (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_unicode (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_uppercase (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_url_split_chars (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_urlencoded (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_urls (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_word_with_dot (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_wrapping_characters (template_tests.filter_tests.test_urlize.FunctionTests) ... ok
+test_urlize01 (template_tests.filter_tests.test_urlize.UrlizeTests) ... ok
+test_urlize02 (template_tests.filter_tests.test_urlize.UrlizeTests) ... ok
+test_urlize03 (template_tests.filter_tests.test_urlize.UrlizeTests) ... ok
+test_urlize04 (template_tests.filter_tests.test_urlize.UrlizeTests) ... ok
+test_urlize05 (template_tests.filter_tests.test_urlize.UrlizeTests) ... ok
+test_urlize06 (template_tests.filter_tests.test_urlize.UrlizeTests) ... ok
+test_urlize07 (template_tests.filter_tests.test_urlize.UrlizeTests) ... ok
+test_urlize08 (template_tests.filter_tests.test_urlize.UrlizeTests) ... ok
+test_urlize09 (template_tests.filter_tests.test_urlize.UrlizeTests) ... ok
+test_url01 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url02 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url02a (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url02b (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url02c (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url03 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url04 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url05 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url06 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url08 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url09 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url10 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url11 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url12 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url13 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url14 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url15 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url18 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url19 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url20 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url21 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_asvar01 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_asvar02 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_asvar03 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_fail01 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_fail02 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_fail03 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_fail04 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_fail05 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_fail06 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_fail07 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_fail08 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_fail09 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_fail11 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_fail12 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_fail13 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_fail14 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_fail15 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_fail16 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_fail17 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_fail18 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_fail19 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_namespace01 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_namespace02 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_namespace03 (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_namespace_explicit_current_app (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_url_namespace_no_current_app (template_tests.syntax_tests.test_url.UrlTagTests) ... ok
+test_conditional_escape (utils_tests.test_html.TestUtilsHtml) ... ok
+test_escape (utils_tests.test_html.TestUtilsHtml) ... ok
+test_escapejs (utils_tests.test_html.TestUtilsHtml) ... ok
+test_format_html (utils_tests.test_html.TestUtilsHtml) ... ok
+test_html_safe (utils_tests.test_html.TestUtilsHtml) ... ok
+test_html_safe_defines_html_error (utils_tests.test_html.TestUtilsHtml) ... ok
+test_html_safe_doesnt_define_str (utils_tests.test_html.TestUtilsHtml) ... ok
+test_html_safe_subclass (utils_tests.test_html.TestUtilsHtml) ... ok
+test_json_script (utils_tests.test_html.TestUtilsHtml) ... ok
+test_linebreaks (utils_tests.test_html.TestUtilsHtml) ... ok
+test_smart_urlquote (utils_tests.test_html.TestUtilsHtml) ... ok
+test_strip_spaces_between_tags (utils_tests.test_html.TestUtilsHtml) ... ok
+test_strip_tags (utils_tests.test_html.TestUtilsHtml) ... ok
+test_strip_tags_files (utils_tests.test_html.TestUtilsHtml) ... ok
+test_urlize (utils_tests.test_html.TestUtilsHtml) ... ok
+test_urlize_unchanged_inputs (utils_tests.test_html.TestUtilsHtml) ... ok
+test_custom_template (view_tests.tests.test_csrf.CsrfViewTests)
+A custom CSRF_FAILURE_TEMPLATE_NAME is used. ... ok
+test_custom_template_does_not_exist (view_tests.tests.test_csrf.CsrfViewTests)
+An exception is raised if a nonexistent template is supplied. ... ok
+test_no_cookies (view_tests.tests.test_csrf.CsrfViewTests) ... ok
+test_no_django_template_engine (view_tests.tests.test_csrf.CsrfViewTests) ... ok
+test_no_referer (view_tests.tests.test_csrf.CsrfViewTests) ... ok
+test_translation (view_tests.tests.test_csrf.CsrfViewTests)
+An invalid request is rejected with a localized error message. ... ok
+test_ajax_response_encoding (view_tests.tests.test_debug.AjaxResponseExceptionReporterFilter) ... ok
+test_custom_exception_reporter_filter (view_tests.tests.test_debug.AjaxResponseExceptionReporterFilter) ... ok
+test_non_sensitive_request (view_tests.tests.test_debug.AjaxResponseExceptionReporterFilter) ... ok
+test_paranoid_request (view_tests.tests.test_debug.AjaxResponseExceptionReporterFilter) ... ok
+test_sensitive_request (view_tests.tests.test_debug.AjaxResponseExceptionReporterFilter) ... ok
+test_repr (view_tests.tests.test_debug.CallableSettingWrapperTests) ... ok
+test_handle_db_exception (view_tests.tests.test_debug.DebugViewQueriesAllowedTests) ... ok
+test_400 (view_tests.tests.test_debug.DebugViewTests) ... ok
+test_403 (view_tests.tests.test_debug.DebugViewTests) ... ok
+test_403_template (view_tests.tests.test_debug.DebugViewTests) ... ok
+test_404 (view_tests.tests.test_debug.DebugViewTests) ... ok
+test_404_empty_path_not_in_urls (view_tests.tests.test_debug.DebugViewTests) ... ok
+test_404_not_in_urls (view_tests.tests.test_debug.DebugViewTests) ... ok
+test_classbased_technical_404 (view_tests.tests.test_debug.DebugViewTests) ... ok
+test_default_urlconf_template (view_tests.tests.test_debug.DebugViewTests) ... ok
+test_files (view_tests.tests.test_debug.DebugViewTests) ... ok
+test_no_template_source_loaders (view_tests.tests.test_debug.DebugViewTests) ... ok
+test_non_l10ned_numeric_ids (view_tests.tests.test_debug.DebugViewTests) ... ok
+test_regression_21530 (view_tests.tests.test_debug.DebugViewTests) ... ok
+test_technical_404 (view_tests.tests.test_debug.DebugViewTests) ... ok
+test_template_encoding (view_tests.tests.test_debug.DebugViewTests) ... ok
+test_template_exceptions (view_tests.tests.test_debug.DebugViewTests) ... ok
+test_template_loader_postmortem (view_tests.tests.test_debug.DebugViewTests)
+Tests for not existing file ... ok
+test_callable_settings (view_tests.tests.test_debug.ExceptionReporterFilterTests) ... ok
+test_callable_settings_forbidding_to_set_attributes (view_tests.tests.test_debug.ExceptionReporterFilterTests) ... ok
+test_custom_exception_reporter_filter (view_tests.tests.test_debug.ExceptionReporterFilterTests) ... ok
+test_dict_setting_with_non_str_key (view_tests.tests.test_debug.ExceptionReporterFilterTests) ... ok
+test_multivalue_dict_key_error (view_tests.tests.test_debug.ExceptionReporterFilterTests) ... ok
+test_non_sensitive_request (view_tests.tests.test_debug.ExceptionReporterFilterTests) ... ok
+test_paranoid_request (view_tests.tests.test_debug.ExceptionReporterFilterTests) ... ok
+test_sensitive_function_arguments (view_tests.tests.test_debug.ExceptionReporterFilterTests) ... ok
+test_sensitive_function_keyword_arguments (view_tests.tests.test_debug.ExceptionReporterFilterTests) ... ok
+test_sensitive_method (view_tests.tests.test_debug.ExceptionReporterFilterTests) ... ok
+test_sensitive_request (view_tests.tests.test_debug.ExceptionReporterFilterTests) ... ok
+test_sensitive_settings (view_tests.tests.test_debug.ExceptionReporterFilterTests) ... ok
+test_settings_with_sensitive_keys (view_tests.tests.test_debug.ExceptionReporterFilterTests) ... ok
+test_disallowed_host (view_tests.tests.test_debug.ExceptionReporterTests)
+An exception report can be generated even for a disallowed host. ... ok
+test_encoding_error (view_tests.tests.test_debug.ExceptionReporterTests) ... ok
+test_eol_support (view_tests.tests.test_debug.ExceptionReporterTests)
+The ExceptionReporter supports Unix, Windows and Macintosh EOL markers ... ok
+test_exception_fetching_user (view_tests.tests.test_debug.ExceptionReporterTests) ... ok
+test_ignore_traceback_evaluation_exceptions (view_tests.tests.test_debug.ExceptionReporterTests) ... ok
+test_local_variable_escaping (view_tests.tests.test_debug.ExceptionReporterTests)
+Safe strings in local variables are escaped. ... ok
+test_message_only (view_tests.tests.test_debug.ExceptionReporterTests) ... ok
+test_no_exception (view_tests.tests.test_debug.ExceptionReporterTests)
+An exception report can be generated for just a request ... ok
+test_no_request (view_tests.tests.test_debug.ExceptionReporterTests)
+An exception report can be generated without request ... ok
+test_non_utf8_values_handling (view_tests.tests.test_debug.ExceptionReporterTests)
+Non-UTF-8 exceptions/values should not make the output generation choke. ... ok
+test_reporting_frames_for_cyclic_reference (view_tests.tests.test_debug.ExceptionReporterTests) ... ok
+test_reporting_frames_without_source (view_tests.tests.test_debug.ExceptionReporterTests) ... ok
+test_reporting_of_nested_exceptions (view_tests.tests.test_debug.ExceptionReporterTests) ... ok
+test_request_and_exception (view_tests.tests.test_debug.ExceptionReporterTests)
+A simple exception report can be generated ... ok
+test_request_and_message (view_tests.tests.test_debug.ExceptionReporterTests)
+A message can be provided in addition to a request ... ok
+test_request_with_items_key (view_tests.tests.test_debug.ExceptionReporterTests) ... ok
+test_template_encoding (view_tests.tests.test_debug.ExceptionReporterTests) ... ok
+test_too_large_values_handling (view_tests.tests.test_debug.ExceptionReporterTests)
+Large values should not create a large HTML. ... ok
+test_unfrozen_importlib (view_tests.tests.test_debug.ExceptionReporterTests) ... ok
+test_unprintable_values_handling (view_tests.tests.test_debug.ExceptionReporterTests)
+Unprintable values should not make the output generation choke. ... ok
+test_cleanse_setting_basic (view_tests.tests.test_debug.HelperFunctionTests) ... ok
+test_cleanse_setting_ignore_case (view_tests.tests.test_debug.HelperFunctionTests) ... ok
+test_cleanse_setting_recurses_in_dictionary (view_tests.tests.test_debug.HelperFunctionTests) ... ok
+test_400 (view_tests.tests.test_debug.NonDjangoTemplatesDebugViewTests) ... ok
+test_403 (view_tests.tests.test_debug.NonDjangoTemplatesDebugViewTests) ... ok
+test_404 (view_tests.tests.test_debug.NonDjangoTemplatesDebugViewTests) ... ok
+test_template_not_found_error (view_tests.tests.test_debug.NonDjangoTemplatesDebugViewTests) ... ok
+test_disallowed_host (view_tests.tests.test_debug.PlainTextReportTests)
+An exception report can be generated even for a disallowed host. ... ok
+test_message_only (view_tests.tests.test_debug.PlainTextReportTests) ... ok
+test_no_exception (view_tests.tests.test_debug.PlainTextReportTests)
+An exception report can be generated for just a request ... ok
+test_no_request (view_tests.tests.test_debug.PlainTextReportTests)
+An exception report can be generated without request ... ok
+test_request_and_exception (view_tests.tests.test_debug.PlainTextReportTests)
+A simple exception report can be generated ... ok
+test_request_and_message (view_tests.tests.test_debug.PlainTextReportTests)
+A message can be provided in addition to a request ... ok
+test_request_with_items_key (view_tests.tests.test_debug.PlainTextReportTests) ... ok
+test_template_exception (view_tests.tests.test_debug.PlainTextReportTests) ... ok
+test_builtin_fields (admin_docs.test_views.TestFieldType) ... ok
+test_custom_fields (admin_docs.test_views.TestFieldType) ... ok
+test_field_name (admin_docs.test_views.TestFieldType) ... Testing against Django installed in '/testbed/django'
+Importing application admin_docs
+Importing application auth_tests
+Importing application forms_tests
+Importing application model_forms
+Importing application template_tests
+Importing application utils_tests
+Importing application view_tests
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: admin_docs, auth, auth_tests, contenttypes, forms_tests, messages, model_forms, sessions, staticfiles, template_tests, utils_tests, view_tests
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table admin_docs_company
+    Creating table admin_docs_group
+    Creating table admin_docs_family
+    Creating table admin_docs_person
+    Creating table auth_tests_customuser
+    Creating table auth_tests_customuserwithoutisactivefield
+    Creating table auth_tests_extensionuser
+    Creating table auth_tests_custompermissionsuser
+    Creating table auth_tests_customusernonuniqueusername
+    Creating table auth_tests_isactivetestuser1
+    Creating table auth_tests_minimaluser
+    Creating table auth_tests_nopassworduser
+    Creating table auth_tests_concrete
+    Creating table auth_tests_uuiduser
+    Creating table auth_tests_email
+    Creating table auth_tests_customuserwithfk
+    Creating table auth_tests_integerusernameuser
+    Creating table auth_tests_userwithdisabledlastloginfield
+    Creating table auth_tests_customemailfield
+    Creating table forms_tests_boundarymodel
+    Creating table forms_tests_defaults
+    Creating table forms_tests_choicemodel
+    Creating table forms_tests_choiceoptionmodel
+    Creating table forms_tests_choicefieldmodel
+    Creating table forms_tests_optionalmultichoicemodel
+    Creating table forms_tests_filemodel
+    Creating table forms_tests_article
+    Creating table model_forms_person
+    Creating table model_forms_category
+    Creating table model_forms_writer
+    Creating table model_forms_article
+    Creating table model_forms_improvedarticle
+    Creating table model_forms_improvedarticlewithparentlink
+    Creating table model_forms_betterwriter
+    Creating table model_forms_publication
+    Creating table model_forms_publicationdefaults
+    Creating table model_forms_author
+    Creating table model_forms_author1
+    Creating table model_forms_writerprofile
+    Creating table model_forms_document
+    Creating table model_forms_textfile
+    Creating table model_forms_customff
+    Creating table model_forms_filepathmodel
+    Creating table model_forms_imagefile
+    Creating table model_forms_optionalimagefile
+    Creating table model_forms_noextensionimagefile
+    Creating table model_forms_homepage
+    Creating table model_forms_product
+    Creating table model_forms_price
+    Creating table model_forms_triple
+    Creating table model_forms_articlestatus
+    Creating table model_forms_inventory
+    Creating table model_forms_book
+    Creating table model_forms_derivedbook
+    Creating table model_forms_explicitpk
+    Creating table model_forms_post
+    Creating table model_forms_datetimepost
+    Creating table model_forms_derivedpost
+    Creating table model_forms_bigint
+    Creating table model_forms_customfieldforexclusionmodel
+    Creating table model_forms_flexibledatepost
+    Creating table model_forms_colour
+    Creating table model_forms_colourfulitem
+    Creating table model_forms_customerrormessage
+    Creating table model_forms_character
+    Creating table model_forms_stumpjoke
+    Creating table model_forms_student
+    Creating table model_forms_photo
+    Creating table model_forms_uuidpk
+    Creating table model_forms_strictassignmentfieldspecific
+    Creating table model_forms_strictassignmentall
+    Creating table model_forms_award
+    Creating table model_forms_nullableuniquecharfieldmodel
+    Creating table utils_tests_category
+    Creating table utils_tests_categoryinfo
+    Creating table view_tests_author
+    Creating table view_tests_article
+    Creating table view_tests_urlarticle
+    Creating table view_tests_datearticle
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+ok
+
+----------------------------------------------------------------------
+Ran 580 tests in 18.350s
+
+OK
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout 28d5262fa3315690395f04e3619ed554dbaf725b tests/admin_docs/test_views.py tests/auth_tests/test_forms.py tests/forms_tests/tests/test_forms.py tests/forms_tests/widget_tests/base.py tests/forms_tests/widget_tests/test_clearablefileinput.py tests/model_forms/tests.py tests/template_tests/filter_tests/test_addslashes.py tests/template_tests/filter_tests/test_make_list.py tests/template_tests/filter_tests/test_title.py tests/template_tests/filter_tests/test_urlize.py tests/template_tests/syntax_tests/test_url.py tests/utils_tests/test_html.py tests/view_tests/tests/test_csrf.py tests/view_tests/tests/test_debug.py
+Updated 14 paths from 84bb94de1b

@@ -1,0 +1,51 @@
+
+diff --git a/django/db/models/query_utils.py b/django/db/models/query_utils.py
+index ae0f886107..69ce7e575c 100644
+--- a/django/db/models/query_utils.py
++++ b/django/db/models/query_utils.py
+@@ -85,13 +85,16 @@ class Q(tree.Node):
+         if path.startswith('django.db.models.query_utils'):
+             path = path.replace('django.db.models.query_utils', 'django.db.models')
+         args, kwargs = (), {}
+-        if len(self.children) == 1 and not isinstance(self.children[0], Q):
++        if len(self.children) == 1:
+             child = self.children[0]
+-            kwargs = {child[0]: child[1]}
++            if isinstance(child, tuple) and len(child) == 2:
++                kwargs = {child[0]: child[1]}
++            else:
++                args = (child,)
+         else:
+             args = tuple(self.children)
+-            if self.connector != self.default:
+-                kwargs = {'_connector': self.connector}
++        if self.connector != self.default:
++            kwargs['_connector'] = self.connector
+         if self.negated:
+             kwargs['_negated'] = True
+         return path, args, kwargs
+diff --git a/reproduce_q_issue.py b/reproduce_q_issue.py
+new file mode 100644
+index 0000000000..117ca1f94b
+--- /dev/null
++++ b/reproduce_q_issue.py
+@@ -0,0 +1,19 @@
++from django.db.models import Q, Exists, OuterRef
++
++class DummyExists(Exists):
++    def __init__(self):
++        super().__init__(OuterRef('dummy'))
++
++print("Testing Q object with single key-value pair:")
++print(Q(x=1).deconstruct())
++
++print("\nTesting Q object with multiple key-value pairs:")
++print(Q(x=1, y=2).deconstruct())
++
++print("\nTesting Q object with Exists:")
++try:
++    print(Q(DummyExists()).deconstruct())
++except Exception as e:
++    print(f"Error: {type(e).__name__}: {str(e)}")
++
++print("\nScript completed successfully.")

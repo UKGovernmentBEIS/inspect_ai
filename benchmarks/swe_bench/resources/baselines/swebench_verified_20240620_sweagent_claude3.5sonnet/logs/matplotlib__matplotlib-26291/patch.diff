@@ -1,0 +1,69 @@
+
+diff --git a/CHANGES.txt b/CHANGES.txt
+new file mode 100644
+index 0000000000..97d99569d6
+--- /dev/null
++++ b/CHANGES.txt
+@@ -0,0 +1,12 @@
++Changes to address issue with inset axes and closed figures:
++
++1. Added error handling in AnchoredLocatorBase.__call__ method:
++   - Check if the axes has an associated figure before accessing it.
++   - Raise a ValueError with a descriptive message if the figure is None.
++
++2. Updated docstring for inset_axes function:
++   - Added a note warning users about potential issues when working with closed figures.
++
++These changes aim to prevent AttributeError when accessing figure properties
++in case the figure has been closed or not properly initialized, and to provide
++better guidance to users working with inset axes.
+diff --git a/lib/mpl_toolkits/axes_grid1/inset_locator.py b/lib/mpl_toolkits/axes_grid1/inset_locator.py
+index 9d35051074..43ad7abd9e 100644
+--- a/lib/mpl_toolkits/axes_grid1/inset_locator.py
++++ b/lib/mpl_toolkits/axes_grid1/inset_locator.py
+@@ -70,10 +70,15 @@ class AnchoredLocatorBase(AnchoredOffsetbox):
+ 
+     def __call__(self, ax, renderer):
+         self.axes = ax
++        # Check if the axes has an associated figure
++        # This check helps prevent AttributeError when accessing figure properties
++        # in case the figure has been closed or not properly initialized
++        if self.axes.figure is None:
++            raise ValueError("The axes does not have an associated figure. This might happen if the figure has been closed.")
+         bbox = self.get_window_extent(renderer)
+         px, py = self.get_offset(bbox.width, bbox.height, 0, 0, renderer)
+         bbox_canvas = Bbox.from_bounds(px, py, bbox.width, bbox.height)
+-        tr = ax.figure.transSubfigure.inverted()
++        tr = self.axes.figure.transSubfigure.inverted()
+         return TransformedBbox(bbox_canvas, tr)
+ 
+ 
+@@ -318,6 +323,10 @@ def inset_axes(parent_axes, width, height, loc='upper right',
+     is Identity transform) and then interpreted as points in the pixel
+     coordinate (which is dpi dependent).
+ 
++    It's important to ensure that the parent figure is not closed before
++    creating or manipulating inset axes. Attempting to create or modify
++    inset axes on a closed figure may result in unexpected behavior or errors.
++
+     Thus, following three calls are identical and creates an inset axes
+     with respect to the *parent_axes*::
+ 
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..8bbe38d9ff
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,12 @@
++import matplotlib.pyplot as plt
++from mpl_toolkits.axes_grid1.inset_locator import inset_axes
++
++try:
++    fig, (ax, ax2) = plt.subplots(1, 2, figsize=[5.5, 2.8])
++    axins = inset_axes(ax, width=1.3, height=0.9)
++    plt.show()
++    print("Script completed successfully, no errors.")
++except Exception as e:
++    print(f"An error occurred: {str(e)}")
++    import traceback
++    traceback.print_exc()

@@ -1,0 +1,94 @@
+
+diff --git a/astropy/units/quantity.py b/astropy/units/quantity.py
+index ded609cbe..ee4438894 100644
+--- a/astropy/units/quantity.py
++++ b/astropy/units/quantity.py
+@@ -255,6 +255,11 @@ class Quantity(np.ndarray, metaclass=InheritDocstrings):
+     Quantities can also be created by multiplying a number or array with a
+     :class:`~astropy.units.Unit`. See http://docs.astropy.org/en/latest/units/
+ 
++    When creating a Quantity from a float value, the precision of the input is preserved.
++    This includes preserving float16 values, which are not automatically converted to
++    higher precision types during creation. However, note that arithmetic operations
++    and unit conversions may promote float16 to float64 to maintain precision.
++
+     """
+     # Need to set a class-level default for _equivalencies, or
+     # Constants can not initialize properly
+@@ -377,7 +382,8 @@ class Quantity(np.ndarray, metaclass=InheritDocstrings):
+                             "Numpy numeric type.")
+ 
+         # by default, cast any integer, boolean, etc., to float
+-        if dtype is None and (not (np.can_cast(np.float32, value.dtype)
++        # Preserve float16 and other float types, but cast any integer, boolean, etc., to float
++        if dtype is None and (not (np.can_cast(np.float16, value.dtype)
+                                    or value.dtype.fields)
+                               or value.dtype.kind == 'O'):
+             value = value.astype(float)
+diff --git a/astropy/units/tests/test_quantity.py b/astropy/units/tests/test_quantity.py
+index be18e65c5..70f754de0 100644
+--- a/astropy/units/tests/test_quantity.py
++++ b/astropy/units/tests/test_quantity.py
+@@ -25,8 +25,8 @@ try:
+     import matplotlib
+     matplotlib.use('Agg')
+     import matplotlib.pyplot as plt
+-    from distutils.version import LooseVersion
+-    MATPLOTLIB_LT_15 = LooseVersion(matplotlib.__version__) < LooseVersion("1.5")
++    from packaging import version
++    MATPLOTLIB_LT_15 = version.parse(matplotlib.__version__) < version.parse("1.5")
+     HAS_MATPLOTLIB = True
+ except ImportError:
+     HAS_MATPLOTLIB = False
+@@ -334,6 +334,26 @@ class TestQuantityCreation:
+         assert warning_lines[0].category == AstropyWarning
+         assert 'is not implemented' in str(warning_lines[0].message)
+ 
++    def test_float16_preservation(self):
++        # Test that float16 values are preserved when creating Quantity objects
++        float16_value = np.float16(1.23)
++        q = u.Quantity(float16_value, u.m)
++        assert q.dtype == np.float16
++        assert q.value == float16_value
++        assert q.unit == u.m
++
++        # Test that float16 is promoted to float64 in arithmetic operations (expected behavior)
++        q2 = q * 2
++        assert q2.dtype == np.float64
++        assert q2.value == float16_value * 2
++        assert q2.unit == u.m
++
++        # Test that float16 is promoted to float64 in unit conversions (expected behavior)
++        q3 = q.to(u.cm)
++        assert q3.dtype == np.float64
++        assert np.isclose(q3.value, float16_value * 100)
++        assert q3.unit == u.cm
++
+ 
+ class TestQuantityOperations:
+     q1 = u.Quantity(11.42, u.meter)
+diff --git a/reproduce_float16_issue.py b/reproduce_float16_issue.py
+new file mode 100644
+index 000000000..bfeec078a
+--- /dev/null
++++ b/reproduce_float16_issue.py
+@@ -0,0 +1,19 @@
++import numpy as np
++from astropy import units as u
++
++print("Testing float16:")
++print("float16(1):", np.float16(1))
++print("float16(1) * km:", (np.float16(1) * u.km))
++print("(float16(1) * km).dtype:", (np.float16(1) * u.km).dtype)
++print("float16(1.5) * km:", (np.float16(1.5) * u.km))
++print("(float16(1.5) * km).dtype:", (np.float16(1.5) * u.km).dtype)
++print("(float16(1) * km).to(m):", (np.float16(1) * u.km).to(u.m))
++print("(float16(1) * km).to(m).dtype:", (np.float16(1) * u.km).to(u.m).dtype)
++
++print("\nTesting other float types:")
++print("float32:", (np.float32(1) * u.km).dtype)
++print("float64:", (np.float64(1) * u.km).dtype)
++print("float128:", (np.float128(1) * u.km).dtype)
++print("float:", (float(1) * u.km).dtype)
++
++print("\nScript completed successfully, no errors.")

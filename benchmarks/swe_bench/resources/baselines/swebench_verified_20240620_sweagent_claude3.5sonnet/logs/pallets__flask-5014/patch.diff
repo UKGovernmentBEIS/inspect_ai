@@ -1,0 +1,15 @@
+
+diff --git a/src/flask/blueprints.py b/src/flask/blueprints.py
+index eb50585d..29516dd2 100644
+--- a/src/flask/blueprints.py
++++ b/src/flask/blueprints.py
+@@ -193,7 +193,8 @@ class Blueprint(Scaffold):
+         if "." in name:
+             raise ValueError("'name' may not contain a dot '.' character.")
+ 
+-        self.name = name
++        if not name:
++            raise ValueError("'name' may not be empty.")
+         self.url_prefix = url_prefix
+         self.subdomain = subdomain
+         self.deferred_functions: t.List[DeferredSetupFunction] = []

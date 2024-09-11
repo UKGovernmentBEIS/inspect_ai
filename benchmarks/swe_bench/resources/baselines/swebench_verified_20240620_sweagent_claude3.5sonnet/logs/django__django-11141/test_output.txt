@@ -1,0 +1,485 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/core/management/commands/showmigrations.py
+	modified:   django/db/migrations/loader.py
+	modified:   tests/migrations/test_commands.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 5d9cf79baf07fc4aed7ad1b06990532a65378155
+Author: Kees Hink <keeshink@gmail.com>
+Date:   Wed Oct 9 12:08:31 2019 +0200
+
+    Fixed #27086 -- Doc'd fix for test suite hang on macOS.
+
+diff --git a/docs/internals/contributing/writing-code/unit-tests.txt b/docs/internals/contributing/writing-code/unit-tests.txt
+index e9db0fe44a..a0c47824da 100644
+--- a/docs/internals/contributing/writing-code/unit-tests.txt
++++ b/docs/internals/contributing/writing-code/unit-tests.txt
+@@ -380,6 +380,20 @@ Ensure you have the latest point release of a :ref:`supported Python version
+ <faq-python-version-support>`, since there are often bugs in earlier versions
+ that may cause the test suite to fail or hang.
+ 
++On **macOS** (High Sierra and newer versions), you might see this message
++logged, after which the tests hang::
++
++    objc[42074]: +[__NSPlaceholderDate initialize] may have been in progress in
++    another thread when fork() was called.
++
++To avoid this set a ``OBJC_DISABLE_INITIALIZE_FORK_SAFETY`` environment
++variable, for example::
++
++    $ OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES ./runtests.py
++
++Or add ``export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES`` to your shell's
++startup file (e.g. ``~/.profile``).
++
+ Many test failures with ``UnicodeEncodeError``
+ ----------------------------------------------
+ 
++ git diff 5d9cf79baf07fc4aed7ad1b06990532a65378155
+diff --git a/django/core/management/commands/showmigrations.py b/django/core/management/commands/showmigrations.py
+index 48bea1f3f0..75320cdad7 100644
+--- a/django/core/management/commands/showmigrations.py
++++ b/django/core/management/commands/showmigrations.py
+@@ -81,6 +81,9 @@ class Command(BaseCommand):
+         for app_name in app_names:
+             self.stdout.write(app_name, self.style.MIGRATE_LABEL)
+             shown = set()
++            if app_name not in loader.migrated_apps:
++                self.stdout.write(" (no migrations)", self.style.MIGRATE_LABEL)
++                continue
+             for node in graph.leaf_nodes(app_name):
+                 for plan_node in graph.forwards_plan(node):
+                     if plan_node not in shown and plan_node[0] == app_name:
+diff --git a/django/db/migrations/loader.py b/django/db/migrations/loader.py
+index 8c308621d2..2b2c5e33ac 100644
+--- a/django/db/migrations/loader.py
++++ b/django/db/migrations/loader.py
+@@ -84,23 +84,22 @@ class MigrationLoader:
+                     continue
+                 raise
+             else:
+-                # Empty directories are namespaces.
+-                # getattr() needed on PY36 and older (replace w/attribute access).
+-                if getattr(module, '__file__', None) is None:
+-                    self.unmigrated_apps.add(app_config.label)
+-                    continue
+                 # Module is not a package (e.g. migrations.py).
+                 if not hasattr(module, '__path__'):
+                     self.unmigrated_apps.add(app_config.label)
+                     continue
++                # Empty directories or directories without migration files are considered unmigrated
++                migration_names = {
++                    name for _, name, is_pkg in pkgutil.iter_modules(module.__path__)
++                    if not is_pkg and name[0] not in '_~'
++                }
++                if not migration_names:
++                    self.unmigrated_apps.add(app_config.label)
++                    continue
+                 # Force a reload if it's already loaded (tests need this)
+                 if was_loaded:
+                     reload(module)
+             self.migrated_apps.add(app_config.label)
+-            migration_names = {
+-                name for _, name, is_pkg in pkgutil.iter_modules(module.__path__)
+-                if not is_pkg and name[0] not in '_~'
+-            }
+             # Load migrations
+             for migration_name in migration_names:
+                 migration_path = '%s.%s' % (module_name, migration_name)
+diff --git a/tests/migrations/test_commands.py b/tests/migrations/test_commands.py
+index 64b5c9bfd0..b0647adc92 100644
+--- a/tests/migrations/test_commands.py
++++ b/tests/migrations/test_commands.py
+@@ -377,10 +377,12 @@ class MigrateTests(MigrationTestBase):
+ 
+     @override_settings(MIGRATION_MODULES={'migrations': 'migrations.test_migrations_empty'})
+     def test_showmigrations_no_migrations(self):
++        """
++        Tests that showmigrations behaves correctly for an app with no migrations.
++        """
+         out = io.StringIO()
+-        call_command('showmigrations', stdout=out, no_color=True)
++        call_command('showmigrations', 'migrations', stdout=out, no_color=True)
+         self.assertEqual('migrations\n (no migrations)\n', out.getvalue().lower())
+-
+     @override_settings(INSTALLED_APPS=['migrations.migrations_test_apps.unmigrated_app'])
+     def test_showmigrations_unmigrated_app(self):
+         out = io.StringIO()
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (2024.1)
+Requirement already satisfied: sqlparse in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (0.4.4)
+Requirement already satisfied: asgiref in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.1) (3.4.1)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref->Django==3.1) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.1
+    Uninstalling Django-3.1:
+      Successfully uninstalled Django-3.1
+  Running setup.py develop for Django
+Successfully installed Django-3.1
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 5d9cf79baf07fc4aed7ad1b06990532a65378155 tests/migrations/test_loader.py
+Updated 0 paths from 0ae5687524
++ git apply -v -
+Checking patch tests/migrations/test_loader.py...
+Checking patch tests/migrations/test_migrations_namespace_package/0001_initial.py...
+Applied patch tests/migrations/test_loader.py cleanly.
+Applied patch tests/migrations/test_migrations_namespace_package/0001_initial.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 migrations.test_loader migrations.test_migrations_namespace_package.0001_initial
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Creating test database for alias 'other' ('file:memorydb_other?mode=memory&cache=shared')...
+test_check_consistent_history (migrations.test_loader.LoaderTests) ... ok
+test_check_consistent_history_squashed (migrations.test_loader.LoaderTests) ... ok
+test_explicit_missing_module (migrations.test_loader.LoaderTests) ... ok
+test_first (migrations.test_loader.LoaderTests) ... ok
+test_ignore_files (migrations.test_loader.LoaderTests)
+Files prefixed with underscore, tilde, or dot aren't loaded. ... ok
+test_load (migrations.test_loader.LoaderTests) ... ok
+test_load_empty_dir (migrations.test_loader.LoaderTests) ... ok
+test_load_import_error (migrations.test_loader.LoaderTests) ... ok
+test_load_module_file (migrations.test_loader.LoaderTests) ... ok
+test_load_unmigrated_dependency (migrations.test_loader.LoaderTests) ... ok
+test_loading_namespace_package (migrations.test_loader.LoaderTests)
+Migration directories without an __init__.py file are loaded. ... ok
+test_loading_squashed (migrations.test_loader.LoaderTests)
+Tests loading a squashed migration ... ok
+test_loading_squashed_complex (migrations.test_loader.LoaderTests)
+Tests loading a complex set of squashed migrations ... ok
+test_loading_squashed_complex_multi_apps (migrations.test_loader.LoaderTests) ... ok
+test_loading_squashed_complex_multi_apps_partially_applied (migrations.test_loader.LoaderTests) ... ok
+test_loading_squashed_erroneous (migrations.test_loader.LoaderTests)
+Tests loading a complex but erroneous set of squashed migrations ... ok
+test_loading_squashed_ref_squashed (migrations.test_loader.LoaderTests)
+Tests loading a squashed migration with a new migration referencing it ... ok
+test_marked_as_migrated (migrations.test_loader.LoaderTests) ... ok
+test_marked_as_unmigrated (migrations.test_loader.LoaderTests) ... ok
+test_name_match (migrations.test_loader.LoaderTests)
+Tests prefix name matching ... ok
+test_plan_handles_repeated_migrations (migrations.test_loader.LoaderTests) ... ok
+test_run_before (migrations.test_loader.LoaderTests) ... ok
+test_apply (migrations.test_loader.RecorderTests) ... ok
+test_invalid (migrations.test_loader.PycLoaderTests) ... ok
+test_valid (migrations.test_loader.PycLoaderTests) ... ok
+
+----------------------------------------------------------------------
+Ran 25 tests in 0.421s
+
+OK
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Destroying test database for alias 'other' ('file:memorydb_other?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application migrations
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, migrations, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table migrations_modelwithcustombase
+    Creating table migrations_unmigratedmodel
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, migrations, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table migrations_modelwithcustombase
+    Creating table migrations_unmigratedmodel
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
++ git checkout 5d9cf79baf07fc4aed7ad1b06990532a65378155 tests/migrations/test_loader.py
+Updated 1 path from 0ae5687524

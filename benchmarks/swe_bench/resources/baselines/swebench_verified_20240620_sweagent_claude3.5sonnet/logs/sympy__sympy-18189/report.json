@@ -1,0 +1,71 @@
+{
+    "sympy__sympy-18189": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "test_diophantine"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_input_format",
+                    "test_univariate",
+                    "test_classify_diop",
+                    "test_linear",
+                    "test_quadratic_simple_hyperbolic_case",
+                    "test_quadratic_elliptical_case",
+                    "test_issue_9106",
+                    "test_issue_18138",
+                    "test_DN",
+                    "test_bf_pell",
+                    "test_length",
+                    "test_transformation_to_pell",
+                    "test_find_DN",
+                    "test_ldescent",
+                    "test_transformation_to_normal",
+                    "test_square_factor",
+                    "test_descent",
+                    "test_diop_general_sum_of_squares_quick",
+                    "test_diop_partition",
+                    "test_prime_as_sum_of_two_squares",
+                    "test_sum_of_three_squares",
+                    "test_sum_of_four_squares",
+                    "test_power_representation",
+                    "test_diopcoverage",
+                    "test_holzer",
+                    "test_diop_sum_of_even_powers",
+                    "test_sum_of_squares_powers",
+                    "test__can_do_sum_of_squares"
+                ],
+                "failure": [
+                    "test_quadratic_parabolic_case",
+                    "test_quadratic_perfect_square",
+                    "test_quadratic_non_perfect_square",
+                    "test_diop_ternary_quadratic_normal",
+                    "test_diop_ternary_quadratic",
+                    "test_parametrize_ternary_quadratic",
+                    "test_no_square_ternary_quadratic",
+                    "test_general_pythagorean",
+                    "test_assumptions",
+                    "test_issue_9539",
+                    "test_issue_8943",
+                    "test_diophantine_permute_sign",
+                    "test_issue_9538"
+                ]
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

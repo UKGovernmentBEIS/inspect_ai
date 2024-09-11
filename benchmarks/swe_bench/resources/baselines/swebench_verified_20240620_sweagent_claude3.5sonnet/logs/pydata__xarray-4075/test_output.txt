@@ -1,0 +1,1742 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libarrow_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libarrow_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh
++++ '[' -n '' ']'
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh
++++ '[' -n /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh
++++ '[' -n '' ']'
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/gdal ']'
++++ export GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ export GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ '[' '!' -d /opt/miniconda3/envs/testbed/lib/gdalplugins ']'
++++ export CPL_ZIP_ENCODING=UTF-8
++++ CPL_ZIP_ENCODING=UTF-8
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/epsg_csv ']'
++++ '[' -d /opt/miniconda3/envs/testbed/Library/share/epsg_csv ']'
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libarrow_activate.sh
++++ _la_log 'Beginning libarrow activation.'
++++ '[' '' = 1 ']'
++++ _la_gdb_prefix=/opt/miniconda3/envs/testbed/share/gdb/auto-load
++++ '[' '!' -w /opt/miniconda3/envs/testbed/share/gdb/auto-load ']'
++++ _la_placeholder=replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX
++++ _la_symlink_dir=/opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib
++++ _la_orig_install_dir=/opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib
++++ _la_log '          _la_gdb_prefix: /opt/miniconda3/envs/testbed/share/gdb/auto-load'
++++ '[' '' = 1 ']'
++++ _la_log '         _la_placeholder: replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX'
++++ '[' '' = 1 ']'
++++ _la_log '         _la_symlink_dir: /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib'
++++ '[' '' = 1 ']'
++++ _la_log '    _la_orig_install_dir: /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib'
++++ '[' '' = 1 ']'
++++ _la_log '  content of that folder:'
++++ '[' '' = 1 ']'
+++++ ls -al /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib
+++++ sed 's/^/      /'
++++ _la_log '      total 4
+      drwxr-xr-x. 2 root root  41 Jul 24 16:04 .
+      drwxr-xr-x. 3 root root  17 Jul 24 16:04 ..
+      -rw-r--r--. 1 root root 971 Jul 24 16:04 libarrow.so.1700.0.0-gdb.py'
++++ '[' '' = 1 ']'
++++ for _la_target in "$_la_orig_install_dir/"*.py
++++ '[' '!' -e /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py ']'
+++++ basename /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py
++++ _la_symlink=/opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py
++++ _la_log '   _la_target: /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py'
++++ '[' '' = 1 ']'
++++ _la_log '  _la_symlink: /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py'
++++ '[' '' = 1 ']'
++++ '[' -L /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py ']'
+++++ readlink /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py
++++ '[' /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py = /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py ']'
++++ _la_log 'symlink $_la_symlink already exists and points to $_la_target, skipping.'
++++ '[' '' = 1 ']'
++++ continue
++++ _la_log 'Libarrow activation complete.'
++++ '[' '' = 1 ']'
++++ unset _la_gdb_prefix
++++ unset _la_log
++++ unset _la_orig_install_dir
++++ unset _la_placeholder
++++ unset _la_symlink
++++ unset _la_symlink_dir
++++ unset _la_target
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/proj ']'
++++ export PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ '[' -f /opt/miniconda3/envs/testbed/share/proj/copyright_and_licenses.csv ']'
++++ export PROJ_NETWORK=ON
++++ PROJ_NETWORK=ON
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/udunits ']'
++++ export UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++++ UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   xarray/core/weighted.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_bug.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 19b088636eb7d3f65ab7a1046ac672e0689371d8
+Author: Prajjwal Nijhara <prajjwalnijhara@gmail.com>
+Date:   Sat May 23 23:00:50 2020 +0530
+
+    fix dangerous default arguments (#4006)
+    
+    Co-authored-by: Keewis <keewis@posteo.de>
+
+diff --git a/xarray/tests/test_backends.py b/xarray/tests/test_backends.py
+index 280b8bff..49a39474 100644
+--- a/xarray/tests/test_backends.py
++++ b/xarray/tests/test_backends.py
+@@ -87,6 +87,7 @@ except ImportError:
+     dask_version = "10.0"
+ 
+ ON_WINDOWS = sys.platform == "win32"
++default_value = object()
+ 
+ 
+ def open_example_dataset(name, *args, **kwargs):
+@@ -3630,11 +3631,21 @@ def create_tmp_geotiff(
+     ny=3,
+     nz=3,
+     transform=None,
+-    transform_args=[5000, 80000, 1000, 2000.0],
+-    crs={"units": "m", "no_defs": True, "ellps": "WGS84", "proj": "utm", "zone": 18},
++    transform_args=default_value,
++    crs=default_value,
+     open_kwargs=None,
+     additional_attrs=None,
+ ):
++    if transform_args is default_value:
++        transform_args = [5000, 80000, 1000, 2000.0]
++    if crs is default_value:
++        crs = {
++            "units": "m",
++            "no_defs": True,
++            "ellps": "WGS84",
++            "proj": "utm",
++            "zone": 18,
++        }
+     # yields a temporary geotiff file and a corresponding expected DataArray
+     import rasterio
+     from rasterio.transform import from_origin
+diff --git a/xarray/tests/test_conventions.py b/xarray/tests/test_conventions.py
+index dfd20a30..a5f4324d 100644
+--- a/xarray/tests/test_conventions.py
++++ b/xarray/tests/test_conventions.py
+@@ -363,8 +363,12 @@ class TestCFEncodedDataStore(CFEncodedBase):
+ 
+     @contextlib.contextmanager
+     def roundtrip(
+-        self, data, save_kwargs={}, open_kwargs={}, allow_cleanup_failure=False
++        self, data, save_kwargs=None, open_kwargs=None, allow_cleanup_failure=False
+     ):
++        if save_kwargs is None:
++            save_kwargs = {}
++        if open_kwargs is None:
++            open_kwargs = {}
+         store = CFEncodedInMemoryStore()
+         data.dump_to_store(store, **save_kwargs)
+         yield open_dataset(store, **open_kwargs)
++ git diff 19b088636eb7d3f65ab7a1046ac672e0689371d8
+diff --git a/xarray/core/weighted.py b/xarray/core/weighted.py
+index 996d2e4c..2587a273 100644
+--- a/xarray/core/weighted.py
++++ b/xarray/core/weighted.py
+@@ -142,7 +142,10 @@ class Weighted:
+         # we need to mask data values that are nan; else the weights are wrong
+         mask = da.notnull()
+ 
+-        sum_of_weights = self._reduce(mask, self.weights, dim=dim, skipna=False)
++        # Convert boolean weights to integers
++        weights = self.weights * 1 if self.weights.dtype == bool else self.weights
++
++        sum_of_weights = self._reduce(mask, weights, dim=dim, skipna=False)
+ 
+         # 0-weights are not valid
+         valid_weights = sum_of_weights != 0.0
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/udunits2-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/proj4-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/geotiff-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/gdal-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmpy-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmf-deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval '. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/udunits2-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/proj4-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/geotiff-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/gdal-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmpy-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmf-deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/udunits2-deactivate.sh
+++++ unset UDUNITS2_XML_PATH
+++++ '[' -n '' ']'
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/proj4-deactivate.sh
+++++ unset PROJ_DATA
+++++ unset PROJ_NETWORK
+++++ '[' -n '' ']'
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh
+++++ test -n ''
+++++ unset XML_CATALOG_FILES
+++++ unset xml_catalog_files_libxml2
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh
+++++ export GSETTINGS_SCHEMA_DIR=
+++++ GSETTINGS_SCHEMA_DIR=
+++++ unset GSETTINGS_SCHEMA_DIR_CONDA_BACKUP
+++++ '[' -z ']'
+++++ unset GSETTINGS_SCHEMA_DIR
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/geotiff-deactivate.sh
+++++ unset GEOTIFF_CSV
+++++ '[' -n '' ']'
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/gdal-deactivate.sh
+++++ unset GDAL_DATA
+++++ '[' -n '' ']'
+++++ unset GDAL_DRIVER_PATH
+++++ '[' -n '' ']'
+++++ unset CPL_ZIP_ENCODING
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmpy-deactivate.sh
+++++ unset ESMFMKFILE
+++++ '[' -n /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
+++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++++ unset _CONDA_SET_ESMFMKFILE
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmf-deactivate.sh
+++++ unset ESMFMKFILE
+++++ '[' -n '' ']'
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libarrow_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libarrow_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh
++++ '[' -n '' ']'
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh
++++ '[' -n /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh
++++ '[' -n '' ']'
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/gdal ']'
++++ export GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ export GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ '[' '!' -d /opt/miniconda3/envs/testbed/lib/gdalplugins ']'
++++ export CPL_ZIP_ENCODING=UTF-8
++++ CPL_ZIP_ENCODING=UTF-8
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/epsg_csv ']'
++++ '[' -d /opt/miniconda3/envs/testbed/Library/share/epsg_csv ']'
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libarrow_activate.sh
++++ _la_log 'Beginning libarrow activation.'
++++ '[' '' = 1 ']'
++++ _la_gdb_prefix=/opt/miniconda3/envs/testbed/share/gdb/auto-load
++++ '[' '!' -w /opt/miniconda3/envs/testbed/share/gdb/auto-load ']'
++++ _la_placeholder=replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX
++++ _la_symlink_dir=/opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib
++++ _la_orig_install_dir=/opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib
++++ _la_log '          _la_gdb_prefix: /opt/miniconda3/envs/testbed/share/gdb/auto-load'
++++ '[' '' = 1 ']'
++++ _la_log '         _la_placeholder: replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX'
++++ '[' '' = 1 ']'
++++ _la_log '         _la_symlink_dir: /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib'
++++ '[' '' = 1 ']'
++++ _la_log '    _la_orig_install_dir: /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib'
++++ '[' '' = 1 ']'
++++ _la_log '  content of that folder:'
++++ '[' '' = 1 ']'
+++++ ls -al /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib
+++++ sed 's/^/      /'
++++ _la_log '      total 4
+      drwxr-xr-x. 2 root root  41 Jul 24 16:04 .
+      drwxr-xr-x. 3 root root  17 Jul 24 16:04 ..
+      -rw-r--r--. 1 root root 971 Jul 24 16:04 libarrow.so.1700.0.0-gdb.py'
++++ '[' '' = 1 ']'
++++ for _la_target in "$_la_orig_install_dir/"*.py
++++ '[' '!' -e /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py ']'
+++++ basename /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py
++++ _la_symlink=/opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py
++++ _la_log '   _la_target: /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py'
++++ '[' '' = 1 ']'
++++ _la_log '  _la_symlink: /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py'
++++ '[' '' = 1 ']'
++++ '[' -L /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py ']'
+++++ readlink /opt/miniconda3/envs/testbed/share/gdb/auto-load//opt/miniconda3/envs/testbed/lib/libarrow.so.1700.0.0-gdb.py
++++ '[' /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py = /opt/miniconda3/envs/testbed/share/gdb/auto-load/replace_this_section_with_absolute_slashed_path_to_CONDA_PREFIX/lib/libarrow.so.1700.0.0-gdb.py ']'
++++ _la_log 'symlink $_la_symlink already exists and points to $_la_target, skipping.'
++++ '[' '' = 1 ']'
++++ continue
++++ _la_log 'Libarrow activation complete.'
++++ '[' '' = 1 ']'
++++ unset _la_gdb_prefix
++++ unset _la_log
++++ unset _la_orig_install_dir
++++ unset _la_placeholder
++++ unset _la_symlink
++++ unset _la_symlink_dir
++++ unset _la_target
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/proj ']'
++++ export PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ '[' -f /opt/miniconda3/envs/testbed/share/proj/copyright_and_licenses.csv ']'
++++ export PROJ_NETWORK=ON
++++ PROJ_NETWORK=ON
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/udunits ']'
++++ export UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++++ UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: numpy>=1.15 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from xarray==0.15.2.dev71+g19b08863.d20240725) (1.23.0)
+Requirement already satisfied: pandas>=0.25 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from xarray==0.15.2.dev71+g19b08863.d20240725) (1.5.3)
+Requirement already satisfied: setuptools>=41.2 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from xarray==0.15.2.dev71+g19b08863.d20240725) (68.0.0)
+Requirement already satisfied: python-dateutil>=2.8.1 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from pandas>=0.25->xarray==0.15.2.dev71+g19b08863.d20240725) (2.8.2)
+Requirement already satisfied: pytz>=2020.1 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from pandas>=0.25->xarray==0.15.2.dev71+g19b08863.d20240725) (2023.3)
+Requirement already satisfied: six>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from python-dateutil>=2.8.1->pandas>=0.25->xarray==0.15.2.dev71+g19b08863.d20240725) (1.16.0)
+Installing collected packages: xarray
+  Attempting uninstall: xarray
+    Found existing installation: xarray 0.15.2.dev71+g19b08863
+    Uninstalling xarray-0.15.2.dev71+g19b08863:
+      Successfully uninstalled xarray-0.15.2.dev71+g19b08863
+  Running setup.py develop for xarray
+Successfully installed xarray-0.15.2.dev71+g19b08863.d20240725
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 19b088636eb7d3f65ab7a1046ac672e0689371d8 xarray/tests/test_weighted.py
+Updated 0 paths from 3bf98cbd
++ git apply -v -
+Checking patch xarray/tests/test_weighted.py...
+Applied patch xarray/tests/test_weighted.py cleanly.
++ pytest -rA xarray/tests/test_weighted.py
+============================= test session starts ==============================
+platform linux -- Python 3.10.14, pytest-7.4.0, pluggy-1.5.0
+rootdir: /testbed
+configfile: setup.cfg
+plugins: hypothesis-6.108.4, cov-5.0.0, env-1.1.3, xdist-3.6.1
+collected 962 items
+
+xarray/tests/test_weighted.py .......................................... [  4%]
+........................................................................ [ 11%]
+........................................................................ [ 19%]
+........................................................................ [ 26%]
+........................................................................ [ 34%]
+........................................................................ [ 41%]
+........................................................................ [ 49%]
+........................................................................ [ 56%]
+........................................................................ [ 64%]
+........................................................................ [ 71%]
+........................................................................ [ 79%]
+........................................................................ [ 86%]
+........................................................................ [ 94%]
+......................................................xx                 [100%]
+
+=============================== warnings summary ===============================
+xarray/__init__.py:1
+  /testbed/xarray/__init__.py:1: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+    import pkg_resources
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap.responses')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2350
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2350
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2350
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2350: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(parent)
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap.handlers')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap.tests')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+xarray/core/dask_array_compat.py:16
+xarray/core/dask_array_compat.py:16
+  /testbed/xarray/core/dask_array_compat.py:16: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(dask_version) >= LooseVersion("2.0.0"):
+
+xarray/core/dask_array_compat.py:149
+xarray/core/dask_array_compat.py:149
+  /testbed/xarray/core/dask_array_compat.py:149: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(dask_version) >= LooseVersion("2.8.1"):
+
+xarray/core/dask_array_compat.py:186
+xarray/core/dask_array_compat.py:186
+  /testbed/xarray/core/dask_array_compat.py:186: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(dask_version) > LooseVersion("2.9.0"):
+
+xarray/core/pdcompat.py:45
+  /testbed/xarray/core/pdcompat.py:45: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    if LooseVersion(pd.__version__) < "0.25.0":
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/setuptools/_distutils/version.py:345
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/setuptools/_distutils/version.py:345: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    other = LooseVersion(other)
+
+xarray/tests/__init__.py:54
+xarray/tests/__init__.py:54
+  /testbed/xarray/tests/__init__.py:54: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    return version.LooseVersion(vstring)
+
+xarray/tests/test_weighted.py: 18 warnings
+  /testbed/xarray/core/alignment.py:304: FutureWarning: Index.__and__ operating as a set operation is deprecated, in the future this will be a logical operation matching Series.__and__.  Use index.intersection(other) instead.
+    index = joiner(matching_indexes)
+
+xarray/tests/test_weighted.py: 10 warnings
+  /testbed/xarray/core/formatting.py:143: DeprecationWarning: `np.float` is a deprecated alias for the builtin `float`. To silence this warning, use `float` by itself. Doing this will not modify any behavior and is safe. If you specifically wanted the numpy scalar type, use `np.float64` here.
+  Deprecated in NumPy 1.20; for more details and guidance: https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations
+    elif isinstance(x, (float, np.float)):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED xarray/tests/test_weighted.py::test_weighted_non_DataArray_weights[True]
+PASSED xarray/tests/test_weighted.py::test_weighted_non_DataArray_weights[False]
+PASSED xarray/tests/test_weighted.py::test_weighted_weights_nan_raises[weights0-True]
+PASSED xarray/tests/test_weighted.py::test_weighted_weights_nan_raises[weights0-False]
+PASSED xarray/tests/test_weighted.py::test_weighted_weights_nan_raises[weights1-True]
+PASSED xarray/tests/test_weighted.py::test_weighted_weights_nan_raises[weights1-False]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_of_weights_no_nan[weights0-3]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_of_weights_no_nan[weights1-2]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_of_weights_no_nan[weights2-nan]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_of_weights_no_nan[weights3-nan]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_of_weights_nan[weights0-2]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_of_weights_nan[weights1-nan]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_of_weights_nan[weights2-nan]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_of_weights_nan[weights3-1]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_of_weights_bool
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_equal_weights[True-0-da0]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_equal_weights[True-0-da1]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_equal_weights[True-0-da2]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_equal_weights[True-1-da0]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_equal_weights[True-1-da1]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_equal_weights[True-1-da2]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_equal_weights[True-3.14-da0]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_equal_weights[True-3.14-da1]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_equal_weights[True-3.14-da2]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_equal_weights[False-0-da0]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_equal_weights[False-0-da1]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_equal_weights[False-0-da2]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_equal_weights[False-1-da0]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_equal_weights[False-1-da1]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_equal_weights[False-1-da2]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_equal_weights[False-3.14-da0]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_equal_weights[False-3.14-da1]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_equal_weights[False-3.14-da2]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_no_nan[weights0-5]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_no_nan[weights1-4]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_no_nan[weights2-0]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_nan[True-weights0-4]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_nan[True-weights1-4]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_nan[True-weights2-0]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_nan[True-weights3-0]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_nan[False-weights0-4]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_nan[False-weights1-4]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_nan[False-weights2-0]
+PASSED xarray/tests/test_weighted.py::test_weighted_sum_nan[False-weights3-0]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_equal_weights[1-True-da0]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_equal_weights[1-True-da1]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_equal_weights[1-True-da2]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_equal_weights[1-False-da0]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_equal_weights[1-False-da1]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_equal_weights[1-False-da2]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_equal_weights[2-True-da0]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_equal_weights[2-True-da1]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_equal_weights[2-True-da2]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_equal_weights[2-False-da0]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_equal_weights[2-False-da1]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_equal_weights[2-False-da2]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_equal_weights[3.14-True-da0]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_equal_weights[3.14-True-da1]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_equal_weights[3.14-True-da2]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_equal_weights[3.14-False-da0]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_equal_weights[3.14-False-da1]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_equal_weights[3.14-False-da2]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_no_nan[weights0-1.6]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_no_nan[weights1-1.0]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_no_nan[weights2-nan]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_nan[True-weights0-2.0]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_nan[True-weights1-nan]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_nan[True-weights2-nan]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_nan[False-weights0-2.0]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_nan[False-weights1-nan]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_nan[False-weights2-nan]
+PASSED xarray/tests/test_weighted.py::test_weighted_mean_bool
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-True-sum_of_weights-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-True-sum_of_weights-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-True-sum_of_weights-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-True-sum_of_weights-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-True-sum_of_weights-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-True-sum_of_weights-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-True-sum-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-True-sum-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-True-sum-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-True-sum-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-True-sum-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-True-sum-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-True-mean-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-True-mean-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-True-mean-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-True-mean-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-True-mean-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-True-mean-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-False-sum_of_weights-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-False-sum_of_weights-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-False-sum_of_weights-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-False-sum_of_weights-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-False-sum_of_weights-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-False-sum_of_weights-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-False-sum-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-False-sum-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-False-sum-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-False-sum-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-False-sum-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-False-sum-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-False-mean-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-False-mean-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-False-mean-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-False-mean-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-False-mean-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-None-False-mean-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-True-sum_of_weights-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-True-sum_of_weights-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-True-sum_of_weights-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-True-sum_of_weights-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-True-sum_of_weights-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-True-sum_of_weights-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-True-sum-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-True-sum-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-True-sum-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-True-sum-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-True-sum-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-True-sum-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-True-mean-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-True-mean-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-True-mean-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-True-mean-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-True-mean-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-True-mean-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-False-sum_of_weights-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-False-sum_of_weights-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-False-sum_of_weights-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-False-sum_of_weights-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-False-sum_of_weights-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-False-sum_of_weights-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-False-sum-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-False-sum-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-False-sum-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-False-sum-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-False-sum-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-False-sum-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-False-mean-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-False-mean-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-False-mean-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-False-mean-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-False-mean-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-True-False-mean-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-True-sum_of_weights-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-True-sum_of_weights-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-True-sum_of_weights-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-True-sum_of_weights-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-True-sum_of_weights-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-True-sum_of_weights-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-True-sum-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-True-sum-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-True-sum-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-True-sum-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-True-sum-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-True-sum-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-True-mean-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-True-mean-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-True-mean-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-True-mean-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-True-mean-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-True-mean-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-False-sum_of_weights-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-False-sum_of_weights-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-False-sum_of_weights-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-False-sum_of_weights-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-False-sum_of_weights-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-False-sum_of_weights-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-False-sum-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-False-sum-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-False-sum-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-False-sum-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-False-sum-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-False-sum-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-False-mean-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-False-mean-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-False-mean-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-False-mean-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-False-mean-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[True-False-False-mean-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-True-sum_of_weights-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-True-sum_of_weights-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-True-sum_of_weights-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-True-sum_of_weights-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-True-sum_of_weights-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-True-sum_of_weights-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-True-sum-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-True-sum-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-True-sum-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-True-sum-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-True-sum-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-True-sum-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-True-mean-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-True-mean-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-True-mean-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-True-mean-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-True-mean-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-True-mean-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-False-sum_of_weights-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-False-sum_of_weights-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-False-sum_of_weights-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-False-sum_of_weights-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-False-sum_of_weights-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-False-sum_of_weights-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-False-sum-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-False-sum-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-False-sum-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-False-sum-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-False-sum-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-False-sum-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-False-mean-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-False-mean-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-False-mean-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-False-mean-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-False-mean-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-None-False-mean-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-True-sum_of_weights-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-True-sum_of_weights-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-True-sum_of_weights-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-True-sum_of_weights-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-True-sum_of_weights-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-True-sum_of_weights-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-True-sum-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-True-sum-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-True-sum-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-True-sum-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-True-sum-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-True-sum-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-True-mean-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-True-mean-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-True-mean-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-True-mean-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-True-mean-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-True-mean-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-False-sum_of_weights-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-False-sum_of_weights-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-False-sum_of_weights-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-False-sum_of_weights-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-False-sum_of_weights-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-False-sum_of_weights-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-False-sum-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-False-sum-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-False-sum-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-False-sum-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-False-sum-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-False-sum-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-False-mean-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-False-mean-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-False-mean-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-False-mean-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-False-mean-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-True-False-mean-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-True-sum_of_weights-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-True-sum_of_weights-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-True-sum_of_weights-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-True-sum_of_weights-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-True-sum_of_weights-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-True-sum_of_weights-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-True-sum-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-True-sum-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-True-sum-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-True-sum-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-True-sum-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-True-sum-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-True-mean-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-True-mean-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-True-mean-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-True-mean-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-True-mean-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-True-mean-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-False-sum_of_weights-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-False-sum_of_weights-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-False-sum_of_weights-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-False-sum_of_weights-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-False-sum_of_weights-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-False-sum_of_weights-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-False-sum-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-False-sum-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-False-sum-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-False-sum-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-False-sum-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-False-sum-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-False-mean-a]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-False-mean-b]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-False-mean-c]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-False-mean-dim3]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-False-mean-dim4]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_3D[False-False-False-mean-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_nonequal_coords[True-sum_of_weights]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_nonequal_coords[True-sum]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_nonequal_coords[True-mean]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_nonequal_coords[False-sum_of_weights]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_nonequal_coords[False-sum]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_nonequal_coords[False-mean]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum_of_weights-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum_of_weights-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum_of_weights-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum_of_weights-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum_of_weights-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum_of_weights-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum_of_weights-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum_of_weights-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum_of_weights-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum_of_weights-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum_of_weights-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum_of_weights-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum_of_weights-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum_of_weights-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum_of_weights-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum_of_weights-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum_of_weights-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum_of_weights-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-sum-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-mean-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-mean-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-mean-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-mean-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-mean-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-mean-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-mean-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-mean-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-mean-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-mean-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-mean-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-mean-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-mean-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-mean-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-mean-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-mean-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-mean-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-True-mean-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum_of_weights-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum_of_weights-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum_of_weights-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum_of_weights-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum_of_weights-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum_of_weights-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum_of_weights-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum_of_weights-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum_of_weights-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum_of_weights-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum_of_weights-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum_of_weights-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum_of_weights-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum_of_weights-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum_of_weights-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum_of_weights-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum_of_weights-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum_of_weights-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-sum-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-mean-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-mean-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-mean-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-mean-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-mean-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-mean-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-mean-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-mean-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-mean-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-mean-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-mean-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-mean-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-mean-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-mean-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-mean-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-mean-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-mean-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-None-False-mean-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum_of_weights-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum_of_weights-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum_of_weights-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum_of_weights-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum_of_weights-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum_of_weights-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum_of_weights-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum_of_weights-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum_of_weights-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum_of_weights-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum_of_weights-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum_of_weights-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum_of_weights-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum_of_weights-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum_of_weights-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum_of_weights-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum_of_weights-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum_of_weights-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-sum-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-mean-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-mean-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-mean-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-mean-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-mean-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-mean-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-mean-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-mean-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-mean-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-mean-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-mean-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-mean-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-mean-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-mean-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-mean-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-mean-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-mean-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-True-mean-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum_of_weights-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum_of_weights-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum_of_weights-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum_of_weights-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum_of_weights-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum_of_weights-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum_of_weights-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum_of_weights-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum_of_weights-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum_of_weights-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum_of_weights-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum_of_weights-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum_of_weights-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum_of_weights-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum_of_weights-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum_of_weights-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum_of_weights-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum_of_weights-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-sum-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-mean-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-mean-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-mean-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-mean-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-mean-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-mean-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-mean-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-mean-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-mean-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-mean-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-mean-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-mean-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-mean-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-mean-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-mean-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-mean-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-mean-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-True-False-mean-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum_of_weights-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum_of_weights-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum_of_weights-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum_of_weights-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum_of_weights-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum_of_weights-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum_of_weights-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum_of_weights-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum_of_weights-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum_of_weights-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum_of_weights-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum_of_weights-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum_of_weights-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum_of_weights-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum_of_weights-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum_of_weights-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum_of_weights-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum_of_weights-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-sum-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-mean-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-mean-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-mean-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-mean-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-mean-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-mean-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-mean-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-mean-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-mean-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-mean-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-mean-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-mean-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-mean-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-mean-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-mean-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-mean-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-mean-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-True-mean-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum_of_weights-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum_of_weights-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum_of_weights-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum_of_weights-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum_of_weights-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum_of_weights-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum_of_weights-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum_of_weights-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum_of_weights-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum_of_weights-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum_of_weights-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum_of_weights-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum_of_weights-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum_of_weights-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum_of_weights-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum_of_weights-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum_of_weights-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum_of_weights-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-sum-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-mean-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-mean-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-mean-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-mean-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-mean-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-mean-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-mean-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-mean-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-mean-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-mean-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-mean-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-mean-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-mean-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-mean-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-mean-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-mean-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-mean-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[True-False-False-mean-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum_of_weights-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum_of_weights-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum_of_weights-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum_of_weights-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum_of_weights-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum_of_weights-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum_of_weights-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum_of_weights-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum_of_weights-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum_of_weights-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum_of_weights-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum_of_weights-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum_of_weights-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum_of_weights-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum_of_weights-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum_of_weights-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum_of_weights-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum_of_weights-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-sum-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-mean-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-mean-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-mean-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-mean-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-mean-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-mean-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-mean-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-mean-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-mean-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-mean-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-mean-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-mean-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-mean-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-mean-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-mean-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-mean-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-mean-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-True-mean-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum_of_weights-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum_of_weights-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum_of_weights-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum_of_weights-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum_of_weights-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum_of_weights-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum_of_weights-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum_of_weights-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum_of_weights-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum_of_weights-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum_of_weights-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum_of_weights-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum_of_weights-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum_of_weights-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum_of_weights-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum_of_weights-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum_of_weights-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum_of_weights-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-sum-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-mean-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-mean-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-mean-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-mean-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-mean-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-mean-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-mean-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-mean-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-mean-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-mean-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-mean-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-mean-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-mean-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-mean-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-mean-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-mean-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-mean-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-None-False-mean-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum_of_weights-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum_of_weights-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum_of_weights-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum_of_weights-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum_of_weights-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum_of_weights-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum_of_weights-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum_of_weights-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum_of_weights-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum_of_weights-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum_of_weights-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum_of_weights-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum_of_weights-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum_of_weights-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum_of_weights-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum_of_weights-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum_of_weights-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum_of_weights-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-sum-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-mean-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-mean-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-mean-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-mean-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-mean-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-mean-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-mean-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-mean-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-mean-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-mean-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-mean-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-mean-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-mean-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-mean-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-mean-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-mean-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-mean-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-True-mean-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum_of_weights-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum_of_weights-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum_of_weights-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum_of_weights-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum_of_weights-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum_of_weights-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum_of_weights-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum_of_weights-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum_of_weights-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum_of_weights-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum_of_weights-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum_of_weights-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum_of_weights-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum_of_weights-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum_of_weights-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum_of_weights-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum_of_weights-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum_of_weights-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-sum-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-mean-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-mean-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-mean-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-mean-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-mean-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-mean-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-mean-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-mean-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-mean-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-mean-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-mean-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-mean-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-mean-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-mean-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-mean-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-mean-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-mean-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-True-False-mean-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum_of_weights-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum_of_weights-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum_of_weights-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum_of_weights-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum_of_weights-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum_of_weights-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum_of_weights-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum_of_weights-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum_of_weights-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum_of_weights-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum_of_weights-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum_of_weights-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum_of_weights-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum_of_weights-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum_of_weights-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum_of_weights-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum_of_weights-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum_of_weights-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-sum-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-mean-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-mean-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-mean-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-mean-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-mean-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-mean-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-mean-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-mean-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-mean-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-mean-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-mean-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-mean-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-mean-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-mean-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-mean-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-mean-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-mean-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-True-mean-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum_of_weights-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum_of_weights-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum_of_weights-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum_of_weights-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum_of_weights-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum_of_weights-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum_of_weights-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum_of_weights-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum_of_weights-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum_of_weights-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum_of_weights-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum_of_weights-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum_of_weights-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum_of_weights-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum_of_weights-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum_of_weights-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum_of_weights-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum_of_weights-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-sum-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-mean-shape_weights0-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-mean-shape_weights0-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-mean-shape_weights0-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-mean-shape_weights0-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-mean-shape_weights0-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-mean-shape_weights0-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-mean-shape_weights1-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-mean-shape_weights1-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-mean-shape_weights1-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-mean-shape_weights1-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-mean-shape_weights1-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-mean-shape_weights1-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-mean-shape_weights2-shape_data0-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-mean-shape_weights2-shape_data0-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-mean-shape_weights2-shape_data1-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-mean-shape_weights2-shape_data1-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-mean-shape_weights2-shape_data2-dim_0]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_different_shapes[False-False-False-mean-shape_weights2-shape_data2-None]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_keep_attr[True-True-sum_of_weights]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_keep_attr[True-True-sum]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_keep_attr[True-True-mean]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_keep_attr[True-False-sum_of_weights]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_keep_attr[True-False-sum]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_keep_attr[True-False-mean]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_keep_attr[False-True-sum_of_weights]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_keep_attr[False-True-sum]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_keep_attr[False-True-mean]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_keep_attr[False-False-sum_of_weights]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_keep_attr[False-False-sum]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_keep_attr[False-False-mean]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_keep_attr[None-True-sum_of_weights]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_keep_attr[None-True-sum]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_keep_attr[None-True-mean]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_keep_attr[None-False-sum_of_weights]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_keep_attr[None-False-sum]
+PASSED xarray/tests/test_weighted.py::test_weighted_operations_keep_attr[None-False-mean]
+XFAIL xarray/tests/test_weighted.py::test_weighted_operations_keep_attr_da_in_ds[sum] - xr.Dataset.map does not copy attrs of DataArrays GH: 3595
+XFAIL xarray/tests/test_weighted.py::test_weighted_operations_keep_attr_da_in_ds[mean] - xr.Dataset.map does not copy attrs of DataArrays GH: 3595
+================= 960 passed, 2 xfailed, 46 warnings in 17.58s =================
++ git checkout 19b088636eb7d3f65ab7a1046ac672e0689371d8 xarray/tests/test_weighted.py
+Updated 1 path from 3bf98cbd

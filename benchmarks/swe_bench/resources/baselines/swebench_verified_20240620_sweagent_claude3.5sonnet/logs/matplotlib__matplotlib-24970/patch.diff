@@ -1,0 +1,60 @@
+
+diff --git a/check_versions.py b/check_versions.py
+new file mode 100644
+index 0000000000..7d641bbcfa
+--- /dev/null
++++ b/check_versions.py
+@@ -0,0 +1,5 @@
++import numpy as np
++import matplotlib
++
++print(f"NumPy version: {np.__version__}")
++print(f"Matplotlib version: {matplotlib.__version__}")
+diff --git a/lib/matplotlib/colors.py b/lib/matplotlib/colors.py
+index 2d3072da04..f1025bd836 100644
+--- a/lib/matplotlib/colors.py
++++ b/lib/matplotlib/colors.py
+@@ -727,9 +727,9 @@ class Colormap:
+                 xa = xa.astype(int)
+         # Set the over-range indices before the under-range;
+         # otherwise the under-range values get converted to over-range.
+-        xa[xa > self.N - 1] = self._i_over
+-        xa[xa < 0] = self._i_under
+-        xa[mask_bad] = self._i_bad
++        xa[xa > self.N - 1] = np.array(self._i_over).astype(xa.dtype)
++        xa[xa < 0] = np.array(self._i_under).astype(xa.dtype)
++        xa[mask_bad] = np.array(self._i_bad).astype(xa.dtype)
+ 
+         lut = self._lut
+         if bytes:
+diff --git a/lib/matplotlib/tests/test_colors.py b/lib/matplotlib/tests/test_colors.py
+index ff893e71ac..9f6494c6ba 100644
+--- a/lib/matplotlib/tests/test_colors.py
++++ b/lib/matplotlib/tests/test_colors.py
+@@ -137,11 +137,9 @@ def test_double_register_builtin_cmap():
+             mpl.colormaps[name], name=name, force=True
+         )
+     with pytest.raises(ValueError, match='A colormap named "viridis"'):
+-        with pytest.warns(mpl.MatplotlibDeprecationWarning):
+-            cm.register_cmap(name, mpl.colormaps[name])
+-    with pytest.warns(UserWarning):
+-        # TODO is warning more than once!
+-        cm.register_cmap(name, mpl.colormaps[name], override_builtin=True)
++        matplotlib.colormaps.register(mpl.colormaps[name], name=name)
++    with pytest.raises(ValueError, match=f"Re-registering the builtin cmap {name!r} is not allowed."):
++        matplotlib.colormaps.register(mpl.colormaps[name], name=name, force=True)
+ 
+ 
+ def test_unregister_builtin_cmap():
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..b8a66b8eda
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,6 @@
++import matplotlib.pyplot as plt
++import numpy as np
++
++plt.get_cmap()(np.empty((0, ), dtype=np.uint8))
++
++print("Script completed successfully, no errors.")

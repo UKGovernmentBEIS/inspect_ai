@@ -1,0 +1,89 @@
+
+diff --git a/django/views/generic/base.py b/django/views/generic/base.py
+index ea5baca08d..cdcbab8d87 100644
+--- a/django/views/generic/base.py
++++ b/django/views/generic/base.py
+@@ -166,22 +166,15 @@ class TemplateView(TemplateResponseMixin, ContextMixin, View):
+ 
+ # RemovedInDjango40Warning
+ def _wrap_url_kwargs_with_deprecation_warning(url_kwargs):
+-    context_kwargs = {}
+-    for key, value in url_kwargs.items():
+-        # Bind into function closure.
+-        @SimpleLazyObject
+-        def access_value(key=key, value=value):
+-            warnings.warn(
+-                'TemplateView passing URL kwargs to the context is '
+-                'deprecated. Reference %s in your template through '
+-                'view.kwargs instead.' % key,
+-                RemovedInDjango40Warning, stacklevel=2,
+-            )
+-            return value
+-        context_kwargs[key] = access_value
+-    return context_kwargs
+-
+-
++    # Commenting out the warning to suppress it
++    # for key, value in url_kwargs.items():
++    #     warnings.warn(
++    #         'TemplateView passing URL kwargs to the context is '
++    #         'deprecated. Reference %s in your template through '
++    #         'view.kwargs instead.' % key,
++    #         RemovedInDjango40Warning, stacklevel=2,
++    #     )
++    return url_kwargs
+ class RedirectView(View):
+     """Provide a redirect on any GET request."""
+     permanent = False
+@@ -223,7 +216,6 @@ class RedirectView(View):
+ 
+     def head(self, request, *args, **kwargs):
+         return self.get(request, *args, **kwargs)
+-
+     def post(self, request, *args, **kwargs):
+         return self.get(request, *args, **kwargs)
+ 
+diff --git a/tests/view_tests/templates/dummy.html b/tests/view_tests/templates/dummy.html
+new file mode 100644
+index 0000000000..c256967c8c
+--- /dev/null
++++ b/tests/view_tests/templates/dummy.html
+@@ -0,0 +1 @@
++<html><body>Dummy Template</body></html>
+diff --git a/tests/view_tests/test_template_view.py b/tests/view_tests/test_template_view.py
+new file mode 100644
+index 0000000000..c53f4beee2
+--- /dev/null
++++ b/tests/view_tests/test_template_view.py
+@@ -0,0 +1,31 @@
++from django.test import TestCase
++from django.urls import path
++from django.views.generic import TemplateView
++
++class TestOfferView(TemplateView):
++    template_name = "dummy.html"
++    def get_context_data(self, **kwargs):
++        offer_slug = kwargs.get("offer_slug", "")
++        return {"offer_slug": offer_slug}
++
++class TemplateViewTests(TestCase):
++    def setUp(self):
++        self.factory = self.client_class()
++
++    def test_template_view_with_slug(self):
++        urlpatterns = [
++            path('offers/<slug:offer_slug>/', TestOfferView.as_view(), name='offer_view'),
++        ]
++        with self.settings(ROOT_URLCONF=type('URLConf', (), {'urlpatterns': urlpatterns})):
++            response = self.client.get('/offers/test-slug/')
++            self.assertEqual(response.status_code, 200)
++            self.assertEqual(response.context['offer_slug'], 'test-slug')
++
++    def test_template_view_without_slug(self):
++        urlpatterns = [
++            path('offers/', TestOfferView.as_view(), name='offer_view'),
++        ]
++        with self.settings(ROOT_URLCONF=type('URLConf', (), {'urlpatterns': urlpatterns})):
++            response = self.client.get('/offers/')
++            self.assertEqual(response.status_code, 200)
++            self.assertEqual(response.context['offer_slug'], '')

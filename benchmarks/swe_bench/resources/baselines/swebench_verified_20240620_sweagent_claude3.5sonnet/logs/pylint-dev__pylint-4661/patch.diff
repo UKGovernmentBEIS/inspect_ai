@@ -1,0 +1,96 @@
+
+diff --git a/doc/faq.rst b/doc/faq.rst
+index c817855f8..c64ea7ba6 100644
+--- a/doc/faq.rst
++++ b/doc/faq.rst
+@@ -93,10 +93,10 @@ localized using the following rules:
+ 
+ * value of the PYLINTHOME environment variable if set
+ 
+-* ".pylint.d" subdirectory of the user's home directory if it is found
+-	(not always findable on Windows platforms)
++* ".local/share/pylint" subdirectory of the user's home directory if it is found
++  (following the XDG Base Directory Specification)
+ 
+-* ".pylint.d" directory in the current directory
++* ".local/share/pylint" directory in the current directory
+ 
+ 3.3 How do I find the option name (for pylintrc) corresponding to a specific command line option?
+ --------------------------------------------------------------------------------------------------------
+diff --git a/pylint/config/__init__.py b/pylint/config/__init__.py
+index 84774d0e3..b5843bd4c 100644
+--- a/pylint/config/__init__.py
++++ b/pylint/config/__init__.py
+@@ -56,14 +56,14 @@ __all__ = [
+ ]
+ 
+ USER_HOME = os.path.expanduser("~")
+-if "PYLINTHOME" in os.environ:
+-    PYLINT_HOME = os.environ["PYLINTHOME"]
++if "PYLINT_HOME" in os.environ:
++    PYLINT_HOME = os.environ["PYLINT_HOME"]
+     if USER_HOME == "~":
+         USER_HOME = os.path.dirname(PYLINT_HOME)
+ elif USER_HOME == "~":
+-    PYLINT_HOME = ".pylint.d"
++    PYLINT_HOME = os.path.join(os.path.expanduser("~"), ".local", "share", "pylint")
+ else:
+-    PYLINT_HOME = os.path.join(USER_HOME, ".pylint.d")
++    PYLINT_HOME = os.path.join(USER_HOME, ".local", "share", "pylint")
+ 
+ 
+ def _get_pdata_path(base_name, recurs):
+@@ -83,9 +83,10 @@ def load_results(base):
+ def save_results(results, base):
+     if not os.path.exists(PYLINT_HOME):
+         try:
+-            os.mkdir(PYLINT_HOME)
+-        except OSError:
+-            print("Unable to create directory %s" % PYLINT_HOME, file=sys.stderr)
++            os.makedirs(PYLINT_HOME, exist_ok=True)
++        except OSError as ex:
++            print(f"Unable to create directory {PYLINT_HOME}: {ex}", file=sys.stderr)
++            return
+     data_file = _get_pdata_path(base, 1)
+     try:
+         with open(data_file, "wb") as stream:
+@@ -105,16 +106,13 @@ def find_pylintrc():
+ 
+ PYLINTRC = find_pylintrc()
+ 
+-ENV_HELP = (
+-    """
++ENV_HELP = """
+ The following environment variables are used:
+     * PYLINTHOME
+     Path to the directory where persistent data for the run will be stored. If
+-not found, it defaults to ~/.pylint.d/ or .pylint.d (in the current working
++not found, it defaults to ~/.local/share/pylint/ or .local/share/pylint (in the current working
+ directory).
+     * PYLINTRC
+     Path to the configuration file. See the documentation for the method used
+ to search for configuration file.
+ """
+-    % globals()  # type: ignore
+-)
+diff --git a/tests/lint/unittest_lint.py b/tests/lint/unittest_lint.py
+index 004c29281..d811fe2df 100644
+--- a/tests/lint/unittest_lint.py
++++ b/tests/lint/unittest_lint.py
+@@ -629,13 +629,13 @@ def pop_pylintrc():
+ def test_pylint_home():
+     uhome = os.path.expanduser("~")
+     if uhome == "~":
+-        expected = ".pylint.d"
++        expected = os.path.join(".local", "share", "pylint")
+     else:
+-        expected = os.path.join(uhome, ".pylint.d")
++        expected = os.path.join(uhome, ".local", "share", "pylint")
+     assert config.PYLINT_HOME == expected
+ 
+     try:
+-        pylintd = join(tempfile.gettempdir(), ".pylint.d")
++        pylintd = join(tempfile.gettempdir(), ".local", "share", "pylint")
+         os.environ["PYLINTHOME"] = pylintd
+         try:
+             reload(config)

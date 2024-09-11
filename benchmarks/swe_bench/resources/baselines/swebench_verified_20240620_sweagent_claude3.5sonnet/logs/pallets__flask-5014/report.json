@@ -1,0 +1,89 @@
+{
+    "pallets__flask-5014": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "tests/test_blueprints.py::test_empty_name_not_allowed"
+                ],
+                "failure": []
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "tests/test_blueprints.py::test_dotted_name_not_allowed",
+                    "tests/test_blueprints.py::test_route_decorator_custom_endpoint_with_dots",
+                    "tests/test_blueprints.py::test_self_registration"
+                ],
+                "failure": [
+                    "tests/test_blueprints.py::test_blueprint_specific_error_handling",
+                    "tests/test_blueprints.py::test_blueprint_specific_user_error_handling",
+                    "tests/test_blueprints.py::test_blueprint_app_error_handling",
+                    "tests/test_blueprints.py::test_blueprint_prefix_slash[-/-/]",
+                    "tests/test_blueprints.py::test_blueprint_prefix_slash[/--/]",
+                    "tests/test_blueprints.py::test_blueprint_prefix_slash[/-/-/]",
+                    "tests/test_blueprints.py::test_blueprint_prefix_slash[/foo--/foo]",
+                    "tests/test_blueprints.py::test_blueprint_prefix_slash[/foo/--/foo/]",
+                    "tests/test_blueprints.py::test_blueprint_prefix_slash[-/bar-/bar]",
+                    "tests/test_blueprints.py::test_blueprint_prefix_slash[/foo/-/bar-/foo/bar]",
+                    "tests/test_blueprints.py::test_blueprint_prefix_slash[/foo/-bar-/foo/bar]",
+                    "tests/test_blueprints.py::test_blueprint_prefix_slash[/foo-/bar-/foo/bar]",
+                    "tests/test_blueprints.py::test_blueprint_prefix_slash[/foo/-//bar-/foo/bar]",
+                    "tests/test_blueprints.py::test_blueprint_prefix_slash[/foo//-/bar-/foo/bar]",
+                    "tests/test_blueprints.py::test_blueprint_url_defaults",
+                    "tests/test_blueprints.py::test_blueprint_url_processors",
+                    "tests/test_blueprints.py::test_templates_and_static",
+                    "tests/test_blueprints.py::test_default_static_max_age",
+                    "tests/test_blueprints.py::test_templates_list",
+                    "tests/test_blueprints.py::test_dotted_names_from_app",
+                    "tests/test_blueprints.py::test_empty_url_defaults",
+                    "tests/test_blueprints.py::test_route_decorator_custom_endpoint",
+                    "tests/test_blueprints.py::test_endpoint_decorator",
+                    "tests/test_blueprints.py::test_template_filter",
+                    "tests/test_blueprints.py::test_add_template_filter",
+                    "tests/test_blueprints.py::test_template_filter_with_name",
+                    "tests/test_blueprints.py::test_add_template_filter_with_name",
+                    "tests/test_blueprints.py::test_template_filter_with_template",
+                    "tests/test_blueprints.py::test_template_filter_after_route_with_template",
+                    "tests/test_blueprints.py::test_add_template_filter_with_template",
+                    "tests/test_blueprints.py::test_template_filter_with_name_and_template",
+                    "tests/test_blueprints.py::test_add_template_filter_with_name_and_template",
+                    "tests/test_blueprints.py::test_template_test",
+                    "tests/test_blueprints.py::test_add_template_test",
+                    "tests/test_blueprints.py::test_template_test_with_name",
+                    "tests/test_blueprints.py::test_add_template_test_with_name",
+                    "tests/test_blueprints.py::test_template_test_with_template",
+                    "tests/test_blueprints.py::test_template_test_after_route_with_template",
+                    "tests/test_blueprints.py::test_add_template_test_with_template",
+                    "tests/test_blueprints.py::test_template_test_with_name_and_template",
+                    "tests/test_blueprints.py::test_add_template_test_with_name_and_template",
+                    "tests/test_blueprints.py::test_context_processing",
+                    "tests/test_blueprints.py::test_template_global",
+                    "tests/test_blueprints.py::test_request_processing",
+                    "tests/test_blueprints.py::test_app_request_processing",
+                    "tests/test_blueprints.py::test_app_url_processors",
+                    "tests/test_blueprints.py::test_nested_blueprint",
+                    "tests/test_blueprints.py::test_nested_callback_order",
+                    "tests/test_blueprints.py::test_nesting_url_prefixes[/parent-/child-None-None]",
+                    "tests/test_blueprints.py::test_nesting_url_prefixes[/parent-None-None-/child]",
+                    "tests/test_blueprints.py::test_nesting_url_prefixes[None-None-/parent-/child]",
+                    "tests/test_blueprints.py::test_nesting_url_prefixes[/other-/something-/parent-/child]",
+                    "tests/test_blueprints.py::test_nesting_subdomains",
+                    "tests/test_blueprints.py::test_child_and_parent_subdomain",
+                    "tests/test_blueprints.py::test_unique_blueprint_names",
+                    "tests/test_blueprints.py::test_blueprint_renaming"
+                ]
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

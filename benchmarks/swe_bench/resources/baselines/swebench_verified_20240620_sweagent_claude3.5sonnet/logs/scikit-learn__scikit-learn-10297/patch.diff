@@ -1,0 +1,69 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..d899937a1
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,30 @@
++import numpy as np
++from sklearn import linear_model as lm
++
++print("Script started.")
++
++# test database (reduced size)
++n = 50
++x = np.random.randn(n, 10)
++y = np.random.randint(0, 2, size=n)  # Binary labels (0 or 1)
++
++def test_ridge_classifier_cv(cv, store_cv_values):
++    try:
++        rr = lm.RidgeClassifierCV(alphas=[0.1, 1.0, 10.0], normalize=True, 
++                                  store_cv_values=store_cv_values, cv=cv).fit(x, y)
++        print(f"RidgeClassifierCV fitted successfully with cv={cv} and store_cv_values={store_cv_values}")
++        
++        if hasattr(rr, 'cv_values_'):
++            print(f"cv_values_ attribute is present. Shape: {rr.cv_values_.shape}")
++        else:
++            print("cv_values_ attribute is not present.")
++    except Exception as e:
++        print(f"An error occurred: {str(e)}")
++
++print("Testing with cv=None and store_cv_values=True:")
++test_ridge_classifier_cv(cv=None, store_cv_values=True)
++
++print("\nTesting with cv=5 and store_cv_values=False:")
++test_ridge_classifier_cv(cv=5, store_cv_values=False)
++
++print("Script completed.")
+diff --git a/sklearn/linear_model/ridge.py b/sklearn/linear_model/ridge.py
+index 911c74ae3..59220065b 100644
+--- a/sklearn/linear_model/ridge.py
++++ b/sklearn/linear_model/ridge.py
+@@ -1301,6 +1301,13 @@ class RidgeClassifierCV(LinearClassifierMixin, _BaseRidgeCV):
+         weights inversely proportional to class frequencies in the input data
+         as ``n_samples / (n_classes * np.bincount(y))``
+ 
++    store_cv_values : boolean, default=False
++        Flag indicating if the cross-validation values corresponding to
++        each alpha should be stored in the `cv_values_` attribute. This
++        is only available when `cv=None` (i.e., using Generalized
++        Cross-Validation). Setting this to True may result in a large amount
++        of memory being used, especially if the number of alphas is large.
++
+     Attributes
+     ----------
+     cv_values_ : array, shape = [n_samples, n_alphas] or \
+@@ -1333,10 +1340,11 @@ class RidgeClassifierCV(LinearClassifierMixin, _BaseRidgeCV):
+     advantage of the multi-variate response support in Ridge.
+     """
+     def __init__(self, alphas=(0.1, 1.0, 10.0), fit_intercept=True,
+-                 normalize=False, scoring=None, cv=None, class_weight=None):
++                 normalize=False, scoring=None, cv=None, class_weight=None,
++                 store_cv_values=False):
+         super(RidgeClassifierCV, self).__init__(
+             alphas=alphas, fit_intercept=fit_intercept, normalize=normalize,
+-            scoring=scoring, cv=cv)
++            scoring=scoring, cv=cv, store_cv_values=store_cv_values)
+         self.class_weight = class_weight
+ 
+     def fit(self, X, y, sample_weight=None):

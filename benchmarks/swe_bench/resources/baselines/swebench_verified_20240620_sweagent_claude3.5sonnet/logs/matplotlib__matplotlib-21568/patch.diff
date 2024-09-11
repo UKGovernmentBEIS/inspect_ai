@@ -1,0 +1,104 @@
+
+diff --git a/3.5.0.dev2475+gf0632c0fc7.png b/3.5.0.dev2475+gf0632c0fc7.png
+new file mode 100644
+index 0000000000..f1968a720d
+Binary files /dev/null and b/3.5.0.dev2475+gf0632c0fc7.png differ
+diff --git a/normal.png b/normal.png
+new file mode 100644
+index 0000000000..f1968a720d
+Binary files /dev/null and b/normal.png differ
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..3bf777cffb
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,81 @@
++import matplotlib
++matplotlib.use('Agg')  # Use non-interactive backend
++import matplotlib.pyplot as plt
++import numpy as np
++import pandas as pd
++import re
++
++def simplified_wrap_in_tex(text):
++    p = r'([a-zA-Z]+)'
++    ret_text = re.sub(p, r'}$\1$\\mathdefault{', text)
++    ret_text = '$\\mathdefault{'+ret_text.replace('-', '{-}')+'}$'
++    ret_text = ret_text.replace('$\\mathdefault{}$', '')
++    return ret_text
++
++def plot_and_analyze(use_simulated_tex=False):
++    np.random.seed(1)
++    matplotlib.rcParams["text.usetex"] = False  # Always use normal rendering
++
++    dates = pd.date_range("2020-01-01 00:00:00", end="2020-01-01 00:10:00", periods=100)
++    data = np.random.rand(100)
++
++    fig, ax = plt.subplots(constrained_layout=True)
++    ax.plot(dates.to_numpy(), data)
++
++    # Set x-axis to use DateFormatter and force number of ticks
++    date_formatter = matplotlib.dates.DateFormatter('%H:%M:%S')
++    ax.xaxis.set_major_formatter(date_formatter)
++    ax.xaxis.set_major_locator(matplotlib.dates.AutoDateLocator())
++
++    # Get information about x-axis ticks
++    plt.draw()  # Force draw to update ticks
++    ticks = ax.get_xticks()
++    tick_labels = ax.get_xticklabels()
++
++    print(f"{'Simulated TeX' if use_simulated_tex else 'Normal'} rendering:")
++    print("X-axis tick locations (data units):", ticks)
++    print("X-axis tick labels and positions:")
++    positions = []
++    for label in tick_labels:
++        position = label.get_position()
++        positions.append(position[0])
++        text = label.get_text()
++        if use_simulated_tex:
++            text = simplified_wrap_in_tex(text)
++        print(f"  {text} - Data position: {position[0]}")
++        
++        # Get text dimensions
++        renderer = fig.canvas.get_renderer()
++        if use_simulated_tex:
++            label.set_text(text)  # Temporarily set the wrapped text
++        bbox = label.get_window_extent(renderer)
++        if use_simulated_tex:
++            label.set_text(date_formatter(position[0]))  # Reset to original text
++        print(f"    Width: {bbox.width:.2f}, Height: {bbox.height:.2f}")
++
++    # Calculate distances between ticks in data units
++    distances = [positions[i+1] - positions[i] for i in range(len(positions)-1)]
++    print("Distances between ticks (data units):", distances)
++
++    # Convert data units to pixel units
++    x_min, x_max = ax.get_xlim()
++    bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
++    width_inches = bbox.width
++    pixels_per_unit = width_inches * fig.dpi / (x_max - x_min)
++
++    pixel_distances = [d * pixels_per_unit for d in distances]
++    print("Distances between ticks (pixels):", pixel_distances)
++
++    # Get figure size in pixels
++    fig_size_inches = fig.get_size_inches()
++    dpi = fig.get_dpi()
++    fig_size_pixels = fig_size_inches * dpi
++    print(f"Figure size in pixels: {fig_size_pixels}")
++
++    plt.savefig(f"{'simulated_tex' if use_simulated_tex else 'normal'}.png")
++    print()
++
++plot_and_analyze(use_simulated_tex=False)
++plot_and_analyze(use_simulated_tex=True)
++
++print("Script completed.")
+diff --git a/simulated_tex.png b/simulated_tex.png
+new file mode 100644
+index 0000000000..f1968a720d
+Binary files /dev/null and b/simulated_tex.png differ
+diff --git a/simulated_wider_labels.png b/simulated_wider_labels.png
+new file mode 100644
+index 0000000000..f1968a720d
+Binary files /dev/null and b/simulated_wider_labels.png differ

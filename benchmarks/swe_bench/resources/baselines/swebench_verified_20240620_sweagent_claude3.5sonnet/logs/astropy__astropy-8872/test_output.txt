@@ -1,0 +1,805 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   astropy/units/quantity.py
+	modified:   astropy/units/tests/test_quantity.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_float16_issue.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit b750a0e6ee76fb6b8a099a4d16ec51977be46bf6
+Merge: 4bf8a91751 d7625e61e6
+Author: Adrian Price-Whelan <adrian.prw@gmail.com>
+Date:   Wed Jun 19 14:28:44 2019 -0400
+
+    Merge pull request #8831 from lglattly/copy-edit-cosmology
+    
+    Copy editing: cosmology package
+
++ git diff b750a0e6ee76fb6b8a099a4d16ec51977be46bf6
+diff --git a/astropy/units/quantity.py b/astropy/units/quantity.py
+index ded609cbe9..ee4438894f 100644
+--- a/astropy/units/quantity.py
++++ b/astropy/units/quantity.py
+@@ -255,6 +255,11 @@ class Quantity(np.ndarray, metaclass=InheritDocstrings):
+     Quantities can also be created by multiplying a number or array with a
+     :class:`~astropy.units.Unit`. See http://docs.astropy.org/en/latest/units/
+ 
++    When creating a Quantity from a float value, the precision of the input is preserved.
++    This includes preserving float16 values, which are not automatically converted to
++    higher precision types during creation. However, note that arithmetic operations
++    and unit conversions may promote float16 to float64 to maintain precision.
++
+     """
+     # Need to set a class-level default for _equivalencies, or
+     # Constants can not initialize properly
+@@ -377,7 +382,8 @@ class Quantity(np.ndarray, metaclass=InheritDocstrings):
+                             "Numpy numeric type.")
+ 
+         # by default, cast any integer, boolean, etc., to float
+-        if dtype is None and (not (np.can_cast(np.float32, value.dtype)
++        # Preserve float16 and other float types, but cast any integer, boolean, etc., to float
++        if dtype is None and (not (np.can_cast(np.float16, value.dtype)
+                                    or value.dtype.fields)
+                               or value.dtype.kind == 'O'):
+             value = value.astype(float)
+diff --git a/astropy/units/tests/test_quantity.py b/astropy/units/tests/test_quantity.py
+index be18e65c5b..70f754de07 100644
+--- a/astropy/units/tests/test_quantity.py
++++ b/astropy/units/tests/test_quantity.py
+@@ -25,8 +25,8 @@ try:
+     import matplotlib
+     matplotlib.use('Agg')
+     import matplotlib.pyplot as plt
+-    from distutils.version import LooseVersion
+-    MATPLOTLIB_LT_15 = LooseVersion(matplotlib.__version__) < LooseVersion("1.5")
++    from packaging import version
++    MATPLOTLIB_LT_15 = version.parse(matplotlib.__version__) < version.parse("1.5")
+     HAS_MATPLOTLIB = True
+ except ImportError:
+     HAS_MATPLOTLIB = False
+@@ -334,6 +334,26 @@ class TestQuantityCreation:
+         assert warning_lines[0].category == AstropyWarning
+         assert 'is not implemented' in str(warning_lines[0].message)
+ 
++    def test_float16_preservation(self):
++        # Test that float16 values are preserved when creating Quantity objects
++        float16_value = np.float16(1.23)
++        q = u.Quantity(float16_value, u.m)
++        assert q.dtype == np.float16
++        assert q.value == float16_value
++        assert q.unit == u.m
++
++        # Test that float16 is promoted to float64 in arithmetic operations (expected behavior)
++        q2 = q * 2
++        assert q2.dtype == np.float64
++        assert q2.value == float16_value * 2
++        assert q2.unit == u.m
++
++        # Test that float16 is promoted to float64 in unit conversions (expected behavior)
++        q3 = q.to(u.cm)
++        assert q3.dtype == np.float64
++        assert np.isclose(q3.value, float16_value * 100)
++        assert q3.unit == u.cm
++
+ 
+ class TestQuantityOperations:
+     q1 = u.Quantity(11.42, u.meter)
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e '.[test]' --verbose
+Using pip 24.0 from /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pip (python 3.9)
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Running command python setup.py egg_info
+  /testbed/astropy_helpers/astropy_helpers/setup_helpers.py:83: SetuptoolsDeprecationWarning: Deprecated API usage.
+  !!
+
+          ********************************************************************************
+          As setuptools moves its configuration towards `pyproject.toml`,
+          `setuptools.config.read_configuration` became deprecated.
+
+          For the time being, you can use the `setuptools.config.setupcfg` module
+          to access a backward compatible API, but this module is provisional
+          and might be removed in the future.
+
+          To read project metadata, consider using
+          ``build.util.project_wheel_metadata`` (https://pypi.org/project/build/).
+          For simple scenarios, you can also try parsing the file directly
+          with the help of ``configparser``.
+          ********************************************************************************
+
+  !!
+    conf = read_configuration('setup.cfg')
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/setuptools/config/setupcfg.py:293: _DeprecatedConfig: Deprecated config in `setup.cfg`
+  !!
+
+          ********************************************************************************
+          The license_file parameter is deprecated, use license_files instead.
+
+          This deprecation is overdue, please update your project and remove deprecated
+          calls to avoid build errors in the future.
+
+          See https://setuptools.pypa.io/en/latest/userguide/declarative_config.html for details.
+          ********************************************************************************
+
+  !!
+    parsed = self.parsers.get(option_name, lambda x: x)(value)
+  /testbed/astropy_helpers/astropy_helpers/setup_helpers.py:413: SetuptoolsDeprecationWarning: Deprecated API usage.
+  !!
+
+          ********************************************************************************
+          As setuptools moves its configuration towards `pyproject.toml`,
+          `setuptools.config.read_configuration` became deprecated.
+
+          For the time being, you can use the `setuptools.config.setupcfg` module
+          to access a backward compatible API, but this module is provisional
+          and might be removed in the future.
+
+          To read project metadata, consider using
+          ``build.util.project_wheel_metadata`` (https://pypi.org/project/build/).
+          For simple scenarios, you can also try parsing the file directly
+          with the help of ``configparser``.
+          ********************************************************************************
+
+  !!
+    conf = read_configuration(setup_cfg)
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/setuptools/config/setupcfg.py:293: _DeprecatedConfig: Deprecated config in `setup.cfg`
+  !!
+
+          ********************************************************************************
+          The license_file parameter is deprecated, use license_files instead.
+
+          This deprecation is overdue, please update your project and remove deprecated
+          calls to avoid build errors in the future.
+
+          See https://setuptools.pypa.io/en/latest/userguide/declarative_config.html for details.
+          ********************************************************************************
+
+  !!
+    parsed = self.parsers.get(option_name, lambda x: x)(value)
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/setuptools/__init__.py:84: _DeprecatedInstaller: setuptools.installer and fetch_build_eggs are deprecated.
+  !!
+
+          ********************************************************************************
+          Requirements should be satisfied by a PEP 517 installer.
+          If you are using pip, you can try `pip install --use-pep517`.
+          ********************************************************************************
+
+  !!
+    dist.fetch_build_eggs(dist.setup_requires)
+  running egg_info
+  creating /tmp/pip-pip-egg-info-s_ojw6k_/astropy.egg-info
+  writing /tmp/pip-pip-egg-info-s_ojw6k_/astropy.egg-info/PKG-INFO
+  writing dependency_links to /tmp/pip-pip-egg-info-s_ojw6k_/astropy.egg-info/dependency_links.txt
+  writing entry points to /tmp/pip-pip-egg-info-s_ojw6k_/astropy.egg-info/entry_points.txt
+  writing requirements to /tmp/pip-pip-egg-info-s_ojw6k_/astropy.egg-info/requires.txt
+  writing top-level names to /tmp/pip-pip-egg-info-s_ojw6k_/astropy.egg-info/top_level.txt
+  writing manifest file '/tmp/pip-pip-egg-info-s_ojw6k_/astropy.egg-info/SOURCES.txt'
+  reading manifest file '/tmp/pip-pip-egg-info-s_ojw6k_/astropy.egg-info/SOURCES.txt'
+  reading manifest template 'MANIFEST.in'
+  warning: no files found matching '*' under directory 'scripts'
+  no previously-included directories found matching 'docs/_build'
+  no previously-included directories found matching 'build'
+  warning: no files found matching '*.pyx' under directory 'astropy_helpers/astropy_helpers'
+  warning: no files found matching '*.h' under directory 'astropy_helpers/astropy_helpers'
+  warning: no files found matching '*.rst' under directory 'astropy_helpers/astropy_helpers'
+  no previously-included directories found matching 'astropy_helpers/build'
+  warning: no previously-included files matching '*.pyc' found anywhere in distribution
+  warning: no previously-included files matching '*.o' found anywhere in distribution
+  adding license file 'LICENSE.rst'
+  writing manifest file '/tmp/pip-pip-egg-info-s_ojw6k_/astropy.egg-info/SOURCES.txt'
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: numpy>=1.13 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from astropy==4.0.dev24916) (1.25.2)
+Requirement already satisfied: pytest-astropy in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from astropy==4.0.dev24916) (0.10.0)
+Requirement already satisfied: pytest-xdist in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from astropy==4.0.dev24916) (3.3.1)
+Requirement already satisfied: pytest-mpl in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from astropy==4.0.dev24916) (0.17.0)
+Requirement already satisfied: objgraph in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from astropy==4.0.dev24916) (3.6.1)
+Requirement already satisfied: ipython in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from astropy==4.0.dev24916) (8.18.1)
+Requirement already satisfied: coverage in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from astropy==4.0.dev24916) (7.6.0)
+Requirement already satisfied: skyfield in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from astropy==4.0.dev24916) (1.49)
+Requirement already satisfied: decorator in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from ipython->astropy==4.0.dev24916) (5.1.1)
+Requirement already satisfied: jedi>=0.16 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from ipython->astropy==4.0.dev24916) (0.19.1)
+Requirement already satisfied: matplotlib-inline in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from ipython->astropy==4.0.dev24916) (0.1.7)
+Requirement already satisfied: prompt-toolkit<3.1.0,>=3.0.41 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from ipython->astropy==4.0.dev24916) (3.0.47)
+Requirement already satisfied: pygments>=2.4.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from ipython->astropy==4.0.dev24916) (2.18.0)
+Requirement already satisfied: stack-data in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from ipython->astropy==4.0.dev24916) (0.6.3)
+Requirement already satisfied: traitlets>=5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from ipython->astropy==4.0.dev24916) (5.14.3)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from ipython->astropy==4.0.dev24916) (4.12.2)
+Requirement already satisfied: exceptiongroup in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from ipython->astropy==4.0.dev24916) (1.1.3)
+Requirement already satisfied: pexpect>4.3 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from ipython->astropy==4.0.dev24916) (4.9.0)
+Requirement already satisfied: pytest>=4.6 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-astropy->astropy==4.0.dev24916) (7.4.0)
+Requirement already satisfied: pytest-doctestplus>=0.11.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-astropy->astropy==4.0.dev24916) (1.0.0)
+Requirement already satisfied: pytest-remotedata>=0.3.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-astropy->astropy==4.0.dev24916) (0.4.0)
+Requirement already satisfied: pytest-openfiles>=0.3.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-astropy->astropy==4.0.dev24916) (0.5.0)
+Requirement already satisfied: pytest-astropy-header>=0.1.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-astropy->astropy==4.0.dev24916) (0.2.2)
+Requirement already satisfied: pytest-arraydiff>=0.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-astropy->astropy==4.0.dev24916) (0.5.0)
+Requirement already satisfied: pytest-filter-subpackage>=0.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-astropy->astropy==4.0.dev24916) (0.1.2)
+Requirement already satisfied: pytest-cov>=2.3.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-astropy->astropy==4.0.dev24916) (4.1.0)
+Requirement already satisfied: pytest-mock>=2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-astropy->astropy==4.0.dev24916) (3.11.1)
+Requirement already satisfied: attrs>=19.2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-astropy->astropy==4.0.dev24916) (23.1.0)
+Requirement already satisfied: hypothesis>=5.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-astropy->astropy==4.0.dev24916) (6.82.6)
+Requirement already satisfied: matplotlib in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-mpl->astropy==4.0.dev24916) (3.9.1)
+Requirement already satisfied: packaging in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-mpl->astropy==4.0.dev24916) (23.1)
+Requirement already satisfied: Jinja2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-mpl->astropy==4.0.dev24916) (3.1.4)
+Requirement already satisfied: Pillow in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-mpl->astropy==4.0.dev24916) (10.4.0)
+Requirement already satisfied: execnet>=1.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-xdist->astropy==4.0.dev24916) (2.0.2)
+Requirement already satisfied: certifi>=2017.4.17 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from skyfield->astropy==4.0.dev24916) (2024.7.4)
+Requirement already satisfied: jplephem>=2.13 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from skyfield->astropy==4.0.dev24916) (2.22)
+Requirement already satisfied: sgp4>=2.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from skyfield->astropy==4.0.dev24916) (2.23)
+Requirement already satisfied: sortedcontainers<3.0.0,>=2.1.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from hypothesis>=5.1->pytest-astropy->astropy==4.0.dev24916) (2.4.0)
+Requirement already satisfied: parso<0.9.0,>=0.8.3 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from jedi>=0.16->ipython->astropy==4.0.dev24916) (0.8.4)
+Requirement already satisfied: ptyprocess>=0.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pexpect>4.3->ipython->astropy==4.0.dev24916) (0.7.0)
+Requirement already satisfied: wcwidth in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from prompt-toolkit<3.1.0,>=3.0.41->ipython->astropy==4.0.dev24916) (0.2.13)
+Requirement already satisfied: iniconfig in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest>=4.6->pytest-astropy->astropy==4.0.dev24916) (2.0.0)
+Requirement already satisfied: pluggy<2.0,>=0.12 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest>=4.6->pytest-astropy->astropy==4.0.dev24916) (1.3.0)
+Requirement already satisfied: tomli>=1.0.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest>=4.6->pytest-astropy->astropy==4.0.dev24916) (2.0.1)
+Requirement already satisfied: setuptools>=30.3.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-doctestplus>=0.11.0->pytest-astropy->astropy==4.0.dev24916) (68.0.0)
+Requirement already satisfied: psutil in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-openfiles>=0.3.1->pytest-astropy->astropy==4.0.dev24916) (5.9.5)
+Requirement already satisfied: MarkupSafe>=2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Jinja2->pytest-mpl->astropy==4.0.dev24916) (2.1.5)
+Requirement already satisfied: contourpy>=1.0.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from matplotlib->pytest-mpl->astropy==4.0.dev24916) (1.2.1)
+Requirement already satisfied: cycler>=0.10 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from matplotlib->pytest-mpl->astropy==4.0.dev24916) (0.12.1)
+Requirement already satisfied: fonttools>=4.22.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from matplotlib->pytest-mpl->astropy==4.0.dev24916) (4.53.1)
+Requirement already satisfied: kiwisolver>=1.3.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from matplotlib->pytest-mpl->astropy==4.0.dev24916) (1.4.5)
+Requirement already satisfied: pyparsing>=2.3.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from matplotlib->pytest-mpl->astropy==4.0.dev24916) (3.1.2)
+Requirement already satisfied: python-dateutil>=2.7 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from matplotlib->pytest-mpl->astropy==4.0.dev24916) (2.9.0.post0)
+Requirement already satisfied: importlib-resources>=3.2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from matplotlib->pytest-mpl->astropy==4.0.dev24916) (6.4.0)
+Requirement already satisfied: executing>=1.2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from stack-data->ipython->astropy==4.0.dev24916) (2.0.1)
+Requirement already satisfied: asttokens>=2.1.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from stack-data->ipython->astropy==4.0.dev24916) (2.4.1)
+Requirement already satisfied: pure-eval in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from stack-data->ipython->astropy==4.0.dev24916) (0.2.3)
+Requirement already satisfied: six>=1.12.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from asttokens>=2.1.0->stack-data->ipython->astropy==4.0.dev24916) (1.16.0)
+Requirement already satisfied: zipp>=3.1.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from importlib-resources>=3.2.0->matplotlib->pytest-mpl->astropy==4.0.dev24916) (3.19.2)
+Installing collected packages: astropy
+  Attempting uninstall: astropy
+    Found existing installation: astropy 4.0.dev24916
+    Uninstalling astropy-4.0.dev24916:
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fits2bitmap
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fitscheck
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fitsdiff
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fitsheader
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/fitsinfo
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/samp_hub
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/showtable
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/volint
+      Removing file or directory /opt/miniconda3/envs/testbed/bin/wcslint
+      Removing file or directory /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/astropy.egg-link
+      Removing pth entries from /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/easy-install.pth:
+      Removing entry: /testbed
+      Successfully uninstalled astropy-4.0.dev24916
+  Running setup.py develop for astropy
+    Running command python setup.py develop
+    /testbed/setup.py:29: SetuptoolsDeprecationWarning: Deprecated API usage.
+    !!
+
+            ********************************************************************************
+            As setuptools moves its configuration towards `pyproject.toml`,
+            `setuptools.config.read_configuration` became deprecated.
+
+            For the time being, you can use the `setuptools.config.setupcfg` module
+            to access a backward compatible API, but this module is provisional
+            and might be removed in the future.
+
+            To read project metadata, consider using
+            ``build.util.project_wheel_metadata`` (https://pypi.org/project/build/).
+            For simple scenarios, you can also try parsing the file directly
+            with the help of ``configparser``.
+            ********************************************************************************
+
+    !!
+      setup_requires = read_configuration('setup.cfg')['options']['setup_requires']
+    /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/setuptools/config/setupcfg.py:293: _DeprecatedConfig: Deprecated config in `setup.cfg`
+    !!
+
+            ********************************************************************************
+            The license_file parameter is deprecated, use license_files instead.
+
+            This deprecation is overdue, please update your project and remove deprecated
+            calls to avoid build errors in the future.
+
+            See https://setuptools.pypa.io/en/latest/userguide/declarative_config.html for details.
+            ********************************************************************************
+
+    !!
+      parsed = self.parsers.get(option_name, lambda x: x)(value)
+    /testbed/astropy_helpers/astropy_helpers/setup_helpers.py:83: SetuptoolsDeprecationWarning: Deprecated API usage.
+    !!
+
+            ********************************************************************************
+            As setuptools moves its configuration towards `pyproject.toml`,
+            `setuptools.config.read_configuration` became deprecated.
+
+            For the time being, you can use the `setuptools.config.setupcfg` module
+            to access a backward compatible API, but this module is provisional
+            and might be removed in the future.
+
+            To read project metadata, consider using
+            ``build.util.project_wheel_metadata`` (https://pypi.org/project/build/).
+            For simple scenarios, you can also try parsing the file directly
+            with the help of ``configparser``.
+            ********************************************************************************
+
+    !!
+      conf = read_configuration('setup.cfg')
+    /testbed/astropy_helpers/astropy_helpers/setup_helpers.py:413: SetuptoolsDeprecationWarning: Deprecated API usage.
+    !!
+
+            ********************************************************************************
+            As setuptools moves its configuration towards `pyproject.toml`,
+            `setuptools.config.read_configuration` became deprecated.
+
+            For the time being, you can use the `setuptools.config.setupcfg` module
+            to access a backward compatible API, but this module is provisional
+            and might be removed in the future.
+
+            To read project metadata, consider using
+            ``build.util.project_wheel_metadata`` (https://pypi.org/project/build/).
+            For simple scenarios, you can also try parsing the file directly
+            with the help of ``configparser``.
+            ********************************************************************************
+
+    !!
+      conf = read_configuration(setup_cfg)
+    /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/setuptools/config/setupcfg.py:293: _DeprecatedConfig: Deprecated config in `setup.cfg`
+    !!
+
+            ********************************************************************************
+            The license_file parameter is deprecated, use license_files instead.
+
+            This deprecation is overdue, please update your project and remove deprecated
+            calls to avoid build errors in the future.
+
+            See https://setuptools.pypa.io/en/latest/userguide/declarative_config.html for details.
+            ********************************************************************************
+
+    !!
+      parsed = self.parsers.get(option_name, lambda x: x)(value)
+    /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/setuptools/__init__.py:84: _DeprecatedInstaller: setuptools.installer and fetch_build_eggs are deprecated.
+    !!
+
+            ********************************************************************************
+            Requirements should be satisfied by a PEP 517 installer.
+            If you are using pip, you can try `pip install --use-pep517`.
+            ********************************************************************************
+
+    !!
+      dist.fetch_build_eggs(dist.setup_requires)
+    running develop
+    /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/setuptools/command/develop.py:40: EasyInstallDeprecationWarning: easy_install command is deprecated.
+    !!
+
+            ********************************************************************************
+            Please avoid running ``setup.py`` and ``easy_install``.
+            Instead, use pypa/build, pypa/installer or other
+            standards-based tools.
+
+            See https://github.com/pypa/setuptools/issues/917 for details.
+            ********************************************************************************
+
+    !!
+      easy_install.initialize_options(self)
+    /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/setuptools/_distutils/cmd.py:66: SetuptoolsDeprecationWarning: setup.py install is deprecated.
+    !!
+
+            ********************************************************************************
+            Please avoid running ``setup.py`` directly.
+            Instead, use pypa/build, pypa/installer or other
+            standards-based tools.
+
+            See https://blog.ganssle.io/articles/2021/10/setup-py-deprecated.html for details.
+            ********************************************************************************
+
+    !!
+      self.initialize_options()
+    running egg_info
+    writing astropy.egg-info/PKG-INFO
+    writing dependency_links to astropy.egg-info/dependency_links.txt
+    writing entry points to astropy.egg-info/entry_points.txt
+    writing requirements to astropy.egg-info/requires.txt
+    writing top-level names to astropy.egg-info/top_level.txt
+    reading manifest file 'astropy.egg-info/SOURCES.txt'
+    reading manifest template 'MANIFEST.in'
+    warning: no files found matching '*' under directory 'scripts'
+    no previously-included directories found matching 'docs/_build'
+    no previously-included directories found matching 'build'
+    warning: no files found matching '*.pyx' under directory 'astropy_helpers/astropy_helpers'
+    warning: no files found matching '*.h' under directory 'astropy_helpers/astropy_helpers'
+    warning: no files found matching '*.rst' under directory 'astropy_helpers/astropy_helpers'
+    no previously-included directories found matching 'astropy_helpers/build'
+    warning: no previously-included files matching '*.pyc' found anywhere in distribution
+    warning: no previously-included files matching '*.o' found anywhere in distribution
+    adding license file 'LICENSE.rst'
+    writing manifest file 'astropy.egg-info/SOURCES.txt'
+    running build_ext
+    running pre_hook from astropy._erfa.setup_package for build_ext command
+    running pre_hook from astropy.modeling.setup_package for build_ext command
+    /opt/miniconda3/envs/testbed/lib/python3.9/importlib/__init__.py:169: UserWarning: The NumPy module was reloaded (imported a second time). This can in some cases result in small but subtle issues and is discouraged.
+      _bootstrap._exec(spec, module)
+    building 'astropy.compiler_version' extension
+    gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -Wno-unused-result -Wsign-compare -DNDEBUG -O2 -Wall -fPIC -O2 -isystem /opt/miniconda3/envs/testbed/include -I/opt/miniconda3/envs/testbed/include -fPIC -O2 -isystem /opt/miniconda3/envs/testbed/include -fPIC -I/opt/miniconda3/envs/testbed/include/python3.9 -c astropy/_compiler.c -o build/temp.linux-x86_64-cpython-39/astropy/_compiler.o
+    gcc -pthread -B /opt/miniconda3/envs/testbed/compiler_compat -shared -Wl,-rpath,/opt/miniconda3/envs/testbed/lib -Wl,-rpath-link,/opt/miniconda3/envs/testbed/lib -L/opt/miniconda3/envs/testbed/lib -L/opt/miniconda3/envs/testbed/lib -Wl,-rpath,/opt/miniconda3/envs/testbed/lib -Wl,-rpath-link,/opt/miniconda3/envs/testbed/lib -L/opt/miniconda3/envs/testbed/lib build/temp.linux-x86_64-cpython-39/astropy/_compiler.o -o build/lib.linux-x86_64-cpython-39/astropy/compiler_version.cpython-39-x86_64-linux-gnu.so
+    copying build/lib.linux-x86_64-cpython-39/astropy/compiler_version.cpython-39-x86_64-linux-gnu.so -> astropy
+    Creating /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/astropy.egg-link (link to .)
+    Adding astropy 4.0.dev24916 to easy-install.pth file
+    Installing fits2bitmap script to /opt/miniconda3/envs/testbed/bin
+    Installing fitscheck script to /opt/miniconda3/envs/testbed/bin
+    Installing fitsdiff script to /opt/miniconda3/envs/testbed/bin
+    Installing fitsheader script to /opt/miniconda3/envs/testbed/bin
+    Installing fitsinfo script to /opt/miniconda3/envs/testbed/bin
+    Installing samp_hub script to /opt/miniconda3/envs/testbed/bin
+    Installing showtable script to /opt/miniconda3/envs/testbed/bin
+    Installing volint script to /opt/miniconda3/envs/testbed/bin
+    Installing wcslint script to /opt/miniconda3/envs/testbed/bin
+
+    Installed /testbed
+Successfully installed astropy-4.0.dev24916
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout b750a0e6ee76fb6b8a099a4d16ec51977be46bf6 astropy/units/tests/test_quantity.py
+Updated 1 path from 0e9d85da9c
++ git apply -v -
+Checking patch astropy/units/tests/test_quantity.py...
+Applied patch astropy/units/tests/test_quantity.py cleanly.
++ pytest -rA astropy/units/tests/test_quantity.py
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.4.0, pluggy-1.3.0
+Matplotlib: 3.9.1
+Freetype: 2.6.1
+
+Running tests with Astropy version 4.0.dev24916.
+Running tests in astropy/units/tests/test_quantity.py.
+
+Date: 2024-07-24T18:03:04
+
+Platform: Linux-6.1.96-102.177.amzn2023.x86_64-x86_64-with-glibc2.35
+
+Executable: /opt/miniconda3/envs/testbed/bin/python
+
+Full Python Version: 
+3.9.19 (main, May  6 2024, 19:43:03) 
+[GCC 11.2.0]
+
+encodings: sys: utf-8, locale: UTF-8, filesystem: utf-8
+byteorder: little
+float info: dig: 15, mant_dig: 15
+
+Numpy: 1.25.2
+Scipy: not available
+Matplotlib: 3.9.1
+h5py: not available
+Pandas: not available
+Cython: not available
+Scikit-image: not available
+astropy_helpers: 3.2.1
+Using Astropy options: remote_data: none.
+
+rootdir: /testbed
+configfile: setup.cfg
+plugins: hypothesis-6.82.6, arraydiff-0.5.0, astropy-0.10.0, astropy-header-0.2.2, cov-4.1.0, doctestplus-1.0.0, filter-subpackage-0.1.2, mock-3.11.1, openfiles-0.5.0, remotedata-0.4.0, xdist-3.3.1, mpl-0.17.0
+collected 0 items / 2 errors
+
+==================================== ERRORS ====================================
+____________ ERROR collecting astropy/units/tests/test_quantity.py _____________
+/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pytest_doctestplus/plugin.py:250: in collect
+    module = import_path(fspath, root=self.config.rootpath)
+/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/pathlib.py:565: in import_path
+    importlib.import_module(module_name)
+/opt/miniconda3/envs/testbed/lib/python3.9/importlib/__init__.py:127: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1030: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1007: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:986: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:680: in _load_unlocked
+    ???
+/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/assertion/rewrite.py:178: in exec_module
+    exec(co, module.__dict__)
+astropy/units/tests/test_quantity.py:29: in <module>
+    MATPLOTLIB_LT_15 = LooseVersion(matplotlib.__version__) < LooseVersion("1.5")
+/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/setuptools/_distutils/version.py:55: in __init__
+    warnings.warn(
+E   DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+____________ ERROR collecting astropy/units/tests/test_quantity.py _____________
+/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/runner.py:341: in from_call
+    result: Optional[TResult] = func()
+/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/runner.py:372: in <lambda>
+    call = CallInfo.from_call(lambda: list(collector.collect()), "collect")
+/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/python.py:531: in collect
+    self._inject_setup_module_fixture()
+/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/python.py:545: in _inject_setup_module_fixture
+    self.obj, ("setUpModule", "setup_module")
+/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/python.py:310: in obj
+    self._obj = obj = self._getobj()
+/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/python.py:528: in _getobj
+    return self._importtestmodule()
+/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/python.py:617: in _importtestmodule
+    mod = import_path(self.path, mode=importmode, root=self.config.rootpath)
+/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/pathlib.py:565: in import_path
+    importlib.import_module(module_name)
+/opt/miniconda3/envs/testbed/lib/python3.9/importlib/__init__.py:127: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+<frozen importlib._bootstrap>:1030: in _gcd_import
+    ???
+<frozen importlib._bootstrap>:1007: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:986: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:680: in _load_unlocked
+    ???
+/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/assertion/rewrite.py:178: in exec_module
+    exec(co, module.__dict__)
+astropy/units/tests/test_quantity.py:29: in <module>
+    MATPLOTLIB_LT_15 = LooseVersion(matplotlib.__version__) < LooseVersion("1.5")
+/opt/miniconda3/envs/testbed/lib/python3.9/site-packages/setuptools/_distutils/version.py:55: in __init__
+    warnings.warn(
+E   DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+=========================== short test summary info ============================
+ERROR astropy/units/tests/test_quantity.py - DeprecationWarning: distutils Ve...
+ERROR astropy/units/tests/test_quantity.py - DeprecationWarning: distutils Ve...
+!!!!!!!!!!!!!!!!!!! Interrupted: 2 errors during collection !!!!!!!!!!!!!!!!!!!!
+============================== 2 errors in 2.89s ===============================
++ git checkout b750a0e6ee76fb6b8a099a4d16ec51977be46bf6 astropy/units/tests/test_quantity.py
+Updated 1 path from 0e9d85da9c

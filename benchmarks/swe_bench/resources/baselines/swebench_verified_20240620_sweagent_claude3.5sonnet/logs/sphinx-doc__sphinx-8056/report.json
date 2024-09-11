@@ -1,0 +1,69 @@
+{
+    "sphinx-doc__sphinx-8056": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_multiple_parameters"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "tests/test_ext_napoleon_docstring.py::NamedtupleSubclassTest::test_attributes_docstring",
+                    "tests/test_ext_napoleon_docstring.py::InlineAttributeTest::test_class_data_member",
+                    "tests/test_ext_napoleon_docstring.py::InlineAttributeTest::test_class_data_member_inline",
+                    "tests/test_ext_napoleon_docstring.py::InlineAttributeTest::test_class_data_member_inline_no_type",
+                    "tests/test_ext_napoleon_docstring.py::InlineAttributeTest::test_class_data_member_inline_ref_in_type",
+                    "tests/test_ext_napoleon_docstring.py::GoogleDocstringTest::test_attributes_with_class_reference",
+                    "tests/test_ext_napoleon_docstring.py::GoogleDocstringTest::test_code_block_in_returns_section",
+                    "tests/test_ext_napoleon_docstring.py::GoogleDocstringTest::test_colon_in_return_type",
+                    "tests/test_ext_napoleon_docstring.py::GoogleDocstringTest::test_custom_generic_sections",
+                    "tests/test_ext_napoleon_docstring.py::GoogleDocstringTest::test_docstrings",
+                    "tests/test_ext_napoleon_docstring.py::GoogleDocstringTest::test_keywords_with_types",
+                    "tests/test_ext_napoleon_docstring.py::GoogleDocstringTest::test_kwargs_in_arguments",
+                    "tests/test_ext_napoleon_docstring.py::GoogleDocstringTest::test_list_in_parameter_description",
+                    "tests/test_ext_napoleon_docstring.py::GoogleDocstringTest::test_noindex",
+                    "tests/test_ext_napoleon_docstring.py::GoogleDocstringTest::test_parameters_with_class_reference",
+                    "tests/test_ext_napoleon_docstring.py::GoogleDocstringTest::test_raises_types",
+                    "tests/test_ext_napoleon_docstring.py::GoogleDocstringTest::test_section_header_formatting",
+                    "tests/test_ext_napoleon_docstring.py::GoogleDocstringTest::test_sphinx_admonitions",
+                    "tests/test_ext_napoleon_docstring.py::GoogleDocstringTest::test_xrefs_in_return_type",
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_colon_in_return_type",
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_convert_numpy_type_spec",
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_docstrings",
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_list_in_parameter_description",
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_parameter_types",
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_parameters_with_class_reference",
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_parameters_without_class_reference",
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_raises_types",
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_recombine_set_tokens",
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_recombine_set_tokens_invalid",
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_section_header_underline_length",
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_see_also_refs",
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_sphinx_admonitions",
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_token_type",
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_tokenize_type_spec",
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_underscore_in_attribute",
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_underscore_in_attribute_strip_signature_backslash",
+                    "tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_xrefs_in_return_type",
+                    "tests/test_ext_napoleon_docstring.py::TestNumpyDocstring::test_escape_args_and_kwargs[x,",
+                    "tests/test_ext_napoleon_docstring.py::TestNumpyDocstring::test_escape_args_and_kwargs[*args,",
+                    "tests/test_ext_napoleon_docstring.py::TestNumpyDocstring::test_escape_args_and_kwargs[*x,"
+                ]
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

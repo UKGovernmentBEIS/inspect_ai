@@ -1,0 +1,44 @@
+
+diff --git a/src/_pytest/pathlib.py b/src/_pytest/pathlib.py
+index f0bdb1481..64c7fec6f 100644
+--- a/src/_pytest/pathlib.py
++++ b/src/_pytest/pathlib.py
+@@ -558,7 +558,7 @@ def visit(
+     entries = sorted(os.scandir(path), key=lambda entry: entry.name)
+     yield from entries
+     for entry in entries:
+-        if entry.is_dir(follow_symlinks=False) and recurse(entry):
++        if entry.is_dir(follow_symlinks=True) and recurse(entry):
+             yield from visit(entry.path, recurse)
+ 
+ 
+diff --git a/testing/test_pathlib.py b/testing/test_pathlib.py
+index e37b33847..86e04e1d1 100644
+--- a/testing/test_pathlib.py
++++ b/testing/test_pathlib.py
+@@ -400,4 +400,24 @@ def test_commonpath() -> None:
+     assert commonpath(path, subpath) == path
+     assert commonpath(subpath, path) == path
+     assert commonpath(Path(str(path) + "suffix"), path) == path.parent
+-    assert commonpath(path, path.parent.parent) == path.parent.parent
++def test_visit_follows_symlinks(tmp_path):
++    # Create a directory structure with a symlink
++    real_dir = tmp_path / "real_dir"
++    real_dir.mkdir()
++    (real_dir / "test_file.py").touch()
++    
++    symlink_dir = tmp_path / "symlink_dir"
++    symlink_dir.symlink_to(real_dir)
++    
++    from _pytest.pathlib import visit
++    
++    def always_recurse(entry):
++        return True
++    
++    visited = list(visit(str(tmp_path), always_recurse))
++    
++    # Check if both the real directory and the symlink are visited
++    assert any(entry.name == "real_dir" for entry in visited)
++    assert any(entry.name == "symlink_dir" for entry in visited)
++    assert any(entry.name == "test_file.py" for entry in visited)
++

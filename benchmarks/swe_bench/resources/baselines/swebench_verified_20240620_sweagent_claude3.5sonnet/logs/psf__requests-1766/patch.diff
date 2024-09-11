@@ -1,0 +1,39 @@
+
+diff --git a/requests/auth.py b/requests/auth.py
+index a3de123d..92f6bd51 100644
+--- a/requests/auth.py
++++ b/requests/auth.py
+@@ -126,7 +126,7 @@ class HTTPDigestAuth(AuthBase):
+ 
+         if qop is None:
+             respdig = KD(HA1, "%s:%s" % (nonce, HA2))
+-        elif qop == 'auth' or 'auth' in qop.split(','):
++        elif qop.strip('"') == 'auth' or 'auth' in qop.strip('"').split(','):
+             respdig = KD(HA1, noncebit)
+         else:
+             # XXX handle auth-int.
+@@ -144,7 +144,7 @@ class HTTPDigestAuth(AuthBase):
+         if entdig:
+             base += ', digest="%s"' % entdig
+         if qop:
+-            base += ', qop=auth, nc=%s, cnonce="%s"' % (ncvalue, cnonce)
++            base += ', qop="auth", nc=%s, cnonce="%s"' % (ncvalue, cnonce)
+ 
+         return 'Digest %s' % (base)
+ 
+diff --git a/test_requests.py b/test_requests.py
+index 3b673956..40e05420 100755
+--- a/test_requests.py
++++ b/test_requests.py
+@@ -359,9 +359,8 @@ class RequestsTestCase(unittest.TestCase):
+     def test_conflicting_post_params(self):
+         url = httpbin('post')
+         with open('requirements.txt') as f:
+-            pytest.raises(ValueError, "requests.post(url, data='[{\"some\": \"data\"}]', files={'some': f})")
+-            pytest.raises(ValueError, "requests.post(url, data=u'[{\"some\": \"data\"}]', files={'some': f})")
+-
++            with pytest.raises(ValueError):
++                requests.post(url, data='[{"some": "data"}]', files={'some': f})
+     def test_request_ok_set(self):
+         r = requests.get(httpbin('status', '404'))
+         assert not r.ok

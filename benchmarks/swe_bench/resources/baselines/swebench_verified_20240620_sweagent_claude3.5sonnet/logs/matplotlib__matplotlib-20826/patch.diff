@@ -1,0 +1,155 @@
+
+diff --git a/lib/matplotlib/axes/_base.py b/lib/matplotlib/axes/_base.py
+index 802fd3c997..39ccbe1e08 100644
+--- a/lib/matplotlib/axes/_base.py
++++ b/lib/matplotlib/axes/_base.py
+@@ -1159,6 +1159,7 @@ class _AxesBase(martist.Artist):
+         x0, x1 = other.get_xlim()
+         self.set_xlim(x0, x1, emit=False, auto=other.get_autoscalex_on())
+         self.xaxis._scale = other.xaxis._scale
++        self._update_x_shared_axes()
+ 
+     def sharey(self, other):
+         """
+@@ -1178,11 +1179,14 @@ class _AxesBase(martist.Artist):
+         y0, y1 = other.get_ylim()
+         self.set_ylim(y0, y1, emit=False, auto=other.get_autoscaley_on())
+         self.yaxis._scale = other.yaxis._scale
+-
+     def cla(self):
+         """Clear the axes."""
+         # Note: this is called by Axes.__init__()
+ 
++        # Store shared axis states
++        sharex = self._sharex
++        sharey = self._sharey
++
+         # stash the current visibility state
+         if hasattr(self, 'patch'):
+             patch_visible = self.patch.get_visible()
+@@ -1201,16 +1205,23 @@ class _AxesBase(martist.Artist):
+         self.ignore_existing_data_limits = True
+         self.callbacks = cbook.CallbackRegistry()
+ 
++        # Restore shared axis states
++        self._sharex = sharex
++        self._sharey = sharey
++
+         if self._sharex is not None:
+             self.sharex(self._sharex)
++            self._update_x_shared_axes()
+         else:
+             self.xaxis._set_scale('linear')
+             try:
+                 self.set_xlim(0, 1)
+             except TypeError:
+                 pass
++
+         if self._sharey is not None:
+             self.sharey(self._sharey)
++            self._update_y_shared_axes()
+         else:
+             self.yaxis._set_scale('linear')
+             try:
+@@ -1218,6 +1229,28 @@ class _AxesBase(martist.Artist):
+             except TypeError:
+                 pass
+ 
++        # Restore visibility states
++        self.xaxis.set_visible(xaxis_visible)
++        self.yaxis.set_visible(yaxis_visible)
++        if self._sharey is not None:
++            self.sharey(self._sharey)
++            # Hide y-axis labels for all subplots except the left-most column
++            if hasattr(self, '_subplotspec'):
++                nrows, ncols, row, col = self._subplotspec.get_geometry()
++                self.yaxis.set_tick_params(labelleft=(col == 0))
++        else:
++            self.yaxis._set_scale('linear')
++            try:
++                self.set_ylim(0, 1)
++            except TypeError:
++                pass
++
++        # Restore visibility states
++        self.xaxis.set_visible(xaxis_visible)
++        self.yaxis.set_visible(yaxis_visible)
++        self.xaxis.set_visible(xaxis_visible)
++        self.yaxis.set_visible(yaxis_visible)
++
+         # update the minor locator for x and y axis based on rcParams
+         if mpl.rcParams['xtick.minor.visible']:
+             self.xaxis.set_minor_locator(mticker.AutoMinorLocator())
+@@ -1310,7 +1343,29 @@ class _AxesBase(martist.Artist):
+             self.patch.set_visible(patch_visible)
+ 
+         self.stale = True
+-
++    def _update_x_shared_axes(self):
++        """Update x-axis ticks for shared axes."""
++        if hasattr(self, '_subplotspec'):
++            nrows, ncols, row, col = self._subplotspec.get_geometry()
++            should_label = (row == nrows - 1)
++            self.xaxis.set_tick_params(labelbottom=should_label)
++            for ax in self.figure.axes:
++                if hasattr(ax, '_subplotspec'):
++                    ax_row = ax._subplotspec.rowspan.start
++                    ax_should_label = (ax_row == nrows - 1)
++                    ax.xaxis.set_tick_params(labelbottom=ax_should_label)
++    def _update_y_shared_axes(self):
++        """Update y-axis ticks for shared axes."""
++        if hasattr(self, '_subplotspec'):
++            nrows, ncols, row, col = self._subplotspec.get_geometry()
++            should_label = (col == 0)
++            self.yaxis.set_tick_params(labelleft=should_label)
++            for ax in self.figure.axes:
++                if hasattr(ax, '_subplotspec'):
++                    ax_col = ax._subplotspec.colspan.start
++                    ax_should_label = (ax_col == 0)
++                    ax.yaxis.set_tick_params(labelleft=ax_should_label)
++            print(f"Updating y-axis for subplot at ({row}, {col}): labelleft = {should_label}")
+     class ArtistList(MutableSequence):
+         """
+         A sublist of Axes children based on their type.
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..104b852d56
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,32 @@
++import numpy as np
++import matplotlib.pyplot as plt
++
++fig, axes = plt.subplots(2, 2, sharex=True, sharey=True)
++
++x = np.arange(0.0, 2*np.pi, 0.01)
++y = np.sin(x)
++
++for ax in axes.flatten():
++    ax.clear()
++    ax.plot(x, y)
++
++# Force creation of tick labels
++fig.canvas.draw()
++
++# Check if tick labels are correctly hidden/visible
++for i, ax in enumerate(axes.flatten()):
++    row = i // 2
++    col = i % 2
++    
++    # Check x-axis tick labels
++    x_visible = len(ax.xaxis.get_ticklabels()) > 0 and ax.xaxis.get_ticklabels()[0].get_visible()
++    print(f"Subplot ({row}, {col}): X-axis tick label visible = {x_visible}")
++    assert x_visible == (row == 1), f"X-axis tick label visibility incorrect for subplot at position ({row}, {col})"
++    
++    # Check y-axis tick labels
++    y_visible = len(ax.yaxis.get_ticklabels()) > 0 and ax.yaxis.get_ticklabels()[0].get_visible()
++    print(f"Subplot ({row}, {col}): Y-axis tick label visible = {y_visible}")
++    assert y_visible == (col == 0), f"Y-axis tick label visibility incorrect for subplot at position ({row}, {col})"
++
++plt.savefig('reproduce_issue_output.png')
++print("Script completed successfully, all assertions passed. Figure saved as reproduce_issue_output.png")
+diff --git a/reproduce_issue_output.png b/reproduce_issue_output.png
+new file mode 100644
+index 0000000000..a7cc2b8d41
+Binary files /dev/null and b/reproduce_issue_output.png differ

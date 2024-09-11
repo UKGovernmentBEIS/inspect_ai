@@ -1,0 +1,40 @@
+
+diff --git a/django/db/models/base.py b/django/db/models/base.py
+index 6c9e9d3707..7bb7a801e5 100644
+--- a/django/db/models/base.py
++++ b/django/db/models/base.py
+@@ -1747,7 +1747,7 @@ class Model(metaclass=ModelBase):
+                     else:
+                         _cls = None
+                 except (FieldDoesNotExist, AttributeError):
+-                    if fld is None or fld.get_transform(part) is None:
++                    if fld is None:
+                         errors.append(
+                             checks.Error(
+                                 "'ordering' refers to the nonexistent field, "
+diff --git a/tests/check_framework/test_model_checks.py b/tests/check_framework/test_model_checks.py
+index 02c36dc610..669592b521 100644
+--- a/tests/check_framework/test_model_checks.py
++++ b/tests/check_framework/test_model_checks.py
+@@ -358,3 +358,21 @@ class ConstraintNameTests(TestCase):
+                 constraints = [constraint]
+ 
+         self.assertEqual(checks.run_checks(app_configs=apps.get_app_configs()), [])
++@isolate_apps('check_framework', attr_name='apps')
++class OrderingCheckTests(SimpleTestCase):
++    def test_ordering_with_lookup_not_raising_e015(self):
++        class Product(models.Model):
++            parent = models.ForeignKey('self', models.CASCADE, null=True)
++
++        class Supply(models.Model):
++            product = models.ForeignKey(Product, models.CASCADE)
++
++        class Stock(models.Model):
++            supply = models.ForeignKey(Supply, models.CASCADE)
++
++            class Meta:
++                ordering = ['supply__product__parent__isnull']
++
++        errors = checks.run_checks(app_configs=self.apps.get_app_configs())
++        self.assertEqual(errors, [])
++

@@ -1,0 +1,108 @@
+
+diff --git a/django/utils/html.py b/django/utils/html.py
+index 9c519978f5..22d0ac1c0a 100644
+--- a/django/utils/html.py
++++ b/django/utils/html.py
+@@ -1,5 +1,6 @@
+ """HTML utilities suitable for global use."""
+ 
++import html
+ import json
+ import re
+ from html.parser import HTMLParser
+@@ -24,15 +25,6 @@ word_split_re = re.compile(r'''([\s<>"']+)''')
+ simple_url_re = re.compile(r'^https?://\[?\w', re.IGNORECASE)
+ simple_url_2_re = re.compile(r'^www\.|^(?!http)\w[^@]+\.(com|edu|gov|int|mil|net|org)($|/.*)$', re.IGNORECASE)
+ 
+-_html_escapes = {
+-    ord('&'): '&amp;',
+-    ord('<'): '&lt;',
+-    ord('>'): '&gt;',
+-    ord('"'): '&quot;',
+-    ord("'"): '&#39;',
+-}
+-
+-
+ @keep_lazy(str, SafeString)
+ def escape(text):
+     """
+@@ -42,8 +34,12 @@ def escape(text):
+     Always escape input, even if it's already escaped and marked as such.
+     This may result in double-escaping. If this is a concern, use
+     conditional_escape() instead.
++
++    Note: This function now uses html.escape() from the Python standard library.
++    As a result, single quotes (') are now escaped as &#x27; instead of &#39;.
++    These are functionally equivalent in HTML.
+     """
+-    return mark_safe(str(text).translate(_html_escapes))
++    return mark_safe(html.escape(str(text)))
+ 
+ 
+ _js_escapes = {
+diff --git a/tests/test_settings.py b/tests/test_settings.py
+new file mode 100644
+index 0000000000..1a049556c3
+--- /dev/null
++++ b/tests/test_settings.py
+@@ -0,0 +1,14 @@
++SECRET_KEY = 'fake-key'
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'django.contrib.auth',
++    'django.contrib.sites',
++]
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++USE_TZ = True
++TIME_ZONE = 'UTC'
+diff --git a/tests/utils_tests/test_html.py b/tests/utils_tests/test_html.py
+index d87927cdfe..e45198457b 100644
+--- a/tests/utils_tests/test_html.py
++++ b/tests/utils_tests/test_html.py
+@@ -9,6 +9,8 @@ from django.utils.html import (
+ )
+ from django.utils.safestring import mark_safe
+ 
++strip_tags_files = ('strip_tags1.html', 'strip_tags2.txt')
++
+ 
+ class TestUtilsHtml(SimpleTestCase):
+ 
+@@ -27,7 +29,7 @@ class TestUtilsHtml(SimpleTestCase):
+             ('<', '&lt;'),
+             ('>', '&gt;'),
+             ('"', '&quot;'),
+-            ("'", '&#39;'),
++            ("'", '&#x27;'),  # Changed from '&#39;' to '&#x27;'
+         )
+         # Substitution patterns for testing the above items.
+         patterns = ("%s", "asdf%sfdsa", "%s1", "1%sb")
+@@ -96,18 +98,16 @@ class TestUtilsHtml(SimpleTestCase):
+ 
+     def test_strip_tags_files(self):
+         # Test with more lengthy content (also catching performance regressions)
+-        for filename in ('strip_tags1.html', 'strip_tags2.txt'):
++        for filename in strip_tags_files:
+             with self.subTest(filename=filename):
+-                path = os.path.join(os.path.dirname(__file__), 'files', filename)
+-                with open(path) as fp:
++                with open(os.path.join(os.path.dirname(__file__), "files", filename), encoding='utf-8') as fp:
+                     content = fp.read()
+-                    start = datetime.now()
+-                    stripped = strip_tags(content)
+-                    elapsed = datetime.now() - start
++                start = datetime.now()
++                stripped = strip_tags(content)
++                elapsed = datetime.now() - start
+                 self.assertEqual(elapsed.seconds, 0)
+                 self.assertIn("Please try again.", stripped)
+                 self.assertNotIn('<', stripped)
+-
+     def test_strip_spaces_between_tags(self):
+         # Strings that should come out untouched.
+         items = (' <adf>', '<adf> ', ' </adf> ', ' <f> x</f>')

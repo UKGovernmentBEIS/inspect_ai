@@ -1,0 +1,75 @@
+
+diff --git a/sklearn/ensemble/iforest.py b/sklearn/ensemble/iforest.py
+index 8a1bd3625..2edf4e9e5 100644
+--- a/sklearn/ensemble/iforest.py
++++ b/sklearn/ensemble/iforest.py
+@@ -120,6 +120,12 @@ class IsolationForest(BaseBagging, OutlierMixin):
+     verbose : int, optional (default=0)
+         Controls the verbosity of the tree building process.
+ 
++    warm_start : bool, default=False
++        When set to ``True``, reuse the solution of the previous call to fit
++        and add more estimators to the ensemble, otherwise, just fit a whole
++        new forest. See :term:`the Glossary <warm_start>`.
++
++
+ 
+     Attributes
+     ----------
+@@ -173,7 +179,8 @@ class IsolationForest(BaseBagging, OutlierMixin):
+                  n_jobs=None,
+                  behaviour='old',
+                  random_state=None,
+-                 verbose=0):
++                 verbose=0,
++                 warm_start=False):
+         super().__init__(
+             base_estimator=ExtraTreeRegressor(
+                 max_features=1,
+@@ -187,7 +194,8 @@ class IsolationForest(BaseBagging, OutlierMixin):
+             max_features=max_features,
+             n_jobs=n_jobs,
+             random_state=random_state,
+-            verbose=verbose)
++            verbose=verbose,
++            warm_start=warm_start)
+ 
+         self.behaviour = behaviour
+         self.contamination = contamination
+diff --git a/sklearn/ensemble/tests/test_iforest.py b/sklearn/ensemble/tests/test_iforest.py
+index 67ba2d7f9..d3f70e867 100644
+--- a/sklearn/ensemble/tests/test_iforest.py
++++ b/sklearn/ensemble/tests/test_iforest.py
+@@ -359,3 +359,32 @@ def test_iforest_chunks_works2(
+ ):
+     test_iforest_works(contamination)
+     assert mocked_get_chunk.call_count == n_predict_calls
++@pytest.mark.filterwarnings('ignore:default contamination')
++@pytest.mark.filterwarnings('ignore:behaviour="old"')
++def test_iforest_warm_start():
++    """Test warm_start functionality of IsolationForest."""
++    X = iris.data
++    
++    # Train an initial forest
++    clf = IsolationForest(n_estimators=10, random_state=1, warm_start=True)
++    clf.fit(X)
++    initial_estimators = len(clf.estimators_)
++    
++    # Increase n_estimators and fit again, should add more estimators
++    clf.set_params(n_estimators=20)
++    clf.fit(X)
++    assert len(clf.estimators_) == 20
++    assert len(clf.estimators_) > initial_estimators
++    
++    # Check that the trees are different
++    assert not all(
++        tree1 is tree2
++        for tree1, tree2 in zip(clf.estimators_[:initial_estimators],
++                                clf.estimators_[initial_estimators:])
++    )
++
++    # Check that fitting with warm_start=False resets the ensemble
++    clf.set_params(warm_start=False, n_estimators=10)
++    clf.fit(X)
++    assert len(clf.estimators_) == 10
++

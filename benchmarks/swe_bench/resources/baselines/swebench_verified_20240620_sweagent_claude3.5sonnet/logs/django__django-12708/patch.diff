@@ -1,0 +1,71 @@
+
+diff --git a/django/db/backends/base/schema.py b/django/db/backends/base/schema.py
+index 61f88401ab..c27a524003 100644
+--- a/django/db/backends/base/schema.py
++++ b/django/db/backends/base/schema.py
+@@ -407,13 +407,10 @@ class BaseDatabaseSchemaEditor:
+             model, columns, exclude=meta_constraint_names | meta_index_names,
+             **constraint_kwargs
+         )
+-        if len(constraint_names) != 1:
+-            raise ValueError("Found wrong number (%s) of constraints for %s(%s)" % (
+-                len(constraint_names),
+-                model._meta.db_table,
+-                ", ".join(columns),
+-            ))
+-        self.execute(self._delete_constraint_sql(sql, model, constraint_names[0]))
++        if not constraint_names:
++            return  # No matching constraints found, nothing to do
++        for constraint_name in constraint_names:
++            self.execute(self._delete_constraint_sql(sql, model, constraint_name))
+ 
+     def alter_db_table(self, model, old_db_table, new_db_table):
+         """Rename the table a model points to."""
+diff --git a/tests/backends/base/test_schema.py b/tests/backends/base/test_schema.py
+index 2ecad098a6..94bed14367 100644
+--- a/tests/backends/base/test_schema.py
++++ b/tests/backends/base/test_schema.py
+@@ -17,3 +17,43 @@ class SchemaEditorTests(SimpleTestCase):
+ 
+         field = MyCharField(max_length=1, default=MyStr)
+         self.assertEqual(BaseDatabaseSchemaEditor._effective_default(field), MyStr)
++
++    def test_delete_composed_index_multiple_constraints(self):
++        class MockField:
++            def __init__(self, column):
++                self.column = column
++
++        class MockMeta:
++            def get_field(self, field_name):
++                return MockField(field_name)
++
++        class MockModel:
++            _meta = MockMeta()
++            _meta.db_table = 'test_table'
++            _meta.constraints = []
++            _meta.indexes = []
++
++        class MockConnection:
++            class features:
++                can_rollback_ddl = False
++
++        class MockSchemaEditor(BaseDatabaseSchemaEditor):
++            executed_statements = []
++
++            def execute(self, sql, params=None):
++                self.executed_statements.append(sql)
++
++            def _constraint_names(self, model, column_names=None, unique=None, primary_key=None, index=None, foreign_key=None, check=None, type_=None, exclude=None):
++                return ['constraint1', 'constraint2']
++
++            def _delete_constraint_sql(self, template, model, name):
++                return f"DROP CONSTRAINT {name}"
++
++        model = MockModel()
++        connection = MockConnection()
++        editor = MockSchemaEditor(connection=connection)
++        editor._delete_composed_index(model, ['field1', 'field2'], {'unique': True}, "DROP INDEX")
++
++        self.assertEqual(len(editor.executed_statements), 2)
++        self.assertEqual(editor.executed_statements[0], "DROP CONSTRAINT constraint1")
++        self.assertEqual(editor.executed_statements[1], "DROP CONSTRAINT constraint2")

@@ -1,0 +1,1282 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   src/_pytest/pathlib.py
+	modified:   src/_pytest/python.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	PIsys/
+	pytest.ini
+	testing/test_windows_path.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 73c5b7f4b11a81e971f7d1bb18072e06a87060f4
+Merge: 23102a7d8 8f2f51be6
+Author: Bruno Oliveira <nicoddemus@gmail.com>
+Date:   Wed Sep 11 22:14:31 2019 -0300
+
+    Clarify docs by showing tox.ini considered before setup.cfg (#5839)
+    
+    Clarify docs by showing tox.ini considered before setup.cfg
+
++ git diff 73c5b7f4b11a81e971f7d1bb18072e06a87060f4
+diff --git a/src/_pytest/pathlib.py b/src/_pytest/pathlib.py
+index 0403b6947..ed4fe4d78 100644
+--- a/src/_pytest/pathlib.py
++++ b/src/_pytest/pathlib.py
+@@ -24,6 +24,13 @@ else:
+ 
+ __all__ = ["Path", "PurePath"]
+ 
++def case_insensitive_path_compare(path1, path2):
++    """Compare two paths in a case-insensitive manner on Windows."""
++    if sys.platform.startswith('win'):
++        return os.path.normcase(str(path1)) == os.path.normcase(str(path2))
++    return path1 == path2
++
++
+ 
+ LOCK_TIMEOUT = 60 * 60 * 3
+ 
+diff --git a/src/_pytest/python.py b/src/_pytest/python.py
+index 913a93bc0..5cb0811ca 100644
+--- a/src/_pytest/python.py
++++ b/src/_pytest/python.py
+@@ -504,15 +504,16 @@ class Module(nodes.File, PyCollector):
+                 _pytest._code.ExceptionInfo.from_current().getrepr(style="short")
+             )
+         except self.fspath.ImportMismatchError:
++            from _pytest.pathlib import case_insensitive_path_compare
++            if case_insensitive_path_compare(str(self.fspath), str(self.fspath.pyimport())):
++                # The module was found, but in a different case. This is likely the root cause of the issue.
++                raise self.CollectError(
++                    "Import error: The module was found, but the file path case doesn't match. "
++                    "This can cause issues on case-insensitive file systems like Windows. "
++                    "Please ensure the file path case matches exactly."
++                )
+             e = sys.exc_info()[1]
+             raise self.CollectError(
+-                "import file mismatch:\n"
+-                "imported module %r has this __file__ attribute:\n"
+-                "  %s\n"
+-                "which is not the same as the test file we want to collect:\n"
+-                "  %s\n"
+-                "HINT: remove __pycache__ / .pyc files and/or use a "
+-                "unique basename for your test file modules" % e.args
+             )
+         except ImportError:
+             from _pytest._code.code import ExceptionInfo
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: py>=1.5.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==5.1.3.dev14+g73c5b7f4b.d20240725) (1.11.0)
+Requirement already satisfied: packaging in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==5.1.3.dev14+g73c5b7f4b.d20240725) (23.1)
+Requirement already satisfied: attrs>=17.4.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==5.1.3.dev14+g73c5b7f4b.d20240725) (23.1.0)
+Requirement already satisfied: more-itertools>=4.0.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==5.1.3.dev14+g73c5b7f4b.d20240725) (10.1.0)
+Requirement already satisfied: atomicwrites>=1.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==5.1.3.dev14+g73c5b7f4b.d20240725) (1.4.1)
+Requirement already satisfied: pluggy<1.0,>=0.12 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==5.1.3.dev14+g73c5b7f4b.d20240725) (0.13.1)
+Requirement already satisfied: wcwidth in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest==5.1.3.dev14+g73c5b7f4b.d20240725) (0.2.6)
+Building wheels for collected packages: pytest
+  Building editable for pytest (pyproject.toml): started
+  Building editable for pytest (pyproject.toml): finished with status 'done'
+  Created wheel for pytest: filename=pytest-5.1.3.dev14+g73c5b7f4b.d20240725-0.editable-py3-none-any.whl size=4921 sha256=467a06edad0c325608c6159f98bd497f42ff31b6822a14c410226dd2da3ed071
+  Stored in directory: /tmp/pip-ephem-wheel-cache-adk9_7y6/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built pytest
+Installing collected packages: pytest
+  Attempting uninstall: pytest
+    Found existing installation: pytest 5.1.3.dev14+g73c5b7f4b
+    Uninstalling pytest-5.1.3.dev14+g73c5b7f4b:
+      Successfully uninstalled pytest-5.1.3.dev14+g73c5b7f4b
+Successfully installed pytest-5.1.3.dev14+g73c5b7f4b.d20240725
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 73c5b7f4b11a81e971f7d1bb18072e06a87060f4 testing/test_conftest.py
+Updated 0 paths from 6869f107f
++ git apply -v -
+Checking patch testing/test_conftest.py...
+Applied patch testing/test_conftest.py cleanly.
++ pytest -rA testing/test_conftest.py
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-5.1.3.dev14+g73c5b7f4b.d20240725, py-1.11.0, pluggy-0.13.1
+rootdir: /testbed, inifile: pytest.ini
+collected 54 items
+
+testing/test_conftest.py EEEEEEEEEEEEEEEEEEEEEEEsEEEEEEEEEEEEEEEEEEEEEEE [ 87%]
+EEEEEEE                                                                  [100%]
+
+==================================== ERRORS ====================================
+___ ERROR at setup of TestConftestValueAccessGlobal.test_basic_init[global] ____
+file /testbed/testing/test_conftest.py, line 42
+      def test_basic_init(self, basedir):
+E       fixture '_sys_snapshot' not found
+>       available fixtures: basedir, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:42
+_ ERROR at setup of TestConftestValueAccessGlobal.test_immediate_initialiation_and_incremental_are_the_same[global] _
+file /testbed/testing/test_conftest.py, line 47
+      def test_immediate_initialiation_and_incremental_are_the_same(self, basedir):
+E       fixture '_sys_snapshot' not found
+>       available fixtures: basedir, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:47
+_ ERROR at setup of TestConftestValueAccessGlobal.test_value_access_not_existing[global] _
+file /testbed/testing/test_conftest.py, line 58
+      def test_value_access_not_existing(self, basedir):
+E       fixture '_sys_snapshot' not found
+>       available fixtures: basedir, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:58
+_ ERROR at setup of TestConftestValueAccessGlobal.test_value_access_by_path[global] _
+file /testbed/testing/test_conftest.py, line 63
+      def test_value_access_by_path(self, basedir):
+E       fixture '_sys_snapshot' not found
+>       available fixtures: basedir, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:63
+_ ERROR at setup of TestConftestValueAccessGlobal.test_value_access_with_confmod[global] _
+file /testbed/testing/test_conftest.py, line 69
+      def test_value_access_with_confmod(self, basedir):
+E       fixture '_sys_snapshot' not found
+>       available fixtures: basedir, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:69
+__ ERROR at setup of TestConftestValueAccessGlobal.test_basic_init[inpackage] __
+file /testbed/testing/test_conftest.py, line 42
+      def test_basic_init(self, basedir):
+E       fixture '_sys_snapshot' not found
+>       available fixtures: basedir, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:42
+_ ERROR at setup of TestConftestValueAccessGlobal.test_immediate_initialiation_and_incremental_are_the_same[inpackage] _
+file /testbed/testing/test_conftest.py, line 47
+      def test_immediate_initialiation_and_incremental_are_the_same(self, basedir):
+E       fixture '_sys_snapshot' not found
+>       available fixtures: basedir, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:47
+_ ERROR at setup of TestConftestValueAccessGlobal.test_value_access_not_existing[inpackage] _
+file /testbed/testing/test_conftest.py, line 58
+      def test_value_access_not_existing(self, basedir):
+E       fixture '_sys_snapshot' not found
+>       available fixtures: basedir, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:58
+_ ERROR at setup of TestConftestValueAccessGlobal.test_value_access_by_path[inpackage] _
+file /testbed/testing/test_conftest.py, line 63
+      def test_value_access_by_path(self, basedir):
+E       fixture '_sys_snapshot' not found
+>       available fixtures: basedir, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:63
+_ ERROR at setup of TestConftestValueAccessGlobal.test_value_access_with_confmod[inpackage] _
+file /testbed/testing/test_conftest.py, line 69
+      def test_value_access_with_confmod(self, basedir):
+E       fixture '_sys_snapshot' not found
+>       available fixtures: basedir, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:69
+_____________ ERROR at setup of test_conftest_in_nonpkg_with_init ______________
+file /testbed/testing/test_conftest.py, line 80
+  def test_conftest_in_nonpkg_with_init(tmpdir, _sys_snapshot):
+E       fixture '_sys_snapshot' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:80
+_________________ ERROR at setup of test_doubledash_considered _________________
+file /testbed/testing/test_conftest.py, line 88
+  def test_doubledash_considered(testdir):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:88
+______________ ERROR at setup of test_issue151_load_all_conftests ______________
+file /testbed/testing/test_conftest.py, line 97
+  def test_issue151_load_all_conftests(testdir):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:97
+________________ ERROR at setup of test_conftest_global_import _________________
+file /testbed/testing/test_conftest.py, line 109
+  def test_conftest_global_import(testdir):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:109
+____________________ ERROR at setup of test_conftestcutdir _____________________
+file /testbed/testing/test_conftest.py, line 133
+  def test_conftestcutdir(testdir):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:133
+___________ ERROR at setup of test_conftestcutdir_inplace_considered ___________
+file /testbed/testing/test_conftest.py, line 153
+  def test_conftestcutdir_inplace_considered(testdir):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:153
+___________ ERROR at setup of test_setinitial_conftest_subdirs[test] ___________
+file /testbed/testing/test_conftest.py, line 162
+  @pytest.mark.parametrize("name", "test tests whatever .dotdir".split())
+  def test_setinitial_conftest_subdirs(testdir, name):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:162
+__________ ERROR at setup of test_setinitial_conftest_subdirs[tests] ___________
+file /testbed/testing/test_conftest.py, line 162
+  @pytest.mark.parametrize("name", "test tests whatever .dotdir".split())
+  def test_setinitial_conftest_subdirs(testdir, name):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:162
+_________ ERROR at setup of test_setinitial_conftest_subdirs[whatever] _________
+file /testbed/testing/test_conftest.py, line 162
+  @pytest.mark.parametrize("name", "test tests whatever .dotdir".split())
+  def test_setinitial_conftest_subdirs(testdir, name):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:162
+_________ ERROR at setup of test_setinitial_conftest_subdirs[.dotdir] __________
+file /testbed/testing/test_conftest.py, line 162
+  @pytest.mark.parametrize("name", "test tests whatever .dotdir".split())
+  def test_setinitial_conftest_subdirs(testdir, name):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:162
+__________________ ERROR at setup of test_conftest_confcutdir __________________
+file /testbed/testing/test_conftest.py, line 177
+  def test_conftest_confcutdir(testdir):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:177
+___________________ ERROR at setup of test_conftest_symlink ____________________
+file /testbed/testing/test_conftest.py, line 193
+  @pytest.mark.skipif(
+      not hasattr(py.path.local, "mksymlinkto"),
+      reason="symlink not available on this platform",
+  )
+  def test_conftest_symlink(testdir):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:193
+________________ ERROR at setup of test_conftest_symlink_files _________________
+file /testbed/testing/test_conftest.py, line 245
+  @pytest.mark.skipif(
+      not hasattr(py.path.local, "mksymlinkto"),
+      reason="symlink not available on this platform",
+  )
+  def test_conftest_symlink_files(testdir):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:245
+__________________ ERROR at setup of test_conftest_uppercase ___________________
+file /testbed/testing/test_conftest.py, line 296
+  def test_conftest_uppercase(testdir):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:296
+______________________ ERROR at setup of test_no_conftest ______________________
+file /testbed/testing/test_conftest.py, line 306
+  def test_no_conftest(testdir):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:306
+______________ ERROR at setup of test_conftest_existing_resultlog ______________
+file /testbed/testing/test_conftest.py, line 315
+  def test_conftest_existing_resultlog(testdir):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:315
+______________ ERROR at setup of test_conftest_existing_junitxml _______________
+file /testbed/testing/test_conftest.py, line 330
+  def test_conftest_existing_junitxml(testdir):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:330
+_________________ ERROR at setup of test_conftest_import_order _________________
+file /testbed/testing/test_conftest.py, line 345
+  def test_conftest_import_order(testdir, monkeypatch):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:345
+__________________ ERROR at setup of test_fixture_dependency ___________________
+file /testbed/testing/test_conftest.py, line 360
+  def test_fixture_dependency(testdir, monkeypatch):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:360
+____________ ERROR at setup of test_conftest_found_with_double_dash ____________
+file /testbed/testing/test_conftest.py, line 405
+  def test_conftest_found_with_double_dash(testdir):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:405
+_ ERROR at setup of TestConftestVisibility.test_parsefactories_relative_node_ids[runner-..-3] _
+file /testbed/testing/test_conftest.py, line 491
+      @pytest.mark.parametrize(
+          "chdir,testarg,expect_ntests_passed",
+          [
+              # Effective target: package/..
+              ("runner", "..", 3),
+              ("package", "..", 3),
+              ("swc", "../..", 3),
+              ("snc", "../..", 3),
+              # Effective target: package
+              ("runner", "../package", 3),
+              ("package", ".", 3),
+              ("swc", "..", 3),
+              ("snc", "..", 3),
+              # Effective target: package/swc
+              ("runner", "../package/swc", 1),
+              ("package", "./swc", 1),
+              ("swc", ".", 1),
+              ("snc", "../swc", 1),
+              # Effective target: package/snc
+              ("runner", "../package/snc", 1),
+              ("package", "./snc", 1),
+              ("swc", "../snc", 1),
+              ("snc", ".", 1),
+          ],
+      )
+      def test_parsefactories_relative_node_ids(
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:491
+_ ERROR at setup of TestConftestVisibility.test_parsefactories_relative_node_ids[package-..-3] _
+file /testbed/testing/test_conftest.py, line 491
+      @pytest.mark.parametrize(
+          "chdir,testarg,expect_ntests_passed",
+          [
+              # Effective target: package/..
+              ("runner", "..", 3),
+              ("package", "..", 3),
+              ("swc", "../..", 3),
+              ("snc", "../..", 3),
+              # Effective target: package
+              ("runner", "../package", 3),
+              ("package", ".", 3),
+              ("swc", "..", 3),
+              ("snc", "..", 3),
+              # Effective target: package/swc
+              ("runner", "../package/swc", 1),
+              ("package", "./swc", 1),
+              ("swc", ".", 1),
+              ("snc", "../swc", 1),
+              # Effective target: package/snc
+              ("runner", "../package/snc", 1),
+              ("package", "./snc", 1),
+              ("swc", "../snc", 1),
+              ("snc", ".", 1),
+          ],
+      )
+      def test_parsefactories_relative_node_ids(
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:491
+_ ERROR at setup of TestConftestVisibility.test_parsefactories_relative_node_ids[swc-../..-3] _
+file /testbed/testing/test_conftest.py, line 491
+      @pytest.mark.parametrize(
+          "chdir,testarg,expect_ntests_passed",
+          [
+              # Effective target: package/..
+              ("runner", "..", 3),
+              ("package", "..", 3),
+              ("swc", "../..", 3),
+              ("snc", "../..", 3),
+              # Effective target: package
+              ("runner", "../package", 3),
+              ("package", ".", 3),
+              ("swc", "..", 3),
+              ("snc", "..", 3),
+              # Effective target: package/swc
+              ("runner", "../package/swc", 1),
+              ("package", "./swc", 1),
+              ("swc", ".", 1),
+              ("snc", "../swc", 1),
+              # Effective target: package/snc
+              ("runner", "../package/snc", 1),
+              ("package", "./snc", 1),
+              ("swc", "../snc", 1),
+              ("snc", ".", 1),
+          ],
+      )
+      def test_parsefactories_relative_node_ids(
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:491
+_ ERROR at setup of TestConftestVisibility.test_parsefactories_relative_node_ids[snc-../..-3] _
+file /testbed/testing/test_conftest.py, line 491
+      @pytest.mark.parametrize(
+          "chdir,testarg,expect_ntests_passed",
+          [
+              # Effective target: package/..
+              ("runner", "..", 3),
+              ("package", "..", 3),
+              ("swc", "../..", 3),
+              ("snc", "../..", 3),
+              # Effective target: package
+              ("runner", "../package", 3),
+              ("package", ".", 3),
+              ("swc", "..", 3),
+              ("snc", "..", 3),
+              # Effective target: package/swc
+              ("runner", "../package/swc", 1),
+              ("package", "./swc", 1),
+              ("swc", ".", 1),
+              ("snc", "../swc", 1),
+              # Effective target: package/snc
+              ("runner", "../package/snc", 1),
+              ("package", "./snc", 1),
+              ("swc", "../snc", 1),
+              ("snc", ".", 1),
+          ],
+      )
+      def test_parsefactories_relative_node_ids(
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:491
+_ ERROR at setup of TestConftestVisibility.test_parsefactories_relative_node_ids[runner-../package-3] _
+file /testbed/testing/test_conftest.py, line 491
+      @pytest.mark.parametrize(
+          "chdir,testarg,expect_ntests_passed",
+          [
+              # Effective target: package/..
+              ("runner", "..", 3),
+              ("package", "..", 3),
+              ("swc", "../..", 3),
+              ("snc", "../..", 3),
+              # Effective target: package
+              ("runner", "../package", 3),
+              ("package", ".", 3),
+              ("swc", "..", 3),
+              ("snc", "..", 3),
+              # Effective target: package/swc
+              ("runner", "../package/swc", 1),
+              ("package", "./swc", 1),
+              ("swc", ".", 1),
+              ("snc", "../swc", 1),
+              # Effective target: package/snc
+              ("runner", "../package/snc", 1),
+              ("package", "./snc", 1),
+              ("swc", "../snc", 1),
+              ("snc", ".", 1),
+          ],
+      )
+      def test_parsefactories_relative_node_ids(
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:491
+_ ERROR at setup of TestConftestVisibility.test_parsefactories_relative_node_ids[package-.-3] _
+file /testbed/testing/test_conftest.py, line 491
+      @pytest.mark.parametrize(
+          "chdir,testarg,expect_ntests_passed",
+          [
+              # Effective target: package/..
+              ("runner", "..", 3),
+              ("package", "..", 3),
+              ("swc", "../..", 3),
+              ("snc", "../..", 3),
+              # Effective target: package
+              ("runner", "../package", 3),
+              ("package", ".", 3),
+              ("swc", "..", 3),
+              ("snc", "..", 3),
+              # Effective target: package/swc
+              ("runner", "../package/swc", 1),
+              ("package", "./swc", 1),
+              ("swc", ".", 1),
+              ("snc", "../swc", 1),
+              # Effective target: package/snc
+              ("runner", "../package/snc", 1),
+              ("package", "./snc", 1),
+              ("swc", "../snc", 1),
+              ("snc", ".", 1),
+          ],
+      )
+      def test_parsefactories_relative_node_ids(
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:491
+_ ERROR at setup of TestConftestVisibility.test_parsefactories_relative_node_ids[swc-..-3] _
+file /testbed/testing/test_conftest.py, line 491
+      @pytest.mark.parametrize(
+          "chdir,testarg,expect_ntests_passed",
+          [
+              # Effective target: package/..
+              ("runner", "..", 3),
+              ("package", "..", 3),
+              ("swc", "../..", 3),
+              ("snc", "../..", 3),
+              # Effective target: package
+              ("runner", "../package", 3),
+              ("package", ".", 3),
+              ("swc", "..", 3),
+              ("snc", "..", 3),
+              # Effective target: package/swc
+              ("runner", "../package/swc", 1),
+              ("package", "./swc", 1),
+              ("swc", ".", 1),
+              ("snc", "../swc", 1),
+              # Effective target: package/snc
+              ("runner", "../package/snc", 1),
+              ("package", "./snc", 1),
+              ("swc", "../snc", 1),
+              ("snc", ".", 1),
+          ],
+      )
+      def test_parsefactories_relative_node_ids(
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:491
+_ ERROR at setup of TestConftestVisibility.test_parsefactories_relative_node_ids[snc-..-3] _
+file /testbed/testing/test_conftest.py, line 491
+      @pytest.mark.parametrize(
+          "chdir,testarg,expect_ntests_passed",
+          [
+              # Effective target: package/..
+              ("runner", "..", 3),
+              ("package", "..", 3),
+              ("swc", "../..", 3),
+              ("snc", "../..", 3),
+              # Effective target: package
+              ("runner", "../package", 3),
+              ("package", ".", 3),
+              ("swc", "..", 3),
+              ("snc", "..", 3),
+              # Effective target: package/swc
+              ("runner", "../package/swc", 1),
+              ("package", "./swc", 1),
+              ("swc", ".", 1),
+              ("snc", "../swc", 1),
+              # Effective target: package/snc
+              ("runner", "../package/snc", 1),
+              ("package", "./snc", 1),
+              ("swc", "../snc", 1),
+              ("snc", ".", 1),
+          ],
+      )
+      def test_parsefactories_relative_node_ids(
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:491
+_ ERROR at setup of TestConftestVisibility.test_parsefactories_relative_node_ids[runner-../package/swc-1] _
+file /testbed/testing/test_conftest.py, line 491
+      @pytest.mark.parametrize(
+          "chdir,testarg,expect_ntests_passed",
+          [
+              # Effective target: package/..
+              ("runner", "..", 3),
+              ("package", "..", 3),
+              ("swc", "../..", 3),
+              ("snc", "../..", 3),
+              # Effective target: package
+              ("runner", "../package", 3),
+              ("package", ".", 3),
+              ("swc", "..", 3),
+              ("snc", "..", 3),
+              # Effective target: package/swc
+              ("runner", "../package/swc", 1),
+              ("package", "./swc", 1),
+              ("swc", ".", 1),
+              ("snc", "../swc", 1),
+              # Effective target: package/snc
+              ("runner", "../package/snc", 1),
+              ("package", "./snc", 1),
+              ("swc", "../snc", 1),
+              ("snc", ".", 1),
+          ],
+      )
+      def test_parsefactories_relative_node_ids(
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:491
+_ ERROR at setup of TestConftestVisibility.test_parsefactories_relative_node_ids[package-./swc-1] _
+file /testbed/testing/test_conftest.py, line 491
+      @pytest.mark.parametrize(
+          "chdir,testarg,expect_ntests_passed",
+          [
+              # Effective target: package/..
+              ("runner", "..", 3),
+              ("package", "..", 3),
+              ("swc", "../..", 3),
+              ("snc", "../..", 3),
+              # Effective target: package
+              ("runner", "../package", 3),
+              ("package", ".", 3),
+              ("swc", "..", 3),
+              ("snc", "..", 3),
+              # Effective target: package/swc
+              ("runner", "../package/swc", 1),
+              ("package", "./swc", 1),
+              ("swc", ".", 1),
+              ("snc", "../swc", 1),
+              # Effective target: package/snc
+              ("runner", "../package/snc", 1),
+              ("package", "./snc", 1),
+              ("swc", "../snc", 1),
+              ("snc", ".", 1),
+          ],
+      )
+      def test_parsefactories_relative_node_ids(
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:491
+_ ERROR at setup of TestConftestVisibility.test_parsefactories_relative_node_ids[swc-.-1] _
+file /testbed/testing/test_conftest.py, line 491
+      @pytest.mark.parametrize(
+          "chdir,testarg,expect_ntests_passed",
+          [
+              # Effective target: package/..
+              ("runner", "..", 3),
+              ("package", "..", 3),
+              ("swc", "../..", 3),
+              ("snc", "../..", 3),
+              # Effective target: package
+              ("runner", "../package", 3),
+              ("package", ".", 3),
+              ("swc", "..", 3),
+              ("snc", "..", 3),
+              # Effective target: package/swc
+              ("runner", "../package/swc", 1),
+              ("package", "./swc", 1),
+              ("swc", ".", 1),
+              ("snc", "../swc", 1),
+              # Effective target: package/snc
+              ("runner", "../package/snc", 1),
+              ("package", "./snc", 1),
+              ("swc", "../snc", 1),
+              ("snc", ".", 1),
+          ],
+      )
+      def test_parsefactories_relative_node_ids(
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:491
+_ ERROR at setup of TestConftestVisibility.test_parsefactories_relative_node_ids[snc-../swc-1] _
+file /testbed/testing/test_conftest.py, line 491
+      @pytest.mark.parametrize(
+          "chdir,testarg,expect_ntests_passed",
+          [
+              # Effective target: package/..
+              ("runner", "..", 3),
+              ("package", "..", 3),
+              ("swc", "../..", 3),
+              ("snc", "../..", 3),
+              # Effective target: package
+              ("runner", "../package", 3),
+              ("package", ".", 3),
+              ("swc", "..", 3),
+              ("snc", "..", 3),
+              # Effective target: package/swc
+              ("runner", "../package/swc", 1),
+              ("package", "./swc", 1),
+              ("swc", ".", 1),
+              ("snc", "../swc", 1),
+              # Effective target: package/snc
+              ("runner", "../package/snc", 1),
+              ("package", "./snc", 1),
+              ("swc", "../snc", 1),
+              ("snc", ".", 1),
+          ],
+      )
+      def test_parsefactories_relative_node_ids(
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:491
+_ ERROR at setup of TestConftestVisibility.test_parsefactories_relative_node_ids[runner-../package/snc-1] _
+file /testbed/testing/test_conftest.py, line 491
+      @pytest.mark.parametrize(
+          "chdir,testarg,expect_ntests_passed",
+          [
+              # Effective target: package/..
+              ("runner", "..", 3),
+              ("package", "..", 3),
+              ("swc", "../..", 3),
+              ("snc", "../..", 3),
+              # Effective target: package
+              ("runner", "../package", 3),
+              ("package", ".", 3),
+              ("swc", "..", 3),
+              ("snc", "..", 3),
+              # Effective target: package/swc
+              ("runner", "../package/swc", 1),
+              ("package", "./swc", 1),
+              ("swc", ".", 1),
+              ("snc", "../swc", 1),
+              # Effective target: package/snc
+              ("runner", "../package/snc", 1),
+              ("package", "./snc", 1),
+              ("swc", "../snc", 1),
+              ("snc", ".", 1),
+          ],
+      )
+      def test_parsefactories_relative_node_ids(
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:491
+_ ERROR at setup of TestConftestVisibility.test_parsefactories_relative_node_ids[package-./snc-1] _
+file /testbed/testing/test_conftest.py, line 491
+      @pytest.mark.parametrize(
+          "chdir,testarg,expect_ntests_passed",
+          [
+              # Effective target: package/..
+              ("runner", "..", 3),
+              ("package", "..", 3),
+              ("swc", "../..", 3),
+              ("snc", "../..", 3),
+              # Effective target: package
+              ("runner", "../package", 3),
+              ("package", ".", 3),
+              ("swc", "..", 3),
+              ("snc", "..", 3),
+              # Effective target: package/swc
+              ("runner", "../package/swc", 1),
+              ("package", "./swc", 1),
+              ("swc", ".", 1),
+              ("snc", "../swc", 1),
+              # Effective target: package/snc
+              ("runner", "../package/snc", 1),
+              ("package", "./snc", 1),
+              ("swc", "../snc", 1),
+              ("snc", ".", 1),
+          ],
+      )
+      def test_parsefactories_relative_node_ids(
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:491
+_ ERROR at setup of TestConftestVisibility.test_parsefactories_relative_node_ids[swc-../snc-1] _
+file /testbed/testing/test_conftest.py, line 491
+      @pytest.mark.parametrize(
+          "chdir,testarg,expect_ntests_passed",
+          [
+              # Effective target: package/..
+              ("runner", "..", 3),
+              ("package", "..", 3),
+              ("swc", "../..", 3),
+              ("snc", "../..", 3),
+              # Effective target: package
+              ("runner", "../package", 3),
+              ("package", ".", 3),
+              ("swc", "..", 3),
+              ("snc", "..", 3),
+              # Effective target: package/swc
+              ("runner", "../package/swc", 1),
+              ("package", "./swc", 1),
+              ("swc", ".", 1),
+              ("snc", "../swc", 1),
+              # Effective target: package/snc
+              ("runner", "../package/snc", 1),
+              ("package", "./snc", 1),
+              ("swc", "../snc", 1),
+              ("snc", ".", 1),
+          ],
+      )
+      def test_parsefactories_relative_node_ids(
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:491
+_ ERROR at setup of TestConftestVisibility.test_parsefactories_relative_node_ids[snc-.-1] _
+file /testbed/testing/test_conftest.py, line 491
+      @pytest.mark.parametrize(
+          "chdir,testarg,expect_ntests_passed",
+          [
+              # Effective target: package/..
+              ("runner", "..", 3),
+              ("package", "..", 3),
+              ("swc", "../..", 3),
+              ("snc", "../..", 3),
+              # Effective target: package
+              ("runner", "../package", 3),
+              ("package", ".", 3),
+              ("swc", "..", 3),
+              ("snc", "..", 3),
+              # Effective target: package/swc
+              ("runner", "../package/swc", 1),
+              ("package", "./swc", 1),
+              ("swc", ".", 1),
+              ("snc", "../swc", 1),
+              # Effective target: package/snc
+              ("runner", "../package/snc", 1),
+              ("package", "./snc", 1),
+              ("swc", "../snc", 1),
+              ("snc", ".", 1),
+          ],
+      )
+      def test_parsefactories_relative_node_ids(
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:491
+_________ ERROR at setup of test_search_conftest_up_to_inifile[.-2-0] __________
+file /testbed/testing/test_conftest.py, line 529
+  @pytest.mark.parametrize(
+      "confcutdir,passed,error", [(".", 2, 0), ("src", 1, 1), (None, 1, 1)]
+  )
+  def test_search_conftest_up_to_inifile(testdir, confcutdir, passed, error):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:529
+________ ERROR at setup of test_search_conftest_up_to_inifile[src-1-1] _________
+file /testbed/testing/test_conftest.py, line 529
+  @pytest.mark.parametrize(
+      "confcutdir,passed,error", [(".", 2, 0), ("src", 1, 1), (None, 1, 1)]
+  )
+  def test_search_conftest_up_to_inifile(testdir, confcutdir, passed, error):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:529
+________ ERROR at setup of test_search_conftest_up_to_inifile[None-1-1] ________
+file /testbed/testing/test_conftest.py, line 529
+  @pytest.mark.parametrize(
+      "confcutdir,passed,error", [(".", 2, 0), ("src", 1, 1), (None, 1, 1)]
+  )
+  def test_search_conftest_up_to_inifile(testdir, confcutdir, passed, error):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:529
+__________ ERROR at setup of test_issue1073_conftest_special_objects ___________
+file /testbed/testing/test_conftest.py, line 580
+  def test_issue1073_conftest_special_objects(testdir):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:580
+______________ ERROR at setup of test_conftest_exception_handling ______________
+file /testbed/testing/test_conftest.py, line 600
+  def test_conftest_exception_handling(testdir):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:600
+______________________ ERROR at setup of test_hook_proxy _______________________
+file /testbed/testing/test_conftest.py, line 617
+  def test_hook_proxy(testdir):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:617
+_________________ ERROR at setup of test_required_option_help __________________
+file /testbed/testing/test_conftest.py, line 639
+  def test_required_option_help(testdir):
+E       fixture 'testdir' not found
+>       available fixtures: cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, tw_mock
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/testbed/testing/test_conftest.py:639
+=============================== warnings summary ===============================
+src/_pytest/mark/structures.py:320
+  /testbed/src/_pytest/mark/structures.py:320: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/latest/mark.html
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/latest/warnings.html
+=========================== short test summary info ============================
+SKIPPED [1] testing/test_conftest.py:281: only relevant for case insensitive file systems
+ERROR testing/test_conftest.py::TestConftestValueAccessGlobal::test_basic_init[global]
+ERROR testing/test_conftest.py::TestConftestValueAccessGlobal::test_immediate_initialiation_and_incremental_are_the_same[global]
+ERROR testing/test_conftest.py::TestConftestValueAccessGlobal::test_value_access_not_existing[global]
+ERROR testing/test_conftest.py::TestConftestValueAccessGlobal::test_value_access_by_path[global]
+ERROR testing/test_conftest.py::TestConftestValueAccessGlobal::test_value_access_with_confmod[global]
+ERROR testing/test_conftest.py::TestConftestValueAccessGlobal::test_basic_init[inpackage]
+ERROR testing/test_conftest.py::TestConftestValueAccessGlobal::test_immediate_initialiation_and_incremental_are_the_same[inpackage]
+ERROR testing/test_conftest.py::TestConftestValueAccessGlobal::test_value_access_not_existing[inpackage]
+ERROR testing/test_conftest.py::TestConftestValueAccessGlobal::test_value_access_by_path[inpackage]
+ERROR testing/test_conftest.py::TestConftestValueAccessGlobal::test_value_access_with_confmod[inpackage]
+ERROR testing/test_conftest.py::test_conftest_in_nonpkg_with_init
+ERROR testing/test_conftest.py::test_doubledash_considered
+ERROR testing/test_conftest.py::test_issue151_load_all_conftests
+ERROR testing/test_conftest.py::test_conftest_global_import
+ERROR testing/test_conftest.py::test_conftestcutdir
+ERROR testing/test_conftest.py::test_conftestcutdir_inplace_considered
+ERROR testing/test_conftest.py::test_setinitial_conftest_subdirs[test]
+ERROR testing/test_conftest.py::test_setinitial_conftest_subdirs[tests]
+ERROR testing/test_conftest.py::test_setinitial_conftest_subdirs[whatever]
+ERROR testing/test_conftest.py::test_setinitial_conftest_subdirs[.dotdir]
+ERROR testing/test_conftest.py::test_conftest_confcutdir
+ERROR testing/test_conftest.py::test_conftest_symlink
+ERROR testing/test_conftest.py::test_conftest_symlink_files
+ERROR testing/test_conftest.py::test_conftest_uppercase
+ERROR testing/test_conftest.py::test_no_conftest
+ERROR testing/test_conftest.py::test_conftest_existing_resultlog
+ERROR testing/test_conftest.py::test_conftest_existing_junitxml
+ERROR testing/test_conftest.py::test_conftest_import_order
+ERROR testing/test_conftest.py::test_fixture_dependency
+ERROR testing/test_conftest.py::test_conftest_found_with_double_dash
+ERROR testing/test_conftest.py::TestConftestVisibility::test_parsefactories_relative_node_ids[runner-..-3]
+ERROR testing/test_conftest.py::TestConftestVisibility::test_parsefactories_relative_node_ids[package-..-3]
+ERROR testing/test_conftest.py::TestConftestVisibility::test_parsefactories_relative_node_ids[swc-../..-3]
+ERROR testing/test_conftest.py::TestConftestVisibility::test_parsefactories_relative_node_ids[snc-../..-3]
+ERROR testing/test_conftest.py::TestConftestVisibility::test_parsefactories_relative_node_ids[runner-../package-3]
+ERROR testing/test_conftest.py::TestConftestVisibility::test_parsefactories_relative_node_ids[package-.-3]
+ERROR testing/test_conftest.py::TestConftestVisibility::test_parsefactories_relative_node_ids[swc-..-3]
+ERROR testing/test_conftest.py::TestConftestVisibility::test_parsefactories_relative_node_ids[snc-..-3]
+ERROR testing/test_conftest.py::TestConftestVisibility::test_parsefactories_relative_node_ids[runner-../package/swc-1]
+ERROR testing/test_conftest.py::TestConftestVisibility::test_parsefactories_relative_node_ids[package-./swc-1]
+ERROR testing/test_conftest.py::TestConftestVisibility::test_parsefactories_relative_node_ids[swc-.-1]
+ERROR testing/test_conftest.py::TestConftestVisibility::test_parsefactories_relative_node_ids[snc-../swc-1]
+ERROR testing/test_conftest.py::TestConftestVisibility::test_parsefactories_relative_node_ids[runner-../package/snc-1]
+ERROR testing/test_conftest.py::TestConftestVisibility::test_parsefactories_relative_node_ids[package-./snc-1]
+ERROR testing/test_conftest.py::TestConftestVisibility::test_parsefactories_relative_node_ids[swc-../snc-1]
+ERROR testing/test_conftest.py::TestConftestVisibility::test_parsefactories_relative_node_ids[snc-.-1]
+ERROR testing/test_conftest.py::test_search_conftest_up_to_inifile[.-2-0]
+ERROR testing/test_conftest.py::test_search_conftest_up_to_inifile[src-1-1]
+ERROR testing/test_conftest.py::test_search_conftest_up_to_inifile[None-1-1]
+ERROR testing/test_conftest.py::test_issue1073_conftest_special_objects
+ERROR testing/test_conftest.py::test_conftest_exception_handling
+ERROR testing/test_conftest.py::test_hook_proxy
+ERROR testing/test_conftest.py::test_required_option_help
+=================== 1 skipped, 1 warnings, 53 error in 0.31s ===================
++ git checkout 73c5b7f4b11a81e971f7d1bb18072e06a87060f4 testing/test_conftest.py
+Updated 1 path from 6869f107f

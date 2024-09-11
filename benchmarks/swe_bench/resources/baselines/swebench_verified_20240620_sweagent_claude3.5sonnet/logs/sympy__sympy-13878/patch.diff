@@ -1,0 +1,388 @@
+
+diff --git a/reproduce_cdf_issues.py b/reproduce_cdf_issues.py
+new file mode 100644
+index 0000000000..2af8b81ff2
+--- /dev/null
++++ b/reproduce_cdf_issues.py
+@@ -0,0 +1,93 @@
++import signal
++from sympy import S
++from sympy.stats import *
++import multiprocessing
++import time
++
++def test_arcsin():
++    print("Arcsin CDF test:")
++    return cdf(Arcsin("x", 0, 3))(1)
++
++def test_dagum():
++    print("Dagum CDF test:")
++    return cdf(Dagum("x", S(1)/3, S(1)/5, 2))(3)
++
++def test_erlang():
++    print("Erlang CDF test:")
++    return cdf(Erlang("x", 1, 1))(1)
++
++def test_frechet():
++    print("Frechet CDF test:")
++    return cdf(Frechet("x", S(4)/3, 1, 2))(3)
++
++def test_gamma():
++    print("Gamma CDF test:")
++    return cdf(Gamma("x", 0.1, 2))(3)
++
++def test_gamma_inverse():
++    print("Gamma Inverse CDF test:")
++    return cdf(GammaInverse("x", S(5)/7, 2))(3)
++
++def test_kumaraswamy():
++    print("Kumaraswamy CDF test:")
++    return cdf(Kumaraswamy("x", S(1)/123, 5))(S(1)/3)
++
++def test_laplace():
++    print("Laplace CDF test:")
++    return cdf(Laplace("x", 2, 3))(5)
++
++def test_logistic():
++    print("Logistic CDF test:")
++    return cdf(Logistic("x", 1, 0.1))(2)
++
++def test_nakagami():
++    print("Nakagami CDF test:")
++    return cdf(Nakagami("x", S(7)/3, 1))(2)
++
++def test_student_t():
++    print("Student T CDF test:")
++    return cdf(StudentT("x", 10))(2)
++
++def test_uniform_sum():
++    print("Uniform Sum CDF test:")
++    return cdf(UniformSum("x", 5))(2)
++
++def run_test(test_func):
++    try:
++        result = test_func()
++        return f"{test_func.__name__}: Success - Result: {result}"
++    except Exception as e:
++        return f"{test_func.__name__}: Failed - Error: {str(e)}"
++
++if __name__ == "__main__":
++    tests = [
++        test_arcsin, test_dagum, test_erlang, test_frechet, test_gamma,
++        test_gamma_inverse, test_kumaraswamy, test_laplace, test_logistic,
++        test_nakagami, test_student_t, test_uniform_sum
++    ]
++
++    pool = multiprocessing.Pool(processes=len(tests))
++    results = []
++
++    for test in tests:
++        result = pool.apply_async(run_test, (test,))
++        results.append(result)
++
++    pool.close()
++
++    timeout = 60  # Set a 60-second timeout for all tests combined
++    start_time = time.time()
++
++    while time.time() - start_time < timeout and not all(result.ready() for result in results):
++        time.sleep(0.1)
++
++    for result in results:
++        if result.ready():
++            print(result.get())
++        else:
++            print(f"Test timed out: {result._job}")
++
++    pool.terminate()
++    pool.join()
++
++    print("\nAll tests completed")
+diff --git a/sympy/stats/crv_types.py b/sympy/stats/crv_types.py
+index fff7da80ae..4e1caf7225 100644
+--- a/sympy/stats/crv_types.py
++++ b/sympy/stats/crv_types.py
+@@ -47,7 +47,7 @@
+ 
+ from sympy import (log, sqrt, pi, S, Dummy, Interval, sympify, gamma,
+                    Piecewise, And, Eq, binomial, factorial, Sum, floor, Abs,
+-                   Lambda, Basic, lowergamma, erf, erfc, I)
++                   Lambda, Basic, lowergamma, erf, erfc, I, asin)
+ from sympy import beta as beta_fn
+ from sympy import cos, exp, besseli
+ from sympy.stats.crv import (SingleContinuousPSpace, SingleContinuousDistribution,
+@@ -99,7 +99,6 @@
+ ]
+ 
+ 
+-
+ def ContinuousRV(symbol, density, set=Interval(-oo, oo)):
+     """
+     Create a Continuous Random Variable given the following:
+@@ -153,6 +152,9 @@ class ArcsinDistribution(SingleContinuousDistribution):
+     def pdf(self, x):
+         return 1/(pi*sqrt((x - self.a)*(self.b - x)))
+ 
++    def _cdf(self, x):
++        a, b = self.a, self.b
++        return (2/pi) * asin(sqrt((x - a)/(b - a)))
+ def Arcsin(name, a=0, b=1):
+     r"""
+     Create a Continuous Random Variable with an arcsin distribution.
+@@ -670,6 +672,10 @@ def pdf(self, x):
+         p, a, b = self.p, self.a, self.b
+         return a*p/x*((x/b)**(a*p)/(((x/b)**a + 1)**(p + 1)))
+ 
++    def _cdf(self, x):
++        p, a, b = self.p, self.a, self.b
++        return (1 + (x/b)**(-a))**(-p)
++
+ 
+ def Dagum(name, p, a, b):
+     r"""
+diff --git a/test_arcsin.py b/test_arcsin.py
+new file mode 100644
+index 0000000000..f8a716951a
+--- /dev/null
++++ b/test_arcsin.py
+@@ -0,0 +1,11 @@
++from sympy import S
++from sympy.stats import *
++
++def test_arcsin():
++    print("Arcsin CDF test:")
++    result = cdf(Arcsin("x", 0, 3))(1)
++    print(f"Result: {result}")
++
++if __name__ == "__main__":
++    test_arcsin()
++    print("Test completed")
+diff --git a/test_arcsin_cdf.py b/test_arcsin_cdf.py
+new file mode 100644
+index 0000000000..f5f423847e
+--- /dev/null
++++ b/test_arcsin_cdf.py
+@@ -0,0 +1,15 @@
++from sympy import S
++from sympy.stats import cdf, Arcsin
++
++def test_arcsin_cdf():
++    X = Arcsin('X', 0, 3)
++    result = cdf(X)(1)
++    print(f"Arcsin CDF test result: {result}")
++    # We expect the result to be a symbolic expression, not an unevaluated integral
++    if 'Integral' not in str(result):
++        print("Test passed: CDF is not an unevaluated integral")
++    else:
++        print("Test failed: CDF is still an unevaluated integral")
++
++if __name__ == "__main__":
++    test_arcsin_cdf()
+diff --git a/test_dagum.py b/test_dagum.py
+new file mode 100644
+index 0000000000..ba0c6205c9
+--- /dev/null
++++ b/test_dagum.py
+@@ -0,0 +1,11 @@
++from sympy import S
++from sympy.stats import *
++
++def test_dagum():
++    print("Dagum CDF test:")
++    result = cdf(Dagum("x", S(1)/3, S(1)/5, 2))(3)
++    print(f"Result: {result}")
++
++if __name__ == "__main__":
++    test_dagum()
++    print("Test completed")
+diff --git a/test_dagum_cdf.py b/test_dagum_cdf.py
+new file mode 100644
+index 0000000000..21c7272ad3
+--- /dev/null
++++ b/test_dagum_cdf.py
+@@ -0,0 +1,15 @@
++from sympy import S
++from sympy.stats import cdf, Dagum
++
++def test_dagum_cdf():
++    X = Dagum('X', S(1)/3, S(1)/5, 2)
++    result = cdf(X)(3)
++    print(f"Dagum CDF test result: {result}")
++    # We expect the result to be a symbolic expression, not an unevaluated integral
++    if 'Integral' not in str(result):
++        print("Test passed: CDF is not an unevaluated integral")
++    else:
++        print("Test failed: CDF is still an unevaluated integral")
++
++if __name__ == "__main__":
++    test_dagum_cdf()
+diff --git a/test_erlang.py b/test_erlang.py
+new file mode 100644
+index 0000000000..0ccb7831a0
+--- /dev/null
++++ b/test_erlang.py
+@@ -0,0 +1,11 @@
++from sympy import S
++from sympy.stats import *
++
++def test_erlang():
++    print("Erlang CDF test:")
++    result = cdf(Erlang("x", 1, 1))(1)
++    print(f"Result: {result}")
++
++if __name__ == "__main__":
++    test_erlang()
++    print("Test completed")
+diff --git a/test_frechet.py b/test_frechet.py
+new file mode 100644
+index 0000000000..de78ff6860
+--- /dev/null
++++ b/test_frechet.py
+@@ -0,0 +1,11 @@
++from sympy import S
++from sympy.stats import *
++
++def test_frechet():
++    print("Frechet CDF test:")
++    result = cdf(Frechet("x", S(4)/3, 1, 2))(3)
++    print(f"Result: {result}")
++
++if __name__ == "__main__":
++    test_frechet()
++    print("Test completed")
+diff --git a/test_gamma.py b/test_gamma.py
+new file mode 100644
+index 0000000000..2e643317c4
+--- /dev/null
++++ b/test_gamma.py
+@@ -0,0 +1,11 @@
++from sympy import S
++from sympy.stats import *
++
++def test_gamma():
++    print("Gamma CDF test:")
++    result = cdf(Gamma("x", 0.1, 2))(3)
++    print(f"Result: {result}")
++
++if __name__ == "__main__":
++    test_gamma()
++    print("Test completed")
+diff --git a/test_gamma_inverse.py b/test_gamma_inverse.py
+new file mode 100644
+index 0000000000..263ec12b52
+--- /dev/null
++++ b/test_gamma_inverse.py
+@@ -0,0 +1,11 @@
++from sympy import S
++from sympy.stats import *
++
++def test_gamma_inverse():
++    print("Gamma Inverse CDF test:")
++    result = cdf(GammaInverse("x", S(5)/7, 2))(3)
++    print(f"Result: {result}")
++
++if __name__ == "__main__":
++    test_gamma_inverse()
++    print("Test completed")
+diff --git a/test_kumaraswamy.py b/test_kumaraswamy.py
+new file mode 100644
+index 0000000000..17089a6ea5
+--- /dev/null
++++ b/test_kumaraswamy.py
+@@ -0,0 +1,11 @@
++from sympy import S
++from sympy.stats import *
++
++def test_kumaraswamy():
++    print("Kumaraswamy CDF test:")
++    result = cdf(Kumaraswamy("x", S(1)/123, 5))(S(1)/3)
++    print(f"Result: {result}")
++
++if __name__ == "__main__":
++    test_kumaraswamy()
++    print("Test completed")
+diff --git a/test_laplace.py b/test_laplace.py
+new file mode 100644
+index 0000000000..b095a57e96
+--- /dev/null
++++ b/test_laplace.py
+@@ -0,0 +1,11 @@
++from sympy import S
++from sympy.stats import *
++
++def test_laplace():
++    print("Laplace CDF test:")
++    result = cdf(Laplace("x", 2, 3))(5)
++    print(f"Result: {result}")
++
++if __name__ == "__main__":
++    test_laplace()
++    print("Test completed")
+diff --git a/test_logistic.py b/test_logistic.py
+new file mode 100644
+index 0000000000..b22126d090
+--- /dev/null
++++ b/test_logistic.py
+@@ -0,0 +1,11 @@
++from sympy import S
++from sympy.stats import *
++
++def test_logistic():
++    print("Logistic CDF test:")
++    result = cdf(Logistic("x", 1, S(1)/10))(2)
++    print(f"Result: {result}")
++
++if __name__ == "__main__":
++    test_logistic()
++    print("Test completed")
+diff --git a/test_nakagami.py b/test_nakagami.py
+new file mode 100644
+index 0000000000..c5377d0b96
+--- /dev/null
++++ b/test_nakagami.py
+@@ -0,0 +1,11 @@
++from sympy import S
++from sympy.stats import *
++
++def test_nakagami():
++    print("Nakagami CDF test:")
++    result = cdf(Nakagami("x", S(7)/3, 1))(2)
++    print(f"Result: {result}")
++
++if __name__ == "__main__":
++    test_nakagami()
++    print("Test completed")
+diff --git a/test_student_t.py b/test_student_t.py
+new file mode 100644
+index 0000000000..87cbc047e5
+--- /dev/null
++++ b/test_student_t.py
+@@ -0,0 +1,11 @@
++from sympy import S
++from sympy.stats import *
++
++def test_student_t():
++    print("StudentT CDF test:")
++    result = cdf(StudentT("x", 10))(2)
++    print(f"Result: {result}")
++
++if __name__ == "__main__":
++    test_student_t()
++    print("Test completed")
+diff --git a/test_uniform_sum.py b/test_uniform_sum.py
+new file mode 100644
+index 0000000000..e42497d75c
+--- /dev/null
++++ b/test_uniform_sum.py
+@@ -0,0 +1,11 @@
++from sympy import S
++from sympy.stats import *
++
++def test_uniform_sum():
++    print("UniformSum CDF test:")
++    result = cdf(UniformSum("x", 5))(2)
++    print(f"Result: {result}")
++
++if __name__ == "__main__":
++    test_uniform_sum()
++    print("Test completed")

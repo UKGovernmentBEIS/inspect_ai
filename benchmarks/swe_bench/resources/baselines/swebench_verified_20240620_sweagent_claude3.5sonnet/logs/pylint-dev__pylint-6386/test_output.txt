@@ -1,0 +1,560 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   pylint/lint/base_options.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test_verbose_option.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 754b487f4d892e3d4872b6fc7468a71db4e31c13
+Author: Daniël van Noord <13665637+DanielNoord@users.noreply.github.com>
+Date:   Mon Apr 18 17:39:53 2022 +0200
+
+    Add typing to methods of ``PyLinter``
+
+diff --git a/pylint/lint/pylinter.py b/pylint/lint/pylinter.py
+index b9c1393ed..5a2771e88 100644
+--- a/pylint/lint/pylinter.py
++++ b/pylint/lint/pylinter.py
+@@ -21,6 +21,7 @@ import astroid
+ from astroid import AstroidError, nodes
+ 
+ from pylint import checkers, config, exceptions, interfaces, reporters
++from pylint.checkers.base_checker import BaseChecker
+ from pylint.config.arguments_manager import _ArgumentsManager
+ from pylint.constants import (
+     MAIN_CHECKER_NAME,
+@@ -45,6 +46,7 @@ from pylint.lint.utils import (
+     prepare_crash_report,
+ )
+ from pylint.message import Message, MessageDefinition, MessageDefinitionStore
++from pylint.reporters.base_reporter import BaseReporter
+ from pylint.reporters.text import TextReporter
+ from pylint.reporters.ureports import nodes as report_nodes
+ from pylint.typing import (
+@@ -77,7 +79,7 @@ def _read_stdin():
+     return sys.stdin.read()
+ 
+ 
+-def _load_reporter_by_class(reporter_class: str) -> type:
++def _load_reporter_by_class(reporter_class: str) -> type[BaseReporter]:
+     qname = reporter_class
+     module_part = astroid.modutils.get_module_part(qname)
+     module = astroid.modutils.load_module_from_name(module_part)
+@@ -318,7 +320,7 @@ class PyLinter(
+         )
+         self._option_groups = value
+ 
+-    def load_default_plugins(self):
++    def load_default_plugins(self) -> None:
+         checkers.initialize(self)
+         reporters.initialize(self)
+ 
+@@ -404,7 +406,7 @@ class PyLinter(
+         """Registers a reporter class on the _reporters attribute."""
+         self._reporters[reporter_class.name] = reporter_class
+ 
+-    def report_order(self):
++    def report_order(self) -> list[BaseChecker]:
+         reports = sorted(self._reports, key=lambda x: getattr(x, "name", ""))
+         try:
+             # Remove the current reporter and add it
+@@ -429,7 +431,7 @@ class PyLinter(
+         if not getattr(checker, "enabled", True):
+             self.disable(checker.name)
+ 
+-    def enable_fail_on_messages(self):
++    def enable_fail_on_messages(self) -> None:
+         """Enable 'fail on' msgs.
+ 
+         Convert values in config.fail_on (which might be msg category, msg id,
+@@ -465,7 +467,7 @@ class PyLinter(
+             x in self.fail_on_symbols for x in self.stats.by_msg.keys()
+         )
+ 
+-    def disable_noerror_messages(self):
++    def disable_noerror_messages(self) -> None:
+         for msgcat, msgids in self.msgs_store._msgs_by_category.items():
+             # enable only messages with 'error' severity and above ('fatal')
+             if msgcat in {"E", "F"}:
+@@ -475,7 +477,7 @@ class PyLinter(
+                 for msgid in msgids:
+                     self.disable(msgid)
+ 
+-    def disable_reporters(self):
++    def disable_reporters(self) -> None:
+         """Disable all reporters."""
+         for _reporters in self._reports.values():
+             for report_id, _, _ in _reporters:
+@@ -495,7 +497,7 @@ class PyLinter(
+         self.set_option("persistent", False)
+         self.set_option("score", False)
+ 
+-    def list_messages_enabled(self):
++    def list_messages_enabled(self) -> None:
+         emittable, non_emittable = self.msgs_store.find_emittable_messages()
+         enabled = []
+         disabled = []
+@@ -511,8 +513,8 @@ class PyLinter(
+         for msg in disabled:
+             print(msg)
+         print("\nNon-emittable messages with current interpreter:")
+-        for msg in non_emittable:
+-            print(f"  {msg.symbol} ({msg.msgid})")
++        for msg_def in non_emittable:
++            print(f"  {msg_def.symbol} ({msg_def.msgid})")
+         print("")
+ 
+     # block level option handling #############################################
+@@ -602,32 +604,26 @@ class PyLinter(
+ 
+     # code checking methods ###################################################
+ 
+-    def get_checkers(self):
+-        """Return all available checkers as a list."""
+-        return [self] + [
+-            c
+-            for _checkers in self._checkers.values()
+-            for c in _checkers
+-            if c is not self
+-        ]
++    def get_checkers(self) -> list[BaseChecker]:
++        """Return all available checkers as an ordered list."""
++        return sorted(c for _checkers in self._checkers.values() for c in _checkers)
+ 
+-    def get_checker_names(self):
++    def get_checker_names(self) -> list[str]:
+         """Get all the checker names that this linter knows about."""
+-        current_checkers = self.get_checkers()
+         return sorted(
+             {
+                 checker.name
+-                for checker in current_checkers
++                for checker in self.get_checkers()
+                 if checker.name != MAIN_CHECKER_NAME
+             }
+         )
+ 
+-    def prepare_checkers(self):
++    def prepare_checkers(self) -> list[BaseChecker]:
+         """Return checkers needed for activated messages and reports."""
+         if not self.config.reports:
+             self.disable_reporters()
+         # get needed checkers
+-        needed_checkers = [self]
++        needed_checkers: list[BaseChecker] = [self]
+         for checker in self.get_checkers()[1:]:
+             messages = {msg for msg in checker.msgs if self.is_message_enabled(msg)}
+             if messages or any(self.report_is_enabled(r[0]) for r in checker.reports):
+@@ -659,7 +655,7 @@ class PyLinter(
+ 
+     # pylint: enable=unused-argument
+ 
+-    def initialize(self):
++    def initialize(self) -> None:
+         """Initialize linter for linting.
+ 
+         This method is called before any linting is done.
+@@ -835,7 +831,7 @@ class PyLinter(
+             if self.should_analyze_file(name, filepath, is_argument=is_arg):
+                 yield FileItem(name, filepath, descr["basename"])
+ 
+-    def _expand_files(self, modules) -> list[ModuleDescriptionDict]:
++    def _expand_files(self, modules: list[str]) -> list[ModuleDescriptionDict]:
+         """Get modules and errors from a list of modules and handle errors."""
+         result, errors = expand_modules(
+             modules,
+@@ -1017,7 +1013,7 @@ class PyLinter(
+         self.stats.reset_message_count()
+         self._ignore_paths = self.linter.config.ignore_paths
+ 
+-    def generate_reports(self):
++    def generate_reports(self) -> int | None:
+         """Close the whole package /module, it's time to make reports !
+ 
+         if persistent run, pickle results for later comparison
+@@ -1045,7 +1041,7 @@ class PyLinter(
+             score_value = None
+         return score_value
+ 
+-    def _report_evaluation(self):
++    def _report_evaluation(self) -> int | None:
+         """Make the global evaluation report."""
+         # check with at least check 1 statements (usually 0 when there is a
+         # syntax error preventing pylint from further processing)
+diff --git a/pylint/utils/docs.py b/pylint/utils/docs.py
+index 5484bbfbd..56cecd7d1 100644
+--- a/pylint/utils/docs.py
++++ b/pylint/utils/docs.py
+@@ -61,6 +61,7 @@ Pylint provides global options and switches.
+                         else:
+                             title = f"{section.capitalize()} options"
+                         result += get_rst_title(title, "~")
++                        assert isinstance(options, list)
+                         result += f"{get_rst_section(None, options)}\n"
+     result += get_rst_title("Pylint checkers' options and switches", "-")
+     result += """\
+@@ -75,8 +76,8 @@ Below is a list of all checkers and their features.
+ 
+ """
+     by_checker = _get_checkers_infos(linter)
+-    for checker in sorted(by_checker):
+-        information = by_checker[checker]
++    for checker_name in sorted(by_checker):
++        information = by_checker[checker_name]
+         checker = information["checker"]
+         del information["checker"]
+         result += checker.get_full_documentation(**information)
++ git diff 754b487f4d892e3d4872b6fc7468a71db4e31c13
+diff --git a/pylint/lint/base_options.py b/pylint/lint/base_options.py
+index c793cc85a..a49f6e0ba 100644
+--- a/pylint/lint/base_options.py
++++ b/pylint/lint/base_options.py
+@@ -538,8 +538,7 @@ def _make_run_options(self: Run) -> Options:
+         (
+             "verbose",
+             {
+-                "action": _DoNothingAction,
+-                "kwargs": {},
++                "action": "store_true",
+                 "short": "v",
+                 "help": "In verbose mode, extra non-checker-related info "
+                 "will be displayed.",
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: dill>=0.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==2.14.0.dev0) (0.3.8)
+Requirement already satisfied: platformdirs>=2.2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==2.14.0.dev0) (4.2.2)
+Requirement already satisfied: astroid<=2.12.0-dev0,>=2.11.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==2.14.0.dev0) (2.11.6)
+Requirement already satisfied: isort<6,>=4.2.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==2.14.0.dev0) (5.10.1)
+Requirement already satisfied: mccabe<0.8,>=0.6 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==2.14.0.dev0) (0.6.1)
+Requirement already satisfied: tomlkit>=0.10.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==2.14.0.dev0) (0.13.0)
+Requirement already satisfied: typing-extensions>=3.10.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==2.14.0.dev0) (4.12.2)
+Requirement already satisfied: tomli>=1.1.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pylint==2.14.0.dev0) (2.0.1)
+Requirement already satisfied: lazy-object-proxy>=1.4.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from astroid<=2.12.0-dev0,>=2.11.2->pylint==2.14.0.dev0) (1.10.0)
+Requirement already satisfied: wrapt<2,>=1.11 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from astroid<=2.12.0-dev0,>=2.11.2->pylint==2.14.0.dev0) (1.16.0)
+Requirement already satisfied: setuptools>=20.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from astroid<=2.12.0-dev0,>=2.11.2->pylint==2.14.0.dev0) (69.5.1)
+Installing collected packages: pylint
+  Attempting uninstall: pylint
+    Found existing installation: pylint 2.14.0.dev0
+    Uninstalling pylint-2.14.0.dev0:
+      Successfully uninstalled pylint-2.14.0.dev0
+  Running setup.py develop for pylint
+Successfully installed pylint-2.14.0.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 754b487f4d892e3d4872b6fc7468a71db4e31c13 tests/config/test_config.py
+Updated 0 paths from 91f4e7c81
++ git apply -v -
+Checking patch tests/config/test_config.py...
+Applied patch tests/config/test_config.py cleanly.
++ pytest -rA tests/config/test_config.py
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-7.4.4, pluggy-1.5.0
+benchmark: 3.4.1 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: /testbed
+configfile: setup.cfg
+plugins: benchmark-3.4.1, cov-3.0.0, forked-1.6.0, profiling-1.7.0, timeout-2.3.1, xdist-2.5.0
+collected 8 items
+
+tests/config/test_config.py .......F                                     [100%]
+
+=================================== FAILURES ===================================
+______________________________ test_short_verbose ______________________________
+
+capsys = <_pytest.capture.CaptureFixture object at 0x7f5d16731760>
+
+    def test_short_verbose(capsys: CaptureFixture) -> None:
+        """Check that we correctly handle the -v flag."""
+        Run([str(EMPTY_MODULE), "-v"], exit=False)
+        output = capsys.readouterr()
+>       assert "Using config file" in output.err
+E       AssertionError: assert 'Using config file' in ''
+E        +  where '' = CaptureResult(out='', err='').err
+
+tests/config/test_config.py:109: AssertionError
+=============================== warnings summary ===============================
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/astroid/interpreter/_import/util.py:6
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/astroid/interpreter/_import/util.py:6: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+    import pkg_resources
+
+pylint/checkers/utils.py:455: 146 warnings
+tests/config/test_config.py: 14 warnings
+  /testbed/pylint/checkers/utils.py:455: DeprecationWarning: utils.check_messages will be removed in favour of calling utils.only_required_for_messages in pylint 3.0
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED tests/config/test_config.py::test_can_read_toml_env_variable
+PASSED tests/config/test_config.py::test_unknown_message_id
+PASSED tests/config/test_config.py::test_unknown_option_name
+PASSED tests/config/test_config.py::test_unknown_short_option_name
+PASSED tests/config/test_config.py::test_unknown_confidence
+PASSED tests/config/test_config.py::test_unknown_yes_no
+PASSED tests/config/test_config.py::test_unknown_py_version
+FAILED tests/config/test_config.py::test_short_verbose - AssertionError: asse...
+================== 1 failed, 7 passed, 161 warnings in 0.77s ===================
++ git checkout 754b487f4d892e3d4872b6fc7468a71db4e31c13 tests/config/test_config.py
+Updated 1 path from 91f4e7c81

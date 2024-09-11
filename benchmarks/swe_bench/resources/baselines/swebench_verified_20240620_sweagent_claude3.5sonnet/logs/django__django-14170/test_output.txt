@@ -1,0 +1,635 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/models/lookups.py
+	modified:   tests/lookup/test_lookups.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 6efc35b4fe3009666e56a60af0675d7d532bf4ff
+Author: Nick Pope <nick@nickpope.me.uk>
+Date:   Tue Mar 23 09:45:58 2021 +0000
+
+    Optimized django.utils.text.capfirst().
+    
+    Unconditionally coercing to str type twice is expensive.
+
+diff --git a/django/utils/text.py b/django/utils/text.py
+index 2b1be6c2b1..7cc388f7fe 100644
+--- a/django/utils/text.py
++++ b/django/utils/text.py
+@@ -12,7 +12,11 @@ from django.utils.translation import gettext as _, gettext_lazy, pgettext
+ @keep_lazy_text
+ def capfirst(x):
+     """Capitalize the first letter of a string."""
+-    return x and str(x)[0].upper() + str(x)[1:]
++    if not x:
++        return x
++    if not isinstance(x, str):
++        x = str(x)
++    return x[0].upper() + x[1:]
+ 
+ 
+ # Set up regular expressions
++ git diff 6efc35b4fe3009666e56a60af0675d7d532bf4ff
+diff --git a/django/db/models/lookups.py b/django/db/models/lookups.py
+index 916478d075..f0814b7ec2 100644
+--- a/django/db/models/lookups.py
++++ b/django/db/models/lookups.py
+@@ -538,35 +538,40 @@ class IRegex(Regex):
+ 
+ 
+ class YearLookup(Lookup):
++    lookup_name = 'year'
++
+     def year_lookup_bounds(self, connection, year):
+-        output_field = self.lhs.lhs.output_field
+-        if isinstance(output_field, DateTimeField):
+-            bounds = connection.ops.year_lookup_bounds_for_datetime_field(year)
+-        else:
+-            bounds = connection.ops.year_lookup_bounds_for_date_field(year)
+-        return bounds
++        raise NotImplementedError('subclasses of YearLookup must provide a year_lookup_bounds() method')
+ 
+     def as_sql(self, compiler, connection):
+-        # Avoid the extract operation if the rhs is a direct value to allow
+-        # indexes to be used.
+         if self.rhs_is_direct_value():
+             # Skip the extract part by directly using the originating field,
+             # that is self.lhs.lhs.
+             lhs_sql, params = self.process_lhs(compiler, connection, self.lhs.lhs)
+-            rhs_sql, _ = self.process_rhs(compiler, connection)
+-            rhs_sql = self.get_direct_rhs_sql(connection, rhs_sql)
++            rhs_sql, rhs_params = self.process_rhs(compiler, connection)
++            params.extend(rhs_params)
+             start, finish = self.year_lookup_bounds(connection, self.rhs)
+-            params.extend(self.get_bound_params(start, finish))
+-            return '%s %s' % (lhs_sql, rhs_sql), params
++            return f'{lhs_sql} BETWEEN %s AND %s', params + [start, finish]
+         return super().as_sql(compiler, connection)
+ 
+     def get_direct_rhs_sql(self, connection, rhs):
+         return connection.operators[self.lookup_name] % rhs
+ 
+     def get_bound_params(self, start, finish):
+-        raise NotImplementedError(
+-            'subclasses of YearLookup must provide a get_bound_params() method'
+-        )
++        raise NotImplementedError('subclasses of YearLookup must provide a get_bound_params() method')
++
++
++@Field.register_lookup
++class IsoYearLookup(Lookup):
++    lookup_name = 'iso_year'
++
++    def as_sql(self, compiler, connection):
++        lhs_sql, params = self.process_lhs(compiler, connection)
++        rhs_sql, rhs_params = self.process_rhs(compiler, connection)
++        params.extend(rhs_params)
++        extract_sql, extract_params = connection.ops.date_extract_sql('iso_year', lhs_sql)
++        params = extract_params + params
++        return f'{extract_sql} = %s', params
+ 
+ 
+ class YearExact(YearLookup, Exact):
+diff --git a/tests/lookup/test_lookups.py b/tests/lookup/test_lookups.py
+index 4d90612048..3618840f9d 100644
+--- a/tests/lookup/test_lookups.py
++++ b/tests/lookup/test_lookups.py
+@@ -38,3 +38,35 @@ class YearLookupTests(SimpleTestCase):
+         msg = 'subclasses of YearLookup must provide a get_bound_params() method'
+         with self.assertRaisesMessage(NotImplementedError, msg):
+             look_up.get_bound_params(datetime(2010, 1, 1, 0, 0, 0), datetime(2010, 1, 1, 23, 59, 59))
++
++    def test_iso_year_lookup(self):
++        from django.db.models import F
++        from django.db.models.fields import Field
++        from django.db.models.lookups import IsoYearLookup
++
++        class MockField(Field):
++            def get_prep_value(self, value):
++                return value
++
++        lhs = F('date_column')
++        lhs.output_field = MockField()
++        look_up = IsoYearLookup(lhs, 2020)
++        
++        compiler = mock.Mock()
++        compiler.compile.return_value = ('date_column', [])
++        connection = mock.Mock()
++        connection.ops.date_extract_sql.return_value = ('EXTRACT(ISOYEAR FROM %s)', [])
++
++        sql, params = look_up.as_sql(compiler, connection)
++        
++        # Check that date_extract_sql was called with the correct parameters
++        connection.ops.date_extract_sql.assert_called_once_with('iso_year', 'date_column')
++        
++        # Check that the SQL uses the EXTRACT function
++        self.assertEqual(sql, 'EXTRACT(ISOYEAR FROM %s) = %s')
++        
++        # Check that the year value is in the parameters
++        self.assertEqual(params, [2020])
++
++        # Check that the optimization is not applied for iso_year
++        self.assertFalse(hasattr(look_up, 'get_bound_params'))
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.2.10 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0) (3.8.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from asgiref>=3.2.10->Django==4.0) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.0-0.editable-py3-none-any.whl size=25587 sha256=c775281db67375dabd295faca4edb57cc7ed099519619cff3500a1171b8b6d36
+  Stored in directory: /tmp/pip-ephem-wheel-cache-l3bqdxfh/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.0
+    Uninstalling Django-4.0:
+      Successfully uninstalled Django-4.0
+Successfully installed Django-4.0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 6efc35b4fe3009666e56a60af0675d7d532bf4ff tests/db_functions/datetime/test_extract_trunc.py
+Updated 0 paths from 73a67559d1
++ git apply -v -
+Checking patch tests/db_functions/datetime/test_extract_trunc.py...
+Applied patch tests/db_functions/datetime/test_extract_trunc.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 db_functions.datetime.test_extract_trunc
+Testing against Django installed in '/testbed/django'
+Importing application db_functions
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, sessions, staticfiles
+  Apply all migrations: admin, db_functions, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying db_functions.0001_setup_extensions... OK
+  Applying db_functions.0002_create_test_models... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+System check identified no issues (0 silenced).
+test_extract_day_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_duration (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... skipped "Database doesn't support feature(s): has_native_duration_field"
+test_extract_duration_unsupported_lookups (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_duration_without_native_duration_field (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_hour_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_iso_weekday_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_iso_year_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_iso_year_func_boundaries (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_minute_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_month_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_none (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_quarter_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_quarter_func_boundaries (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_second_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_week_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_week_func_boundaries (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_weekday_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_year_exact_lookup (db_functions.datetime.test_extract_trunc.DateFunctionTests)
+Extract year uses a BETWEEN filter to compare the year to allow indexes ... test_extract_year_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_year_greaterthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... test_extract_year_lessthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... test_trunc_date_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_date_none (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_day_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_hour_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_minute_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_month_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_none (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_quarter_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_second_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_subquery_with_parameters (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_time_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_time_none (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_week_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_year_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_day_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_duration (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... skipped "Database doesn't support feature(s): has_native_duration_field"
+test_extract_duration_unsupported_lookups (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_duration_without_native_duration_field (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_func_explicit_timezone_priority (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_func_with_timezone (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_hour_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_invalid_field_with_timezone (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_iso_weekday_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_iso_year_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_iso_year_func_boundaries (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_minute_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_month_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_none (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_quarter_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_quarter_func_boundaries (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_second_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_week_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_week_func_boundaries (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_weekday_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_year_exact_lookup (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)
+Extract year uses a BETWEEN filter to compare the year to allow indexes ... test_extract_year_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_year_greaterthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... test_extract_year_lessthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... test_trunc_ambiguous_and_invalid_times (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_date_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_date_none (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_day_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_func_with_timezone (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)
+If the truncated datetime transitions to a different offset (daylight ... ok
+test_trunc_hour_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_invalid_field_with_timezone (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_minute_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_month_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_none (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_quarter_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_second_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_subquery_with_parameters (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_time_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_time_none (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_timezone_applied_before_truncation (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_week_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_year_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+
+======================================================================
+FAIL: test_extract_year_exact_lookup (db_functions.datetime.test_extract_trunc.DateFunctionTests) [year]
+Extract year uses a BETWEEN filter to compare the year to allow indexes
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/db_functions/datetime/test_extract_trunc.py", line 111, in test_extract_year_exact_lookup
+    self.assertEqual(query_string.count(' between '), 1)
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_extract_year_exact_lookup (db_functions.datetime.test_extract_trunc.DateFunctionTests) [iso_year]
+Extract year uses a BETWEEN filter to compare the year to allow indexes
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/db_functions/datetime/test_extract_trunc.py", line 111, in test_extract_year_exact_lookup
+    self.assertEqual(query_string.count(' between '), 1)
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_extract_year_greaterthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionTests) [year]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/db_functions/datetime/test_extract_trunc.py", line 147, in test_extract_year_greaterthan_lookup
+    self.assertEqual(str(qs.query).lower().count('extract'), 0)
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_extract_year_greaterthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionTests) [iso_year]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/db_functions/datetime/test_extract_trunc.py", line 147, in test_extract_year_greaterthan_lookup
+    self.assertEqual(str(qs.query).lower().count('extract'), 0)
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_extract_year_lessthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionTests) [year]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/db_functions/datetime/test_extract_trunc.py", line 170, in test_extract_year_lessthan_lookup
+    self.assertEqual(str(qs.query).count('extract'), 0)
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_extract_year_lessthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionTests) [iso_year]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/db_functions/datetime/test_extract_trunc.py", line 170, in test_extract_year_lessthan_lookup
+    self.assertEqual(str(qs.query).count('extract'), 0)
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_extract_year_exact_lookup (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) [year]
+Extract year uses a BETWEEN filter to compare the year to allow indexes
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/db_functions/datetime/test_extract_trunc.py", line 111, in test_extract_year_exact_lookup
+    self.assertEqual(query_string.count(' between '), 1)
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_extract_year_exact_lookup (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) [iso_year]
+Extract year uses a BETWEEN filter to compare the year to allow indexes
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/db_functions/datetime/test_extract_trunc.py", line 111, in test_extract_year_exact_lookup
+    self.assertEqual(query_string.count(' between '), 1)
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_extract_year_greaterthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) [year]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/db_functions/datetime/test_extract_trunc.py", line 147, in test_extract_year_greaterthan_lookup
+    self.assertEqual(str(qs.query).lower().count('extract'), 0)
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_extract_year_greaterthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) [iso_year]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/db_functions/datetime/test_extract_trunc.py", line 147, in test_extract_year_greaterthan_lookup
+    self.assertEqual(str(qs.query).lower().count('extract'), 0)
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_extract_year_lessthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) [year]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/db_functions/datetime/test_extract_trunc.py", line 170, in test_extract_year_lessthan_lookup
+    self.assertEqual(str(qs.query).count('extract'), 0)
+AssertionError: 1 != 0
+
+======================================================================
+FAIL: test_extract_year_lessthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) [iso_year]
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/db_functions/datetime/test_extract_trunc.py", line 170, in test_extract_year_lessthan_lookup
+    self.assertEqual(str(qs.query).count('extract'), 0)
+AssertionError: 1 != 0
+
+----------------------------------------------------------------------
+Ran 81 tests in 0.557s
+
+FAILED (failures=12, skipped=2)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout 6efc35b4fe3009666e56a60af0675d7d532bf4ff tests/db_functions/datetime/test_extract_trunc.py
+Updated 1 path from 73a67559d1

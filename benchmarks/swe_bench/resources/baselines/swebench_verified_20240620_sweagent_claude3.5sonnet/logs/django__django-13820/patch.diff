@@ -1,0 +1,179 @@
+
+diff --git a/django/db/migrations/loader.py b/django/db/migrations/loader.py
+index 95a5062ec9..5e51194bbd 100644
+--- a/django/db/migrations/loader.py
++++ b/django/db/migrations/loader.py
+@@ -90,7 +90,7 @@ class MigrationLoader:
+             else:
+                 # Empty directories are namespaces.
+                 # getattr() needed on PY36 and older (replace w/attribute access).
+-                if getattr(module, '__file__', None) is None:
++                if getattr(module, '__file__', None) is None and not isinstance(getattr(module, '__path__', None), list):
+                     self.unmigrated_apps.add(app_config.label)
+                     continue
+                 # Module is not a package (e.g. migrations.py).
+diff --git a/run_test.py b/run_test.py
+new file mode 100644
+index 0000000000..0c7f605c2a
+--- /dev/null
++++ b/run_test.py
+@@ -0,0 +1,36 @@
++import os
++import django
++from django.conf import settings
++from django.test.utils import get_runner
++
++if __name__ == "__main__":
++    # Set up a minimal Django settings configuration
++    settings.configure(
++        DEBUG=True,
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++        ],
++        ROOT_URLCONF='',
++        MIDDLEWARE=[],
++    )
++
++    django.setup()
++
++    # Get the test runner
++    TestRunner = get_runner(settings)
++
++    # Run the test
++    test_runner = TestRunner()
++    failures = test_runner.run_tests(["tests.test_migration_loader"])
++
++    if failures:
++        print("Test failed")
++    else:
++        print("Test passed successfully")
+diff --git a/tests/test_migration_loader.py b/tests/test_migration_loader.py
+new file mode 100644
+index 0000000000..b2ef050618
+--- /dev/null
++++ b/tests/test_migration_loader.py
+@@ -0,0 +1,117 @@
++from django.test import TestCase
++from django.db.migrations.loader import MigrationLoader
++from unittest.mock import Mock, patch
++import types
++from importlib import import_module
++class TestMigrationLoader(TestCase):
++    @patch('django.db.migrations.loader.import_module')
++    @patch('django.db.migrations.loader.reload')
++    def test_load_disk_with_various_module_types(self, mock_reload, mock_import_module):
++        # Create a more comprehensive mock connection
++        mock_connection = Mock()
++        mock_cursor = Mock()
++        mock_cursor.__enter__ = Mock(return_value=mock_cursor)
++        mock_cursor.__exit__ = Mock(return_value=None)
++        mock_connection.cursor.return_value = mock_cursor
++        mock_cursor.execute.return_value = None
++        mock_cursor.fetchall.return_value = []  # No applied migrations
++
++        # Mock the introspection
++        mock_introspection = Mock()
++        mock_introspection.table_names.return_value = []  # No tables exist
++        mock_connection.introspection = mock_introspection
++
++        # Test case 1: Regular package (has both __file__ and list-type __path__)
++        mock_module1 = types.ModuleType('app1.migrations')
++        mock_module1.__file__ = '/path/to/module1.py'
++        mock_module1.__path__ = ['/path/to']
++        mock_migration1 = Mock(spec=['Migration'])
++        mock_migration1.Migration = Mock()
++        setattr(mock_module1, '0001_initial', mock_migration1)
++
++        # Test case 2: Namespace package (no __file__, non-list __path__)
++        mock_module2 = types.ModuleType('app2.migrations')
++        mock_module2.__file__ = None
++        mock_module2.__path__ = types.SimpleNamespace()
++        mock_migration2 = Mock(spec=['Migration'])
++        mock_migration2.Migration = Mock()
++        setattr(mock_module2, '0001_initial', mock_migration2)
++
++        # Test case 3: Non-namespace package without __file__ (our new case)
++        mock_module3 = types.ModuleType('app3.migrations')
++        mock_module3.__file__ = None
++        mock_module3.__path__ = ['/path/to']
++        mock_migration3 = Mock(spec=['Migration'])
++        mock_migration3.Migration = Mock()
++        setattr(mock_module3, '0001_initial', mock_migration3)
++
++        # Set up mock_import_module to return our mock modules
++        def side_effect(module_name):
++            if module_name == 'app1.migrations':
++                return mock_module1
++            elif module_name == 'app2.migrations':
++                return mock_module2
++            elif module_name == 'app3.migrations':
++                return mock_module3
++            elif module_name in ['app1', 'app2', 'app3']:
++                # Return a mock for the parent module
++                return Mock()
++            else:
++                raise ImportError(f"No module named '{module_name}'")
++
++        mock_import_module.side_effect = side_effect
++        mock_reload.side_effect = lambda m: m  # Just return the module without actually reloading
++
++        loader = MigrationLoader(mock_connection)
++        
++        # Mock the migrations_module method to return different module names
++        with patch.object(MigrationLoader, 'migrations_module', side_effect=[
++            ('app1.migrations', False),
++            ('app2.migrations', False),
++            ('app3.migrations', False)
++        ]):
++            # Add debug print to load_disk method
++            original_load_disk = loader.load_disk
++            def debug_load_disk(self):
++                print("Debug: Entering load_disk")
++                print(f"Debug: self.migrated_apps: {self.migrated_apps}")
++                print(f"Debug: self.unmigrated_apps: {self.unmigrated_apps}")
++                from django.apps import apps
++                for app_config in apps.get_app_configs():
++                    print(f"Debug: Checking app: {app_config.label}")
++                    mod_name, _ = self.migrations_module(app_config.label)
++                    if mod_name:
++                        print(f"Debug: Found migrations module: {mod_name}")
++                        try:
++                            module = import_module(mod_name)
++                        except ImportError as e:
++                            print(f"Debug: ImportError: {e}")
++                        else:
++                            print(f"Debug: Module imported: {module}")
++                            if getattr(module, '__file__', None) is None and not isinstance(getattr(module, '__path__', None), list):
++                                print(f"Debug: Skipping {app_config.label} - it's a namespace package")
++                                self.unmigrated_apps.add(app_config.label)
++                            else:
++                                print(f"Debug: Processing migrations for {app_config.label}")
++                                # Rest of the original load_disk logic here
++                    else:
++                        print(f"Debug: No migrations module for {app_config.label}")
++                result = original_load_disk()
++                print(f"Debug: After load_disk, disk_migrations: {self.disk_migrations}")
++                return result
++            
++            with patch.object(MigrationLoader, 'load_disk', debug_load_disk):
++                loader.load_disk()
++
++        # Print debug information
++        print("disk_migrations:", loader.disk_migrations)
++        print("unmigrated_apps:", loader.unmigrated_apps)
++
++        # Check results
++        self.assertIn('app1', loader.disk_migrations)
++        self.assertNotIn('app2', loader.disk_migrations)
++        self.assertIn('app3', loader.disk_migrations)
++        self.assertIn('app2', loader.unmigrated_apps)
++        self.assertNotIn('app3', loader.unmigrated_apps)
++
++        print("All tests passed successfully.")

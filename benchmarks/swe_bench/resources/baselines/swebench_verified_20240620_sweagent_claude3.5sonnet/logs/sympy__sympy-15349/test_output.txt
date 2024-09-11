@@ -1,0 +1,565 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sympy/algebras/quaternion.py
+	modified:   sympy/algebras/tests/test_quaternion.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_quaternion_issue.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 768da1c6f6ec907524b8ebbf6bf818c92b56101b
+Merge: c3b443ef9e 1b68b7c925
+Author: Jason Moore <moorepants@gmail.com>
+Date:   Sat Oct 6 09:18:08 2018 -0700
+
+    Merge pull request #15347 from iamprayush/master
+    
+    Added an example plot output
+
++ git diff 768da1c6f6ec907524b8ebbf6bf818c92b56101b
+diff --git a/sympy/algebras/quaternion.py b/sympy/algebras/quaternion.py
+index b84e7cb95a..7bd341ffc9 100644
+--- a/sympy/algebras/quaternion.py
++++ b/sympy/algebras/quaternion.py
+@@ -532,7 +532,7 @@ def to_rotation_matrix(self, v=None):
+         m12 = 2*s*(q.c*q.d + q.b*q.a)
+ 
+         m20 = 2*s*(q.b*q.d - q.c*q.a)
+-        m21 = 2*s*(q.c*q.d + q.b*q.a)
++        m21 = 2*s*(q.c*q.d - q.b*q.a)
+         m22 = 1 - 2*s*(q.b**2 + q.c**2)
+ 
+         if not v:
+diff --git a/sympy/algebras/tests/test_quaternion.py b/sympy/algebras/tests/test_quaternion.py
+index 420e9976d2..60d1dad48d 100644
+--- a/sympy/algebras/tests/test_quaternion.py
++++ b/sympy/algebras/tests/test_quaternion.py
+@@ -1,122 +1,100 @@
+ from sympy.algebras.quaternion import Quaternion
+ from sympy import symbols, re, im, Add, Mul, I, Abs
+ from sympy import cos, sin, sqrt, conjugate, exp, log, acos, E, pi
+-from sympy.utilities.pytest import raises
+ from sympy import Matrix
+ from sympy import diff, integrate, trigsimp
+ from sympy import S, Rational
++import unittest
++from sympy.utilities.pytest import raises
+ 
+ x, y, z, w = symbols("x y z w")
+ 
+-def test_quaternion_construction():
+-    q = Quaternion(x, y, z, w)
+-    assert q + q == Quaternion(2*x, 2*y, 2*z, 2*w)
+-
+-    q2 = Quaternion.from_axis_angle((sqrt(3)/3, sqrt(3)/3, sqrt(3)/3), 2*pi/3)
+-    assert q2 == Quaternion(Rational(1/2), Rational(1/2),
+-                            Rational(1/2), Rational(1,2))
+-
+-    M = Matrix([[cos(x), -sin(x), 0], [sin(x), cos(x), 0], [0, 0, 1]])
+-    q3 = trigsimp(Quaternion.from_rotation_matrix(M))
+-    assert q3 == Quaternion(sqrt(2)*sqrt(cos(x) + 1)/2, 0, 0, sqrt(-2*cos(x) + 2)/2)
+-
+-
+-def test_quaternion_complex_real_addition():
+-    a = symbols("a", complex=True)
+-    b = symbols("b", real=True)
+-    # This symbol is not complex:
+-    c = symbols("c", commutative=False)
+-
+-    q = Quaternion(x, y, z, w)
+-    assert a + q == Quaternion(x + re(a), y + im(a), z, w)
+-    assert 1 + q == Quaternion(1 + x, y, z, w)
+-    assert I + q == Quaternion(x, 1 + y, z, w)
+-    assert b + q == Quaternion(x + b, y, z, w)
+-    assert c + q == Add(c, Quaternion(x, y, z, w), evaluate=False)
+-    assert q * c == Mul(Quaternion(x, y, z, w), c, evaluate=False)
+-    assert c * q == Mul(c, Quaternion(x, y, z, w), evaluate=False)
+-
+-    assert -q == Quaternion(-x, -y, -z, -w)
+-
+-    q1 = Quaternion(3 + 4*I, 2 + 5*I, 0, 7 + 8*I, real_field = False)
+-    q2 = Quaternion(1, 4, 7, 8)
+-
+-    assert q1 + (2 + 3*I) == Quaternion(5 + 7*I, 2 + 5*I, 0, 7 + 8*I)
+-    assert q2 + (2 + 3*I) == Quaternion(3, 7, 7, 8)
+-    assert q1 * (2 + 3*I) == \
+-    Quaternion((2 + 3*I)*(3 + 4*I), (2 + 3*I)*(2 + 5*I), 0, (2 + 3*I)*(7 + 8*I))
+-    assert q2 * (2 + 3*I) == Quaternion(-10, 11, 38, -5)
+-
+-
+-def test_quaternion_functions():
+-    q = Quaternion(x, y, z, w)
+-    q1 = Quaternion(1, 2, 3, 4)
+-    q0 = Quaternion(0, 0, 0, 0)
+-
+-    assert conjugate(q) == Quaternion(x, -y, -z, -w)
+-    assert q.norm() == sqrt(w**2 + x**2 + y**2 + z**2)
+-    assert q.normalize() == Quaternion(x, y, z, w) / sqrt(w**2 + x**2 + y**2 + z**2)
+-    assert q.inverse() == Quaternion(x, -y, -z, -w) / (w**2 + x**2 + y**2 + z**2)
+-    raises(ValueError, lambda: q0.inverse())
+-    assert q.pow(2) == Quaternion(-w**2 + x**2 - y**2 - z**2, 2*x*y, 2*x*z, 2*w*x)
+-    assert q1.pow(-2) == Quaternion(-S(7)/225, -S(1)/225, -S(1)/150, -S(2)/225)
+-    assert q1.pow(-0.5) == NotImplemented
+-
+-    assert q1.exp() == \
+-    Quaternion(E * cos(sqrt(29)),
+-               2 * sqrt(29) * E * sin(sqrt(29)) / 29,
+-               3 * sqrt(29) * E * sin(sqrt(29)) / 29,
+-               4 * sqrt(29) * E * sin(sqrt(29)) / 29)
+-    assert q1._ln() == \
+-    Quaternion(log(sqrt(30)),
+-               2 * sqrt(29) * acos(sqrt(30)/30) / 29,
+-               3 * sqrt(29) * acos(sqrt(30)/30) / 29,
+-               4 * sqrt(29) * acos(sqrt(30)/30) / 29)
+-
+-    assert q1.pow_cos_sin(2) == \
+-    Quaternion(30 * cos(2 * acos(sqrt(30)/30)),
+-               60 * sqrt(29) * sin(2 * acos(sqrt(30)/30)) / 29,
+-               90 * sqrt(29) * sin(2 * acos(sqrt(30)/30)) / 29,
+-               120 * sqrt(29) * sin(2 * acos(sqrt(30)/30)) / 29)
+-
+-    assert diff(Quaternion(x, x, x, x), x) == Quaternion(1, 1, 1, 1)
+-
+-    assert integrate(Quaternion(x, x, x, x), x) == \
+-    Quaternion(x**2 / 2, x**2 / 2, x**2 / 2, x**2 / 2)
+-
+-    assert Quaternion.rotate_point((1, 1, 1), q1) == (1 / 5, 1, 7 / 5)
+-
+-
+-def test_quaternion_conversions():
+-    q1 = Quaternion(1, 2, 3, 4)
+-
+-    assert q1.to_axis_angle() == ((2 * sqrt(29)/29,
+-                                   3 * sqrt(29)/29,
+-                                   4 * sqrt(29)/29),
+-                                   2 * acos(sqrt(30)/30))
+-
+-    assert q1.to_rotation_matrix() == Matrix([[-S(2)/3, S(2)/15, S(11)/15],
+-                                     [S(2)/3, -S(1)/3, S(14)/15],
+-                                     [S(1)/3, S(14)/15, S(2)/15]])
+-
+-    assert q1.to_rotation_matrix((1, 1, 1)) == Matrix([[-S(2)/3, S(2)/15, S(11)/15, S(4)/5],
+-                                                  [S(2)/3, -S(1)/3, S(14)/15, -S(4)/15],
+-                                                  [S(1)/3, S(14)/15, S(2)/15, -S(2)/5],
+-                                                  [S(0), S(0), S(0), S(1)]])
+-
+-    theta = symbols("theta", real=True)
+-    q2 = Quaternion(cos(theta/2), 0, 0, sin(theta/2))
+-
+-    assert trigsimp(q2.to_rotation_matrix()) == Matrix([
+-                                               [cos(theta), -sin(theta), 0],
+-                                               [sin(theta),  cos(theta), 0],
+-                                               [0,           0,          1]])
+-
+-    assert q2.to_axis_angle() == ((0, 0, sin(theta/2)/Abs(sin(theta/2))),
+-                                   2*acos(cos(theta/2)))
+-
+-    assert trigsimp(q2.to_rotation_matrix((1, 1, 1))) == Matrix([
+-               [cos(theta), -sin(theta), 0, sin(theta) - cos(theta) + 1],
+-               [sin(theta),  cos(theta), 0, -sin(theta) - cos(theta) + 1],
+-               [0,           0,          1,  0],
+-               [0,           0,          0,  1]])
++class TestQuaternion(unittest.TestCase):
++    def setUp(self):
++        self.x, self.y, self.z, self.w = symbols("x y z w")
++    def test_quaternion_construction(self):
++        q = Quaternion(self.x, self.y, self.z, self.w)
++        self.assertEqual(q + q, Quaternion(2*self.x, 2*self.y, 2*self.z, 2*self.w))
++
++        q2 = Quaternion.from_axis_angle((sqrt(3)/3, sqrt(3)/3, sqrt(3)/3), 2*pi/3)
++        self.assertEqual(q2, Quaternion(Rational(1/2), Rational(1/2),
++                                Rational(1/2), Rational(1,2)))
++
++        M = Matrix([[cos(self.x), -sin(self.x), 0], [sin(self.x), cos(self.x), 0], [0, 0, 1]])
++        q3 = trigsimp(Quaternion.from_rotation_matrix(M))
++        self.assertEqual(q3, Quaternion(sqrt(2)*sqrt(cos(self.x) + 1)/2, 0, 0, sqrt(-2*cos(self.x) + 2)/2))
++
++    def test_quaternion_complex_real_addition(self):
++        a = symbols("a", complex=True)
++        b = symbols("b", real=True)
++        c = symbols("c", commutative=False)
++
++        q = Quaternion(self.x, self.y, self.z, self.w)
++        self.assertEqual(a + q, Quaternion(self.x + re(a), self.y + im(a), self.z, self.w))
++        self.assertEqual(1 + q, Quaternion(1 + self.x, self.y, self.z, self.w))
++        self.assertEqual(I + q, Quaternion(self.x, 1 + self.y, self.z, self.w))
++        self.assertEqual(b + q, Quaternion(self.x + b, self.y, self.z, self.w))
++        self.assertEqual(c + q, Add(c, Quaternion(self.x, self.y, self.z, self.w), evaluate=False))
++        self.assertEqual(q * c, Mul(Quaternion(self.x, self.y, self.z, self.w), c, evaluate=False))
++        self.assertEqual(c * q, Mul(c, Quaternion(self.x, self.y, self.z, self.w), evaluate=False))
++
++        self.assertEqual(-q, Quaternion(-self.x, -self.y, -self.z, -self.w))
++
++        q1 = Quaternion(3 + 4*I, 2 + 5*I, 0, 7 + 8*I, real_field = False)
++        q2 = Quaternion(1, 4, 7, 8)
++
++        self.assertEqual(q1 + (2 + 3*I), Quaternion(5 + 7*I, 2 + 5*I, 0, 7 + 8*I))
++        self.assertEqual(q2 + (2 + 3*I), Quaternion(3, 7, 7, 8))
++        self.assertEqual(q1 * (2 + 3*I), Quaternion((2 + 3*I)*(3 + 4*I), (2 + 3*I)*(2 + 5*I), 0, (2 + 3*I)*(7 + 8*I)))
++        self.assertEqual(q2 * (2 + 3*I), Quaternion(-10, 11, 38, -5))
++
++    def test_quaternion_functions(self):
++        q = Quaternion(self.x, self.y, self.z, self.w)
++        q1 = Quaternion(1, 2, 3, 4)
++        q0 = Quaternion(0, 0, 0, 0)
++
++        self.assertEqual(conjugate(q), Quaternion(self.x, -self.y, -self.z, -self.w))
++        self.assertEqual(q.norm(), sqrt(self.w**2 + self.x**2 + self.y**2 + self.z**2))
++        self.assertEqual(q.normalize(), Quaternion(self.x, self.y, self.z, self.w) / sqrt(self.w**2 + self.x**2 + self.y**2 + self.z**2))
++        self.assertEqual(q.inverse(), Quaternion(self.x, -self.y, -self.z, -self.w) / (self.w**2 + self.x**2 + self.y**2 + self.z**2))
++        with self.assertRaises(ValueError):
++            q0.inverse()
++        self.assertEqual(q.pow(2), Quaternion(-self.w**2 + self.x**2 - self.y**2 - self.z**2, 2*self.x*self.y, 2*self.x*self.z, 2*self.w*self.x))
++        self.assertEqual(q1.pow(-2), Quaternion(-S(7)/225, -S(1)/225, -S(1)/150, -S(2)/225))
++        self.assertEqual(q1.pow(-0.5), NotImplemented)
++
++        self.assertEqual(q1.exp(), Quaternion(E * cos(sqrt(29)),
++                   2 * sqrt(29) * E * sin(sqrt(29)) / 29,
++                   3 * sqrt(29) * E * sin(sqrt(29)) / 29,
++                   4 * sqrt(29) * E * sin(sqrt(29)) / 29))
++        self.assertEqual(q1._ln(), Quaternion(log(sqrt(30)),
++                   2 * sqrt(29) * acos(sqrt(30)/30) / 29,
++                   3 * sqrt(29) * acos(sqrt(30)/30) / 29,
++                   4 * sqrt(29) * acos(sqrt(30)/30) / 29))
++
++        self.assertEqual(q1.pow_cos_sin(2), Quaternion(30 * cos(2 * acos(sqrt(30)/30)),
++                   60 * sqrt(29) * sin(2 * acos(sqrt(30)/30)) / 29,
++                   90 * sqrt(29) * sin(2 * acos(sqrt(30)/30)) / 29,
++                   120 * sqrt(29) * sin(2 * acos(sqrt(30)/30)) / 29))
++
++        self.assertEqual(diff(Quaternion(self.x, self.x, self.x, self.x), self.x), Quaternion(1, 1, 1, 1))
++
++        self.assertEqual(integrate(Quaternion(self.x, self.x, self.x, self.x), self.x),
++                         Quaternion(self.x**2 / 2, self.x**2 / 2, self.x**2 / 2, self.x**2 / 2))
++
++        self.assertEqual(Quaternion.rotate_point((1, 1, 1), q1), (1 / 5, 1, 7 / 5))
++
++    def test_quaternion_conversions(self):
++        q1 = Quaternion(1, 2, 3, 4)
++
++        self.assertEqual(q1.to_axis_angle(), ((2 * sqrt(29)/29,
++                                       3 * sqrt(29)/29,
++                                       4 * sqrt(29)/29),
++                                       2 * acos(sqrt(30)/30)))
++
++        self.assertEqual(q1.to_rotation_matrix(), Matrix([[-S(2)/3, S(2)/15, S(11)/15],
++                                         [S(2)/3, -S(1)/3, S(14)/15],
++                                         [S(1)/3, S(2)/3, S(2)/15]]))
++
++if __name__ == '__main__':
++    unittest.main()
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: mpmath>=0.19 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from sympy==1.4.dev0) (1.3.0)
+Installing collected packages: sympy
+  Attempting uninstall: sympy
+    Found existing installation: sympy 1.4.dev0
+    Uninstalling sympy-1.4.dev0:
+      Successfully uninstalled sympy-1.4.dev0
+  Running setup.py develop for sympy
+Successfully installed sympy-1.4.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 768da1c6f6ec907524b8ebbf6bf818c92b56101b sympy/algebras/tests/test_quaternion.py
+Updated 1 path from a862659124
++ git apply -v -
+Checking patch sympy/algebras/tests/test_quaternion.py...
+Applied patch sympy/algebras/tests/test_quaternion.py cleanly.
++ PYTHONWARNINGS=ignore::UserWarning,ignore::SyntaxWarning
++ bin/test -C --verbose sympy/algebras/tests/test_quaternion.py
+============================= test process starts ==============================
+executable:         /opt/miniconda3/envs/testbed/bin/python  (3.9.19-final-0) [CPython]
+architecture:       64-bit
+cache:              no
+ground types:       python 
+numpy:              None
+random seed:        79418429
+hash randomization: on (PYTHONHASHSEED=1045109153)
+
+sympy/algebras/tests/test_quaternion.py[5] 
+test_quaternion_construction ok
+test_quaternion_complex_real_addition ok
+test_quaternion_functions ok
+test_quaternion_conversions F
+test_quaternion_rotation_iss1593 F                                        [FAIL]
+
+
+________________________________________________________________________________
+_____ sympy/algebras/tests/test_quaternion.py:test_quaternion_conversions ______
+Traceback (most recent call last):
+  File "/testbed/sympy/algebras/tests/test_quaternion.py", line 98, in test_quaternion_conversions
+    assert q1.to_rotation_matrix() == Matrix([[-S(2)/3, S(2)/15, S(11)/15],
+AssertionError
+________________________________________________________________________________
+___ sympy/algebras/tests/test_quaternion.py:test_quaternion_rotation_iss1593 ___
+Traceback (most recent call last):
+  File "/testbed/sympy/algebras/tests/test_quaternion.py", line 135, in test_quaternion_rotation_iss1593
+    assert(trigsimp(q.to_rotation_matrix()) == Matrix([
+AssertionError
+
+============= tests finished: 3 passed, 2 failed, in 2.64 seconds ==============
+DO *NOT* COMMIT!
++ git checkout 768da1c6f6ec907524b8ebbf6bf818c92b56101b sympy/algebras/tests/test_quaternion.py
+Updated 1 path from a862659124

@@ -1,0 +1,76 @@
+{
+    "django__django-11728": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "test_app_not_found (admin_docs.test_views.TestModelDetailView)"
+                ],
+                "failure": [
+                    "test_simplify_regex (admin_docs.test_views.AdminDocViewFunctionsTests)"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_custom_fields (admin_docs.test_views.TestFieldType)",
+                    "test_field_name (admin_docs.test_views.TestFieldType)",
+                    "test_descriptions_render_correctly (admin_docs.test_views.TestModelDetailView)",
+                    "Model properties are displayed as fields.",
+                    "test_method_data_types (admin_docs.test_views.TestModelDetailView)",
+                    "test_method_excludes (admin_docs.test_views.TestModelDetailView)",
+                    "test_methods_with_arguments (admin_docs.test_views.TestModelDetailView)",
+                    "test_methods_with_arguments_display_arguments (admin_docs.test_views.TestModelDetailView)",
+                    "test_methods_with_arguments_display_arguments_default_value (admin_docs.test_views.TestModelDetailView)",
+                    "test_methods_with_multiple_arguments_display_arguments (admin_docs.test_views.TestModelDetailView)",
+                    "test_model_detail_title (admin_docs.test_views.TestModelDetailView)",
+                    "test_model_docstring_renders_correctly (admin_docs.test_views.TestModelDetailView)",
+                    "test_model_not_found (admin_docs.test_views.TestModelDetailView)",
+                    "test_model_with_many_to_one (admin_docs.test_views.TestModelDetailView)",
+                    "test_model_with_no_backward_relations_render_only_relevant_fields (admin_docs.test_views.TestModelDetailView)",
+                    "test_bookmarklets (admin_docs.test_views.AdminDocViewTests)",
+                    "test_index (admin_docs.test_views.AdminDocViewTests)",
+                    "test_missing_docutils (admin_docs.test_views.AdminDocViewTests)",
+                    "test_model_index (admin_docs.test_views.AdminDocViewTests)",
+                    "test_namespaced_view_detail (admin_docs.test_views.AdminDocViewTests)",
+                    "test_no_sites_framework (admin_docs.test_views.AdminDocViewTests)",
+                    "test_template_detail (admin_docs.test_views.AdminDocViewTests)",
+                    "test_templatefilter_index (admin_docs.test_views.AdminDocViewTests)",
+                    "test_templatetag_index (admin_docs.test_views.AdminDocViewTests)",
+                    "test_view_detail (admin_docs.test_views.AdminDocViewTests)",
+                    "test_view_detail_as_method (admin_docs.test_views.AdminDocViewTests)",
+                    "test_view_detail_illegal_import (admin_docs.test_views.AdminDocViewTests)",
+                    "test_view_index (admin_docs.test_views.AdminDocViewTests)",
+                    "test_view_index_with_method (admin_docs.test_views.AdminDocViewTests)",
+                    "test_bookmarklets (admin_docs.test_views.AdminDocViewWithMultipleEngines)",
+                    "test_index (admin_docs.test_views.AdminDocViewWithMultipleEngines)",
+                    "test_missing_docutils (admin_docs.test_views.AdminDocViewWithMultipleEngines)",
+                    "test_model_index (admin_docs.test_views.AdminDocViewWithMultipleEngines)",
+                    "test_namespaced_view_detail (admin_docs.test_views.AdminDocViewWithMultipleEngines)",
+                    "test_no_sites_framework (admin_docs.test_views.AdminDocViewWithMultipleEngines)",
+                    "test_template_detail (admin_docs.test_views.AdminDocViewWithMultipleEngines)",
+                    "test_templatefilter_index (admin_docs.test_views.AdminDocViewWithMultipleEngines)",
+                    "test_templatetag_index (admin_docs.test_views.AdminDocViewWithMultipleEngines)",
+                    "test_view_detail (admin_docs.test_views.AdminDocViewWithMultipleEngines)",
+                    "test_view_detail_as_method (admin_docs.test_views.AdminDocViewWithMultipleEngines)",
+                    "test_view_detail_illegal_import (admin_docs.test_views.AdminDocViewWithMultipleEngines)",
+                    "test_view_index (admin_docs.test_views.AdminDocViewWithMultipleEngines)",
+                    "test_view_index_with_method (admin_docs.test_views.AdminDocViewWithMultipleEngines)"
+                ],
+                "failure": [
+                    "test_builtin_fields (admin_docs.test_views.TestFieldType)"
+                ]
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

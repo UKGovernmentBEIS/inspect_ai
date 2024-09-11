@@ -1,0 +1,3047 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sympy/stats/crv_types.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_cdf_issues.py
+	test_arcsin.py
+	test_arcsin_cdf.py
+	test_dagum.py
+	test_dagum_cdf.py
+	test_erlang.py
+	test_frechet.py
+	test_gamma.py
+	test_gamma_inverse.py
+	test_kumaraswamy.py
+	test_laplace.py
+	test_logistic.py
+	test_nakagami.py
+	test_student_t.py
+	test_uniform_sum.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 7b127bdf71a36d85216315f80c1b54d22b060818
+Merge: 1ff04fc658 43cbe503ad
+Author: Björn Dahlgren <bjodah@gmail.com>
+Date:   Tue Jan 16 16:58:34 2018 +0100
+
+    Merge pull request #13200 from bjodah/codegen-approxmations
+    
+    Add .codegen.approximations
+
++ git diff 7b127bdf71a36d85216315f80c1b54d22b060818
+diff --git a/sympy/stats/crv_types.py b/sympy/stats/crv_types.py
+index fff7da80ae..4e1caf7225 100644
+--- a/sympy/stats/crv_types.py
++++ b/sympy/stats/crv_types.py
+@@ -47,7 +47,7 @@
+ 
+ from sympy import (log, sqrt, pi, S, Dummy, Interval, sympify, gamma,
+                    Piecewise, And, Eq, binomial, factorial, Sum, floor, Abs,
+-                   Lambda, Basic, lowergamma, erf, erfc, I)
++                   Lambda, Basic, lowergamma, erf, erfc, I, asin)
+ from sympy import beta as beta_fn
+ from sympy import cos, exp, besseli
+ from sympy.stats.crv import (SingleContinuousPSpace, SingleContinuousDistribution,
+@@ -99,7 +99,6 @@
+ ]
+ 
+ 
+-
+ def ContinuousRV(symbol, density, set=Interval(-oo, oo)):
+     """
+     Create a Continuous Random Variable given the following:
+@@ -153,6 +152,9 @@ class ArcsinDistribution(SingleContinuousDistribution):
+     def pdf(self, x):
+         return 1/(pi*sqrt((x - self.a)*(self.b - x)))
+ 
++    def _cdf(self, x):
++        a, b = self.a, self.b
++        return (2/pi) * asin(sqrt((x - a)/(b - a)))
+ def Arcsin(name, a=0, b=1):
+     r"""
+     Create a Continuous Random Variable with an arcsin distribution.
+@@ -670,6 +672,10 @@ def pdf(self, x):
+         p, a, b = self.p, self.a, self.b
+         return a*p/x*((x/b)**(a*p)/(((x/b)**a + 1)**(p + 1)))
+ 
++    def _cdf(self, x):
++        p, a, b = self.p, self.a, self.b
++        return (1 + (x/b)**(-a))**(-p)
++
+ 
+ def Dagum(name, p, a, b):
+     r"""
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: mpmath>=0.19 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from sympy==1.1.2.dev0) (1.3.0)
+Installing collected packages: sympy
+  Attempting uninstall: sympy
+    Found existing installation: sympy 1.1.2.dev0
+    Uninstalling sympy-1.1.2.dev0:
+      Successfully uninstalled sympy-1.1.2.dev0
+  Running setup.py develop for sympy
+Successfully installed sympy-1.1.2.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 7b127bdf71a36d85216315f80c1b54d22b060818 sympy/stats/tests/test_continuous_rv.py
+Updated 0 paths from cd5cc788ab
++ git apply -v -
+Checking patch sympy/stats/tests/test_continuous_rv.py...
+Applied patch sympy/stats/tests/test_continuous_rv.py cleanly.
++ PYTHONWARNINGS=ignore::UserWarning,ignore::SyntaxWarning
++ bin/test -C --verbose sympy/stats/tests/test_continuous_rv.py
+/testbed/sympy/core/basic.py:3: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Mapping, defaultdict
+/testbed/sympy/core/containers.py:271: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  class OrderedSet(collections.MutableSet):
+/testbed/sympy/plotting/plot.py:28: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Callable
+/testbed/sympy/core/basic.py:3: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Mapping, defaultdict
+/testbed/sympy/core/containers.py:271: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  class OrderedSet(collections.MutableSet):
+/testbed/sympy/plotting/plot.py:28: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Callable
+============================= test process starts ==============================
+executable:         /opt/miniconda3/envs/testbed/bin/python  (3.9.19-final-0) [CPython]
+architecture:       64-bit
+cache:              no
+ground types:       python 
+numpy:              None
+random seed:        54414415
+hash randomization: on (PYTHONHASHSEED=1166817558)
+
+sympy/stats/tests/test_continuous_rv.py[63] 
+test_single_normal E
+test_conditional_1d f
+test_ContinuousDomain ok
+test_multiple_normal Slow w
+test_symbolic Slow w
+test_cdf E
+test_characteristic_function ok
+test_sample E
+test_ContinuousRV E
+test_arcsin F
+test_benini ok
+test_beta E
+test_betaprime E
+test_cauchy E
+test_chi ok
+test_chi_noncentral ok
+test_chi_squared ok
+test_dagum E
+test_erlang E
+test_exponential E
+test_f_distribution E
+test_fisher_z E
+test_frechet E
+test_gamma E
+test_gamma_inverse E
+test_gompertz ok
+test_gumbel E
+test_kumaraswamy E
+test_laplace E
+test_logistic E
+test_lognormal E
+test_maxwell E
+test_nakagami E
+test_pareto E
+test_pareto_numeric E
+test_raised_cosine E
+test_rayleigh E
+test_shiftedgompertz ok
+test_studentt E
+test_trapezoidal ok
+test_triangular f
+test_quadratic_u ok
+test_uniform E
+test_uniform_P E
+test_uniformsum f
+test_von_mises ok
+test_weibull E
+test_weibull_numeric E
+test_wignersemicircle E
+test_prefab_sampling ok
+test_input_value_assertions ok
+test_unevaluated f
+test_probability_unevaluated ok
+test_density_unevaluated ok
+test_NormalDistribution E
+test_random_parameters ok
+test_random_parameters_given ok
+test_conjugate_priors ok
+test_difficult_univariate E
+test_issue_10003 ok
+test_precomputed_cdf E
+test_long_precomputed_cdf E
+test_issue_13324 ok                                                       [FAIL]
+
+
+________________________________ slowest tests _________________________________
+test_trapezoidal - Took 14.424 seconds
+________________________________________________________________________________
+__________ sympy/stats/tests/test_continuous_rv.py:test_single_normal __________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 40, in test_single_normal
+    assert simplify(E(Y)) == mu
+  File "/testbed/sympy/stats/rv.py", line 577, in expectation
+    return Add(*[expectation(arg, evaluate=evaluate)
+  File "/testbed/sympy/stats/rv.py", line 577, in <listcomp>
+    return Add(*[expectation(arg, evaluate=evaluate)
+  File "/testbed/sympy/stats/rv.py", line 583, in expectation
+    return result.doit(**kwargs)
+  File "/testbed/sympy/integrals/integrals.py", line 510, in doit
+    ret = try_meijerg(function, xab)
+  File "/testbed/sympy/integrals/integrals.py", line 482, in try_meijerg
+    res = meijerint_definite(function, x, a, b)
+  File "/testbed/sympy/integrals/meijerint.py", line 1785, in meijerint_definite
+    res1 = _meijerint_definite_2(f.subs(x, x + c), x)
+  File "/testbed/sympy/integrals/meijerint.py", line 1911, in _meijerint_definite_2
+    res = _meijerint_definite_3(g, x)
+  File "/testbed/sympy/integrals/meijerint.py", line 1923, in _meijerint_definite_3
+    res = _meijerint_definite_4(f, x)
+  File "/testbed/sympy/integrals/meijerint.py", line 1968, in _meijerint_definite_4
+    C, f = _rewrite_saxena_1(fac*C, po*x**s, f, x)
+  File "/testbed/sympy/integrals/meijerint.py", line 705, in _rewrite_saxena_1
+    a, b = _get_coeff_exp(g.argument, x)
+  File "/testbed/sympy/integrals/meijerint.py", line 324, in _get_coeff_exp
+    (c, m) = expand_power_base(powsimp(expr)).as_coeff_mul(x)
+  File "/testbed/sympy/simplify/powsimp.py", line 118, in powsimp
+    expr = expr.func(*[recurse(w) for w in expr.args])
+  File "/testbed/sympy/simplify/powsimp.py", line 118, in <listcomp>
+    expr = expr.func(*[recurse(w) for w in expr.args])
+  File "/testbed/sympy/simplify/powsimp.py", line 109, in recurse
+    return powsimp(arg, _deep, _combine, _force, _measure)
+  File "/testbed/sympy/simplify/powsimp.py", line 121, in powsimp
+    return recurse(expr*_y, deep=False)/_y
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 177, in __div__
+    return Mul(self, Pow(other, S.NegativeOne))
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1120, in _eval_is_integer
+    is_rational = self.is_rational
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1089, in _eval_is_rational
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/logic.py", line 78, in _fuzzy_group
+    for a in args:
+  File "/testbed/sympy/core/mul.py", line 1089, in <genexpr>
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 1 more time]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 522, in _eval_is_imaginary
+    if b.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 592, in _eval_is_positive
+    if s != self and s.is_positive and a.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 595, in _eval_is_positive
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_______________ sympy/stats/tests/test_continuous_rv.py:test_cdf _______________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 125, in test_cdf
+    assert P(X < 1) == d(1).rewrite(erfc)
+  File "/testbed/sympy/stats/rv.py", line 647, in probability
+    return result.doit()
+  File "/testbed/sympy/integrals/integrals.py", line 510, in doit
+    ret = try_meijerg(function, xab)
+  File "/testbed/sympy/integrals/integrals.py", line 482, in try_meijerg
+    res = meijerint_definite(function, x, a, b)
+  File "/testbed/sympy/integrals/meijerint.py", line 1773, in meijerint_definite
+    return meijerint_definite(f.subs(x, -x), x, -b, -a)
+  File "/testbed/sympy/integrals/meijerint.py", line 1840, in meijerint_definite
+    res = _meijerint_definite_2(f, x)
+  File "/testbed/sympy/integrals/meijerint.py", line 1903, in _meijerint_definite_2
+    f = f.subs(x, dummy)
+  File "/testbed/sympy/core/basic.py", line 920, in subs
+    rv = rv._subs(old, new, **kwargs)
+  File "/testbed/sympy/core/basic.py", line 1034, in _subs
+    rv = fallback(self, old, new)
+  File "/testbed/sympy/core/basic.py", line 1006, in fallback
+    arg = arg._subs(old, new, **hints)
+  File "/testbed/sympy/core/basic.py", line 1034, in _subs
+    rv = fallback(self, old, new)
+  File "/testbed/sympy/core/basic.py", line 1011, in fallback
+    rv = self.func(*args)
+  File "/testbed/sympy/core/function.py", line 439, in __new__
+    result = super(Function, cls).__new__(cls, *args, **options)
+  File "/testbed/sympy/core/function.py", line 250, in __new__
+    evaluated = cls.eval(*args)
+  File "/testbed/sympy/functions/elementary/exponential.py", line 279, in eval
+    elif term.is_comparable:
+  File "/testbed/sympy/core/basic.py", line 600, in is_comparable
+    is_real = self.is_real
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 507, in _eval_is_real
+    if self.base.is_positive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 592, in _eval_is_positive
+    if s != self and s.is_positive and a.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 595, in _eval_is_positive
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_____________ sympy/stats/tests/test_continuous_rv.py:test_sample ______________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 164, in test_sample
+    assert sample(Z) in Z.pspace.domain.set
+  File "/testbed/sympy/stats/rv.py", line 845, in sample
+    return next(sample_iter(expr, condition, numsamples=1))
+  File "/testbed/sympy/stats/rv.py", line 941, in sample_iter_subs
+    d = ps.sample()  # a dictionary that maps RVs to values
+  File "/testbed/sympy/stats/crv.py", line 411, in sample
+    return {self.value: self.distribution.sample()}
+  File "/testbed/sympy/stats/crv.py", line 173, in sample
+    icdf = self._inverse_cdf_expression()
+  File "/testbed/sympy/stats/crv.py", line 185, in _inverse_cdf_expression
+    inverse_cdf = solveset(self.cdf(x) - z, x, S.Reals)
+  File "/testbed/sympy/solvers/solveset.py", line 947, in solveset
+    return _solveset(f, symbol, domain, _check=True)
+  File "/testbed/sympy/solvers/solveset.py", line 717, in _solveset
+    result = Union(*[solver(m, symbol) for m in f.args])
+  File "/testbed/sympy/solvers/solveset.py", line 717, in <listcomp>
+    result = Union(*[solver(m, symbol) for m in f.args])
+  File "/testbed/sympy/solvers/solveset.py", line 696, in <lambda>
+    solver = lambda f, x, domain=domain: _solveset(f, x, domain)
+  File "/testbed/sympy/solvers/solveset.py", line 763, in _solveset
+    result += _solve_as_rational(equation, symbol, domain)
+  File "/testbed/sympy/solvers/solveset.py", line 402, in _solve_as_rational
+    return _solve_as_poly(g, symbol, domain)
+  File "/testbed/sympy/solvers/solveset.py", line 468, in _solve_as_poly
+    poly = Poly(poly.as_expr(), poly.gen, composite=True)
+  File "/testbed/sympy/polys/polytools.py", line 1015, in as_expr
+    return basic_from_dict(f.rep.to_sympy_dict(), *gens)
+  File "/testbed/sympy/polys/polyutils.py", line 382, in expr_from_dict
+    result.append(Mul(*term))
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 676, in _eval_is_negative
+    if s != self and s.is_negative and a.is_nonpositive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 679, in _eval_is_negative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+__________ sympy/stats/tests/test_continuous_rv.py:test_ContinuousRV ___________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 176, in test_ContinuousRV
+    assert variance(X) == variance(Y)
+  File "/testbed/sympy/stats/rv_interface.py", line 57, in variance
+    return cmoment(X, 2, condition, **kwargs)
+  File "/testbed/sympy/stats/rv_interface.py", line 161, in cmoment
+    mu = expectation(X, condition, **kwargs)
+  File "/testbed/sympy/stats/rv.py", line 583, in expectation
+    return result.doit(**kwargs)
+  File "/testbed/sympy/integrals/integrals.py", line 510, in doit
+    ret = try_meijerg(function, xab)
+  File "/testbed/sympy/integrals/integrals.py", line 482, in try_meijerg
+    res = meijerint_definite(function, x, a, b)
+  File "/testbed/sympy/integrals/meijerint.py", line 1785, in meijerint_definite
+    res1 = _meijerint_definite_2(f.subs(x, x + c), x)
+  File "/testbed/sympy/integrals/meijerint.py", line 1911, in _meijerint_definite_2
+    res = _meijerint_definite_3(g, x)
+  File "/testbed/sympy/integrals/meijerint.py", line 1923, in _meijerint_definite_3
+    res = _meijerint_definite_4(f, x)
+  File "/testbed/sympy/integrals/meijerint.py", line 1968, in _meijerint_definite_4
+    C, f = _rewrite_saxena_1(fac*C, po*x**s, f, x)
+  File "/testbed/sympy/integrals/meijerint.py", line 705, in _rewrite_saxena_1
+    a, b = _get_coeff_exp(g.argument, x)
+  File "/testbed/sympy/integrals/meijerint.py", line 324, in _get_coeff_exp
+    (c, m) = expand_power_base(powsimp(expr)).as_coeff_mul(x)
+  File "/testbed/sympy/simplify/powsimp.py", line 118, in powsimp
+    expr = expr.func(*[recurse(w) for w in expr.args])
+  File "/testbed/sympy/simplify/powsimp.py", line 118, in <listcomp>
+    expr = expr.func(*[recurse(w) for w in expr.args])
+  File "/testbed/sympy/simplify/powsimp.py", line 109, in recurse
+    return powsimp(arg, _deep, _combine, _force, _measure)
+  File "/testbed/sympy/simplify/powsimp.py", line 121, in powsimp
+    return recurse(expr*_y, deep=False)/_y
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 177, in __div__
+    return Mul(self, Pow(other, S.NegativeOne))
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1189, in _eval_is_hermitian
+    return self._eval_herm_antiherm(True)
+  File "/testbed/sympy/core/mul.py", line 1202, in _eval_herm_antiherm
+    elif t.is_hermitian:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 4 more times]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 676, in _eval_is_negative
+    if s != self and s.is_negative and a.is_nonpositive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 679, in _eval_is_negative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+______________ sympy/stats/tests/test_continuous_rv.py:test_beta _______________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 212, in test_beta
+    assert dens(x) == x**(a - 1)*(1 - x)**(b - 1) / beta(a, b)
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 292, in pdf
+    return x**(alpha - 1) * (1 - x)**(beta - 1) / beta_fn(alpha, beta)
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 140, in __mul__
+    return Mul(self, other)
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1172, in _eval_is_rational
+    if e.is_integer:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 592, in _eval_is_positive
+    if s != self and s.is_positive and a.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 595, in _eval_is_positive
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+____________ sympy/stats/tests/test_continuous_rv.py:test_betaprime ____________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 230, in test_betaprime
+    assert density(X)(x) == x**(alpha - 1)*(x + 1)**(-alpha - betap)/beta(alpha, betap)
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 365, in pdf
+    return x**(alpha - 1)*(1 + x)**(-alpha - beta)/beta_fn(alpha, beta)
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 140, in __mul__
+    return Mul(self, other)
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 603, in _eval_is_finite
+    if self.exp.is_negative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 676, in _eval_is_negative
+    if s != self and s.is_negative and a.is_nonpositive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 679, in _eval_is_negative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_____________ sympy/stats/tests/test_continuous_rv.py:test_cauchy ______________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 238, in test_cauchy
+    assert density(X)(x) == 1/(pi*gamma*(1 + (x - x0)**2/gamma**2))
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 426, in pdf
+    return 1/(pi*self.gamma*(1 + ((x - self.x0)/self.gamma)**2))
+  File "/testbed/sympy/core/expr.py", line 154, in __pow__
+    return self._pow(other)
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 150, in _pow
+    return Pow(self, other)
+  File "/testbed/sympy/core/power.py", line 286, in __new__
+    obj = b._eval_power(e)
+  File "/testbed/sympy/core/mul.py", line 634, in _eval_power
+    return Mul(*[Pow(b, e, evaluate=False) for b in cargs]) * \
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 140, in __mul__
+    return Mul(self, other)
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1297, in _eval_is_odd
+    is_integer = self.is_integer
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1120, in _eval_is_integer
+    is_rational = self.is_rational
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1089, in _eval_is_rational
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/logic.py", line 78, in _fuzzy_group
+    for a in args:
+  File "/testbed/sympy/core/mul.py", line 1089, in <genexpr>
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 592, in _eval_is_positive
+    if s != self and s.is_positive and a.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 595, in _eval_is_positive
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+______________ sympy/stats/tests/test_continuous_rv.py:test_dagum ______________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 269, in test_dagum
+    assert density(X)(x) == a*p*(x/b)**(a*p)*((x/b)**a + 1)**(-p - 1)/x
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 673, in pdf
+    return a*p/x*((x/b)**(a*p)/(((x/b)**a + 1)**(p + 1)))
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 177, in __div__
+    return Mul(self, Pow(other, S.NegativeOne))
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 425, in flatten
+    if e.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 676, in _eval_is_negative
+    if s != self and s.is_negative and a.is_nonpositive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 679, in _eval_is_negative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_____________ sympy/stats/tests/test_continuous_rv.py:test_erlang ______________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 279, in test_erlang
+    assert density(X)(x) == x**(k - 1)*l**k*exp(-x*l)/gamma(k)
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 1115, in pdf
+    return x**(k - 1) * exp(-x/theta) / (gamma(k)*theta**k)
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 140, in __mul__
+    return Mul(self, other)
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 1 more time]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 590, in _eval_is_imaginary
+    if self.exp.is_negative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 679, in _eval_is_negative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+___________ sympy/stats/tests/test_continuous_rv.py:test_exponential ___________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 289, in test_exponential
+    assert variance(X) == 1/rate**2
+  File "/testbed/sympy/stats/rv_interface.py", line 57, in variance
+    return cmoment(X, 2, condition, **kwargs)
+  File "/testbed/sympy/stats/rv_interface.py", line 162, in cmoment
+    return moment(X, n, mu, condition, **kwargs)
+  File "/testbed/sympy/stats/rv_interface.py", line 32, in moment
+    return expectation((X - c)**n, condition, **kwargs)
+  File "/testbed/sympy/stats/rv.py", line 583, in expectation
+    return result.doit(**kwargs)
+  File "/testbed/sympy/integrals/integrals.py", line 396, in doit
+    if self.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/integrals/integrals.py", line 113, in _eval_is_zero
+    if self.function.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1105, in _eval_is_zero
+    z = a.is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 673, in _eval_is_negative
+    v = _monotonic_sign(a)
+  File "/testbed/sympy/core/exprtools.py", line 68, in _monotonic_sign
+    if not self.is_real:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 4 more times]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 564, in _eval_is_odd
+    l = [f for f in self.args if not (f.is_even is True)]
+  File "/testbed/sympy/core/add.py", line 564, in <listcomp>
+    l = [f for f in self.args if not (f.is_even is True)]
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1321, in _eval_is_even
+    is_integer = self.is_integer
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1120, in _eval_is_integer
+    is_rational = self.is_rational
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1089, in _eval_is_rational
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/logic.py", line 78, in _fuzzy_group
+    for a in args:
+  File "/testbed/sympy/core/mul.py", line 1089, in <genexpr>
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 2 more times]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 522, in _eval_is_imaginary
+    if b.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 1 more time]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 522, in _eval_is_imaginary
+    if b.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 645, in _eval_is_nonnegative
+    if s != self and s.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 648, in _eval_is_nonnegative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_________ sympy/stats/tests/test_continuous_rv.py:test_f_distribution __________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 306, in test_f_distribution
+    assert density(X)(x) == (d2**(d2/2)*sqrt((d1*x)**d1*(d1*x + d2)**(-d1 - d2))
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 905, in pdf
+    return (sqrt((d1*x)**d1*d2**d2 / (d1*x+d2)**(d1+d2))
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 177, in __div__
+    return Mul(self, Pow(other, S.NegativeOne))
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 3 more times]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1120, in _eval_is_integer
+    is_rational = self.is_rational
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1089, in _eval_is_rational
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/logic.py", line 78, in _fuzzy_group
+    for a in args:
+  File "/testbed/sympy/core/mul.py", line 1089, in <genexpr>
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 3 more times]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 522, in _eval_is_imaginary
+    if b.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 592, in _eval_is_positive
+    if s != self and s.is_positive and a.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 595, in _eval_is_positive
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+____________ sympy/stats/tests/test_continuous_rv.py:test_fisher_z _____________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 314, in test_fisher_z
+    assert density(X)(x) == (2*d1**(d1/2)*d2**(d2/2)*(d1*exp(2*x) + d2)
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 975, in pdf
+    return (2*d1**(d1/2)*d2**(d2/2) / beta_fn(d1/2, d2/2) *
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 140, in __mul__
+    return Mul(self, other)
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1105, in _eval_is_zero
+    z = a.is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 645, in _eval_is_nonnegative
+    if s != self and s.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 648, in _eval_is_nonnegative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_____________ sympy/stats/tests/test_continuous_rv.py:test_frechet _____________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 323, in test_frechet
+    assert density(X)(x) == a*((x - m)/s)**(-a - 1)*exp(-((x - m)/s)**(-a))/s
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 1049, in pdf
+    return a/s * ((x-m)/s)**(-1-a) * exp(-((x-m)/s)**(-a))
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 140, in __mul__
+    return Mul(self, other)
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 425, in flatten
+    if e.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 676, in _eval_is_negative
+    if s != self and s.is_negative and a.is_nonpositive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 679, in _eval_is_negative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+______________ sympy/stats/tests/test_continuous_rv.py:test_gamma ______________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 332, in test_gamma
+    assert density(X)(x) == x**(k - 1)*theta**(-k)*exp(-x/theta)/gamma(k)
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 1115, in pdf
+    return x**(k - 1) * exp(-x/theta) / (gamma(k)*theta**k)
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 140, in __mul__
+    return Mul(self, other)
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1191, in _eval_is_algebraic
+    elif self.exp.is_rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 1 more time]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 645, in _eval_is_nonnegative
+    if s != self and s.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 648, in _eval_is_nonnegative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+__________ sympy/stats/tests/test_continuous_rv.py:test_gamma_inverse __________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 354, in test_gamma_inverse
+    assert density(X)(x) == x**(-a - 1)*b**a*exp(-b/x)/gamma(a)
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 1207, in pdf
+    return b**a/gamma(a) * x**(-a-1) * exp(-b/x)
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 177, in __div__
+    return Mul(self, Pow(other, S.NegativeOne))
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 1 more time]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 645, in _eval_is_nonnegative
+    if s != self and s.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 648, in _eval_is_nonnegative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_____________ sympy/stats/tests/test_continuous_rv.py:test_gumbel ______________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 371, in test_gumbel
+    assert simplify(density(X)(x)) == exp((beta*exp((mu - x)/beta) + mu - x)/beta)/beta
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 1271, in pdf
+    return (1/beta)*exp(-((x-mu)/beta)+exp(-((x-mu)/beta)))
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 140, in __mul__
+    return Mul(self, other)
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 425, in flatten
+    if e.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 537, in _eval_is_zero
+    if a.is_real:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1330, in _eval_is_composite
+    if self.is_integer and self.is_positive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1120, in _eval_is_integer
+    is_rational = self.is_rational
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1089, in _eval_is_rational
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/logic.py", line 78, in _fuzzy_group
+    for a in args:
+  File "/testbed/sympy/core/mul.py", line 1089, in <genexpr>
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 2 more times]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 592, in _eval_is_positive
+    if s != self and s.is_positive and a.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 595, in _eval_is_positive
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+___________ sympy/stats/tests/test_continuous_rv.py:test_kumaraswamy ___________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 379, in test_kumaraswamy
+    assert density(X)(x) == x**(a - 1)*a*b*(-x**a + 1)**(b - 1)
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 1392, in pdf
+    return a * b * x**(a-1) * (1-x**a)**(b-1)
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 140, in __mul__
+    return Mul(self, other)
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 425, in flatten
+    if e.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 676, in _eval_is_negative
+    if s != self and s.is_negative and a.is_nonpositive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 679, in _eval_is_negative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_____________ sympy/stats/tests/test_continuous_rv.py:test_laplace _____________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 390, in test_laplace
+    assert density(X)(x) == exp(-Abs(x - mu)/b)/(2*b)
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 1452, in pdf
+    return 1/(2*b)*exp(-Abs(x - mu)/b)
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 140, in __mul__
+    return Mul(self, other)
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 425, in flatten
+    if e.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1120, in _eval_is_integer
+    is_rational = self.is_rational
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1089, in _eval_is_rational
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/logic.py", line 78, in _fuzzy_group
+    for a in args:
+  File "/testbed/sympy/core/mul.py", line 1089, in <genexpr>
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 676, in _eval_is_negative
+    if s != self and s.is_negative and a.is_nonpositive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 679, in _eval_is_negative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+____________ sympy/stats/tests/test_continuous_rv.py:test_logistic _____________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 399, in test_logistic
+    assert density(X)(x) == exp((-x + mu)/s)/(s*(exp((-x + mu)/s) + 1)**2)
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 1508, in pdf
+    return exp(-(x - mu)/s)/(s*(1 + exp(-(x - mu)/s))**2)
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 177, in __div__
+    return Mul(self, Pow(other, S.NegativeOne))
+  File "/testbed/sympy/core/power.py", line 286, in __new__
+    obj = b._eval_power(e)
+  File "/testbed/sympy/core/mul.py", line 634, in _eval_power
+    return Mul(*[Pow(b, e, evaluate=False) for b in cargs]) * \
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 140, in __mul__
+    return Mul(self, other)
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1105, in _eval_is_zero
+    z = a.is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 462, in _eval_is_zero
+    if self.base.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 537, in _eval_is_zero
+    if a.is_real:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/functions/elementary/exponential.py", line 377, in _eval_is_real
+    if self.args[0].is_real:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1297, in _eval_is_odd
+    is_integer = self.is_integer
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1120, in _eval_is_integer
+    is_rational = self.is_rational
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1089, in _eval_is_rational
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/logic.py", line 78, in _fuzzy_group
+    for a in args:
+  File "/testbed/sympy/core/mul.py", line 1089, in <genexpr>
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 3 more times]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 522, in _eval_is_imaginary
+    if b.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 676, in _eval_is_negative
+    if s != self and s.is_negative and a.is_nonpositive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 679, in _eval_is_negative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+____________ sympy/stats/tests/test_continuous_rv.py:test_lognormal ____________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 423, in test_lognormal
+    assert density(X)(x) == (sqrt(2)*exp(-(-mu + log(x))**2
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 1566, in pdf
+    return exp(-(log(x) - mean)**2 / (2*std**2)) / (x*sqrt(2*pi)*std)
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 177, in __div__
+    return Mul(self, Pow(other, S.NegativeOne))
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 425, in flatten
+    if e.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 1 more time]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1330, in _eval_is_composite
+    if self.is_integer and self.is_positive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1120, in _eval_is_integer
+    is_rational = self.is_rational
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1089, in _eval_is_rational
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/logic.py", line 78, in _fuzzy_group
+    for a in args:
+  File "/testbed/sympy/core/mul.py", line 1089, in <genexpr>
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 2 more times]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 2 more times]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 522, in _eval_is_imaginary
+    if b.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 592, in _eval_is_positive
+    if s != self and s.is_positive and a.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 595, in _eval_is_positive
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_____________ sympy/stats/tests/test_continuous_rv.py:test_maxwell _____________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 437, in test_maxwell
+    assert E(X) == 2*sqrt(2)*a/sqrt(pi)
+  File "/testbed/sympy/stats/rv.py", line 583, in expectation
+    return result.doit(**kwargs)
+  File "/testbed/sympy/integrals/integrals.py", line 510, in doit
+    ret = try_meijerg(function, xab)
+  File "/testbed/sympy/integrals/integrals.py", line 482, in try_meijerg
+    res = meijerint_definite(function, x, a, b)
+  File "/testbed/sympy/integrals/meijerint.py", line 1765, in meijerint_definite
+    f = f.subs(x, d)
+  File "/testbed/sympy/core/basic.py", line 920, in subs
+    rv = rv._subs(old, new, **kwargs)
+  File "/testbed/sympy/core/basic.py", line 1034, in _subs
+    rv = fallback(self, old, new)
+  File "/testbed/sympy/core/basic.py", line 1011, in fallback
+    rv = self.func(*args)
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 425, in flatten
+    if e.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1096, in _eval_is_algebraic
+    r = _fuzzy_group((a.is_algebraic for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/logic.py", line 78, in _fuzzy_group
+    for a in args:
+  File "/testbed/sympy/core/mul.py", line 1096, in <genexpr>
+    r = _fuzzy_group((a.is_algebraic for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 645, in _eval_is_nonnegative
+    if s != self and s.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 648, in _eval_is_nonnegative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+____________ sympy/stats/tests/test_continuous_rv.py:test_nakagami _____________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 446, in test_nakagami
+    assert density(X)(x) == (2*x**(2*mu - 1)*mu**mu*omega**(-mu)
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 1718, in pdf
+    return 2*mu**mu/(gamma(mu)*omega**mu)*x**(2*mu - 1)*exp(-mu/omega*x**2)
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 177, in __div__
+    return Mul(self, Pow(other, S.NegativeOne))
+  File "/testbed/sympy/core/power.py", line 286, in __new__
+    obj = b._eval_power(e)
+  File "/testbed/sympy/core/mul.py", line 634, in _eval_power
+    return Mul(*[Pow(b, e, evaluate=False) for b in cargs]) * \
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 462, in _eval_is_zero
+    if self.base.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 522, in _eval_is_imaginary
+    if b.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 592, in _eval_is_positive
+    if s != self and s.is_positive and a.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 595, in _eval_is_positive
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_____________ sympy/stats/tests/test_continuous_rv.py:test_pareto ______________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 460, in test_pareto
+    X = Pareto('x', xm, alpha)
+  File "/testbed/sympy/stats/crv_types.py", line 1950, in Pareto
+    return rv(name, ParetoDistribution, (xm, alpha))
+  File "/testbed/sympy/stats/crv_types.py", line 138, in rv
+    dist.check(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 1889, in check
+    _value_check(alpha > 0, "Alpha must be positive")
+  File "/testbed/sympy/core/expr.py", line 321, in __gt__
+    if dif.is_positive is not None and \
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 592, in _eval_is_positive
+    if s != self and s.is_positive and a.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 595, in _eval_is_positive
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_________ sympy/stats/tests/test_continuous_rv.py:test_pareto_numeric __________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 476, in test_pareto_numeric
+    assert E(X) == alpha*xm/S(alpha - 1)
+  File "/testbed/sympy/stats/rv.py", line 583, in expectation
+    return result.doit(**kwargs)
+  File "/testbed/sympy/integrals/integrals.py", line 510, in doit
+    ret = try_meijerg(function, xab)
+  File "/testbed/sympy/integrals/integrals.py", line 482, in try_meijerg
+    res = meijerint_definite(function, x, a, b)
+  File "/testbed/sympy/integrals/meijerint.py", line 1820, in meijerint_definite
+    res = _meijerint_definite_2(f.subs(x, x + split)
+  File "/testbed/sympy/integrals/meijerint.py", line 1903, in _meijerint_definite_2
+    f = f.subs(x, dummy)
+  File "/testbed/sympy/core/basic.py", line 920, in subs
+    rv = rv._subs(old, new, **kwargs)
+  File "/testbed/sympy/core/basic.py", line 1034, in _subs
+    rv = fallback(self, old, new)
+  File "/testbed/sympy/core/basic.py", line 1006, in fallback
+    arg = arg._subs(old, new, **hints)
+  File "/testbed/sympy/core/basic.py", line 1034, in _subs
+    rv = fallback(self, old, new)
+  File "/testbed/sympy/core/basic.py", line 1011, in fallback
+    rv = self.func(*args)
+  File "/testbed/sympy/functions/special/delta_functions.py", line 460, in __new__
+    return super(cls, cls).__new__(cls, arg, **options)
+  File "/testbed/sympy/core/function.py", line 439, in __new__
+    result = super(Function, cls).__new__(cls, *args, **options)
+  File "/testbed/sympy/core/function.py", line 250, in __new__
+    evaluated = cls.eval(*args)
+  File "/testbed/sympy/functions/special/delta_functions.py", line 512, in eval
+    if arg.is_negative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 676, in _eval_is_negative
+    if s != self and s.is_negative and a.is_nonpositive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 679, in _eval_is_negative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+__________ sympy/stats/tests/test_continuous_rv.py:test_raised_cosine __________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 486, in test_raised_cosine
+    assert density(X)(x) == (Piecewise(((cos(pi*(x - mu)/s) + 1)/(2*s),
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 2043, in pdf
+    ((1+cos(pi*(x-mu)/s)) / (2*s), And(mu-s<=x, x<=mu+s)),
+  File "/testbed/sympy/core/function.py", line 439, in __new__
+    result = super(Function, cls).__new__(cls, *args, **options)
+  File "/testbed/sympy/core/function.py", line 250, in __new__
+    evaluated = cls.eval(*args)
+  File "/testbed/sympy/functions/elementary/trigonometric.py", line 546, in eval
+    i_coeff = arg.as_coefficient(S.ImaginaryUnit)
+  File "/testbed/sympy/core/expr.py", line 1531, in as_coefficient
+    r = self.extract_multiplicatively(expr)
+  File "/testbed/sympy/core/expr.py", line 2018, in extract_multiplicatively
+    quotient = self / c
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 177, in __div__
+    return Mul(self, Pow(other, S.NegativeOne))
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1297, in _eval_is_odd
+    is_integer = self.is_integer
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1120, in _eval_is_integer
+    is_rational = self.is_rational
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1089, in _eval_is_rational
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/logic.py", line 78, in _fuzzy_group
+    for a in args:
+  File "/testbed/sympy/core/mul.py", line 1089, in <genexpr>
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 2 more times]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 522, in _eval_is_imaginary
+    if b.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 676, in _eval_is_negative
+    if s != self and s.is_negative and a.is_nonpositive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 679, in _eval_is_negative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+____________ sympy/stats/tests/test_continuous_rv.py:test_rayleigh _____________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 495, in test_rayleigh
+    assert E(X) == sqrt(2)*sqrt(pi)*sigma/2
+  File "/testbed/sympy/stats/rv.py", line 583, in expectation
+    return result.doit(**kwargs)
+  File "/testbed/sympy/integrals/integrals.py", line 510, in doit
+    ret = try_meijerg(function, xab)
+  File "/testbed/sympy/integrals/integrals.py", line 482, in try_meijerg
+    res = meijerint_definite(function, x, a, b)
+  File "/testbed/sympy/integrals/meijerint.py", line 1765, in meijerint_definite
+    f = f.subs(x, d)
+  File "/testbed/sympy/core/basic.py", line 920, in subs
+    rv = rv._subs(old, new, **kwargs)
+  File "/testbed/sympy/core/basic.py", line 1034, in _subs
+    rv = fallback(self, old, new)
+  File "/testbed/sympy/core/basic.py", line 1011, in fallback
+    rv = self.func(*args)
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 425, in flatten
+    if e.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1120, in _eval_is_integer
+    is_rational = self.is_rational
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1089, in _eval_is_rational
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/logic.py", line 78, in _fuzzy_group
+    for a in args:
+  File "/testbed/sympy/core/mul.py", line 1089, in <genexpr>
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 592, in _eval_is_positive
+    if s != self and s.is_positive and a.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 595, in _eval_is_positive
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+____________ sympy/stats/tests/test_continuous_rv.py:test_studentt _____________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 510, in test_studentt
+    assert density(X)(x) == (1 + x**2/nu)**(-nu/2 - 1/2)/(sqrt(nu)*beta(1/2, nu/2))
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 2234, in pdf
+    return 1/(sqrt(nu)*beta_fn(S(1)/2, nu/2))*(1 + x**2/nu)**(-(nu + 1)/2)
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 182, in __rdiv__
+    return Mul(other, Pow(self, S.NegativeOne))
+  File "/testbed/sympy/core/power.py", line 286, in __new__
+    obj = b._eval_power(e)
+  File "/testbed/sympy/core/mul.py", line 634, in _eval_power
+    return Mul(*[Pow(b, e, evaluate=False) for b in cargs]) * \
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 140, in __mul__
+    return Mul(self, other)
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1330, in _eval_is_composite
+    if self.is_integer and self.is_positive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1120, in _eval_is_integer
+    is_rational = self.is_rational
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1089, in _eval_is_rational
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/logic.py", line 78, in _fuzzy_group
+    for a in args:
+  File "/testbed/sympy/core/mul.py", line 1089, in <genexpr>
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 2 more times]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 522, in _eval_is_imaginary
+    if b.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 676, in _eval_is_negative
+    if s != self and s.is_negative and a.is_nonpositive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 679, in _eval_is_negative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_____________ sympy/stats/tests/test_continuous_rv.py:test_uniform _____________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 560, in test_uniform
+    assert simplify(E(X)) == l + w/2
+  File "/testbed/sympy/simplify/simplify.py", line 557, in simplify
+    expr = Mul(*powsimp(expr).as_content_primitive())
+  File "/testbed/sympy/simplify/powsimp.py", line 118, in powsimp
+    expr = expr.func(*[recurse(w) for w in expr.args])
+  File "/testbed/sympy/simplify/powsimp.py", line 118, in <listcomp>
+    expr = expr.func(*[recurse(w) for w in expr.args])
+  File "/testbed/sympy/simplify/powsimp.py", line 109, in recurse
+    return powsimp(arg, _deep, _combine, _force, _measure)
+  File "/testbed/sympy/simplify/powsimp.py", line 121, in powsimp
+    return recurse(expr*_y, deep=False)/_y
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 177, in __div__
+    return Mul(self, Pow(other, S.NegativeOne))
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1089, in _eval_is_rational
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/logic.py", line 78, in _fuzzy_group
+    for a in args:
+  File "/testbed/sympy/core/mul.py", line 1089, in <genexpr>
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 2 more times]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 522, in _eval_is_imaginary
+    if b.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 676, in _eval_is_negative
+    if s != self and s.is_negative and a.is_nonpositive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 679, in _eval_is_negative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+____________ sympy/stats/tests/test_continuous_rv.py:test_uniform_P ____________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 592, in test_uniform_P
+    assert P(X < l) == 0 and P(X > l + w) == 0
+  File "/testbed/sympy/stats/rv.py", line 647, in probability
+    return result.doit()
+  File "/testbed/sympy/integrals/integrals.py", line 396, in doit
+    if self.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/integrals/integrals.py", line 113, in _eval_is_zero
+    if self.function.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/functions/elementary/piecewise.py", line 850, in <lambda>
+    _eval_is_even = lambda self: self._eval_template_is_attr('is_even')
+  File "/testbed/sympy/functions/elementary/piecewise.py", line 838, in _eval_template_is_attr
+    a = getattr(expr, is_attr)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 592, in _eval_is_positive
+    if s != self and s.is_positive and a.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 595, in _eval_is_positive
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_____________ sympy/stats/tests/test_continuous_rv.py:test_weibull _____________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 617, in test_weibull
+    assert simplify(E(X)) == simplify(a * gamma(1 + 1/b))
+  File "/testbed/sympy/stats/rv.py", line 581, in expectation
+    result = pspace(expr).integrate(expr)
+  File "/testbed/sympy/stats/crv.py", line 424, in integrate
+    return Integral(expr * self.pdf, (x, self.set), **kwargs)
+  File "/testbed/sympy/stats/crv.py", line 281, in pdf
+    return self.density(*self.domain.symbols)
+  File "/testbed/sympy/stats/crv.py", line 144, in __call__
+    return self.pdf(*args)
+  File "/testbed/sympy/stats/crv_types.py", line 2706, in pdf
+    return beta * (x/alpha)**(beta - 1) * exp(-(x/alpha)**beta) / alpha
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 140, in __mul__
+    return Mul(self, other)
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 425, in flatten
+    if e.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 592, in _eval_is_positive
+    if s != self and s.is_positive and a.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 595, in _eval_is_positive
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_________ sympy/stats/tests/test_continuous_rv.py:test_weibull_numeric _________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 628, in test_weibull_numeric
+    assert simplify(E(X)) == expand_func(a * gamma(1 + 1/S(b)))
+  File "/testbed/sympy/stats/rv.py", line 583, in expectation
+    return result.doit(**kwargs)
+  File "/testbed/sympy/integrals/integrals.py", line 510, in doit
+    ret = try_meijerg(function, xab)
+  File "/testbed/sympy/integrals/integrals.py", line 482, in try_meijerg
+    res = meijerint_definite(function, x, a, b)
+  File "/testbed/sympy/integrals/meijerint.py", line 1808, in meijerint_definite
+    res = _meijerint_definite_2(f, x)
+  File "/testbed/sympy/integrals/meijerint.py", line 1911, in _meijerint_definite_2
+    res = _meijerint_definite_3(g, x)
+  File "/testbed/sympy/integrals/meijerint.py", line 1923, in _meijerint_definite_3
+    res = _meijerint_definite_4(f, x)
+  File "/testbed/sympy/integrals/meijerint.py", line 1968, in _meijerint_definite_4
+    C, f = _rewrite_saxena_1(fac*C, po*x**s, f, x)
+  File "/testbed/sympy/integrals/meijerint.py", line 704, in _rewrite_saxena_1
+    _, s = _get_coeff_exp(po, x)
+  File "/testbed/sympy/integrals/meijerint.py", line 324, in _get_coeff_exp
+    (c, m) = expand_power_base(powsimp(expr)).as_coeff_mul(x)
+  File "/testbed/sympy/simplify/powsimp.py", line 121, in powsimp
+    return recurse(expr*_y, deep=False)/_y
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 177, in __div__
+    return Mul(self, Pow(other, S.NegativeOne))
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1096, in _eval_is_algebraic
+    r = _fuzzy_group((a.is_algebraic for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/logic.py", line 78, in _fuzzy_group
+    for a in args:
+  File "/testbed/sympy/core/mul.py", line 1096, in <genexpr>
+    r = _fuzzy_group((a.is_algebraic for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 3 more times]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 522, in _eval_is_imaginary
+    if b.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 1 more time]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 522, in _eval_is_imaginary
+    if b.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 1 more time]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 522, in _eval_is_imaginary
+    if b.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 676, in _eval_is_negative
+    if s != self and s.is_negative and a.is_nonpositive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 679, in _eval_is_negative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+________ sympy/stats/tests/test_continuous_rv.py:test_wignersemicircle _________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 638, in test_wignersemicircle
+    assert density(X)(x) == 2*sqrt(-x**2 + R**2)/(pi*R**2)
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 177, in __div__
+    return Mul(self, Pow(other, S.NegativeOne))
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1105, in _eval_is_zero
+    z = a.is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 462, in _eval_is_zero
+    if self.base.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 1 more time]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 495, in <lambda>
+    _eval_is_integer = lambda self: _fuzzy_group(
+  File "/testbed/sympy/core/logic.py", line 78, in _fuzzy_group
+    for a in args:
+  File "/testbed/sympy/core/add.py", line 496, in <genexpr>
+    (a.is_integer for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 2 more times]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 676, in _eval_is_negative
+    if s != self and s.is_negative and a.is_nonpositive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 679, in _eval_is_negative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_______ sympy/stats/tests/test_continuous_rv.py:test_NormalDistribution ________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 709, in test_NormalDistribution
+    assert nd.expectation(1, x) == 1
+  File "/testbed/sympy/stats/crv.py", line 247, in expectation
+    return integral.doit() if evaluate else integral
+  File "/testbed/sympy/integrals/integrals.py", line 510, in doit
+    ret = try_meijerg(function, xab)
+  File "/testbed/sympy/integrals/integrals.py", line 482, in try_meijerg
+    res = meijerint_definite(function, x, a, b)
+  File "/testbed/sympy/integrals/meijerint.py", line 1785, in meijerint_definite
+    res1 = _meijerint_definite_2(f.subs(x, x + c), x)
+  File "/testbed/sympy/integrals/meijerint.py", line 1911, in _meijerint_definite_2
+    res = _meijerint_definite_3(g, x)
+  File "/testbed/sympy/integrals/meijerint.py", line 1923, in _meijerint_definite_3
+    res = _meijerint_definite_4(f, x)
+  File "/testbed/sympy/integrals/meijerint.py", line 1968, in _meijerint_definite_4
+    C, f = _rewrite_saxena_1(fac*C, po*x**s, f, x)
+  File "/testbed/sympy/integrals/meijerint.py", line 705, in _rewrite_saxena_1
+    a, b = _get_coeff_exp(g.argument, x)
+  File "/testbed/sympy/integrals/meijerint.py", line 324, in _get_coeff_exp
+    (c, m) = expand_power_base(powsimp(expr)).as_coeff_mul(x)
+  File "/testbed/sympy/simplify/powsimp.py", line 118, in powsimp
+    expr = expr.func(*[recurse(w) for w in expr.args])
+  File "/testbed/sympy/simplify/powsimp.py", line 118, in <listcomp>
+    expr = expr.func(*[recurse(w) for w in expr.args])
+  File "/testbed/sympy/simplify/powsimp.py", line 109, in recurse
+    return powsimp(arg, _deep, _combine, _force, _measure)
+  File "/testbed/sympy/simplify/powsimp.py", line 121, in powsimp
+    return recurse(expr*_y, deep=False)/_y
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 177, in __div__
+    return Mul(self, Pow(other, S.NegativeOne))
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 1 more time]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1321, in _eval_is_even
+    is_integer = self.is_integer
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1120, in _eval_is_integer
+    is_rational = self.is_rational
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1089, in _eval_is_rational
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/logic.py", line 78, in _fuzzy_group
+    for a in args:
+  File "/testbed/sympy/core/mul.py", line 1089, in <genexpr>
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 676, in _eval_is_negative
+    if s != self and s.is_negative and a.is_nonpositive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 679, in _eval_is_negative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+______ sympy/stats/tests/test_continuous_rv.py:test_difficult_univariate _______
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 741, in test_difficult_univariate
+    assert density(x**3)
+  File "/testbed/sympy/stats/rv.py", line 723, in density
+    return Density(expr, condition).doit(evaluate=evaluate, **kwargs)
+  File "/testbed/sympy/stats/rv.py", line 673, in doit
+    result = pspace(expr).compute_density(expr, **kwargs)
+  File "/testbed/sympy/stats/crv.py", line 454, in compute_density
+    fy = sum(fx(g) * abs(g.diff(y)) for g in gs)
+  File "/testbed/sympy/stats/crv.py", line 454, in <genexpr>
+    fy = sum(fx(g) * abs(g.diff(y)) for g in gs)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_________ sympy/stats/tests/test_continuous_rv.py:test_precomputed_cdf _________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 766, in test_precomputed_cdf
+    compdiff = cdf(X)(x) - simplify(X.pspace.density.compute_cdf()(x))
+  File "/testbed/sympy/stats/rv.py", line 760, in cdf
+    result = pspace(expr).compute_cdf(expr, **kwargs)
+  File "/testbed/sympy/stats/crv.py", line 429, in compute_cdf
+    return Lambda(z, self.distribution.cdf(z, **kwargs))
+  File "/testbed/sympy/stats/crv.py", line 217, in cdf
+    cdf = self._cdf(x)
+  File "/testbed/sympy/stats/crv_types.py", line 1803, in _cdf
+    return erf(sqrt(2)*(-mean + x)/(2*std))/2 + S.Half
+  File "/testbed/sympy/core/function.py", line 439, in __new__
+    result = super(Function, cls).__new__(cls, *args, **options)
+  File "/testbed/sympy/core/function.py", line 250, in __new__
+    evaluated = cls.eval(*args)
+  File "/testbed/sympy/functions/special/error_functions.py", line 135, in eval
+    t = arg.extract_multiplicatively(S.ImaginaryUnit)
+  File "/testbed/sympy/core/expr.py", line 2018, in extract_multiplicatively
+    quotient = self / c
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 177, in __div__
+    return Mul(self, Pow(other, S.NegativeOne))
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1089, in _eval_is_rational
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/logic.py", line 78, in _fuzzy_group
+    for a in args:
+  File "/testbed/sympy/core/mul.py", line 1089, in <genexpr>
+    r = _fuzzy_group((a.is_rational for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  [Previous line repeated 1 more time]
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1189, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1184, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 592, in _eval_is_positive
+    if s != self and s.is_positive and a.is_nonnegative:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 595, in _eval_is_positive
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3009, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+______ sympy/stats/tests/test_continuous_rv.py:test_long_precomputed_cdf _______
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 788, in test_long_precomputed_cdf
+    assert tn(diff(cdf(distr)(x), x), density(distr)(x), x, a=0, b=0, c=1, d=0)
+  File "/testbed/sympy/core/function.py", line 1972, in diff
+    return Derivative(f, *symbols, **kwargs)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+
+________________________________________________________________________________
+_____________ sympy/stats/tests/test_continuous_rv.py:test_arcsin ______________
+  File "/testbed/sympy/stats/tests/test_continuous_rv.py", line 188, in test_arcsin
+    assert cdf(X)(x) == Piecewise((0, a > x),
+AssertionError
+
+ tests finished: 20 passed, 1 failed, 2 skipped, 4 expected to fail, 
+36 exceptions, in 41.32 seconds 
+DO *NOT* COMMIT!
++ git checkout 7b127bdf71a36d85216315f80c1b54d22b060818 sympy/stats/tests/test_continuous_rv.py
+Updated 1 path from cd5cc788ab

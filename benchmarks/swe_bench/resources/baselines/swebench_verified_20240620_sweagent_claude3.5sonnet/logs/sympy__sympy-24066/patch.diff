@@ -1,0 +1,46 @@
+
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..17583f2fa9
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,13 @@
++from sympy import exp
++from sympy.physics import units
++from sympy.physics.units.systems.si import SI
++
++expr = units.second / (units.ohm * units.farad)
++dim = SI._collect_factor_and_dimension(expr)[1]
++
++assert SI.get_dimension_system().is_dimensionless(dim)
++
++buggy_expr = 100 + exp(expr)
++SI._collect_factor_and_dimension(buggy_expr)
++
++print("Script completed successfully, no errors.")
+diff --git a/sympy/physics/units/unitsystem.py b/sympy/physics/units/unitsystem.py
+index 3daf84c108..184d8519d5 100644
+--- a/sympy/physics/units/unitsystem.py
++++ b/sympy/physics/units/unitsystem.py
+@@ -5,10 +5,11 @@
+ from typing import Dict as tDict, Set as tSet
+ 
+ from sympy.core.add import Add
+-from sympy.core.function import (Derivative, Function)
++from sympy.core.function import Derivative, Function
+ from sympy.core.mul import Mul
+ from sympy.core.power import Pow
+ from sympy.core.singleton import S
++from sympy import exp
+ from sympy.physics.units.dimensions import _QuantityMapper
+ from sympy.physics.units.quantities import Quantity
+ 
+@@ -190,6 +191,8 @@ def _collect_factor_and_dimension(self, expr):
+                 dim /= idim**count
+             return factor, dim
+         elif isinstance(expr, Function):
++            if expr.func == exp:
++                return expr, Dimension(1)
+             fds = [self._collect_factor_and_dimension(
+                 arg) for arg in expr.args]
+             return (expr.func(*(f[0] for f in fds)),

@@ -1,0 +1,2264 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/models/expressions.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_case_crash.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 63884829acd207404f2a5c3cc1d6b4cd0a822b70
+Author: Mariusz Felisiak <felisiak.mariusz@gmail.com>
+Date:   Tue Aug 9 06:08:48 2022 +0200
+
+    Fixed #33902 -- Fixed Meta.constraints validation crash with F() expressions.
+    
+    Thanks Adam Zahradník for the report.
+    
+    Bug in 667105877e6723c6985399803a364848891513cc.
+
+diff --git a/django/db/models/constraints.py b/django/db/models/constraints.py
+index 86f015465a..8cf1f0ff20 100644
+--- a/django/db/models/constraints.py
++++ b/django/db/models/constraints.py
+@@ -326,9 +326,12 @@ class UniqueConstraint(BaseConstraint):
+             # Ignore constraints with excluded fields.
+             if exclude:
+                 for expression in self.expressions:
+-                    for expr in expression.flatten():
+-                        if isinstance(expr, F) and expr.name in exclude:
+-                            return
++                    if hasattr(expression, "flatten"):
++                        for expr in expression.flatten():
++                            if isinstance(expr, F) and expr.name in exclude:
++                                return
++                    elif isinstance(expression, F) and expression.name in exclude:
++                        return
+             replacement_map = instance._get_field_value_map(
+                 meta=model._meta, exclude=exclude
+             )
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index 5d23c1572f..822968ef56 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -393,9 +393,7 @@ class BaseExpression:
+         clone = self.copy()
+         clone.set_source_expressions(
+             [
+-                references_map.get(expr.name, expr)
+-                if isinstance(expr, F)
+-                else expr.replace_references(references_map)
++                expr.replace_references(references_map)
+                 for expr in self.get_source_expressions()
+             ]
+         )
+@@ -810,6 +808,9 @@ class F(Combinable):
+     ):
+         return query.resolve_ref(self.name, allow_joins, reuse, summarize)
+ 
++    def replace_references(self, references_map):
++        return references_map.get(self.name, self)
++
+     def asc(self, **kwargs):
+         return OrderBy(self, **kwargs)
+ 
+diff --git a/docs/releases/4.1.1.txt b/docs/releases/4.1.1.txt
+index 2e61e3877d..dbac1ff926 100644
+--- a/docs/releases/4.1.1.txt
++++ b/docs/releases/4.1.1.txt
+@@ -29,3 +29,6 @@ Bugfixes
+ 
+ * Fixed a regression in Django 4.1 that caused a migration crash on SQLite
+   3.35.5+ when removing an indexed field (:ticket:`33899`).
++
++* Fixed a bug in Django 4.1 that caused a crash of model validation on
++  ``UniqueConstraint()`` with field names in ``expressions`` (:ticket:`33902`).
+diff --git a/tests/constraints/tests.py b/tests/constraints/tests.py
+index 4032b418b4..d4054dfd77 100644
+--- a/tests/constraints/tests.py
++++ b/tests/constraints/tests.py
+@@ -685,6 +685,20 @@ class UniqueConstraintTests(TestCase):
+             exclude={"color"},
+         )
+ 
++    def test_validate_expression_str(self):
++        constraint = models.UniqueConstraint("name", name="name_uniq")
++        msg = "Constraint “name_uniq” is violated."
++        with self.assertRaisesMessage(ValidationError, msg):
++            constraint.validate(
++                UniqueConstraintProduct,
++                UniqueConstraintProduct(name=self.p1.name),
++            )
++        constraint.validate(
++            UniqueConstraintProduct,
++            UniqueConstraintProduct(name=self.p1.name),
++            exclude={"name"},
++        )
++
+     def test_name(self):
+         constraints = get_constraints(UniqueConstraintProduct._meta.db_table)
+         expected_name = "name_color_uniq"
++ git diff 63884829acd207404f2a5c3cc1d6b4cd0a822b70
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index 822968ef56..5e4c0d23ff 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -1258,8 +1258,9 @@ class When(Expression):
+                 "When() supports a Q object, a boolean expression, or lookups "
+                 "as a condition."
+             )
+-        if isinstance(condition, Q) and not condition:
+-            raise ValueError("An empty Q() can't be used as a When() condition.")
++        # Remove the check for empty Q objects
++        # if isinstance(condition, Q) and not condition:
++        #     raise ValueError("An empty Q() can't be used as a When() condition.")
+         super().__init__(output_field=None)
+         self.condition = condition
+         self.result = self._parse_expressions(then)[0]
+@@ -1298,7 +1299,14 @@ class When(Expression):
+         connection.ops.check_expression_support(self)
+         template_params = extra_context
+         sql_params = []
+-        condition_sql, condition_params = compiler.compile(self.condition)
++        if isinstance(self.condition, Q) and not self.condition:
++            # Handle empty Q object by returning None
++            return None, []
++        else:
++            condition_sql, condition_params = compiler.compile(self.condition)
++        if not condition_sql.strip():
++            # Handle empty condition by returning None
++            return None, []
+         template_params["condition"] = condition_sql
+         sql_params.extend(condition_params)
+         result_sql, result_params = compiler.compile(self.result)
+@@ -1372,8 +1380,6 @@ class Case(SQLiteNumericMixin, Expression):
+     def copy(self):
+         c = super().copy()
+         c.cases = c.cases[:]
+-        return c
+-
+     def as_sql(
+         self, compiler, connection, template=None, case_joiner=None, **extra_context
+     ):
+@@ -1384,25 +1390,26 @@ class Case(SQLiteNumericMixin, Expression):
+         case_parts = []
+         sql_params = []
+         for case in self.cases:
+-            try:
+-                case_sql, case_params = compiler.compile(case)
+-            except EmptyResultSet:
+-                continue
+-            case_parts.append(case_sql)
+-            sql_params.extend(case_params)
+-        default_sql, default_params = compiler.compile(self.default)
++            case_sql, case_params = compiler.compile(case)
++            if case_sql:  # Only add non-None case parts
++                case_parts.append(case_sql)
++                sql_params.extend(case_params)
+         if not case_parts:
+-            return default_sql, default_params
+-        case_joiner = case_joiner or self.case_joiner
+-        template_params["cases"] = case_joiner.join(case_parts)
+-        template_params["default"] = default_sql
+-        sql_params.extend(default_params)
+-        template = template or template_params.get("template", self.template)
++            # If all cases are empty or None, just return the default
++            return compiler.compile(self.default)
++        template_params["cases"] = " ".join(case_parts)
++        if self.default is None:
++            template_params["default"] = "NULL"
++        else:
++            default_sql, default_params = compiler.compile(self.default)
++            template_params["default"] = default_sql
++            sql_params.extend(default_params)
++        template = template or self.template
+         sql = template % template_params
+         if self._output_field_or_none is not None:
+             sql = connection.ops.unification_cast_sql(self.output_field) % sql
++        print(f"Generated SQL for Case: {sql}")  # Add this line to print the SQL
+         return sql, sql_params
+-
+     def get_group_by_cols(self, alias=None):
+         if not self.cases:
+             return self.default.get_group_by_cols(alias)
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.5.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.2.dev20220809040848) (3.8.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.2.dev20220809040848) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from asgiref>=3.5.2->Django==4.2.dev20220809040848) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.2.dev20220809040848-0.editable-py3-none-any.whl size=27131 sha256=afec1b82de7d75015602a354802084aef1abcc969b87cac7c83e0e6eded96923
+  Stored in directory: /tmp/pip-ephem-wheel-cache-vmno3mke/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.2.dev20220809040848
+    Uninstalling Django-4.2.dev20220809040848:
+      Successfully uninstalled Django-4.2.dev20220809040848
+Successfully installed Django-4.2.dev20220809040848
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 63884829acd207404f2a5c3cc1d6b4cd0a822b70 tests/expressions_case/tests.py
+Updated 0 paths from 36bbc8a3fc
++ git apply -v -
+Checking patch tests/expressions_case/tests.py...
+Applied patch tests/expressions_case/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 expressions_case.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application expressions_case
+Found 89 test(s).
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, expressions_case, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table expressions_case_casetestmodel
+    Creating table expressions_case_o2ocasetestmodel
+    Creating table expressions_case_fkcasetestmodel
+    Creating table expressions_case_client
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+test_conditional_aggregation_example (expressions_case.tests.CaseDocumentationExamples) ... ERROR
+test_conditional_update_example (expressions_case.tests.CaseDocumentationExamples) ... ERROR
+test_filter_example (expressions_case.tests.CaseDocumentationExamples) ... ERROR
+test_hash (expressions_case.tests.CaseDocumentationExamples) ... ok
+test_lookup_example (expressions_case.tests.CaseDocumentationExamples) ... ERROR
+test_simple_example (expressions_case.tests.CaseDocumentationExamples) ... ERROR
+test_aggregate (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_aggregate_with_expression_as_condition (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_aggregate_with_expression_as_value (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_aggregation_empty_cases (expressions_case.tests.CaseExpressionTests) ... test_annotate (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_annotate_exclude (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_annotate_filter_decimal (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_annotate_values_not_in_order_by (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_annotate_with_aggregation_in_condition (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_annotate_with_aggregation_in_predicate (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_annotate_with_aggregation_in_value (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_annotate_with_annotation_in_condition (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_annotate_with_annotation_in_predicate (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_annotate_with_annotation_in_value (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_annotate_with_empty_when (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_annotate_with_expression_as_condition (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_annotate_with_expression_as_value (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_annotate_with_full_when (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_annotate_with_in_clause (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_annotate_with_join_in_condition (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_annotate_with_join_in_predicate (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_annotate_with_join_in_value (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_annotate_without_default (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_case_reuse (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_combined_expression (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_combined_q_object (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_condition_with_lookups (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_filter (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_filter_with_aggregation_in_condition (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_filter_with_aggregation_in_predicate (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_filter_with_aggregation_in_value (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_filter_with_annotation_in_condition (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_filter_with_annotation_in_predicate (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_filter_with_annotation_in_value (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_filter_with_expression_as_condition (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_filter_with_expression_as_value (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_filter_with_join_in_condition (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_filter_with_join_in_predicate (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_filter_with_join_in_value (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_filter_without_default (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_in_subquery (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_join_promotion (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_join_promotion_multiple_annotations (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_lookup_different_fields (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_lookup_in_condition (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_m2m_exclude (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_m2m_reuse (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_order_by_conditional_explicit (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_order_by_conditional_implicit (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_big_integer (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_binary (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_boolean (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_date (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_date_time (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_decimal (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_duration (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_email (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_file (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_file_path (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_fk (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_float (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_generic_ip_address (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_image (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_null_boolean (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_positive_big_integer (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_positive_integer (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_positive_small_integer (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_slug (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_small_integer (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_string (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_text (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_time (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_url (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_uuid (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_with_expression_as_condition (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_with_expression_as_value (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_with_join_in_condition_raise_field_error (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_with_join_in_predicate_raise_field_error (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_update_without_default (expressions_case.tests.CaseExpressionTests) ... ERROR
+test_empty_q_object (expressions_case.tests.CaseWhenTests) ... FAIL
+test_invalid_when_constructor_args (expressions_case.tests.CaseWhenTests) ... ok
+test_only_when_arguments (expressions_case.tests.CaseWhenTests) ... ok
+
+======================================================================
+ERROR: test_conditional_aggregation_example (expressions_case.tests.CaseDocumentationExamples)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1594, in test_conditional_aggregation_example
+    Client.objects.aggregate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 590, in aggregate
+    query.add_annotation(aggregate_expr, alias, is_summary=True)
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/aggregates.py", line 64, in resolve_expression
+    c = super().resolve_expression(query, allow_joins, reuse, summarize)
+  File "/testbed/django/db/models/expressions.py", line 920, in resolve_expression
+    c.source_expressions[pos] = arg.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_conditional_update_example (expressions_case.tests.CaseDocumentationExamples)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1555, in test_conditional_update_example
+    Client.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_filter_example (expressions_case.tests.CaseDocumentationExamples)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1618, in test_filter_example
+    Client.objects.filter(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1430, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1448, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1455, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "/testbed/django/db/models/sql/query.py", line 1535, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+  File "/testbed/django/db/models/sql/query.py", line 1565, in _add_q
+    child_clause, needed_inner = self.build_filter(
+  File "/testbed/django/db/models/sql/query.py", line 1419, in build_filter
+    value = self.resolve_lookup_value(value, can_reuse, allow_joins)
+  File "/testbed/django/db/models/sql/query.py", line 1191, in resolve_lookup_value
+    value = value.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_lookup_example (expressions_case.tests.CaseDocumentationExamples)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1541, in test_lookup_example
+    Client.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_simple_example (expressions_case.tests.CaseDocumentationExamples)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1526, in test_simple_example
+    Client.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_aggregate (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 482, in test_aggregate
+    CaseTestModel.objects.aggregate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 590, in aggregate
+    query.add_annotation(aggregate_expr, alias, is_summary=True)
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/aggregates.py", line 64, in resolve_expression
+    c = super().resolve_expression(query, allow_joins, reuse, summarize)
+  File "/testbed/django/db/models/expressions.py", line 920, in resolve_expression
+    c.source_expressions[pos] = arg.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_aggregate_with_expression_as_condition (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 519, in test_aggregate_with_expression_as_condition
+    CaseTestModel.objects.aggregate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 590, in aggregate
+    query.add_annotation(aggregate_expr, alias, is_summary=True)
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/aggregates.py", line 64, in resolve_expression
+    c = super().resolve_expression(query, allow_joins, reuse, summarize)
+  File "/testbed/django/db/models/expressions.py", line 920, in resolve_expression
+    c.source_expressions[pos] = arg.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_aggregate_with_expression_as_value (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 509, in test_aggregate_with_expression_as_value
+    CaseTestModel.objects.aggregate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 590, in aggregate
+    query.add_annotation(aggregate_expr, alias, is_summary=True)
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/aggregates.py", line 64, in resolve_expression
+    c = super().resolve_expression(query, allow_joins, reuse, summarize)
+  File "/testbed/django/db/models/expressions.py", line 920, in resolve_expression
+    c.source_expressions[pos] = arg.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_aggregation_empty_cases (expressions_case.tests.CaseExpressionTests) (case=<Case: CASE , ELSE Value(None)>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1489, in test_aggregation_empty_cases
+    CaseTestModel.objects.values("string")
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_aggregation_empty_cases (expressions_case.tests.CaseExpressionTests) (case=<Case: CASE , ELSE Value('empty')>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1489, in test_aggregation_empty_cases
+    CaseTestModel.objects.values("string")
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_aggregation_empty_cases (expressions_case.tests.CaseExpressionTests) (case=<Case: CASE , ELSE F(url)>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1489, in test_aggregation_empty_cases
+    CaseTestModel.objects.values("string")
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 84, in test_annotate
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate_exclude (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 369, in test_annotate_exclude
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate_filter_decimal (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 384, in test_annotate_filter_decimal
+    qs = CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate_values_not_in_order_by (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 394, in test_annotate_values_not_in_order_by
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate_with_aggregation_in_condition (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 317, in test_annotate_with_aggregation_in_condition
+    CaseTestModel.objects.values(*self.group_by_fields)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate_with_aggregation_in_predicate (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 343, in test_annotate_with_aggregation_in_predicate
+    CaseTestModel.objects.values(*self.group_by_fields)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate_with_aggregation_in_value (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 291, in test_annotate_with_aggregation_in_value
+    CaseTestModel.objects.values(*self.group_by_fields)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate_with_annotation_in_condition (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 241, in test_annotate_with_annotation_in_condition
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate_with_annotation_in_predicate (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 265, in test_annotate_with_annotation_in_predicate
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate_with_annotation_in_value (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 223, in test_annotate_with_annotation_in_value
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate_with_empty_when (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 409, in test_annotate_with_empty_when
+    objects = CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate_with_expression_as_condition (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 130, in test_annotate_with_expression_as_condition
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate_with_expression_as_value (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 117, in test_annotate_with_expression_as_value
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate_with_full_when (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 419, in test_annotate_with_full_when
+    objects = CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate_with_in_clause (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 164, in test_annotate_with_in_clause
+    CaseTestModel.objects.only("pk", "integer")
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/aggregates.py", line 64, in resolve_expression
+    c = super().resolve_expression(query, allow_joins, reuse, summarize)
+  File "/testbed/django/db/models/expressions.py", line 920, in resolve_expression
+    c.source_expressions[pos] = arg.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate_with_join_in_condition (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 180, in test_annotate_with_join_in_condition
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate_with_join_in_predicate (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 201, in test_annotate_with_join_in_predicate
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate_with_join_in_value (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 150, in test_annotate_with_join_in_value
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_annotate_without_default (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 105, in test_annotate_without_default
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_case_reuse (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 473, in test_case_reuse
+    CaseTestModel.objects.annotate(somecase=SOME_CASE).order_by("pk"),
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_combined_expression (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 430, in test_combined_expression
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 681, in resolve_expression
+    lhs = self.lhs.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_combined_q_object (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1304, in test_combined_q_object
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_condition_with_lookups (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 457, in test_condition_with_lookups
+    qs = CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_filter (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 536, in test_filter
+    CaseTestModel.objects.filter(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1430, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1448, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1455, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "/testbed/django/db/models/sql/query.py", line 1535, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+  File "/testbed/django/db/models/sql/query.py", line 1565, in _add_q
+    child_clause, needed_inner = self.build_filter(
+  File "/testbed/django/db/models/sql/query.py", line 1419, in build_filter
+    value = self.resolve_lookup_value(value, can_reuse, allow_joins)
+  File "/testbed/django/db/models/sql/query.py", line 1191, in resolve_lookup_value
+    value = value.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_filter_with_aggregation_in_condition (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 692, in test_filter_with_aggregation_in_condition
+    CaseTestModel.objects.values(*self.group_by_fields)
+  File "/testbed/django/db/models/query.py", line 1430, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1448, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1455, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "/testbed/django/db/models/sql/query.py", line 1535, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+  File "/testbed/django/db/models/sql/query.py", line 1565, in _add_q
+    child_clause, needed_inner = self.build_filter(
+  File "/testbed/django/db/models/sql/query.py", line 1419, in build_filter
+    value = self.resolve_lookup_value(value, can_reuse, allow_joins)
+  File "/testbed/django/db/models/sql/query.py", line 1191, in resolve_lookup_value
+    value = value.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_filter_with_aggregation_in_predicate (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 710, in test_filter_with_aggregation_in_predicate
+    CaseTestModel.objects.values(*self.group_by_fields)
+  File "/testbed/django/db/models/query.py", line 1430, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1448, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1455, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "/testbed/django/db/models/sql/query.py", line 1535, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+  File "/testbed/django/db/models/sql/query.py", line 1565, in _add_q
+    child_clause, needed_inner = self.build_filter(
+  File "/testbed/django/db/models/sql/query.py", line 1419, in build_filter
+    value = self.resolve_lookup_value(value, can_reuse, allow_joins)
+  File "/testbed/django/db/models/sql/query.py", line 1191, in resolve_lookup_value
+    value = value.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_filter_with_aggregation_in_value (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 674, in test_filter_with_aggregation_in_value
+    CaseTestModel.objects.values(*self.group_by_fields)
+  File "/testbed/django/db/models/query.py", line 1430, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1448, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1455, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "/testbed/django/db/models/sql/query.py", line 1535, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+  File "/testbed/django/db/models/sql/query.py", line 1565, in _add_q
+    child_clause, needed_inner = self.build_filter(
+  File "/testbed/django/db/models/sql/query.py", line 1419, in build_filter
+    value = self.resolve_lookup_value(value, can_reuse, allow_joins)
+  File "/testbed/django/db/models/sql/query.py", line 1191, in resolve_lookup_value
+    value = value.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_filter_with_annotation_in_condition (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 641, in test_filter_with_annotation_in_condition
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/query.py", line 1430, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1448, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1455, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "/testbed/django/db/models/sql/query.py", line 1535, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+  File "/testbed/django/db/models/sql/query.py", line 1565, in _add_q
+    child_clause, needed_inner = self.build_filter(
+  File "/testbed/django/db/models/sql/query.py", line 1419, in build_filter
+    value = self.resolve_lookup_value(value, can_reuse, allow_joins)
+  File "/testbed/django/db/models/sql/query.py", line 1191, in resolve_lookup_value
+    value = value.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_filter_with_annotation_in_predicate (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 657, in test_filter_with_annotation_in_predicate
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/query.py", line 1430, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1448, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1455, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "/testbed/django/db/models/sql/query.py", line 1535, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+  File "/testbed/django/db/models/sql/query.py", line 1565, in _add_q
+    child_clause, needed_inner = self.build_filter(
+  File "/testbed/django/db/models/sql/query.py", line 1419, in build_filter
+    value = self.resolve_lookup_value(value, can_reuse, allow_joins)
+  File "/testbed/django/db/models/sql/query.py", line 1191, in resolve_lookup_value
+    value = value.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_filter_with_annotation_in_value (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 624, in test_filter_with_annotation_in_value
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/query.py", line 1430, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1448, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1455, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "/testbed/django/db/models/sql/query.py", line 1535, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+  File "/testbed/django/db/models/sql/query.py", line 1565, in _add_q
+    child_clause, needed_inner = self.build_filter(
+  File "/testbed/django/db/models/sql/query.py", line 1419, in build_filter
+    value = self.resolve_lookup_value(value, can_reuse, allow_joins)
+  File "/testbed/django/db/models/sql/query.py", line 1191, in resolve_lookup_value
+    value = value.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_filter_with_expression_as_condition (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 574, in test_filter_with_expression_as_condition
+    CaseTestModel.objects.filter(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1430, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1448, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1455, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "/testbed/django/db/models/sql/query.py", line 1535, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+  File "/testbed/django/db/models/sql/query.py", line 1565, in _add_q
+    child_clause, needed_inner = self.build_filter(
+  File "/testbed/django/db/models/sql/query.py", line 1419, in build_filter
+    value = self.resolve_lookup_value(value, can_reuse, allow_joins)
+  File "/testbed/django/db/models/sql/query.py", line 1191, in resolve_lookup_value
+    value = value.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_filter_with_expression_as_value (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 561, in test_filter_with_expression_as_value
+    CaseTestModel.objects.filter(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1430, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1448, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1455, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "/testbed/django/db/models/sql/query.py", line 1535, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+  File "/testbed/django/db/models/sql/query.py", line 1565, in _add_q
+    child_clause, needed_inner = self.build_filter(
+  File "/testbed/django/db/models/sql/query.py", line 1419, in build_filter
+    value = self.resolve_lookup_value(value, can_reuse, allow_joins)
+  File "/testbed/django/db/models/sql/query.py", line 1191, in resolve_lookup_value
+    value = value.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_filter_with_join_in_condition (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 599, in test_filter_with_join_in_condition
+    CaseTestModel.objects.filter(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1430, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1448, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1455, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "/testbed/django/db/models/sql/query.py", line 1535, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+  File "/testbed/django/db/models/sql/query.py", line 1565, in _add_q
+    child_clause, needed_inner = self.build_filter(
+  File "/testbed/django/db/models/sql/query.py", line 1419, in build_filter
+    value = self.resolve_lookup_value(value, can_reuse, allow_joins)
+  File "/testbed/django/db/models/sql/query.py", line 1191, in resolve_lookup_value
+    value = value.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_filter_with_join_in_predicate (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 611, in test_filter_with_join_in_predicate
+    CaseTestModel.objects.filter(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1430, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1448, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1455, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "/testbed/django/db/models/sql/query.py", line 1535, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+  File "/testbed/django/db/models/sql/query.py", line 1565, in _add_q
+    child_clause, needed_inner = self.build_filter(
+  File "/testbed/django/db/models/sql/query.py", line 1419, in build_filter
+    value = self.resolve_lookup_value(value, can_reuse, allow_joins)
+  File "/testbed/django/db/models/sql/query.py", line 1191, in resolve_lookup_value
+    value = value.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_filter_with_join_in_value (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 586, in test_filter_with_join_in_value
+    CaseTestModel.objects.filter(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1430, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1448, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1455, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "/testbed/django/db/models/sql/query.py", line 1535, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+  File "/testbed/django/db/models/sql/query.py", line 1565, in _add_q
+    child_clause, needed_inner = self.build_filter(
+  File "/testbed/django/db/models/sql/query.py", line 1419, in build_filter
+    value = self.resolve_lookup_value(value, can_reuse, allow_joins)
+  File "/testbed/django/db/models/sql/query.py", line 1191, in resolve_lookup_value
+    value = value.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_filter_without_default (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 549, in test_filter_without_default
+    CaseTestModel.objects.filter(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1430, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1448, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "/testbed/django/db/models/query.py", line 1455, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "/testbed/django/db/models/sql/query.py", line 1535, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+  File "/testbed/django/db/models/sql/query.py", line 1565, in _add_q
+    child_clause, needed_inner = self.build_filter(
+  File "/testbed/django/db/models/sql/query.py", line 1419, in build_filter
+    value = self.resolve_lookup_value(value, can_reuse, allow_joins)
+  File "/testbed/django/db/models/sql/query.py", line 1191, in resolve_lookup_value
+    value = value.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_in_subquery (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 445, in test_in_subquery
+    pk__in=CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_join_promotion (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1361, in test_join_promotion
+    CaseTestModel.objects.filter(pk=o.pk).annotate(
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_join_promotion_multiple_annotations (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1391, in test_join_promotion_multiple_annotations
+    CaseTestModel.objects.filter(pk=o.pk).annotate(
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_lookup_different_fields (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1284, in test_lookup_different_fields
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_lookup_in_condition (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1263, in test_lookup_in_condition
+    CaseTestModel.objects.annotate(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_m2m_exclude (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1423, in test_m2m_exclude
+    CaseTestModel.objects.values_list("id", "integer")
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/aggregates.py", line 64, in resolve_expression
+    c = super().resolve_expression(query, allow_joins, reuse, summarize)
+  File "/testbed/django/db/models/expressions.py", line 920, in resolve_expression
+    c.source_expressions[pos] = arg.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_m2m_reuse (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1448, in test_m2m_reuse
+    CaseTestModel.objects.values_list("id", "integer")
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/aggregates.py", line 64, in resolve_expression
+    c = super().resolve_expression(query, allow_joins, reuse, summarize)
+  File "/testbed/django/db/models/expressions.py", line 920, in resolve_expression
+    c.source_expressions[pos] = arg.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_order_by_conditional_explicit (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1339, in test_order_by_conditional_explicit
+    CaseTestModel.objects.filter(integer__lte=2)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_order_by_conditional_implicit (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1324, in test_order_by_conditional_implicit
+    CaseTestModel.objects.filter(integer__lte=2)
+  File "/testbed/django/db/models/query.py", line 1584, in annotate
+    return self._annotate(args, kwargs, select=True)
+  File "/testbed/django/db/models/query.py", line 1632, in _annotate
+    clone.query.add_annotation(
+  File "/testbed/django/db/models/sql/query.py", line 1120, in add_annotation
+    annotation = annotation.resolve_expression(
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 726, in test_update
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_big_integer (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 820, in test_update_big_integer
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_binary (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 833, in test_update_binary
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_boolean (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 855, in test_update_boolean
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_date (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 877, in test_update_date
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_date_time (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 898, in test_update_date_time
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_decimal (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 919, in test_update_decimal
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_duration (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 942, in test_update_duration
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_email (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 963, in test_update_email
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_file (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 985, in test_update_file
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_file_path (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 998, in test_update_file_path
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_fk (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1241, in test_update_fk
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_float (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1012, in test_update_float
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_generic_ip_address (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1039, in test_update_generic_ip_address
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_image (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1026, in test_update_image
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_null_boolean (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1061, in test_update_null_boolean
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_positive_big_integer (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1082, in test_update_positive_big_integer
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_positive_integer (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1095, in test_update_positive_integer
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_positive_small_integer (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1108, in test_update_positive_small_integer
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_slug (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1121, in test_update_slug
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_small_integer (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1135, in test_update_small_integer
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_string (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1148, in test_update_string
+    CaseTestModel.objects.filter(string__in=["1", "2"]).update(
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_text (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1161, in test_update_text
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_time (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1175, in test_update_time
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_url (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1196, in test_update_url
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_uuid (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1218, in test_update_uuid
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_with_expression_as_condition (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 775, in test_update_with_expression_as_condition
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_with_expression_as_value (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 761, in test_update_with_expression_as_value
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_with_join_in_condition_raise_field_error (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 799, in test_update_with_join_in_condition_raise_field_error
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_with_join_in_predicate_raise_field_error (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 810, in test_update_with_join_in_predicate_raise_field_error
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+ERROR: test_update_without_default (expressions_case.tests.CaseExpressionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 748, in test_update_without_default
+    CaseTestModel.objects.update(
+  File "/testbed/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/testbed/django/db/models/query.py", line 1182, in update
+    query.add_update_values(kwargs)
+  File "/testbed/django/db/models/sql/subqueries.py", line 102, in add_update_values
+    return self.add_update_fields(values_seq)
+  File "/testbed/django/db/models/sql/subqueries.py", line 113, in add_update_fields
+    val = val.resolve_expression(self, allow_joins=False, for_save=True)
+  File "/testbed/django/db/models/expressions.py", line 1370, in resolve_expression
+    c.is_summary = summarize
+AttributeError: 'NoneType' object has no attribute 'is_summary'
+
+======================================================================
+FAIL: test_empty_q_object (expressions_case.tests.CaseWhenTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_case/tests.py", line 1674, in test_empty_q_object
+    When(Q(), then=Value(True))
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/contextlib.py", line 126, in __exit__
+    next(self.gen)
+  File "/testbed/django/test/testcases.py", line 878, in _assert_raises_or_warns_cm
+    yield cm
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 89 tests in 0.117s
+
+FAILED (failures=1, errors=87)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout 63884829acd207404f2a5c3cc1d6b4cd0a822b70 tests/expressions_case/tests.py
+Updated 1 path from 36bbc8a3fc

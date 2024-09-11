@@ -1,0 +1,36 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..ab00d5100
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,16 @@
++from sklearn.datasets import load_iris
++from sklearn.ensemble import RandomForestClassifier
++from sklearn.linear_model import LogisticRegression
++from sklearn.ensemble import VotingClassifier
++import numpy as np
++
++X, y = load_iris(return_X_y=True)
++voter = VotingClassifier(
++    estimators=[('lr', LogisticRegression()),
++                ('rf', RandomForestClassifier())]
++)
++voter.fit(X, y, sample_weight=np.ones(y.shape))
++voter.set_params(lr=None)
++voter.fit(X, y, sample_weight=np.ones(y.shape))
++
++print("Script completed successfully, no errors.")
+diff --git a/sklearn/ensemble/voting.py b/sklearn/ensemble/voting.py
+index 7afa7180c..13accdcec 100644
+--- a/sklearn/ensemble/voting.py
++++ b/sklearn/ensemble/voting.py
+@@ -78,7 +78,7 @@ class _BaseVoting(_BaseComposition, TransformerMixin):
+ 
+         if sample_weight is not None:
+             for name, step in self.estimators:
+-                if not has_fit_parameter(step, 'sample_weight'):
++                if step is not None and not has_fit_parameter(step, 'sample_weight'):
+                     raise ValueError('Underlying estimator \'%s\' does not'
+                                      ' support sample weights.' % name)
+ 

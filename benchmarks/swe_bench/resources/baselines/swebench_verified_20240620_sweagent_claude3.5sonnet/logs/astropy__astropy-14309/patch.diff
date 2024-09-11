@@ -1,0 +1,131 @@
+
+diff --git a/astropy/io/fits/connect.py b/astropy/io/fits/connect.py
+index 4b6150f4a..908fcd54b 100644
+--- a/astropy/io/fits/connect.py
++++ b/astropy/io/fits/connect.py
+@@ -59,6 +59,9 @@ def is_fits(origin, filepath, fileobj, *args, **kwargs):
+     is_fits : bool
+         Returns `True` if the given file is a FITS file.
+     """
++    # Check if fileobj is already an HDUList
++    if isinstance(fileobj, HDUList):
++        return True
+     if fileobj is not None:
+         pos = fileobj.tell()
+         sig = fileobj.read(30)
+@@ -69,7 +72,7 @@ def is_fits(origin, filepath, fileobj, *args, **kwargs):
+             (".fits", ".fits.gz", ".fit", ".fit.gz", ".fts", ".fts.gz")
+         ):
+             return True
+-    return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))
++    return args and isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))
+ 
+ 
+ def _decode_mixins(tbl):
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..4de6de088
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,12 @@
++from astropy.io.registry import identify_format
++from astropy.table import Table
++
++try:
++    result = identify_format("write", Table, "bububu.ecsv", None, [], {})
++    print("Unexpected success. Result:", result)
++except IndexError as e:
++    print("IndexError caught as expected:", str(e))
++except Exception as e:
++    print("Unexpected error:", str(e))
++
++print("Script completed.")
+diff --git a/test_identify_format.py b/test_identify_format.py
+new file mode 100644
+index 000000000..266fa5f5d
+--- /dev/null
++++ b/test_identify_format.py
+@@ -0,0 +1,47 @@
++import sys
++import os
++
++print("Python version:", sys.version)
++print("Current working directory:", os.getcwd())
++
++# Mock the necessary parts of astropy
++class Table:
++    pass
++
++class HDUList:
++    pass
++
++class TableHDU:
++    pass
++
++class BinTableHDU:
++    pass
++
++class GroupsHDU:
++    pass
++
++def is_fits(origin, filepath, fileobj, *args, **kwargs):
++    if filepath is not None and isinstance(filepath, str):
++        if filepath.lower().endswith((".fits", ".fits.gz", ".fit", ".fit.gz", ".fts", ".fts.gz")):
++            return True
++    # Check if args is empty before trying to access its first element
++    if args and isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU)):
++        return True
++    return False
++
++def identify_format(origin, data_class, path, fileobj, args, kwargs):
++    return is_fits(origin, path, fileobj, *args, **kwargs)
++
++# Test the function
++test_cases = [
++    ("write", Table, "bububu.ecsv", None, [], {}),
++    ("write", Table, "test.fits", None, [], {}),
++    ("write", Table, None, None, [HDUList()], {}),
++]
++
++for case in test_cases:
++    print(f"\nTesting case: {case}")
++    result = identify_format(*case)
++    print(f"Result: {result}")
++
++print("\nScript completed.")
+diff --git a/test_is_fits.py b/test_is_fits.py
+new file mode 100644
+index 000000000..7aeeecd2e
+--- /dev/null
++++ b/test_is_fits.py
+@@ -0,0 +1,30 @@
++import sys
++import os
++
++print("Python version:", sys.version)
++print("Current working directory:", os.getcwd())
++
++from astropy.io.fits.connect import is_fits
++from astropy.table import Table
++from astropy.io.fits import HDUList, TableHDU, BinTableHDU, GroupsHDU
++
++# Test cases
++test_cases = [
++    ("bububu.ecsv", None),
++    ("test.fits", None),
++]
++
++for case in test_cases:
++    print(f"\nTesting case: {case}")
++    result = is_fits("read", *case)
++    print(f"Result: {result}")
++
++# Special case for HDUList
++print("\nTesting case: (None, HDUList())")
++try:
++    result = is_fits("read", None, HDUList())
++    print(f"Result: {result}")
++except Exception as e:
++    print(f"Error: {str(e)}")
++
++print("\nScript completed.")

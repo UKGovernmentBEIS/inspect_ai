@@ -1,0 +1,132 @@
+
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..844ffc7c92
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,17 @@
++import sympy as sm
++
++M = sm.eye(6)
++print("Original M:")
++print(M)
++
++V = 2 * sm.ones(6, 2)
++print("\nV:")
++print(V)
++
++result = M.col_insert(3, V)
++print("\nResult of M.col_insert(3, V):")
++print(result)
++
++print("\nSymPy version:", sm.__version__)
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sympy/matrices/common.py b/sympy/matrices/common.py
+index 056d9bc497..2ede02c7c7 100644
+--- a/sympy/matrices/common.py
++++ b/sympy/matrices/common.py
+@@ -86,7 +86,9 @@ def entry(i, j):
+                 return self[i, j]
+             elif pos <= j < pos + other.cols:
+                 return other[i, j - pos]
+-            return self[i, j - pos - other.cols]
++            else:
++                # Fix: Correctly shift columns after insertion
++                return self[i, j - other.cols]
+ 
+         return self._new(self.rows, self.cols + other.cols,
+                          lambda i, j: entry(i, j))
+diff --git a/sympy/matrices/tests/test_matrices.py b/sympy/matrices/tests/test_matrices.py
+index 78bd30fc81..9e74c3ad39 100644
+--- a/sympy/matrices/tests/test_matrices.py
++++ b/sympy/matrices/tests/test_matrices.py
+@@ -2986,6 +2986,37 @@ def test_as_real_imag():
+         assert list(a) == list(m1)
+         assert list(b) == list(m1)
+ 
++def test_deprecated():
++    # Maintain tests for deprecated functions.  We must capture
++    # the deprecation warnings.  When the deprecated functionality is
++    # removed, the corresponding tests should be removed.
++    with warnings.catch_warnings():
++        warnings.filterwarnings("ignore", category=SymPyDeprecationWarning)
++        m = Matrix(3, 3, [0, 1, 0, -4, 4, 0, -2, 1, 2])
++        P, Jcells = m.jordan_cells()
++        assert Jcells[1] == Matrix(1, 1, [2])
++def test_col_insert_preserves_identity():
++    for cls in classes:
++        M = cls.eye(6)
++        V = cls.ones(6, 2) * 2
++        result = M.col_insert(3, V)
++        
++        # Check if the identity matrix part is preserved correctly
++        for i in range(6):
++            for j in range(6):
++                if i == j:
++                    assert result[i, j if j < 3 else j + 2] == 1, f"Identity not preserved at [{i}, {j if j < 3 else j + 2}]"
++                else:
++                    assert result[i, j if j < 3 else j + 2] == 0, f"Non-zero value at [{i}, {j if j < 3 else j + 2}]"
++        
++        # Check if the inserted columns are correct
++        for i in range(6):
++            assert result[i, 3] == 2
++            assert result[i, 4] == 2
++
++        # Check the final shape of the matrix
++        assert result.shape == (6, 8)
++
+ def test_deprecated():
+     # Maintain tests for deprecated functions.  We must capture
+     # the deprecation warnings.  When the deprecated functionality is
+@@ -2996,3 +3027,8 @@ def test_deprecated():
+         P, Jcells = m.jordan_cells()
+         assert Jcells[1] == Matrix(1, 1, [2])
+         assert Jcells[0] == Matrix(2, 2, [2, 1, 0, 2])
++
++if __name__ == '__main__':
++    print("Running test_col_insert_preserves_identity...")
++    test_col_insert_preserves_identity()
++    print("Test completed successfully.")
+diff --git a/test_col_insert.py b/test_col_insert.py
+new file mode 100644
+index 0000000000..3b738a3bf0
+--- /dev/null
++++ b/test_col_insert.py
+@@ -0,0 +1,36 @@
++import sympy as sm
++
++M = sm.eye(6)
++print("Original M:")
++print(M)
++print("Type of M:", type(M))
++print("Shape of M:", M.shape)
++
++V = 2 * sm.ones(6, 2)
++print("\nV:")
++print(V)
++print("Type of V:", type(V))
++print("Shape of V:", V.shape)
++
++result = M.col_insert(3, V)
++print("\nResult of M.col_insert(3, V):")
++print(result)
++print("Type of result:", type(result))
++print("Shape of result:", result.shape)
++
++print("\nDebug: Checking individual elements of result:")
++for i in range(result.rows):
++    for j in range(result.cols):
++        print(f"result[{i},{j}] = {result[i,j]}")
++
++# Check if the identity matrix part is preserved correctly
++for i in range(6):
++    for j in range(6):
++        if i == j:
++            assert result[i, j if j < 3 else j + 2] == 1, f"Identity not preserved at [{i}, {j if j < 3 else j + 2}]"
++        else:
++            assert result[i, j if j < 3 else j + 2] == 0, f"Non-zero value at [{i}, {j if j < 3 else j + 2}]"
++
++print("\nAll assertions passed. The identity matrix part is preserved correctly.")
++
++print("\nSymPy version:", sm.__version__)

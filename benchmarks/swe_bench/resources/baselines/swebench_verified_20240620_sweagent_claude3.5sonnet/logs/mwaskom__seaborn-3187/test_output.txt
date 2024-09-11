@@ -1,0 +1,835 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   seaborn/_core/scales.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	comparison_plot.png
+	issue_plot.png
+	reproduce_issue.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 22cdfb0c93f8ec78492d87edb810f10cb7f57a31
+Author: Michael Waskom <mwaskom@users.noreply.github.com>
+Date:   Sat Dec 10 11:06:39 2022 -0500
+
+    Fix inner axis visibility in relplot with unshared axes (#3180)
+    
+    * Fix inner axis visibility in relplot with unshared axes
+    
+    * Don't reveal internal names when setting axis labels
+    
+    * Better test name
+
+diff --git a/doc/whatsnew/v0.12.2.rst b/doc/whatsnew/v0.12.2.rst
+index da1d8b81..8eeb8f19 100644
+--- a/doc/whatsnew/v0.12.2.rst
++++ b/doc/whatsnew/v0.12.2.rst
+@@ -9,3 +9,5 @@ v0.12.2 (Unreleased)
+ - |Fix| Fixed a regression in v0.12.0 where manually-added labels could have duplicate legend entries (:pr:`3116`).
+ 
+ - |Fix| Fixed a bug in :func:`histplot` with `kde=True` and `log_scale=True` where the curve was not scaled properly (:pr:`3173`).
++
++- |Fix| Fixed a bug in :func:`relplot` where inner axis labels would be shown when axis sharing was disabled (:pr:`3180`).
+diff --git a/seaborn/relational.py b/seaborn/relational.py
+index 4fa854a6..18e18bb6 100644
+--- a/seaborn/relational.py
++++ b/seaborn/relational.py
+@@ -955,7 +955,8 @@ def relplot(
+     g.map_dataframe(func, **plot_kws)
+ 
+     # Label the axes, using the original variables
+-    g.set(xlabel=variables.get("x"), ylabel=variables.get("y"))
++    # Pass "" when the variable name is None to overwrite internal variables
++    g.set_axis_labels(variables.get("x") or "", variables.get("y") or "")
+ 
+     # Show the legend
+     if legend:
+diff --git a/tests/test_relational.py b/tests/test_relational.py
+index eee12e25..b100f4ec 100644
+--- a/tests/test_relational.py
++++ b/tests/test_relational.py
+@@ -624,6 +624,23 @@ class TestRelationalPlotter(Helpers):
+         for line, color in zip(lines, palette):
+             assert line.get_color() == color
+ 
++    def test_relplot_unshared_axis_labels(self, long_df):
++
++        col, row = "a", "b"
++        g = relplot(
++            data=long_df, x="x", y="y", col=col, row=row,
++            facet_kws=dict(sharex=False, sharey=False),
++        )
++
++        for ax in g.axes[-1, :].flat:
++            assert ax.get_xlabel() == "x"
++        for ax in g.axes[:-1, :].flat:
++            assert ax.get_xlabel() == ""
++        for ax in g.axes[:, 0].flat:
++            assert ax.get_ylabel() == "y"
++        for ax in g.axes[:, 1:].flat:
++            assert ax.get_ylabel() == ""
++
+     def test_relplot_data(self, long_df):
+ 
+         g = relplot(
++ git diff 22cdfb0c93f8ec78492d87edb810f10cb7f57a31
+diff --git a/seaborn/_core/scales.py b/seaborn/_core/scales.py
+index 55874bf2..e52d1c84 100644
+--- a/seaborn/_core/scales.py
++++ b/seaborn/_core/scales.py
+@@ -50,12 +50,20 @@ if TYPE_CHECKING:
+     # work out the right way to communicate the types to mypy. Revisit!
+     Pipeline = Sequence[Optional[Callable[[Any], Any]]]
+ 
++class LargeNumberFormatter(Formatter):
++    def __call__(self, x, pos=None):
++        if abs(x) >= 1e6:
++            return f'{x/1e6:.1f}M'
++        elif abs(x) >= 1e3:
++            return f'{x/1e3:.1f}K'
++        else:
++            return f'{x:.1f}'
++
+ 
+ class Scale:
+     """Base class for objects that map data values to visual properties."""
+ 
+     values: tuple | str | list | dict | None
+-
+     _priority: ClassVar[int]
+     _pipeline: Pipeline
+     _matplotlib_scale: ScaleBase
+@@ -63,7 +71,6 @@ class Scale:
+     _legend: tuple[list[str], list[Any]] | None
+ 
+     def __post_init__(self):
+-
+         self._tick_params = None
+         self._label_params = None
+         self._legend = None
+@@ -78,8 +85,12 @@ class Scale:
+         raise NotImplementedError()
+ 
+     def _get_formatter(self, locator: Locator | None = None):
+-        raise NotImplementedError()
+-
++        if isinstance(locator, (LogLocator, SymmetricalLogLocator)):
++            return LogFormatterSciNotation()
++        elif isinstance(locator, (MultipleLocator, FixedLocator)):
++            return ScalarFormatter()
++        else:
++            return LargeNumberFormatter()
+     def _get_scale(self, name: str, forward: Callable, inverse: Callable):
+ 
+         major_locator, minor_locator = self._get_locators(**self._tick_params)
+@@ -378,7 +389,11 @@ class ContinuousBase(Scale):
+             axis.set_view_interval(vmin, vmax)
+             locs = axis.major.locator()
+             locs = locs[(vmin <= locs) & (locs <= vmax)]
+-            labels = axis.major.formatter.format_ticks(locs)
++            formatter = axis.major.formatter
++            labels = formatter.format_ticks(locs)
++            offset = formatter.get_offset()
++            if offset:
++                labels = [f"{label} {offset}" for label in labels]
+             new._legend = list(locs), list(labels)
+ 
+         return new
+@@ -647,7 +662,7 @@ class Continuous(ContinuousBase):
+             formatter = EngFormatter(unit, sep=sep)
+ 
+         else:
+-            formatter = ScalarFormatter()
++            formatter = ScalarFormatter(useOffset=True, useMathText=True)
+ 
+         return formatter
+ 
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e '.[dev]'
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: numpy>=1.17 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from seaborn==0.12.2.dev0) (1.25.2)
+Requirement already satisfied: pandas>=0.25 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from seaborn==0.12.2.dev0) (2.0.0)
+Requirement already satisfied: matplotlib!=3.6.1,>=3.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from seaborn==0.12.2.dev0) (3.7.2)
+Requirement already satisfied: pytest in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from seaborn==0.12.2.dev0) (8.3.1)
+Requirement already satisfied: pytest-cov in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from seaborn==0.12.2.dev0) (5.0.0)
+Requirement already satisfied: pytest-xdist in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from seaborn==0.12.2.dev0) (3.6.1)
+Requirement already satisfied: flake8 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from seaborn==0.12.2.dev0) (7.1.0)
+Requirement already satisfied: mypy in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from seaborn==0.12.2.dev0) (1.11.0)
+Requirement already satisfied: pandas-stubs in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from seaborn==0.12.2.dev0) (2.2.2.240603)
+Requirement already satisfied: pre-commit in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from seaborn==0.12.2.dev0) (3.7.1)
+Requirement already satisfied: flit in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from seaborn==0.12.2.dev0) (3.9.0)
+Requirement already satisfied: contourpy>=1.0.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from matplotlib!=3.6.1,>=3.1->seaborn==0.12.2.dev0) (1.1.0)
+Requirement already satisfied: cycler>=0.10 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from matplotlib!=3.6.1,>=3.1->seaborn==0.12.2.dev0) (0.11.0)
+Requirement already satisfied: fonttools>=4.22.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from matplotlib!=3.6.1,>=3.1->seaborn==0.12.2.dev0) (4.42.1)
+Requirement already satisfied: kiwisolver>=1.0.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from matplotlib!=3.6.1,>=3.1->seaborn==0.12.2.dev0) (1.4.5)
+Requirement already satisfied: packaging>=20.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from matplotlib!=3.6.1,>=3.1->seaborn==0.12.2.dev0) (23.1)
+Requirement already satisfied: pillow>=6.2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from matplotlib!=3.6.1,>=3.1->seaborn==0.12.2.dev0) (10.0.0)
+Requirement already satisfied: pyparsing<3.1,>=2.3.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from matplotlib!=3.6.1,>=3.1->seaborn==0.12.2.dev0) (3.0.9)
+Requirement already satisfied: python-dateutil>=2.7 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from matplotlib!=3.6.1,>=3.1->seaborn==0.12.2.dev0) (2.8.2)
+Requirement already satisfied: importlib-resources>=3.2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from matplotlib!=3.6.1,>=3.1->seaborn==0.12.2.dev0) (6.0.1)
+Requirement already satisfied: pytz>=2020.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pandas>=0.25->seaborn==0.12.2.dev0) (2023.3.post1)
+Requirement already satisfied: tzdata>=2022.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pandas>=0.25->seaborn==0.12.2.dev0) (2023.1)
+Requirement already satisfied: mccabe<0.8.0,>=0.7.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from flake8->seaborn==0.12.2.dev0) (0.7.0)
+Requirement already satisfied: pycodestyle<2.13.0,>=2.12.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from flake8->seaborn==0.12.2.dev0) (2.12.0)
+Requirement already satisfied: pyflakes<3.3.0,>=3.2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from flake8->seaborn==0.12.2.dev0) (3.2.0)
+Requirement already satisfied: flit_core>=3.9.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from flit->seaborn==0.12.2.dev0) (3.9.0)
+Requirement already satisfied: requests in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from flit->seaborn==0.12.2.dev0) (2.32.3)
+Requirement already satisfied: docutils in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from flit->seaborn==0.12.2.dev0) (0.21.2)
+Requirement already satisfied: tomli-w in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from flit->seaborn==0.12.2.dev0) (1.0.0)
+Requirement already satisfied: typing-extensions>=4.6.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from mypy->seaborn==0.12.2.dev0) (4.12.2)
+Requirement already satisfied: mypy-extensions>=1.0.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from mypy->seaborn==0.12.2.dev0) (1.0.0)
+Requirement already satisfied: tomli>=1.1.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from mypy->seaborn==0.12.2.dev0) (2.0.1)
+Requirement already satisfied: types-pytz>=2022.1.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pandas-stubs->seaborn==0.12.2.dev0) (2024.1.0.20240417)
+Requirement already satisfied: cfgv>=2.0.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pre-commit->seaborn==0.12.2.dev0) (3.4.0)
+Requirement already satisfied: identify>=1.0.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pre-commit->seaborn==0.12.2.dev0) (2.6.0)
+Requirement already satisfied: nodeenv>=0.11.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pre-commit->seaborn==0.12.2.dev0) (1.9.1)
+Requirement already satisfied: pyyaml>=5.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pre-commit->seaborn==0.12.2.dev0) (6.0.1)
+Requirement already satisfied: virtualenv>=20.10.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pre-commit->seaborn==0.12.2.dev0) (20.26.3)
+Requirement already satisfied: iniconfig in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->seaborn==0.12.2.dev0) (2.0.0)
+Requirement already satisfied: pluggy<2,>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->seaborn==0.12.2.dev0) (1.5.0)
+Requirement already satisfied: exceptiongroup>=1.0.0rc8 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->seaborn==0.12.2.dev0) (1.2.2)
+Requirement already satisfied: coverage>=5.2.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from coverage[toml]>=5.2.1->pytest-cov->seaborn==0.12.2.dev0) (7.6.0)
+Requirement already satisfied: execnet>=2.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest-xdist->seaborn==0.12.2.dev0) (2.1.1)
+Requirement already satisfied: zipp>=3.1.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from importlib-resources>=3.2.0->matplotlib!=3.6.1,>=3.1->seaborn==0.12.2.dev0) (3.16.2)
+Requirement already satisfied: six>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from python-dateutil>=2.7->matplotlib!=3.6.1,>=3.1->seaborn==0.12.2.dev0) (1.16.0)
+Requirement already satisfied: distlib<1,>=0.3.7 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from virtualenv>=20.10.0->pre-commit->seaborn==0.12.2.dev0) (0.3.8)
+Requirement already satisfied: filelock<4,>=3.12.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from virtualenv>=20.10.0->pre-commit->seaborn==0.12.2.dev0) (3.15.4)
+Requirement already satisfied: platformdirs<5,>=3.9.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from virtualenv>=20.10.0->pre-commit->seaborn==0.12.2.dev0) (4.2.2)
+Requirement already satisfied: charset-normalizer<4,>=2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests->flit->seaborn==0.12.2.dev0) (3.3.2)
+Requirement already satisfied: idna<4,>=2.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests->flit->seaborn==0.12.2.dev0) (3.7)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests->flit->seaborn==0.12.2.dev0) (2.2.2)
+Requirement already satisfied: certifi>=2017.4.17 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests->flit->seaborn==0.12.2.dev0) (2024.7.4)
+Checking if build backend supports build_editable: started
+Checking if build backend supports build_editable: finished with status 'done'
+Building wheels for collected packages: seaborn
+  Building editable for seaborn (pyproject.toml): started
+  Building editable for seaborn (pyproject.toml): finished with status 'done'
+  Created wheel for seaborn: filename=seaborn-0.12.2.dev0-py3-none-any.whl size=3918 sha256=2e36a1a49fd6c78b6788dcdc9a9076b79e3b0440d7f3f899745abf178a51008c
+  Stored in directory: /tmp/pip-ephem-wheel-cache-vnrfsojv/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built seaborn
+Installing collected packages: seaborn
+  Attempting uninstall: seaborn
+    Found existing installation: seaborn 0.12.2.dev0
+    Uninstalling seaborn-0.12.2.dev0:
+      Successfully uninstalled seaborn-0.12.2.dev0
+Successfully installed seaborn-0.12.2.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 22cdfb0c93f8ec78492d87edb810f10cb7f57a31 tests/_core/test_plot.py tests/test_relational.py
+Updated 0 paths from 8b530ce0
++ git apply -v -
+Checking patch tests/_core/test_plot.py...
+Checking patch tests/test_relational.py...
+Applied patch tests/_core/test_plot.py cleanly.
+Applied patch tests/test_relational.py cleanly.
++ pytest --no-header -rA tests/_core/test_plot.py tests/test_relational.py
+============================= test session starts ==============================
+collected 256 items
+
+tests/_core/test_plot.py ......................x............x..x........ [ 18%]
+........x.x............................................................. [ 46%]
+..........................................................F.             [ 69%]
+tests/test_relational.py ...........................F................... [ 88%]
+..............................                                           [100%]
+
+=================================== FAILURES ===================================
+_____________________ TestLegend.test_legend_has_no_offset _____________________
+
+self = <tests._core.test_plot.TestLegend object at 0x7f659af6c850>
+xy = {'x': [1, 2, 3, 4], 'y': [1, 2, 3, 4]}
+
+    def test_legend_has_no_offset(self, xy):
+    
+        color = np.add(xy["x"], 1e8)
+        p = Plot(**xy, color=color).add(MockMark()).plot()
+        legend = p._figure.legends[0]
+        assert legend.texts
+        for text in legend.texts:
+>           assert float(text.get_text()) > 1e7
+E           ValueError: could not convert string to float: '$\\mathdefault{1}$ $\\mathdefault{+10^{8}}$'
+
+tests/_core/test_plot.py:2061: ValueError
+_______________ TestRelationalPlotter.test_legend_has_no_offset ________________
+
+self = <tests.test_relational.TestRelationalPlotter object at 0x7f659ab96e80>
+long_df =      x         y         z  a  b  ...  s    f a_cat  s_cat  s_str
+0   12  0.449243  6.611886  b  p  ...  2  0.2     b ...  8  0.3     a      8      8
+99  15  0.073484  1.036343  c  p  ...  8  0.2     c      8      8
+
+[100 rows x 13 columns]
+
+    def test_legend_has_no_offset(self, long_df):
+    
+        g = relplot(data=long_df, x="x", y="y", hue=long_df["z"] + 1e8)
+        for text in g.legend.texts:
+>           assert float(text.get_text()) > 1e7
+E           AssertionError: assert 2.5 > 10000000.0
+E            +  where 2.5 = float('2.5')
+E            +    where '2.5' = get_text()
+E            +      where get_text = Text(0, 0, '2.5').get_text
+
+tests/test_relational.py:682: AssertionError
+=============================== warnings summary ===============================
+tests/_core/test_plot.py: 4 warnings
+tests/test_relational.py: 140 warnings
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pandas/core/dtypes/cast.py:1429: DeprecationWarning: np.find_common_type is deprecated.  Please use `np.result_type` or `np.promote_types`.
+  See https://numpy.org/devdocs/release/1.25.0-notes.html and the docs for more information.  (Deprecated NumPy 1.25)
+    return np.find_common_type(types, [])
+
+tests/_core/test_plot.py::TestPlotting::test_limits
+tests/_core/test_plot.py::TestPlotting::test_limits
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/matplotlib/transforms.py:2868: DeprecationWarning: Conversion of an array with ndim > 0 to a scalar is deprecated, and will error in future. Ensure you extract a single element from your array before performing this operation. (Deprecated NumPy 1.25.)
+    vmin, vmax = map(float, [vmin, vmax])
+
+tests/test_relational.py::TestRelationalPlotter::test_wide_df_variables
+tests/test_relational.py::TestRelationalPlotter::test_wide_df_with_nonnumeric_variables
+tests/test_relational.py::TestRelationalPlotter::test_wide_array_variables
+tests/test_relational.py::TestRelationalPlotter::test_flat_array_variables
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/_pytest/python.py:159: DeprecationWarning: `product` is deprecated as of NumPy 1.25.0, and will be removed in NumPy 2.0. Please use `prod` instead.
+    result = testfunction(**testargs)
+
+tests/test_relational.py: 55 warnings
+  /testbed/seaborn/axisgrid.py:118: UserWarning: The figure layout has changed to tight
+    self._figure.tight_layout(*args, **kwargs)
+
+tests/test_relational.py::TestScatterPlotter::test_size_norm_extrapolation
+tests/test_relational.py::TestScatterPlotter::test_size_norm_extrapolation
+  /testbed/tests/test_relational.py:1750: MatplotlibDeprecationWarning: The legendHandles attribute was deprecated in Matplotlib 3.7 and will be removed two minor releases later. Use legend_handles instead.
+    for label, handle in zip(legend.get_texts(), legend.legendHandles)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+___________________ TestScaling.test_pair_categories_shared ____________________
+----------------------------- Captured stdout call -----------------------------
+[     x    y  width  baseline
+0  0.0  1.0    0.8         0
+1  1.0  1.0    0.8         0,      x    y  width  baseline
+0  0.0  1.0    0.8         0
+1  2.0  1.0    0.8         0]
+=========================== short test summary info ============================
+PASSED tests/_core/test_plot.py::TestInit::test_empty
+PASSED tests/_core/test_plot.py::TestInit::test_data_only
+PASSED tests/_core/test_plot.py::TestInit::test_df_and_named_variables
+PASSED tests/_core/test_plot.py::TestInit::test_df_and_mixed_variables
+PASSED tests/_core/test_plot.py::TestInit::test_vector_variables_only
+PASSED tests/_core/test_plot.py::TestInit::test_vector_variables_no_index
+PASSED tests/_core/test_plot.py::TestInit::test_data_only_named
+PASSED tests/_core/test_plot.py::TestInit::test_positional_and_named_data
+PASSED tests/_core/test_plot.py::TestInit::test_positional_and_named_xy[x]
+PASSED tests/_core/test_plot.py::TestInit::test_positional_and_named_xy[y]
+PASSED tests/_core/test_plot.py::TestInit::test_positional_data_x_y
+PASSED tests/_core/test_plot.py::TestInit::test_positional_x_y
+PASSED tests/_core/test_plot.py::TestInit::test_positional_data_x
+PASSED tests/_core/test_plot.py::TestInit::test_positional_x
+PASSED tests/_core/test_plot.py::TestInit::test_positional_too_many
+PASSED tests/_core/test_plot.py::TestInit::test_unknown_keywords
+PASSED tests/_core/test_plot.py::TestLayerAddition::test_without_data
+PASSED tests/_core/test_plot.py::TestLayerAddition::test_with_new_variable_by_name
+PASSED tests/_core/test_plot.py::TestLayerAddition::test_with_new_variable_by_vector
+PASSED tests/_core/test_plot.py::TestLayerAddition::test_with_late_data_definition
+PASSED tests/_core/test_plot.py::TestLayerAddition::test_with_new_data_definition
+PASSED tests/_core/test_plot.py::TestLayerAddition::test_drop_variable
+PASSED tests/_core/test_plot.py::TestLayerAddition::test_stat_nondefault
+PASSED tests/_core/test_plot.py::TestLayerAddition::test_orient[x-x]
+PASSED tests/_core/test_plot.py::TestLayerAddition::test_orient[y-y]
+PASSED tests/_core/test_plot.py::TestLayerAddition::test_orient[v-x]
+PASSED tests/_core/test_plot.py::TestLayerAddition::test_orient[h-y]
+PASSED tests/_core/test_plot.py::TestLayerAddition::test_variable_list
+PASSED tests/_core/test_plot.py::TestLayerAddition::test_type_checks
+PASSED tests/_core/test_plot.py::TestScaling::test_inference
+PASSED tests/_core/test_plot.py::TestScaling::test_inference_from_layer_data
+PASSED tests/_core/test_plot.py::TestScaling::test_inference_joins
+PASSED tests/_core/test_plot.py::TestScaling::test_inferred_categorical_converter
+PASSED tests/_core/test_plot.py::TestScaling::test_explicit_categorical_converter
+PASSED tests/_core/test_plot.py::TestScaling::test_faceted_log_scale
+PASSED tests/_core/test_plot.py::TestScaling::test_paired_single_log_scale
+PASSED tests/_core/test_plot.py::TestScaling::test_mark_data_log_transform_is_inverted
+PASSED tests/_core/test_plot.py::TestScaling::test_mark_data_log_transfrom_with_stat
+PASSED tests/_core/test_plot.py::TestScaling::test_mark_data_from_categorical
+PASSED tests/_core/test_plot.py::TestScaling::test_mark_data_from_datetime
+PASSED tests/_core/test_plot.py::TestScaling::test_computed_var_ticks
+PASSED tests/_core/test_plot.py::TestScaling::test_computed_var_transform
+PASSED tests/_core/test_plot.py::TestScaling::test_explicit_range_with_axis_scaling
+PASSED tests/_core/test_plot.py::TestScaling::test_derived_range_with_axis_scaling
+PASSED tests/_core/test_plot.py::TestScaling::test_facet_categories
+PASSED tests/_core/test_plot.py::TestScaling::test_facet_categories_unshared
+PASSED tests/_core/test_plot.py::TestScaling::test_facet_categories_single_dim_shared
+PASSED tests/_core/test_plot.py::TestScaling::test_pair_categories
+PASSED tests/_core/test_plot.py::TestScaling::test_pair_categories_shared
+PASSED tests/_core/test_plot.py::TestScaling::test_identity_mapping_linewidth
+PASSED tests/_core/test_plot.py::TestScaling::test_pair_single_coordinate_stat_orient
+PASSED tests/_core/test_plot.py::TestScaling::test_inferred_nominal_passed_to_stat
+PASSED tests/_core/test_plot.py::TestScaling::test_identity_mapping_color_tuples
+PASSED tests/_core/test_plot.py::TestScaling::test_nominal_x_axis_tweaks
+PASSED tests/_core/test_plot.py::TestScaling::test_nominal_y_axis_tweaks
+PASSED tests/_core/test_plot.py::TestPlotting::test_matplotlib_object_creation
+PASSED tests/_core/test_plot.py::TestPlotting::test_empty
+PASSED tests/_core/test_plot.py::TestPlotting::test_no_orient_variance
+PASSED tests/_core/test_plot.py::TestPlotting::test_single_split_single_layer
+PASSED tests/_core/test_plot.py::TestPlotting::test_single_split_multi_layer
+PASSED tests/_core/test_plot.py::TestPlotting::test_one_grouping_variable[color]
+PASSED tests/_core/test_plot.py::TestPlotting::test_one_grouping_variable[group]
+PASSED tests/_core/test_plot.py::TestPlotting::test_two_grouping_variables
+PASSED tests/_core/test_plot.py::TestPlotting::test_specified_width
+PASSED tests/_core/test_plot.py::TestPlotting::test_facets_no_subgroups
+PASSED tests/_core/test_plot.py::TestPlotting::test_facets_one_subgroup
+PASSED tests/_core/test_plot.py::TestPlotting::test_layer_specific_facet_disabling
+PASSED tests/_core/test_plot.py::TestPlotting::test_paired_variables
+PASSED tests/_core/test_plot.py::TestPlotting::test_paired_one_dimension
+PASSED tests/_core/test_plot.py::TestPlotting::test_paired_variables_one_subset
+PASSED tests/_core/test_plot.py::TestPlotting::test_paired_and_faceted
+PASSED tests/_core/test_plot.py::TestPlotting::test_theme_default
+PASSED tests/_core/test_plot.py::TestPlotting::test_theme_params
+PASSED tests/_core/test_plot.py::TestPlotting::test_theme_error
+PASSED tests/_core/test_plot.py::TestPlotting::test_stat
+PASSED tests/_core/test_plot.py::TestPlotting::test_move
+PASSED tests/_core/test_plot.py::TestPlotting::test_stat_and_move
+PASSED tests/_core/test_plot.py::TestPlotting::test_stat_log_scale
+PASSED tests/_core/test_plot.py::TestPlotting::test_move_log_scale
+PASSED tests/_core/test_plot.py::TestPlotting::test_multi_move
+PASSED tests/_core/test_plot.py::TestPlotting::test_multi_move_with_pairing
+PASSED tests/_core/test_plot.py::TestPlotting::test_move_with_range
+PASSED tests/_core/test_plot.py::TestPlotting::test_methods_clone
+PASSED tests/_core/test_plot.py::TestPlotting::test_default_is_no_pyplot
+PASSED tests/_core/test_plot.py::TestPlotting::test_with_pyplot
+PASSED tests/_core/test_plot.py::TestPlotting::test_show
+PASSED tests/_core/test_plot.py::TestPlotting::test_png_repr
+PASSED tests/_core/test_plot.py::TestPlotting::test_save
+PASSED tests/_core/test_plot.py::TestPlotting::test_layout_size
+PASSED tests/_core/test_plot.py::TestPlotting::test_on_axes
+PASSED tests/_core/test_plot.py::TestPlotting::test_on_figure[True]
+PASSED tests/_core/test_plot.py::TestPlotting::test_on_figure[False]
+PASSED tests/_core/test_plot.py::TestPlotting::test_on_subfigure[True]
+PASSED tests/_core/test_plot.py::TestPlotting::test_on_subfigure[False]
+PASSED tests/_core/test_plot.py::TestPlotting::test_on_type_check
+PASSED tests/_core/test_plot.py::TestPlotting::test_on_axes_with_subplots_error
+PASSED tests/_core/test_plot.py::TestPlotting::test_on_disables_layout_algo
+PASSED tests/_core/test_plot.py::TestPlotting::test_axis_labels_from_constructor
+PASSED tests/_core/test_plot.py::TestPlotting::test_axis_labels_from_layer
+PASSED tests/_core/test_plot.py::TestPlotting::test_axis_labels_are_first_name
+PASSED tests/_core/test_plot.py::TestPlotting::test_limits
+PASSED tests/_core/test_plot.py::TestPlotting::test_labels_axis
+PASSED tests/_core/test_plot.py::TestPlotting::test_labels_legend
+PASSED tests/_core/test_plot.py::TestPlotting::test_labels_facets
+PASSED tests/_core/test_plot.py::TestPlotting::test_title_single
+PASSED tests/_core/test_plot.py::TestPlotting::test_title_facet_function
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_1d[row]
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_1d_as_vector[row]
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_1d_with_order[row-reverse]
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_1d_with_order[col-reverse]
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_1d[col]
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_1d_as_vector[col]
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_1d_with_order[col-subset]
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_1d_with_order[row-subset]
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_2d_with_order[subset]
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_1d_with_order[col-expand]
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_1d_with_order[row-expand]
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_2d_with_order[expand]
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_2d_with_order[reverse]
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_2d
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_layout_algo[tight]
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_layout_algo[constrained]
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_axis_sharing
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_unshared_spacing
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_col_wrapping
+PASSED tests/_core/test_plot.py::TestFacetInterface::test_row_wrapping
+PASSED tests/_core/test_plot.py::TestPairInterface::test_all_numeric[list]
+PASSED tests/_core/test_plot.py::TestPairInterface::test_all_numeric[Index]
+PASSED tests/_core/test_plot.py::TestPairInterface::test_single_variable_key_raises
+PASSED tests/_core/test_plot.py::TestPairInterface::test_single_dimension[x]
+PASSED tests/_core/test_plot.py::TestPairInterface::test_single_dimension[y]
+PASSED tests/_core/test_plot.py::TestPairInterface::test_non_cross
+PASSED tests/_core/test_plot.py::TestPairInterface::test_list_of_vectors
+PASSED tests/_core/test_plot.py::TestPairInterface::test_with_no_variables
+PASSED tests/_core/test_plot.py::TestPairInterface::test_with_facets
+PASSED tests/_core/test_plot.py::TestPairInterface::test_error_on_facet_overlap[variables0]
+PASSED tests/_core/test_plot.py::TestPairInterface::test_error_on_facet_overlap[variables1]
+PASSED tests/_core/test_plot.py::TestPairInterface::test_error_on_wrap_overlap[variables0]
+PASSED tests/_core/test_plot.py::TestPairInterface::test_error_on_wrap_overlap[variables1]
+PASSED tests/_core/test_plot.py::TestPairInterface::test_axis_sharing
+PASSED tests/_core/test_plot.py::TestPairInterface::test_axis_sharing_with_facets
+PASSED tests/_core/test_plot.py::TestPairInterface::test_x_wrapping
+PASSED tests/_core/test_plot.py::TestPairInterface::test_y_wrapping
+PASSED tests/_core/test_plot.py::TestPairInterface::test_non_cross_wrapping
+PASSED tests/_core/test_plot.py::TestPairInterface::test_cross_mismatched_lengths
+PASSED tests/_core/test_plot.py::TestPairInterface::test_orient_inference
+PASSED tests/_core/test_plot.py::TestPairInterface::test_computed_coordinate_orient_inference
+PASSED tests/_core/test_plot.py::TestPairInterface::test_two_variables_single_order_error
+PASSED tests/_core/test_plot.py::TestPairInterface::test_limits
+PASSED tests/_core/test_plot.py::TestPairInterface::test_labels
+PASSED tests/_core/test_plot.py::TestLabelVisibility::test_single_subplot
+PASSED tests/_core/test_plot.py::TestLabelVisibility::test_1d_column[facet_kws0-pair_kws0]
+PASSED tests/_core/test_plot.py::TestLabelVisibility::test_1d_column[facet_kws1-pair_kws1]
+PASSED tests/_core/test_plot.py::TestLabelVisibility::test_1d_row[facet_kws0-pair_kws0]
+PASSED tests/_core/test_plot.py::TestLabelVisibility::test_1d_row[facet_kws1-pair_kws1]
+PASSED tests/_core/test_plot.py::TestLabelVisibility::test_1d_column_wrapped
+PASSED tests/_core/test_plot.py::TestLabelVisibility::test_1d_row_wrapped
+PASSED tests/_core/test_plot.py::TestLabelVisibility::test_1d_column_wrapped_non_cross
+PASSED tests/_core/test_plot.py::TestLabelVisibility::test_2d
+PASSED tests/_core/test_plot.py::TestLabelVisibility::test_2d_unshared
+PASSED tests/_core/test_plot.py::TestLegend::test_single_layer_single_variable
+PASSED tests/_core/test_plot.py::TestLegend::test_single_layer_common_variable
+PASSED tests/_core/test_plot.py::TestLegend::test_single_layer_common_unnamed_variable
+PASSED tests/_core/test_plot.py::TestLegend::test_single_layer_multi_variable
+PASSED tests/_core/test_plot.py::TestLegend::test_multi_layer_single_variable
+PASSED tests/_core/test_plot.py::TestLegend::test_multi_layer_multi_variable
+PASSED tests/_core/test_plot.py::TestLegend::test_multi_layer_different_artists
+PASSED tests/_core/test_plot.py::TestLegend::test_three_layers
+PASSED tests/_core/test_plot.py::TestLegend::test_identity_scale_ignored
+PASSED tests/_core/test_plot.py::TestLegend::test_suppression_in_add_method
+PASSED tests/_core/test_plot.py::TestLegend::test_anonymous_title
+PASSED tests/_core/test_plot.py::TestLegend::test_legendless_mark
+PASSED tests/_core/test_plot.py::TestDefaultObject::test_default_repr
+PASSED tests/test_relational.py::TestRelationalPlotter::test_wide_df_variables
+PASSED tests/test_relational.py::TestRelationalPlotter::test_wide_df_with_nonnumeric_variables
+PASSED tests/test_relational.py::TestRelationalPlotter::test_wide_array_variables
+PASSED tests/test_relational.py::TestRelationalPlotter::test_flat_array_variables
+PASSED tests/test_relational.py::TestRelationalPlotter::test_flat_list_variables
+PASSED tests/test_relational.py::TestRelationalPlotter::test_flat_series_variables
+PASSED tests/test_relational.py::TestRelationalPlotter::test_wide_list_of_series_variables
+PASSED tests/test_relational.py::TestRelationalPlotter::test_wide_list_of_arrays_variables
+PASSED tests/test_relational.py::TestRelationalPlotter::test_wide_list_of_list_variables
+PASSED tests/test_relational.py::TestRelationalPlotter::test_wide_dict_of_series_variables
+PASSED tests/test_relational.py::TestRelationalPlotter::test_wide_dict_of_arrays_variables
+PASSED tests/test_relational.py::TestRelationalPlotter::test_wide_dict_of_lists_variables
+PASSED tests/test_relational.py::TestRelationalPlotter::test_relplot_simple
+PASSED tests/test_relational.py::TestRelationalPlotter::test_relplot_complex
+PASSED tests/test_relational.py::TestRelationalPlotter::test_relplot_vectors[series]
+PASSED tests/test_relational.py::TestRelationalPlotter::test_relplot_vectors[numpy]
+PASSED tests/test_relational.py::TestRelationalPlotter::test_relplot_vectors[list]
+PASSED tests/test_relational.py::TestRelationalPlotter::test_relplot_wide
+PASSED tests/test_relational.py::TestRelationalPlotter::test_relplot_hues
+PASSED tests/test_relational.py::TestRelationalPlotter::test_relplot_sizes
+PASSED tests/test_relational.py::TestRelationalPlotter::test_relplot_styles
+PASSED tests/test_relational.py::TestRelationalPlotter::test_relplot_stringy_numerics
+PASSED tests/test_relational.py::TestRelationalPlotter::test_relplot_legend
+PASSED tests/test_relational.py::TestRelationalPlotter::test_relplot_unshared_axis_labels
+PASSED tests/test_relational.py::TestRelationalPlotter::test_relplot_data
+PASSED tests/test_relational.py::TestRelationalPlotter::test_facet_variable_collision
+PASSED tests/test_relational.py::TestRelationalPlotter::test_ax_kwarg_removal
+PASSED tests/test_relational.py::TestLinePlotter::test_color
+PASSED tests/test_relational.py::TestLinePlotter::test_legend_data
+PASSED tests/test_relational.py::TestLinePlotter::test_plot
+PASSED tests/test_relational.py::TestLinePlotter::test_non_aggregated_data
+PASSED tests/test_relational.py::TestLinePlotter::test_orient
+PASSED tests/test_relational.py::TestLinePlotter::test_log_scale
+PASSED tests/test_relational.py::TestLinePlotter::test_axis_labels
+PASSED tests/test_relational.py::TestLinePlotter::test_matplotlib_kwargs
+PASSED tests/test_relational.py::TestLinePlotter::test_nonmapped_dashes
+PASSED tests/test_relational.py::TestLinePlotter::test_lineplot_axes
+PASSED tests/test_relational.py::TestLinePlotter::test_lineplot_vs_relplot[long_semantics0]
+PASSED tests/test_relational.py::TestLinePlotter::test_lineplot_vs_relplot[long_semantics1]
+PASSED tests/test_relational.py::TestLinePlotter::test_lineplot_vs_relplot[long_semantics2]
+PASSED tests/test_relational.py::TestLinePlotter::test_lineplot_vs_relplot[long_semantics3]
+PASSED tests/test_relational.py::TestLinePlotter::test_lineplot_vs_relplot[long_semantics4]
+PASSED tests/test_relational.py::TestLinePlotter::test_lineplot_vs_relplot[long_semantics5]
+PASSED tests/test_relational.py::TestLinePlotter::test_lineplot_vs_relplot[long_semantics6]
+PASSED tests/test_relational.py::TestLinePlotter::test_lineplot_vs_relplot[long_semantics7]
+PASSED tests/test_relational.py::TestLinePlotter::test_lineplot_vs_relplot[long_semantics8]
+PASSED tests/test_relational.py::TestLinePlotter::test_lineplot_vs_relplot[long_semantics9]
+PASSED tests/test_relational.py::TestLinePlotter::test_lineplot_vs_relplot[long_semantics10]
+PASSED tests/test_relational.py::TestLinePlotter::test_lineplot_vs_relplot[long_semantics11]
+PASSED tests/test_relational.py::TestLinePlotter::test_lineplot_smoke
+PASSED tests/test_relational.py::TestLinePlotter::test_ci_deprecation
+PASSED tests/test_relational.py::TestScatterPlotter::test_color
+PASSED tests/test_relational.py::TestScatterPlotter::test_legend_data
+PASSED tests/test_relational.py::TestScatterPlotter::test_plot
+PASSED tests/test_relational.py::TestScatterPlotter::test_axis_labels
+PASSED tests/test_relational.py::TestScatterPlotter::test_scatterplot_axes
+PASSED tests/test_relational.py::TestScatterPlotter::test_literal_attribute_vectors
+PASSED tests/test_relational.py::TestScatterPlotter::test_supplied_color_array
+PASSED tests/test_relational.py::TestScatterPlotter::test_hue_order
+PASSED tests/test_relational.py::TestScatterPlotter::test_linewidths
+PASSED tests/test_relational.py::TestScatterPlotter::test_size_norm_extrapolation
+PASSED tests/test_relational.py::TestScatterPlotter::test_datetime_scale
+PASSED tests/test_relational.py::TestScatterPlotter::test_unfilled_marker_edgecolor_warning
+PASSED tests/test_relational.py::TestScatterPlotter::test_scatterplot_vs_relplot[long_semantics0]
+PASSED tests/test_relational.py::TestScatterPlotter::test_scatterplot_vs_relplot[long_semantics1]
+PASSED tests/test_relational.py::TestScatterPlotter::test_scatterplot_vs_relplot[long_semantics2]
+PASSED tests/test_relational.py::TestScatterPlotter::test_scatterplot_vs_relplot[long_semantics3]
+PASSED tests/test_relational.py::TestScatterPlotter::test_scatterplot_vs_relplot[long_semantics4]
+PASSED tests/test_relational.py::TestScatterPlotter::test_scatterplot_vs_relplot[long_semantics5]
+PASSED tests/test_relational.py::TestScatterPlotter::test_scatterplot_vs_relplot[long_semantics6]
+PASSED tests/test_relational.py::TestScatterPlotter::test_scatterplot_vs_relplot[long_semantics7]
+PASSED tests/test_relational.py::TestScatterPlotter::test_scatterplot_vs_relplot[long_semantics8]
+PASSED tests/test_relational.py::TestScatterPlotter::test_scatterplot_vs_relplot[long_semantics9]
+PASSED tests/test_relational.py::TestScatterPlotter::test_scatterplot_vs_relplot[long_semantics10]
+PASSED tests/test_relational.py::TestScatterPlotter::test_scatterplot_vs_relplot[long_semantics11]
+PASSED tests/test_relational.py::TestScatterPlotter::test_scatterplot_smoke
+XFAIL tests/_core/test_plot.py::TestLayerAddition::test_stat_default - Need decision on default stat
+XFAIL tests/_core/test_plot.py::TestScaling::test_categorical_as_datetime - Temporal auto-conversion not implemented
+XFAIL tests/_core/test_plot.py::TestScaling::test_log_scale_name - Custom log scale needs log name for consistency
+XFAIL tests/_core/test_plot.py::TestScaling::test_identity_mapping_color_strings - Correct output representation for color with identity scale undefined
+XFAIL tests/_core/test_plot.py::TestScaling::test_undefined_variable_raises - Need decision on what to do with scale defined for unused variable
+FAILED tests/_core/test_plot.py::TestLegend::test_legend_has_no_offset - Valu...
+FAILED tests/test_relational.py::TestRelationalPlotter::test_legend_has_no_offset
+====== 2 failed, 249 passed, 5 xfailed, 207 warnings in 135.27s (0:02:15) ======
++ git checkout 22cdfb0c93f8ec78492d87edb810f10cb7f57a31 tests/_core/test_plot.py tests/test_relational.py
+Updated 2 paths from 8b530ce0

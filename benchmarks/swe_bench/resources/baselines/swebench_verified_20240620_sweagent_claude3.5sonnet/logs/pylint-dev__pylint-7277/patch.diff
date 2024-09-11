@@ -1,0 +1,68 @@
+
+diff --git a/pylint/__init__.py b/pylint/__init__.py
+index 9f3dd74e6..5cdf31a53 100644
+--- a/pylint/__init__.py
++++ b/pylint/__init__.py
+@@ -86,7 +86,7 @@ def modify_sys_path() -> None:
+     stdlib or pylint's own modules.
+     CPython issue: https://bugs.python.org/issue33053
+ 
+-    - Remove the first entry. This will always be either "" or the working directory
++    - Remove the first entry only if it's "", ".", or the current working directory.
+     - Remove the working directory from the second and third entries
+       if PYTHONPATH includes a ":" at the beginning or the end.
+       https://github.com/PyCQA/pylint/issues/3636
+@@ -96,13 +96,26 @@ def modify_sys_path() -> None:
+       if pylint is installed in an editable configuration (as the last item).
+       https://github.com/PyCQA/pylint/issues/4161
+     """
+-    sys.path.pop(0)
+-    env_pythonpath = os.environ.get("PYTHONPATH", "")
+     cwd = os.getcwd()
+-    if env_pythonpath.startswith(":") and env_pythonpath not in (f":{cwd}", ":."):
++    if sys.path and sys.path[0] not in ("", ".", cwd):
++        # If the first entry is not "", ".", or cwd, it's likely a custom path
++        # added by the user. We should keep it.
++        custom_path = sys.path.pop(0)
++    else:
++        custom_path = None
++
++    # Remove "", ".", or cwd from the beginning of sys.path
++    while sys.path and sys.path[0] in ("", ".", cwd):
+         sys.path.pop(0)
+-    elif env_pythonpath.endswith(":") and env_pythonpath not in (f"{cwd}:", ".:"):
+-        sys.path.pop(1)
+ 
++    env_pythonpath = os.environ.get("PYTHONPATH", "")
++    if env_pythonpath.startswith(":") or env_pythonpath.endswith(":"):
++        for _ in range(2):
++            if len(sys.path) > 1 and sys.path[1] in ("", ".", cwd):
++                sys.path.pop(1)
++
++    # Add the custom path back at the beginning if it was present
++    if custom_path:
++        sys.path.insert(0, custom_path)
+ 
+ version = __version__
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 000000000..b2efdad74
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,16 @@
++import sys
++import runpy
++from pylint import modify_sys_path
++
++sys.path.insert(0, "something")
++
++print("Initial sys.path:", sys.path)
++
++modify_sys_path()
++
++print("After modify_sys_path:", sys.path)
++
++runpy.run_module('pylint', run_name="__main__", alter_sys=True)
++
++print("Final sys.path:", sys.path)
++print("Script completed successfully, no errors.")

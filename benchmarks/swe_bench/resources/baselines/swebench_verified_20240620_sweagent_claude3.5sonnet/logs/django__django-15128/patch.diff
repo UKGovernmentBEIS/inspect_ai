@@ -1,0 +1,93 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..a6e7bea00b
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,86 @@
++import os
++import django
++from django.conf import settings
++from django.db import models
++from django.db.models import Q
++from django.apps import AppConfig
++
++# Set up Django
++os.environ.setdefault("DJANGO_SETTINGS_MODULE", "reproduce_settings")
++
++class ReproduceConfig(AppConfig):
++    name = 'reproduce'
++    label = 'reproduce'
++
++if not settings.configured:
++    settings.configure(
++        DEBUG=True,
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++            'reproduce',
++        ],
++        DEFAULT_AUTO_FIELD='django.db.models.AutoField',
++    )
++django.setup()
++
++# Models
++class Qux(models.Model):
++    bazes = models.ManyToManyField("Baz", related_name="quxes")
++
++    class Meta:
++        app_label = 'reproduce'
++
++class Baz(models.Model):
++    class Meta:
++        app_label = 'reproduce'
++
++class Foo(models.Model):
++    qux = models.ForeignKey(Qux, on_delete=models.CASCADE, related_name="foos")
++
++    class Meta:
++        app_label = 'reproduce'
++
++class Bar(models.Model):
++    foo = models.ForeignKey(Foo, on_delete=models.CASCADE, related_name="bars")
++    another_foo = models.ForeignKey(Foo, on_delete=models.CASCADE, related_name="other_bars")
++    baz = models.ForeignKey(Baz, on_delete=models.CASCADE, related_name="bars")
++
++    class Meta:
++        app_label = 'reproduce'
++
++# Create tables
++from django.core.management import call_command
++call_command('makemigrations', 'reproduce', verbosity=0, interactive=False)
++call_command('migrate', verbosity=0, interactive=False)
++
++# Reproduction code
++qux = Qux.objects.create()
++qs1 = qux.foos.all()
++qs2 = Foo.objects.filter(
++    Q(bars__baz__in=qux.bazes.all()) | Q(other_bars__baz__in=qux.bazes.all())
++)
++
++# This works fine
++print("qs2 | qs1:")
++try:
++    result = qs2 | qs1
++    print("Success")
++except Exception as e:
++    print(f"Error: {e}")
++
++# This raises AssertionError
++print("\nqs1 | qs2:")
++try:
++    result = qs1 | qs2
++    print("Success")
++except Exception as e:
++    print(f"Error: {e}")
++
++print("\nScript completed.")

@@ -1,0 +1,67 @@
+
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 000000000..0a3165885
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,21 @@
++from sklearn.feature_extraction.text import strip_accents_unicode
++
++# This string contains one code point, "LATIN SMALL LETTER N WITH TILDE"
++s1 = "\u00f1"
++
++# This string contains two code points, "LATIN SMALL LETTER N" followed by "COMBINING TILDE"
++s2 = "n\u0303"
++
++# They are visually identical, as expected
++print("s1:", s1.encode('utf-8'))
++print("s2:", s2.encode('utf-8'))
++
++# The tilde should be removed from both s1 and s2
++print("strip_accents_unicode(s1):", strip_accents_unicode(s1).encode('utf-8'))
++print("strip_accents_unicode(s2):", strip_accents_unicode(s2).encode('utf-8'))
++
++# They should now be equal
++print("strip_accents_unicode(s1) == strip_accents_unicode(s2):", 
++      strip_accents_unicode(s1) == strip_accents_unicode(s2))
++
++print("Script completed successfully, no errors.")
+diff --git a/sklearn/feature_extraction/text.py b/sklearn/feature_extraction/text.py
+index bb5a9d646..6d154fbda 100644
+--- a/sklearn/feature_extraction/text.py
++++ b/sklearn/feature_extraction/text.py
+@@ -19,6 +19,8 @@ from functools import partial
+ import numbers
+ from operator import itemgetter
+ import re
++from operator import itemgetter
++import re
+ import unicodedata
+ import warnings
+ 
+@@ -114,9 +116,7 @@ def _analyze(doc, analyzer=None, tokenizer=None, ngrams=None,
+ def strip_accents_unicode(s):
+     """Transform accentuated unicode symbols into their simple counterpart
+ 
+-    Warning: the python-level loop and join operations make this
+-    implementation 20 times slower than the strip_accents_ascii basic
+-    normalization.
++    This function works for both strings in NFC and NFKD forms.
+ 
+     Parameters
+     ----------
+@@ -130,13 +130,7 @@ def strip_accents_unicode(s):
+         ASCII equivalent.
+     """
+     normalized = unicodedata.normalize('NFKD', s)
+-    if normalized == s:
+-        return s
+-    else:
+-        return ''.join([c for c in normalized if not unicodedata.combining(c)])
+-
+-
+-def strip_accents_ascii(s):
++    return ''.join([c for c in normalized if not unicodedata.combining(c)])
+     """Transform accentuated unicode symbols into ascii or nothing
+ 
+     Warning: this solution is only suited for languages that have a direct

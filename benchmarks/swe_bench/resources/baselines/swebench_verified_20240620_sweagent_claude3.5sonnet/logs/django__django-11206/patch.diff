@@ -1,0 +1,52 @@
+
+diff --git a/django/utils/numberformat.py b/django/utils/numberformat.py
+index 88b35fc435..c721b1ef1d 100644
+--- a/django/utils/numberformat.py
++++ b/django/utils/numberformat.py
+@@ -2,6 +2,7 @@ from decimal import Decimal
+ 
+ from django.conf import settings
+ from django.utils.safestring import mark_safe
++from django.utils.translation import get_language, to_locale
+ 
+ 
+ def format(number, decimal_sep, decimal_pos=None, grouping=0, thousand_sep='',
+@@ -31,6 +32,9 @@ def format(number, decimal_sep, decimal_pos=None, grouping=0, thousand_sep='',
+         # scientific notation to avoid high memory usage in {:f}'.format().
+         _, digits, exponent = number.as_tuple()
+         if abs(exponent) + len(digits) > 200:
++            if decimal_pos is not None:
++                # If decimal_pos is specified, format as 0 with specified decimal places
++                return '0.' + '0' * decimal_pos
+             number = '{:e}'.format(number)
+             coefficient, exponent = number.split('e')
+             # Format the coefficient.
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..7c6839970f
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,23 @@
++from decimal import Decimal
++from django.conf import settings
++
++# Configure minimal Django settings
++settings.configure(USE_L10N=False, USE_THOUSAND_SEPARATOR=False)
++
++from django.utils.numberformat import format as nformat
++
++print("Testing with 2 decimal places:")
++print(f"1e-199: {nformat(Decimal('1e-199'), '.', decimal_pos=2)}")
++print(f"1e-200: {nformat(Decimal('1e-200'), '.', decimal_pos=2)}")
++print(f"1e-201: {nformat(Decimal('1e-201'), '.', decimal_pos=2)}")
++print(f"0.01: {nformat(Decimal('0.01'), '.', decimal_pos=2)}")
++print(f"0.001: {nformat(Decimal('0.001'), '.', decimal_pos=2)}")
++
++print("\nTesting with 4 decimal places:")
++print(f"1e-199: {nformat(Decimal('1e-199'), '.', decimal_pos=4)}")
++print(f"1e-200: {nformat(Decimal('1e-200'), '.', decimal_pos=4)}")
++print(f"1e-201: {nformat(Decimal('1e-201'), '.', decimal_pos=4)}")
++print(f"0.0001: {nformat(Decimal('0.0001'), '.', decimal_pos=4)}")
++print(f"0.00001: {nformat(Decimal('0.00001'), '.', decimal_pos=4)}")
++
++print("\nScript completed successfully, no errors.")

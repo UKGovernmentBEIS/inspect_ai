@@ -1,0 +1,59 @@
+{
+    "sympy__sympy-22456": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "test_String"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_Assignment",
+                    "test_AugAssign",
+                    "test_Assignment_printing",
+                    "test_CodeBlock",
+                    "test_CodeBlock_topological_sort",
+                    "test_CodeBlock_free_symbols",
+                    "test_CodeBlock_cse",
+                    "test_CodeBlock_cse__issue_14118",
+                    "test_For",
+                    "test_none",
+                    "test_Comment",
+                    "test_Node",
+                    "test_Type",
+                    "test_Type__from_expr",
+                    "test_Type__cast_check__integers",
+                    "test_Attribute",
+                    "test_IntBaseType",
+                    "test_FloatType",
+                    "test_Type__cast_check__floating_point",
+                    "test_Type__cast_check__complex_floating_point",
+                    "test_While",
+                    "test_Scope",
+                    "test_Print",
+                    "test_FunctionPrototype_and_FunctionDefinition",
+                    "test_Return",
+                    "test_FunctionCall"
+                ],
+                "failure": [
+                    "test_Variable",
+                    "test_Pointer",
+                    "test_Declaration"
+                ]
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

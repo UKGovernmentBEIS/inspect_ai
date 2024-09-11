@@ -1,0 +1,126 @@
+
+diff --git a/PIsys/conftest.py b/PIsys/conftest.py
+new file mode 100644
+index 000000000..ca9f0bc44
+--- /dev/null
++++ b/PIsys/conftest.py
+@@ -0,0 +1 @@
++# This is a simple conftest.py file
+diff --git a/PIsys/tests/test_example.py b/PIsys/tests/test_example.py
+new file mode 100644
+index 000000000..3ca5309e2
+--- /dev/null
++++ b/PIsys/tests/test_example.py
+@@ -0,0 +1,5 @@
++import pytest
++
++@pytest.mark.smoke
++def test_example():
++    assert True
+diff --git a/pytest.ini b/pytest.ini
+new file mode 100644
+index 000000000..a7ce93dcd
+--- /dev/null
++++ b/pytest.ini
+@@ -0,0 +1,3 @@
++[pytest]
++markers =
++    smoke: mark test as a smoke test
+diff --git a/src/_pytest/pathlib.py b/src/_pytest/pathlib.py
+index 0403b6947..ed4fe4d78 100644
+--- a/src/_pytest/pathlib.py
++++ b/src/_pytest/pathlib.py
+@@ -24,6 +24,13 @@ else:
+ 
+ __all__ = ["Path", "PurePath"]
+ 
++def case_insensitive_path_compare(path1, path2):
++    """Compare two paths in a case-insensitive manner on Windows."""
++    if sys.platform.startswith('win'):
++        return os.path.normcase(str(path1)) == os.path.normcase(str(path2))
++    return path1 == path2
++
++
+ 
+ LOCK_TIMEOUT = 60 * 60 * 3
+ 
+diff --git a/src/_pytest/python.py b/src/_pytest/python.py
+index 913a93bc0..5cb0811ca 100644
+--- a/src/_pytest/python.py
++++ b/src/_pytest/python.py
+@@ -504,15 +504,16 @@ class Module(nodes.File, PyCollector):
+                 _pytest._code.ExceptionInfo.from_current().getrepr(style="short")
+             )
+         except self.fspath.ImportMismatchError:
++            from _pytest.pathlib import case_insensitive_path_compare
++            if case_insensitive_path_compare(str(self.fspath), str(self.fspath.pyimport())):
++                # The module was found, but in a different case. This is likely the root cause of the issue.
++                raise self.CollectError(
++                    "Import error: The module was found, but the file path case doesn't match. "
++                    "This can cause issues on case-insensitive file systems like Windows. "
++                    "Please ensure the file path case matches exactly."
++                )
+             e = sys.exc_info()[1]
+             raise self.CollectError(
+-                "import file mismatch:\n"
+-                "imported module %r has this __file__ attribute:\n"
+-                "  %s\n"
+-                "which is not the same as the test file we want to collect:\n"
+-                "  %s\n"
+-                "HINT: remove __pycache__ / .pyc files and/or use a "
+-                "unique basename for your test file modules" % e.args
+             )
+         except ImportError:
+             from _pytest._code.code import ExceptionInfo
+diff --git a/testing/test_windows_path.py b/testing/test_windows_path.py
+new file mode 100644
+index 000000000..302fee8e3
+--- /dev/null
++++ b/testing/test_windows_path.py
+@@ -0,0 +1,46 @@
++import pytest
++import sys
++import os
++from _pytest.python import Module
++from _pytest.pathlib import Path
++import py
++
++class MockConfig:
++    def __init__(self):
++        self.pluginmanager = None
++
++class MockSession:
++    def __init__(self, tmp_path):
++        self.config = MockConfig()
++        self.fspath = py.path.local(tmp_path)
++        self.session = self
++
++def test_windows_path_case_sensitivity(tmp_path, monkeypatch):
++    # Simulate Windows environment
++    monkeypatch.setattr(sys, 'platform', 'win32')
++    
++    # Create a test file
++    test_file = tmp_path / 'test_file.py'
++    test_file.write_text('def test_dummy(): assert True')
++    
++    # Create a Module instance
++    session = MockSession(tmp_path)
++    module = Module(Path(test_file), parent=session)
++    
++    # Rename the file to a different case
++    new_file = tmp_path / 'TEST_FILE.py'
++    os.rename(test_file, new_file)
++    
++    # Mock the import error
++    def mock_pyimport(*args, **kwargs):
++        raise module.fspath.ImportMismatchError(module.fspath, new_file)
++    
++    monkeypatch.setattr(module.fspath, 'pyimport', mock_pyimport)
++    
++    # Call _importtestmodule
++    with pytest.raises(Module.CollectError) as excinfo:
++        module._importtestmodule()
++    
++    # Check if the error message contains our custom message
++    assert 'Import error: The module was found, but the file path case doesn\'t match' in str(excinfo.value)
++    assert 'Please ensure the file path case matches exactly' in str(excinfo.value)

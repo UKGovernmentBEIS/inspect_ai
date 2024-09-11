@@ -1,0 +1,41 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..91b53c75d8
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,12 @@
++import sympy as sp
++from sympy.physics.secondquant import B, Bd, Commutator
++sp.init_printing()
++
++a = sp.Symbol('0')
++result = Commutator(Bd(a)**2, B(a))
++print("Result:")
++print(result)
++print("\nLaTeX representation:")
++print(sp.latex(result))
++
++print("Script completed successfully, no errors.")
+diff --git a/sympy/physics/secondquant.py b/sympy/physics/secondquant.py
+index d19ee2fc63..1466b08949 100644
+--- a/sympy/physics/secondquant.py
++++ b/sympy/physics/secondquant.py
+@@ -478,7 +478,7 @@ def __repr__(self):
+         return "CreateBoson(%s)" % self.state
+ 
+     def _latex(self, printer):
+-        return "b^\\dagger_{%s}" % self.state.name
++        return "{b^\\dagger_{%s}}" % self.state.name
+ 
+ B = AnnihilateBoson
+ Bd = CreateBoson
+@@ -1798,7 +1798,7 @@ def __str__(self):
+         return "[%s,%s]" % (self.args[0], self.args[1])
+ 
+     def _latex(self, printer):
+-        return "\\left[%s,%s\\right]" % tuple([
++        return "\\left[{%s},{%s}\\right]" % tuple([
+             printer._print(arg) for arg in self.args])
+ 
+ 

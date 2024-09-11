@@ -1,0 +1,100 @@
+
+diff --git a/lib/matplotlib/stackplot.py b/lib/matplotlib/stackplot.py
+index c580043eeb..a973301213 100644
+--- a/lib/matplotlib/stackplot.py
++++ b/lib/matplotlib/stackplot.py
+@@ -69,8 +69,8 @@ def stackplot(axes, x, *args,
+     y = np.row_stack(args)
+ 
+     labels = iter(labels)
+-    if colors is not None:
+-        axes.set_prop_cycle(color=colors)
++    if colors is None:
++        colors = axes._get_lines.prop_cycler.by_key()['color']
+ 
+     # Assume data passed has not been 'stacked', so stack it here.
+     # We'll need a float buffer for the upcoming calculations.
+@@ -98,27 +98,25 @@ def stackplot(axes, x, *args,
+         mask = total > 0
+         inv_total[mask] = 1.0 / total[mask]
+         increase = np.hstack((y[:, 0:1], np.diff(y)))
+-        below_size = total - stack
+-        below_size += 0.5 * y
+-        move_up = below_size * inv_total
+-        move_up[:, 0] = 0.5
+-        center = (move_up - 0.5) * increase
+-        center = np.cumsum(center.sum(0))
+-        first_line = center - 0.5 * total
++        below_size = (increase * np.arange(y.shape[0])[:, None] * inv_total)
++        below_size = np.cumsum(below_size, axis=0)
++        first_line = (y * below_size).sum(0)
++        first_line /= -y.shape[0]
+         stack += first_line
+ 
+     # Color between x = 0 and the first array.
+-    color = axes._get_lines.get_next_color()
++    color_cycle = iter(colors)
+     coll = axes.fill_between(x, first_line, stack[0, :],
+-                             facecolor=color, label=next(labels, None),
++                             facecolor=next(color_cycle),
++                             label=next(labels, None),
+                              **kwargs)
+-    coll.sticky_edges.y[:] = [0]
+     r = [coll]
+ 
+     # Color between array i-1 and array i
+     for i in range(len(y) - 1):
+-        color = axes._get_lines.get_next_color()
++        color = next(color_cycle)
+         r.append(axes.fill_between(x, stack[i, :], stack[i + 1, :],
+-                                   facecolor=color, label=next(labels, None),
++                                   facecolor=color,
++                                   label=next(labels, None),
+                                    **kwargs))
+     return r
+diff --git a/lib/matplotlib/tests/test_axes.py b/lib/matplotlib/tests/test_axes.py
+index 0d7d360ff5..b59ca34f59 100644
+--- a/lib/matplotlib/tests/test_axes.py
++++ b/lib/matplotlib/tests/test_axes.py
+@@ -8161,3 +8161,15 @@ def test_bar_leading_nan():
+         for b in rest:
+             assert np.isfinite(b.xy).all()
+             assert np.isfinite(b.get_width())
++def test_stackplot_colors():
++    import numpy as np
++    import matplotlib.pyplot as plt
++
++    my_data = np.array([[1, 1, 1], [1, 2, 3], [4, 3, 2]])
++    fig, ax = plt.subplots()
++    ax.plot([1, 3], [1, 3], color='C0')
++    ax.add_patch(plt.Rectangle(xy=(1.5, 1.5), width=0.5, height=0.5, facecolor='C1'))
++    ax.stackplot([1, 2, 3], my_data, colors=['C2', 'C3', 'C4'])
++    
++    plt.savefig('stackplot_colors_test.png')
++    plt.close(fig)
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..cc62283bb3
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,12 @@
++import matplotlib.pyplot as plt
++from matplotlib.patches import Rectangle
++import numpy
++
++my_data = numpy.array([[1, 1, 1], [1, 2, 3], [4, 3, 2]])
++fig, ax = plt.subplots()
++ax.plot([1, 3], [1, 3], color='C0')
++ax.add_patch(Rectangle(xy=(1.5, 1.5), width=0.5, height=0.5, facecolor='C1'))
++ax.stackplot([1, 2, 3], my_data, colors=['C2', 'C3', 'C4'])
++plt.savefig('stackplot_test.png')
++plt.close(fig)
++print("Script completed successfully, no errors. Check stackplot_test.png for the result.")
+diff --git a/stackplot_colors_test.png b/stackplot_colors_test.png
+new file mode 100644
+index 0000000000..77b7daa647
+Binary files /dev/null and b/stackplot_colors_test.png differ
+diff --git a/stackplot_test.png b/stackplot_test.png
+new file mode 100644
+index 0000000000..9111fd39e0
+Binary files /dev/null and b/stackplot_test.png differ

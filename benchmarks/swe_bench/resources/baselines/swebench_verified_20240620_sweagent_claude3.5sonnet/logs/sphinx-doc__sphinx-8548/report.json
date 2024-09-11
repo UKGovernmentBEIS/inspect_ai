@@ -1,0 +1,34 @@
+{
+    "sphinx-doc__sphinx-8548": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "tests/test_ext_autodoc_autoclass.py::test_inherited_instance_variable"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "tests/test_ext_autodoc_autoclass.py::test_classes",
+                    "tests/test_ext_autodoc_autoclass.py::test_instance_variable",
+                    "tests/test_ext_autodoc_autoclass.py::test_decorators",
+                    "tests/test_ext_autodoc_autoclass.py::test_slots_attribute",
+                    "tests/test_ext_autodoc_autoclass.py::test_show_inheritance_for_subclass_of_generic_type"
+                ]
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

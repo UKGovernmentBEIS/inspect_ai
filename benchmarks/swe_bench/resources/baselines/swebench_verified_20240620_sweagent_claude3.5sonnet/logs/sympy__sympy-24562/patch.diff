@@ -1,0 +1,39 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..bf0e0332e0
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,14 @@
++from sympy import Rational
++
++print("Testing Rational('0.5', '100'):")
++result1 = Rational('0.5', '100')
++print(result1)
++
++print("\nTesting Rational(0.5, 100):")
++result2 = Rational(0.5, 100)
++print(result2)
++
++print("\nChecking if results are equal:")
++print(result1 == result2)
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sympy/core/numbers.py b/sympy/core/numbers.py
+index 52f7ea45ad..4a07920d7c 100644
+--- a/sympy/core/numbers.py
++++ b/sympy/core/numbers.py
+@@ -1625,6 +1625,13 @@ def __new__(cls, p, q=None, gcd=None):
+             q = 1
+             gcd = 1
+ 
++        # New code to handle string inputs for both p and q
++        if isinstance(p, str) and isinstance(q, str):
++            fp = fractions.Fraction(p)
++            fq = fractions.Fraction(q)
++            p = fp / fq
++            return Rational(p.numerator, p.denominator, 1)
++
+         if not isinstance(p, SYMPY_INTS):
+             p = Rational(p)
+             q *= p.q

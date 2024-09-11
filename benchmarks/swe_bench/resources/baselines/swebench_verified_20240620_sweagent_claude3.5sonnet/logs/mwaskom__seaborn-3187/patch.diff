@@ -1,0 +1,134 @@
+
+diff --git a/comparison_plot.png b/comparison_plot.png
+new file mode 100644
+index 00000000..79219a46
+Binary files /dev/null and b/comparison_plot.png differ
+diff --git a/issue_plot.png b/issue_plot.png
+new file mode 100644
+index 00000000..cb527350
+Binary files /dev/null and b/issue_plot.png differ
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 00000000..d851750e
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,48 @@
++import seaborn as sns
++import seaborn.objects as so
++import matplotlib.pyplot as plt
++
++penguins = sns.load_dataset("penguins")
++penguins["body_mass_mg"] = penguins["body_mass_g"] * 1000
++penguins["body_mass_ug"] = penguins["body_mass_g"] * 1000000
++
++fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(30, 10))
++
++# Original plot (grams)
++(so.Plot(penguins, x="bill_length_mm", y="bill_depth_mm", color="species", pointsize="body_mass_g")
++ .add(so.Dot())
++ .on(ax1)
++ .layout(size=(10, 10))
++ .legend(title="Species")
++ .show())
++ax1.set_title("Original (grams)")
++
++# Modified plot with large values (milligrams)
++(so.Plot(penguins, x="bill_length_mm", y="bill_depth_mm", color="species", pointsize="body_mass_mg")
++ .add(so.Dot())
++ .on(ax2)
++ .layout(size=(10, 10))
++ .legend(title="Species")
++ .show())
++ax2.set_title("Modified (milligrams)")
++
++# Modified plot with very large values (micrograms)
++(so.Plot(penguins, x="bill_length_mm", y="bill_depth_mm", color="species", pointsize="body_mass_ug")
++ .add(so.Dot())
++ .on(ax3)
++ .layout(size=(10, 10))
++ .legend(title="Species")
++ .show())
++ax3.set_title("Modified (micrograms)")
++
++plt.tight_layout()
++plt.savefig('comparison_plot.png')
++
++# Print legend labels and size values
++for i, (ax, unit) in enumerate(zip([ax1, ax2, ax3], ['grams', 'milligrams', 'micrograms'])):
++    print(f"\n{unit.capitalize()} plot legend labels:")
++    for text in ax.get_legend().texts:
++        print(text.get_text())
++
++print("\nComparison plot saved as 'comparison_plot.png'")
++print("Script completed successfully, no errors.")
+diff --git a/seaborn/_core/scales.py b/seaborn/_core/scales.py
+index 55874bf2..e52d1c84 100644
+--- a/seaborn/_core/scales.py
++++ b/seaborn/_core/scales.py
+@@ -50,12 +50,20 @@ if TYPE_CHECKING:
+     # work out the right way to communicate the types to mypy. Revisit!
+     Pipeline = Sequence[Optional[Callable[[Any], Any]]]
+ 
++class LargeNumberFormatter(Formatter):
++    def __call__(self, x, pos=None):
++        if abs(x) >= 1e6:
++            return f'{x/1e6:.1f}M'
++        elif abs(x) >= 1e3:
++            return f'{x/1e3:.1f}K'
++        else:
++            return f'{x:.1f}'
++
+ 
+ class Scale:
+     """Base class for objects that map data values to visual properties."""
+ 
+     values: tuple | str | list | dict | None
+-
+     _priority: ClassVar[int]
+     _pipeline: Pipeline
+     _matplotlib_scale: ScaleBase
+@@ -63,7 +71,6 @@ class Scale:
+     _legend: tuple[list[str], list[Any]] | None
+ 
+     def __post_init__(self):
+-
+         self._tick_params = None
+         self._label_params = None
+         self._legend = None
+@@ -78,8 +85,12 @@ class Scale:
+         raise NotImplementedError()
+ 
+     def _get_formatter(self, locator: Locator | None = None):
+-        raise NotImplementedError()
+-
++        if isinstance(locator, (LogLocator, SymmetricalLogLocator)):
++            return LogFormatterSciNotation()
++        elif isinstance(locator, (MultipleLocator, FixedLocator)):
++            return ScalarFormatter()
++        else:
++            return LargeNumberFormatter()
+     def _get_scale(self, name: str, forward: Callable, inverse: Callable):
+ 
+         major_locator, minor_locator = self._get_locators(**self._tick_params)
+@@ -378,7 +389,11 @@ class ContinuousBase(Scale):
+             axis.set_view_interval(vmin, vmax)
+             locs = axis.major.locator()
+             locs = locs[(vmin <= locs) & (locs <= vmax)]
+-            labels = axis.major.formatter.format_ticks(locs)
++            formatter = axis.major.formatter
++            labels = formatter.format_ticks(locs)
++            offset = formatter.get_offset()
++            if offset:
++                labels = [f"{label} {offset}" for label in labels]
+             new._legend = list(locs), list(labels)
+ 
+         return new
+@@ -647,7 +662,7 @@ class Continuous(ContinuousBase):
+             formatter = EngFormatter(unit, sep=sep)
+ 
+         else:
+-            formatter = ScalarFormatter()
++            formatter = ScalarFormatter(useOffset=True, useMathText=True)
+ 
+         return formatter
+ 

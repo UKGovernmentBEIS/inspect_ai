@@ -1,0 +1,52 @@
+
+diff --git a/django/db/backends/ddl_references.py b/django/db/backends/ddl_references.py
+index 44e49806f8..4652c7ddc2 100644
+--- a/django/db/backends/ddl_references.py
++++ b/django/db/backends/ddl_references.py
+@@ -84,7 +84,8 @@ class Columns(TableColumns):
+     def __str__(self):
+         def col_str(column, idx):
+             try:
+-                return self.quote_name(column) + self.col_suffixes[idx]
++                suffix = self.col_suffixes[idx]
++                return f"{self.quote_name(column)}{' ' if suffix else ''}{suffix}"
+             except IndexError:
+                 return self.quote_name(column)
+ 
+@@ -112,9 +113,11 @@ class IndexColumns(Columns):
+         def col_str(column, idx):
+             # Index.__init__() guarantees that self.opclasses is the same
+             # length as self.columns.
+-            col = '{} {}'.format(self.quote_name(column), self.opclasses[idx])
++            col = f"{self.quote_name(column)} {self.opclasses[idx]}".rstrip()
+             try:
+-                col = '{} {}'.format(col, self.col_suffixes[idx])
++                suffix = self.col_suffixes[idx]
++                if suffix:
++                    col = f"{col} {suffix}"
+             except IndexError:
+                 pass
+             return col
+diff --git a/test_index_columns.py b/test_index_columns.py
+new file mode 100644
+index 0000000000..c083372f44
+--- /dev/null
++++ b/test_index_columns.py
+@@ -0,0 +1,17 @@
++from django.db.backends.ddl_references import IndexColumns
++
++def test_index_columns():
++    # Test case 1: Column with DESC
++    ic1 = IndexColumns('mytable', ['name'], lambda x: f'"{x}"', col_suffixes=['DESC'], opclasses=[''])
++    print(f"Test case 1 (DESC): {ic1}")
++
++    # Test case 2: Column with opclass
++    ic2 = IndexColumns('mytable', ['name'], lambda x: f'"{x}"', col_suffixes=[''], opclasses=['text_pattern_ops'])
++    print(f"Test case 2 (opclass): {ic2}")
++
++    # Test case 3: Column with both opclass and DESC
++    ic3 = IndexColumns('mytable', ['name'], lambda x: f'"{x}"', col_suffixes=['DESC'], opclasses=['text_pattern_ops'])
++    print(f"Test case 3 (opclass and DESC): {ic3}")
++
++if __name__ == '__main__':
++    test_index_columns()

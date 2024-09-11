@@ -1,0 +1,116 @@
+
+diff --git a/conf.py b/conf.py
+new file mode 100644
+index 000000000..7664264b1
+--- /dev/null
++++ b/conf.py
+@@ -0,0 +1,8 @@
++import sys
++import os
++
++sys.path.insert(0, os.path.abspath('.'))
++
++extensions = [
++        'my_extension'
++]
+diff --git a/index.rst b/index.rst
+new file mode 100644
+index 000000000..f2dec1395
+--- /dev/null
++++ b/index.rst
+@@ -0,0 +1,6 @@
++This is a test
++==============
++
++.. include:: something-to-include.rst
++
++&REPLACE_ME;
+diff --git a/my_extension.py b/my_extension.py
+new file mode 100644
+index 000000000..bc10e3bc4
+--- /dev/null
++++ b/my_extension.py
+@@ -0,0 +1,29 @@
++from marshmallow.fields import TimeDelta
++from datetime import timedelta
++from sphinx.application import Sphinx
++
++__version__ = '1.0'
++
++def round_timedelta(td):
++    return timedelta(microseconds=round(td.total_seconds() * 1e6))
++
++class RoundedTimeDelta(TimeDelta):
++    def _serialize(self, value, attr, obj, **kwargs):
++        if value is None:
++            return None
++        value = round_timedelta(value)
++        base_unit = timedelta(**{self.precision: 1})
++        return int(round(value.total_seconds() / base_unit.total_seconds()))
++
++def subst_vars_replace(app: Sphinx, docname, source):
++    result = source[0]
++    result = result.replace("&REPLACE_ME;", "REPLACED")
++    source[0] = result
++
++def setup(app: Sphinx):
++    app.connect('source-read', subst_vars_replace)
++    return dict(
++        version=__version__,
++        parallel_read_safe=True,
++        parallel_write_safe=True
++    )
+diff --git a/something-to-include.rst b/something-to-include.rst
+new file mode 100644
+index 000000000..e63253568
+--- /dev/null
++++ b/something-to-include.rst
+@@ -0,0 +1,4 @@
++Testing
++=======
++
++&REPLACE_ME;
+diff --git a/test_timedelta_serialization.py b/test_timedelta_serialization.py
+new file mode 100644
+index 000000000..d59b8598b
+--- /dev/null
++++ b/test_timedelta_serialization.py
+@@ -0,0 +1,25 @@
++from my_extension import RoundedTimeDelta
++from datetime import timedelta
++
++def test_rounded_timedelta_serialization():
++    td_field = RoundedTimeDelta(precision="milliseconds")
++
++    # Test case 1: 345 milliseconds
++    obj = {"td_field": timedelta(milliseconds=345)}
++    result = td_field.serialize("td_field", obj)
++    assert result == 345, f"Expected 345, but got {result}"
++
++    # Test case 2: 344.9 milliseconds (should round up to 345)
++    obj = {"td_field": timedelta(milliseconds=344.9)}
++    result = td_field.serialize("td_field", obj)
++    assert result == 345, f"Expected 345, but got {result}"
++
++    # Test case 3: 344.4 milliseconds (should round down to 344)
++    obj = {"td_field": timedelta(milliseconds=344.4)}
++    result = td_field.serialize("td_field", obj)
++    assert result == 344, f"Expected 344, but got {result}"
++
++    print("All tests passed successfully!")
++
++if __name__ == "__main__":
++    test_rounded_timedelta_serialization()
+diff --git a/tox.ini b/tox.ini
+index a3dc56211..c76147de3 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -24,7 +24,7 @@ setenv =
+     PYTHONWARNINGS = error
+     PYTEST_ADDOPTS = {env:PYTEST_ADDOPTS:} --color yes
+ commands=
+-    python -X dev -X warn_default_encoding -m pytest --durations 25 {posargs}
++    python -X dev -X warn_default_encoding -m pytest -rA --durations 25 {posargs}
+ 
+ [testenv:docs]
+ basepython = python3

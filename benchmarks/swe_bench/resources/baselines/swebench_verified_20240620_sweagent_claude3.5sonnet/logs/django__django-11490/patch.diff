@@ -1,0 +1,156 @@
+
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index a44adfc760..b8eae482bc 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -425,7 +425,11 @@ class SQLCompiler:
+                 # If the columns list is limited, then all combined queries
+                 # must have the same columns list. Set the selects defined on
+                 # the query on all combined queries, if not already set.
+-                if not compiler.query.values_select and self.query.values_select:
++                if self.query.values_select:
++                    # If values() or values_list() was called on the combined query, use those values
++                    compiler.query.set_values(self.query.values_select)
++                elif not compiler.query.values_select:
++                    # If no values() or values_list() was called, use all columns
+                     compiler.query.set_values((
+                         *self.query.extra_select,
+                         *self.query.values_select,
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..c2af7e5463
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,60 @@
++import os
++import django
++from django.conf import settings
++from django.db import models
++from django.test import TestCase
++from django.db.models import Value
++
++# Configure Django settings
++if not settings.configured:
++    settings.configure(
++        DEBUG=True,
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++        ],
++    )
++
++django.setup()
++
++class SimpleUser(models.Model):
++    username = models.CharField(max_length=150)
++    email = models.EmailField()
++
++    class Meta:
++        app_label = 'auth'
++
++from django.db import connection
++
++def create_test_db():
++    with connection.schema_editor() as schema_editor:
++        schema_editor.create_model(SimpleUser)
++
++create_test_db()
++
++class TestComposedQueries(TestCase):
++    def setUp(self):
++        SimpleUser.objects.create(username='user1', email='user1@example.com')
++        SimpleUser.objects.create(username='user2', email='user2@example.com')
++
++    def test_values_list_with_union(self):
++        qs1 = SimpleUser.objects.all()
++        qs2 = SimpleUser.objects.all().annotate(extra=Value('extra'))
++
++        # Original problematic case
++        result1 = qs1.union(qs2).values('username', 'email')
++        print("Result 1 (should be fixed):", list(result1))
++
++        # Expected fixed case
++        result2 = qs1.union(qs2).values('email')
++        print("Result 2 (should only contain email):", list(result2))
++
++if __name__ == '__main__':
++    import unittest
++    unittest.main()
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..10d8119d20
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,66 @@
++import os
++import django
++from django.conf import settings
++from django.db import models, connection
++from django.test import TestCase
++
++# Configure Django settings
++if not settings.configured:
++    settings.configure(
++        DEBUG=True,
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++        ],
++    )
++
++django.setup()
++
++class SimpleUser(models.Model):
++    username = models.CharField(max_length=150, unique=True)
++    email = models.EmailField()
++
++    class Meta:
++        app_label = 'auth'
++
++def create_user_table():
++    with connection.cursor() as cursor:
++        cursor.execute('''
++            CREATE TABLE IF NOT EXISTS auth_simpleuser (
++                id INTEGER PRIMARY KEY AUTOINCREMENT,
++                username VARCHAR(150) UNIQUE NOT NULL,
++                email VARCHAR(254) NOT NULL
++            )
++        ''')
++
++class TestComposedQueries(TestCase):
++    @classmethod
++    def setUpClass(cls):
++        super().setUpClass()
++        create_user_table()
++
++    def setUp(self):
++        SimpleUser.objects.create(username='testuser', email='test@example.com')
++
++    def test_composed_queries(self):
++        qs1 = SimpleUser.objects.all()
++        
++        # Test with username and email
++        result1 = qs1.union(qs1).values_list('username', 'email').get()
++        print("Result 1:", result1)
++        
++        # Test with only email
++        result2 = qs1.union(qs1).values_list('email').get()
++        print("Result 2:", result2)
++
++if __name__ == '__main__':
++    test_case = TestComposedQueries()
++    TestComposedQueries.setUpClass()
++    test_case.setUp()
++    test_case.test_composed_queries()
++    print("Script completed successfully, no errors.")

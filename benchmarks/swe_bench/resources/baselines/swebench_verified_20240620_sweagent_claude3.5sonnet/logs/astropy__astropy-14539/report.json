@@ -1,0 +1,76 @@
+{
+    "astropy__astropy-14539": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_identical_tables",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_different_table_data"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_identical_headers",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_slightly_different_headers",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_common_keywords",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_different_keyword_count",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_different_keywords",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_different_keyword_values",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_different_keyword_comments",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_different_keyword_values_with_duplicate",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_asymmetric_duplicate_keywords",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_floating_point_rtol",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_floating_point_atol",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_ignore_blanks",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_ignore_blank_cards[HeaderDiff]",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_ignore_blank_cards[HDUDiff]",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_ignore_blank_cards[FITSDiff]",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_ignore_hdus",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_ignore_keyword_values",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_ignore_keyword_comments",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_trivial_identical_images",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_identical_within_relative_tolerance",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_identical_within_absolute_tolerance",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_identical_within_rtol_and_atol",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_not_identical_within_rtol_and_atol",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_identical_comp_image_hdus",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_different_dimensions",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_different_pixels",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_diff_empty_tables",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_ignore_table_fields",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_different_table_field_names",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_different_table_field_counts",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_different_table_rows",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_identical_files_basic",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_partially_identical_files1",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_partially_identical_files2",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_partially_identical_files3",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_diff_nans",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_file_output_from_path_string",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_file_output_overwrite_safety",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_file_output_overwrite_success",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_rawdatadiff_nodiff",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_rawdatadiff_dimsdiff",
+                    "astropy/io/fits/tests/test_diff.py::TestDiff::test_rawdatadiff_bytesdiff",
+                    "astropy/io/fits/tests/test_diff.py::test_fitsdiff_hdu_name",
+                    "astropy/io/fits/tests/test_diff.py::test_fitsdiff_no_hdu_name",
+                    "astropy/io/fits/tests/test_diff.py::test_fitsdiff_with_names",
+                    "astropy/io/fits/tests/test_diff.py::test_rawdatadiff_diff_with_rtol"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

@@ -1,0 +1,89 @@
+
+diff --git a/django/apps/registry.py b/django/apps/registry.py
+index 408964a146..ae709f5c0e 100644
+--- a/django/apps/registry.py
++++ b/django/apps/registry.py
+@@ -89,12 +89,12 @@ class Apps:
+                     app_config = entry
+                 else:
+                     app_config = AppConfig.create(entry)
+-                if app_config.label in self.app_configs:
++                if app_config.label.lower() in self.app_configs:
+                     raise ImproperlyConfigured(
+                         "Application labels aren't unique, "
+                         "duplicates: %s" % app_config.label)
+ 
+-                self.app_configs[app_config.label] = app_config
++                self.app_configs[app_config.label.lower()] = app_config
+                 app_config.apps = self
+ 
+             # Check for duplicate app names.
+@@ -202,18 +202,20 @@ class Apps:
+         if model_name is None:
+             app_label, model_name = app_label.split('.')
+ 
++        app_label = app_label.lower()
+         app_config = self.get_app_config(app_label)
+ 
+         if not require_ready and app_config.models is None:
+             app_config.import_models()
+ 
+-        return app_config.get_model(model_name, require_ready=require_ready)
++        return app_config.get_model(model_name.lower(), require_ready=require_ready)
+ 
+     def register_model(self, app_label, model):
+         # Since this method is called when models are imported, it cannot
+         # perform imports because of the risk of import loops. It mustn't
+         # call get_app_config().
+         model_name = model._meta.model_name
++        app_label = app_label.lower()
+         app_models = self.all_models[app_label]
+         if model_name in app_models:
+             if (model.__name__ == app_models[model_name].__name__ and
+@@ -238,19 +240,19 @@ class Apps:
+         app_name is the full name of the app e.g. 'django.contrib.admin'.
+         """
+         self.check_apps_ready()
+-        return any(ac.name == app_name for ac in self.app_configs.values())
++        return any(ac.name.lower() == app_name.lower() for ac in self.app_configs.values())
+ 
+-    def get_containing_app_config(self, object_name):
+-        """
+-        Look for an app config containing a given object.
+-
+-        object_name is the dotted Python path to the object.
+-
+-        Return the app config for the inner application in case of nesting.
+-        Return None if the object isn't in any registered app config.
++    def get_app_config(self, app_label):
+         """
+-        self.check_apps_ready()
+-        candidates = []
++        try:
++            return self.app_configs[app_label]
++        except KeyError:
++            message = "No installed app with label '%s'." % app_label
++            for app_config in self.get_app_configs():
++                if app_config.name.lower() == app_label:
++                    message += " Did you mean '%s'?" % app_config.label
++                    break
++            raise LookupError(message)
+         for app_config in self.app_configs.values():
+             if object_name.startswith(app_config.name):
+                 subpath = object_name[len(app_config.name):]
+@@ -258,7 +260,6 @@ class Apps:
+                     candidates.append(app_config)
+         if candidates:
+             return sorted(candidates, key=lambda ac: -len(ac.name))[0]
+-
+     def get_registered_model(self, app_label, model_name):
+         """
+         Similar to get_model(), but doesn't require that an app exists with
+@@ -267,6 +268,7 @@ class Apps:
+         It's safe to call this method at import time, even while the registry
+         is being populated.
+         """
++        app_label = app_label.lower()
+         model = self.all_models[app_label].get(model_name.lower())
+         if model is None:
+             raise LookupError(

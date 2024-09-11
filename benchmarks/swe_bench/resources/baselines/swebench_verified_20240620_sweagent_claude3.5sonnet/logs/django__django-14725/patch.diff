@@ -1,0 +1,183 @@
+
+diff --git a/django/forms/models.py b/django/forms/models.py
+index 7effb202e3..28fd53441b 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -573,9 +573,10 @@ class BaseModelFormSet(BaseFormSet):
+     unique_fields = set()
+ 
+     def __init__(self, data=None, files=None, auto_id='id_%s', prefix=None,
+-                 queryset=None, *, initial=None, **kwargs):
++                 queryset=None, *, initial=None, can_create=True, **kwargs):
+         self.queryset = queryset
+         self.initial_extra = initial
++        self.can_create = can_create
+         super().__init__(**{'data': data, 'files': files, 'auto_id': auto_id, 'prefix': prefix, **kwargs})
+ 
+     def initial_form_count(self):
+@@ -653,6 +654,8 @@ class BaseModelFormSet(BaseFormSet):
+ 
+     def save_new(self, form, commit=True):
+         """Save and return a new model instance for the given form."""
++        if not getattr(self, 'can_create', True):
++            raise ValueError("This formset does not allow creating new instances.")
+         return form.save(commit=commit)
+ 
+     def save_existing(self, form, instance, commit=True):
+@@ -676,7 +679,11 @@ class BaseModelFormSet(BaseFormSet):
+                 for form in self.saved_forms:
+                     form.save_m2m()
+             self.save_m2m = save_m2m
+-        return self.save_existing_objects(commit) + self.save_new_objects(commit)
++
++        saved_instances = self.save_existing_objects(commit)
++        if getattr(self, 'can_create', True):
++            saved_instances += self.save_new_objects(commit)
++        return saved_instances
+ 
+     save.alters_data = True
+ 
+@@ -812,6 +819,8 @@ class BaseModelFormSet(BaseFormSet):
+         return saved_instances
+ 
+     def save_new_objects(self, commit=True):
++        if not getattr(self, 'can_create', True):
++            return []
+         self.new_objects = []
+         for form in self.extra_forms:
+             if not form.has_changed():
+@@ -875,8 +884,13 @@ def modelformset_factory(model, form=ModelForm, formfield_callback=None,
+                          widgets=None, validate_max=False, localized_fields=None,
+                          labels=None, help_texts=None, error_messages=None,
+                          min_num=None, validate_min=False, field_classes=None,
+-                         absolute_max=None, can_delete_extra=True, renderer=None):
+-    """Return a FormSet class for the given Django model class."""
++                         absolute_max=None, can_delete_extra=True, renderer=None,
++                         can_create=True):
++    """
++    Return a FormSet class for the given Django model class.
++
++    :param can_create: If set to False, the formset will not allow adding new objects.
++    """
+     meta = getattr(form, 'Meta', None)
+     if (getattr(meta, 'fields', fields) is None and
+             getattr(meta, 'exclude', exclude) is None):
+@@ -890,12 +904,13 @@ def modelformset_factory(model, form=ModelForm, formfield_callback=None,
+                              widgets=widgets, localized_fields=localized_fields,
+                              labels=labels, help_texts=help_texts,
+                              error_messages=error_messages, field_classes=field_classes)
+-    FormSet = formset_factory(form, formset, extra=extra, min_num=min_num, max_num=max_num,
++    FormSet = formset_factory(form, formset, extra=extra if can_create else 0, min_num=min_num, max_num=max_num,
+                               can_order=can_order, can_delete=can_delete,
+                               validate_min=validate_min, validate_max=validate_max,
+                               absolute_max=absolute_max, can_delete_extra=can_delete_extra,
+                               renderer=renderer)
+     FormSet.model = model
++    FormSet.can_create = can_create
+     return FormSet
+ 
+ 
+diff --git a/docs/topics/forms/modelforms.txt b/docs/topics/forms/modelforms.txt
+index cf79fc69c4..40f2b55468 100644
+--- a/docs/topics/forms/modelforms.txt
++++ b/docs/topics/forms/modelforms.txt
+@@ -825,6 +825,19 @@ instances of the model, you can specify an empty QuerySet::
+ 
+    >>> AuthorFormSet(queryset=Author.objects.none())
+ 
++Preventing the creation of new objects
++--------------------------------------
++
++By default, model formsets allow the creation of new objects. You can use the
++``can_create`` parameter to prevent this:
++
++   >>> AuthorFormSet = modelformset_factory(Author, fields=('name', 'title'), can_create=False)
++   >>> formset = AuthorFormSet(queryset=Author.objects.all())
++
++When ``can_create`` is set to ``False``, the formset will not allow new objects
++to be created, even if the data for a new object is submitted. This can be
++useful when you want to provide an "edit only" view of existing objects.
++
+ Changing the form
+ -----------------
+ 
+diff --git a/tests/forms_tests/tests/test_model_formsets.py b/tests/forms_tests/tests/test_model_formsets.py
+new file mode 100644
+index 0000000000..0c09f48d34
+--- /dev/null
++++ b/tests/forms_tests/tests/test_model_formsets.py
+@@ -0,0 +1,74 @@
++from django.forms import modelformset_factory
++from django.test import TestCase
++from django.db import models
++
++class TestModel(models.Model):
++    name = models.CharField(max_length=100)
++
++class ModelFormsetFactoryTest(TestCase):
++    def test_can_create_false(self):
++        FormSet = modelformset_factory(TestModel, fields=['name'], can_create=False)
++        formset = FormSet(queryset=TestModel.objects.none())
++        
++        # Check that no extra forms are created
++        self.assertEqual(len(formset.forms), 0)
++        
++        # Attempt to save a new instance
++        data = {
++            'form-TOTAL_FORMS': '1',
++            'form-INITIAL_FORMS': '0',
++            'form-MAX_NUM_FORMS': '',
++            'form-0-name': 'Test',
++        }
++        formset = FormSet(data, queryset=TestModel.objects.none())
++        
++        # Check that the formset is valid
++        self.assertTrue(formset.is_valid())
++        
++        # Attempt to save and check that no new objects are created
++        instances = formset.save()
++        self.assertEqual(len(instances), 0)
++        self.assertEqual(TestModel.objects.count(), 0)
++
++    def test_can_create_true(self):
++        FormSet = modelformset_factory(TestModel, fields=['name'], can_create=True)
++        
++        # Attempt to save a new instance
++        data = {
++            'form-TOTAL_FORMS': '1',
++            'form-INITIAL_FORMS': '0',
++            'form-MAX_NUM_FORMS': '',
++            'form-0-name': 'Test',
++        }
++        formset = FormSet(data, queryset=TestModel.objects.none())
++        
++        # Check that the formset is valid
++        self.assertTrue(formset.is_valid())
++        
++        # Attempt to save and check that a new object is created
++        instances = formset.save()
++        self.assertEqual(len(instances), 1)
++        self.assertEqual(TestModel.objects.count(), 1)
++        self.assertEqual(TestModel.objects.first().name, 'Test')
++    def test_can_create_false_raises_exception(self):
++        FormSet = modelformset_factory(TestModel, fields=['name'], can_create=False)
++        
++        # Attempt to save a new instance
++        data = {
++            'form-TOTAL_FORMS': '1',
++            'form-INITIAL_FORMS': '0',
++            'form-MAX_NUM_FORMS': '',
++            'form-0-name': 'Test',
++        }
++        formset = FormSet(data, queryset=TestModel.objects.none())
++        
++        # Check that the formset is valid
++        self.assertTrue(formset.is_valid())
++        
++        # Attempt to save and check that an exception is raised
++        with self.assertRaises(ValueError):
++            formset.save()
++        
++        # Ensure no objects were created
++        self.assertEqual(TestModel.objects.count(), 0)
++

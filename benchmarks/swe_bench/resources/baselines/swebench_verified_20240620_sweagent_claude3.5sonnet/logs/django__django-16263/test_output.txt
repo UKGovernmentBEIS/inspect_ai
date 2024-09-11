@@ -1,0 +1,1021 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/models/sql/query.py
+	modified:   tests/queries/test_query.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 321ecb40f4da842926e1bc07e11df4aabe53ca4b
+Author: Jon Janzen <jon@jonjanzen.com>
+Date:   Thu Nov 3 19:57:33 2022 +0100
+
+    Fixed #34135 -- Added async-compatible interface to related managers.
+
+diff --git a/django/contrib/contenttypes/fields.py b/django/contrib/contenttypes/fields.py
+index ce2a096cc2..72b9e7631a 100644
+--- a/django/contrib/contenttypes/fields.py
++++ b/django/contrib/contenttypes/fields.py
+@@ -689,6 +689,11 @@ def create_generic_related_manager(superclass, rel):
+ 
+         add.alters_data = True
+ 
++        async def aadd(self, *objs, bulk=True):
++            return await sync_to_async(self.add)(*objs, bulk=bulk)
++
++        aadd.alters_data = True
++
+         def remove(self, *objs, bulk=True):
+             if not objs:
+                 return
+@@ -696,11 +701,21 @@ def create_generic_related_manager(superclass, rel):
+ 
+         remove.alters_data = True
+ 
++        async def aremove(self, *objs, bulk=True):
++            return await sync_to_async(self.remove)(*objs, bulk=bulk)
++
++        aremove.alters_data = True
++
+         def clear(self, *, bulk=True):
+             self._clear(self, bulk)
+ 
+         clear.alters_data = True
+ 
++        async def aclear(self, *, bulk=True):
++            return await sync_to_async(self.clear)(bulk=bulk)
++
++        aclear.alters_data = True
++
+         def _clear(self, queryset, bulk):
+             self._remove_prefetched_objects()
+             db = router.db_for_write(self.model, instance=self.instance)
+@@ -740,6 +755,11 @@ def create_generic_related_manager(superclass, rel):
+ 
+         set.alters_data = True
+ 
++        async def aset(self, objs, *, bulk=True, clear=False):
++            return await sync_to_async(self.set)(objs, bulk=bulk, clear=clear)
++
++        aset.alters_data = True
++
+         def create(self, **kwargs):
+             self._remove_prefetched_objects()
+             kwargs[self.content_type_field_name] = self.content_type
+diff --git a/django/db/models/fields/related_descriptors.py b/django/db/models/fields/related_descriptors.py
+index f1c8a73f49..422b08e6ca 100644
+--- a/django/db/models/fields/related_descriptors.py
++++ b/django/db/models/fields/related_descriptors.py
+@@ -787,6 +787,11 @@ def create_reverse_many_to_one_manager(superclass, rel):
+ 
+         add.alters_data = True
+ 
++        async def aadd(self, *objs, bulk=True):
++            return await sync_to_async(self.add)(*objs, bulk=bulk)
++
++        aadd.alters_data = True
++
+         def create(self, **kwargs):
+             self._check_fk_val()
+             kwargs[self.field.name] = self.instance
+@@ -856,12 +861,22 @@ def create_reverse_many_to_one_manager(superclass, rel):
+ 
+             remove.alters_data = True
+ 
++            async def aremove(self, *objs, bulk=True):
++                return await sync_to_async(self.remove)(*objs, bulk=bulk)
++
++            aremove.alters_data = True
++
+             def clear(self, *, bulk=True):
+                 self._check_fk_val()
+                 self._clear(self, bulk)
+ 
+             clear.alters_data = True
+ 
++            async def aclear(self, *, bulk=True):
++                return await sync_to_async(self.clear)(bulk=bulk)
++
++            aclear.alters_data = True
++
+             def _clear(self, queryset, bulk):
+                 self._remove_prefetched_objects()
+                 db = router.db_for_write(self.model, instance=self.instance)
+@@ -905,6 +920,11 @@ def create_reverse_many_to_one_manager(superclass, rel):
+ 
+         set.alters_data = True
+ 
++        async def aset(self, objs, *, bulk=True, clear=False):
++            return await sync_to_async(self.set)(objs=objs, bulk=bulk, clear=clear)
++
++        aset.alters_data = True
++
+     return RelatedManager
+ 
+ 
+@@ -1132,12 +1152,24 @@ def create_forward_many_to_many_manager(superclass, rel, reverse):
+ 
+         add.alters_data = True
+ 
++        async def aadd(self, *objs, through_defaults=None):
++            return await sync_to_async(self.add)(
++                *objs, through_defaults=through_defaults
++            )
++
++        aadd.alters_data = True
++
+         def remove(self, *objs):
+             self._remove_prefetched_objects()
+             self._remove_items(self.source_field_name, self.target_field_name, *objs)
+ 
+         remove.alters_data = True
+ 
++        async def aremove(self, *objs):
++            return await sync_to_async(self.remove)(*objs)
++
++        aremove.alters_data = True
++
+         def clear(self):
+             db = router.db_for_write(self.through, instance=self.instance)
+             with transaction.atomic(using=db, savepoint=False):
+@@ -1166,6 +1198,11 @@ def create_forward_many_to_many_manager(superclass, rel, reverse):
+ 
+         clear.alters_data = True
+ 
++        async def aclear(self):
++            return await sync_to_async(self.clear)()
++
++        aclear.alters_data = True
++
+         def set(self, objs, *, clear=False, through_defaults=None):
+             # Force evaluation of `objs` in case it's a queryset whose value
+             # could be affected by `manager.clear()`. Refs #19816.
+@@ -1200,6 +1237,13 @@ def create_forward_many_to_many_manager(superclass, rel, reverse):
+ 
+         set.alters_data = True
+ 
++        async def aset(self, objs, *, clear=False, through_defaults=None):
++            return await sync_to_async(self.set)(
++                objs=objs, clear=clear, through_defaults=through_defaults
++            )
++
++        aset.alters_data = True
++
+         def create(self, *, through_defaults=None, **kwargs):
+             db = router.db_for_write(self.instance.__class__, instance=self.instance)
+             new_obj = super(ManyRelatedManager, self.db_manager(db)).create(**kwargs)
+diff --git a/docs/ref/models/relations.txt b/docs/ref/models/relations.txt
+index c091612c6e..1b1aad7425 100644
+--- a/docs/ref/models/relations.txt
++++ b/docs/ref/models/relations.txt
+@@ -37,6 +37,9 @@ Related objects reference
+       ``topping.pizza_set`` and on ``pizza.toppings``.
+ 
+     .. method:: add(*objs, bulk=True, through_defaults=None)
++    .. method:: aadd(*objs, bulk=True, through_defaults=None)
++
++        *Asynchronous version*: ``aadd``
+ 
+         Adds the specified model objects to the related object set.
+ 
+@@ -75,6 +78,10 @@ Related objects reference
+         dictionary and they will be evaluated once before creating any
+         intermediate instance(s).
+ 
++        .. versionchanged:: 4.2
++
++            ``aadd()`` method was added.
++
+     .. method:: create(through_defaults=None, **kwargs)
+     .. method:: acreate(through_defaults=None, **kwargs)
+ 
+@@ -118,6 +125,9 @@ Related objects reference
+             ``acreate()`` method was added.
+ 
+     .. method:: remove(*objs, bulk=True)
++    .. method:: aremove(*objs, bulk=True)
++
++        *Asynchronous version*: ``aremove``
+ 
+         Removes the specified model objects from the related object set::
+ 
+@@ -157,7 +167,14 @@ Related objects reference
+         For many-to-many relationships, the ``bulk`` keyword argument doesn't
+         exist.
+ 
++        .. versionchanged:: 4.2
++
++            ``aremove()`` method was added.
++
+     .. method:: clear(bulk=True)
++    .. method:: aclear(bulk=True)
++
++        *Asynchronous version*: ``aclear``
+ 
+         Removes all objects from the related object set::
+ 
+@@ -174,7 +191,14 @@ Related objects reference
+         For many-to-many relationships, the ``bulk`` keyword argument doesn't
+         exist.
+ 
++        .. versionchanged:: 4.2
++
++            ``aclear()`` method was added.
++
+     .. method:: set(objs, bulk=True, clear=False, through_defaults=None)
++    .. method:: aset(objs, bulk=True, clear=False, through_defaults=None)
++
++        *Asynchronous version*: ``aset``
+ 
+         Replace the set of related objects::
+ 
+@@ -207,13 +231,19 @@ Related objects reference
+         dictionary and they will be evaluated once before creating any
+         intermediate instance(s).
+ 
++        .. versionchanged:: 4.2
++
++            ``aset()`` method was added.
++
+     .. note::
+ 
+-       Note that ``add()``, ``create()``, ``remove()``, ``clear()``, and
+-       ``set()`` all apply database changes immediately for all types of
+-       related fields. In other words, there is no need to call ``save()``
+-       on either end of the relationship.
++       Note that ``add()``, ``aadd()``, ``create()``, ``acreate()``,
++       ``remove()``, ``aremove()``, ``clear()``, ``aclear()``, ``set()``, and
++       ``aset()`` all apply database changes immediately for all types of
++       related fields. In other words, there is no need to call
++       ``save()``/``asave()`` on either end of the relationship.
+ 
+        If you use :meth:`~django.db.models.query.QuerySet.prefetch_related`,
+-       the ``add()``, ``remove()``, ``clear()``, and ``set()`` methods clear
+-       the prefetched cache.
++       the ``add()``, ``aadd()``, ``remove()``, ``aremove()``, ``clear()``,
++       ``aclear()``, ``set()``, and ``aset()`` methods clear the prefetched
++       cache.
+diff --git a/docs/releases/4.2.txt b/docs/releases/4.2.txt
+index bf0a36fce6..39cf05f23b 100644
+--- a/docs/releases/4.2.txt
++++ b/docs/releases/4.2.txt
+@@ -243,6 +243,11 @@ Models
+   database, using an ``a`` prefix: :meth:`~.Model.adelete`,
+   :meth:`~.Model.arefresh_from_db`, and :meth:`~.Model.asave`.
+ 
++* Related managers now provide asynchronous versions of methods that change a
++  set of related objects, using an ``a`` prefix: :meth:`~.RelatedManager.aadd`,
++  :meth:`~.RelatedManager.aclear`, :meth:`~.RelatedManager.aremove`, and
++  :meth:`~.RelatedManager.aset`.
++
+ Requests and Responses
+ ~~~~~~~~~~~~~~~~~~~~~~
+ 
+diff --git a/docs/topics/async.txt b/docs/topics/async.txt
+index 2b9b1a85d9..0570d59db2 100644
+--- a/docs/topics/async.txt
++++ b/docs/topics/async.txt
+@@ -97,13 +97,17 @@ Django also supports some asynchronous model methods that use the database::
+         book = Book(...)
+         await book.asave(using="secondary")
+ 
++    async def make_book_with_tags(tags, ...):
++        book = await Book.objects.acreate(...)
++        await book.tags.aset(tags)
++
+ Transactions do not yet work in async mode. If you have a piece of code that
+ needs transactions behavior, we recommend you write that piece as a single
+ synchronous function and call it using :func:`sync_to_async`.
+ 
+ .. versionchanged:: 4.2
+ 
+-    Asynchronous model interface was added.
++    Asynchronous model and related manager interfaces were added.
+ 
+ Performance
+ -----------
+diff --git a/tests/async/test_async_related_managers.py b/tests/async/test_async_related_managers.py
+index dd573f5989..c475b54899 100644
+--- a/tests/async/test_async_related_managers.py
++++ b/tests/async/test_async_related_managers.py
+@@ -1,6 +1,6 @@
+ from django.test import TestCase
+ 
+-from .models import ManyToManyModel, SimpleModel
++from .models import ManyToManyModel, RelatedModel, SimpleModel
+ 
+ 
+ class AsyncRelatedManagersOperationTest(TestCase):
+@@ -8,6 +8,8 @@ class AsyncRelatedManagersOperationTest(TestCase):
+     def setUpTestData(cls):
+         cls.mtm1 = ManyToManyModel.objects.create()
+         cls.s1 = SimpleModel.objects.create(field=0)
++        cls.mtm2 = ManyToManyModel.objects.create()
++        cls.mtm2.simples.set([cls.s1])
+ 
+     async def test_acreate(self):
+         await self.mtm1.simples.acreate(field=2)
+@@ -54,3 +56,51 @@ class AsyncRelatedManagersOperationTest(TestCase):
+         self.assertIs(created, True)
+         self.assertEqual(await self.s1.relatedmodel_set.acount(), 1)
+         self.assertEqual(new_relatedmodel.simple, self.s1)
++
++    async def test_aadd(self):
++        await self.mtm1.simples.aadd(self.s1)
++        self.assertEqual(await self.mtm1.simples.aget(), self.s1)
++
++    async def test_aadd_reverse(self):
++        r1 = await RelatedModel.objects.acreate()
++        await self.s1.relatedmodel_set.aadd(r1, bulk=False)
++        self.assertEqual(await self.s1.relatedmodel_set.aget(), r1)
++
++    async def test_aremove(self):
++        self.assertEqual(await self.mtm2.simples.acount(), 1)
++        await self.mtm2.simples.aremove(self.s1)
++        self.assertEqual(await self.mtm2.simples.acount(), 0)
++
++    async def test_aremove_reverse(self):
++        r1 = await RelatedModel.objects.acreate(simple=self.s1)
++        self.assertEqual(await self.s1.relatedmodel_set.acount(), 1)
++        await self.s1.relatedmodel_set.aremove(r1)
++        self.assertEqual(await self.s1.relatedmodel_set.acount(), 0)
++
++    async def test_aset(self):
++        await self.mtm1.simples.aset([self.s1])
++        self.assertEqual(await self.mtm1.simples.aget(), self.s1)
++        await self.mtm1.simples.aset([])
++        self.assertEqual(await self.mtm1.simples.acount(), 0)
++        await self.mtm1.simples.aset([self.s1], clear=True)
++        self.assertEqual(await self.mtm1.simples.aget(), self.s1)
++
++    async def test_aset_reverse(self):
++        r1 = await RelatedModel.objects.acreate()
++        await self.s1.relatedmodel_set.aset([r1])
++        self.assertEqual(await self.s1.relatedmodel_set.aget(), r1)
++        await self.s1.relatedmodel_set.aset([])
++        self.assertEqual(await self.s1.relatedmodel_set.acount(), 0)
++        await self.s1.relatedmodel_set.aset([r1], bulk=False, clear=True)
++        self.assertEqual(await self.s1.relatedmodel_set.aget(), r1)
++
++    async def test_aclear(self):
++        self.assertEqual(await self.mtm2.simples.acount(), 1)
++        await self.mtm2.simples.aclear()
++        self.assertEqual(await self.mtm2.simples.acount(), 0)
++
++    async def test_aclear_reverse(self):
++        await RelatedModel.objects.acreate(simple=self.s1)
++        self.assertEqual(await self.s1.relatedmodel_set.acount(), 1)
++        await self.s1.relatedmodel_set.aclear(bulk=False)
++        self.assertEqual(await self.s1.relatedmodel_set.acount(), 0)
+diff --git a/tests/generic_relations/tests.py b/tests/generic_relations/tests.py
+index e6bee11cdf..18e3578f60 100644
+--- a/tests/generic_relations/tests.py
++++ b/tests/generic_relations/tests.py
+@@ -324,6 +324,13 @@ class GenericRelationsTests(TestCase):
+         with self.assertRaisesMessage(TypeError, msg):
+             self.bacon.tags.add(self.lion)
+ 
++    async def test_aadd(self):
++        bacon = await Vegetable.objects.acreate(name="Bacon", is_yucky=False)
++        t1 = await TaggedItem.objects.acreate(content_object=self.quartz, tag="shiny")
++        t2 = await TaggedItem.objects.acreate(content_object=self.quartz, tag="fatty")
++        await bacon.tags.aadd(t1, t2, bulk=False)
++        self.assertEqual(await bacon.tags.acount(), 2)
++
+     def test_set(self):
+         bacon = Vegetable.objects.create(name="Bacon", is_yucky=False)
+         fatty = bacon.tags.create(tag="fatty")
+@@ -347,6 +354,16 @@ class GenericRelationsTests(TestCase):
+         bacon.tags.set([], clear=True)
+         self.assertSequenceEqual(bacon.tags.all(), [])
+ 
++    async def test_aset(self):
++        bacon = await Vegetable.objects.acreate(name="Bacon", is_yucky=False)
++        fatty = await bacon.tags.acreate(tag="fatty")
++        await bacon.tags.aset([fatty])
++        self.assertEqual(await bacon.tags.acount(), 1)
++        await bacon.tags.aset([])
++        self.assertEqual(await bacon.tags.acount(), 0)
++        await bacon.tags.aset([fatty], bulk=False, clear=True)
++        self.assertEqual(await bacon.tags.acount(), 1)
++
+     def test_assign(self):
+         bacon = Vegetable.objects.create(name="Bacon", is_yucky=False)
+         fatty = bacon.tags.create(tag="fatty")
+@@ -388,6 +405,10 @@ class GenericRelationsTests(TestCase):
+             [self.hairy, self.yellow],
+         )
+ 
++    async def test_aclear(self):
++        await self.bacon.tags.aclear()
++        self.assertEqual(await self.bacon.tags.acount(), 0)
++
+     def test_remove(self):
+         self.assertSequenceEqual(
+             TaggedItem.objects.order_by("tag"),
+@@ -400,6 +421,12 @@ class GenericRelationsTests(TestCase):
+             [self.hairy, self.salty, self.yellow],
+         )
+ 
++    async def test_aremove(self):
++        await self.bacon.tags.aremove(self.fatty)
++        self.assertEqual(await self.bacon.tags.acount(), 1)
++        await self.bacon.tags.aremove(self.salty)
++        self.assertEqual(await self.bacon.tags.acount(), 0)
++
+     def test_generic_relation_related_name_default(self):
+         # GenericRelation isn't usable from the reverse side by default.
+         msg = (
++ git diff 321ecb40f4da842926e1bc07e11df4aabe53ca4b
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 9735ce10c8..179877f331 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -550,12 +550,45 @@ class Query(BaseExpression):
+         Perform a COUNT() query using the current filter constraints.
+         """
+         obj = self.clone()
++        # Remove unused annotations
++        used_annotations = set()
++        used_annotations.update(self._get_used_annotations_in_filters())
++        used_annotations.update(self._get_used_annotations_in_annotations())
++        used_annotations.update(self._get_used_annotations_in_ordering())
++        obj.annotation_select = {k: v for k, v in obj.annotation_select.items() if k in used_annotations}
+         obj.add_annotation(Count("*"), alias="__count", is_summary=True)
+         return obj.get_aggregation(using, ["__count"])["__count"]
+ 
+     def has_filters(self):
+         return self.where
+ 
++    def _get_used_annotations_in_filters(self):
++        used = set()
++        for node in self.where.children:
++            if hasattr(node, 'lhs') and isinstance(node.lhs, F):
++                used.add(node.lhs.name)
++        return used
++
++    def _get_used_annotations_in_annotations(self):
++        used = set()
++        for annotation in self.annotation_select.values():
++            if isinstance(annotation, F):
++                used.add(annotation.name)
++            elif hasattr(annotation, 'get_source_expressions'):
++                for expr in annotation.get_source_expressions():
++                    if isinstance(expr, F):
++                        used.add(expr.name)
++        return used
++
++    def _get_used_annotations_in_ordering(self):
++        used = set()
++        for ordering in self.order_by:
++            if isinstance(ordering, F):
++                used.add(ordering.name)
++            elif isinstance(ordering, str) and ordering.lstrip('-') in self.annotation_select:
++                used.add(ordering.lstrip('-'))
++        return used
++
+     def exists(self, limit=True):
+         q = self.clone()
+         if not (q.distinct and q.is_sliced):
+diff --git a/tests/queries/test_query.py b/tests/queries/test_query.py
+index b0a5058f6c..3432914424 100644
+--- a/tests/queries/test_query.py
++++ b/tests/queries/test_query.py
+@@ -2,7 +2,7 @@ from datetime import datetime
+ 
+ from django.core.exceptions import FieldError
+ from django.db import DEFAULT_DB_ALIAS, connection
+-from django.db.models import BooleanField, CharField, F, Q
++from django.db.models import BooleanField, CharField, Count, F, Q
+ from django.db.models.expressions import (
+     Col,
+     Exists,
+@@ -20,7 +20,7 @@ from django.db.models.sql.where import AND, OR
+ from django.test import SimpleTestCase, TestCase, skipUnlessDBFeature
+ from django.test.utils import register_lookup
+ 
+-from .models import Author, Item, ObjectC, Ranking
++from .models import Author, Book, Item, ObjectC, Ranking
+ 
+ 
+ class TestQuery(SimpleTestCase):
+@@ -160,6 +160,13 @@ class TestQuery(SimpleTestCase):
+         with self.assertRaisesMessage(TypeError, msg):
+             query.build_where(Func(output_field=CharField()))
+ 
++    def test_unused_annotation_removal(self):
++        query = Query(Book)
++        query.add_annotation(Count('chapters'), 'chapter_count')
++        sql, params = query.get_compiler().as_sql()
++        self.assertNotIn('chapter_count', sql)
++        self.assertNotIn('COUNT', sql)
++
+ 
+ class TestQueryNoModel(TestCase):
+     def test_rawsql_annotation(self):
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.5.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.2.dev20221109093240) (3.8.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.2.dev20221109093240) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from asgiref>=3.5.2->Django==4.2.dev20221109093240) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.2.dev20221109093240-0.editable-py3-none-any.whl size=27243 sha256=e77919fe678dc37fa0eb6723dc8d65071619281eb1f221478e21d08ad7399edd
+  Stored in directory: /tmp/pip-ephem-wheel-cache-o3kzmymg/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.2.dev20221109093240
+    Uninstalling Django-4.2.dev20221109093240:
+      Successfully uninstalled Django-4.2.dev20221109093240
+Successfully installed Django-4.2.dev20221109093240
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 321ecb40f4da842926e1bc07e11df4aabe53ca4b tests/aggregation/tests.py
+Updated 0 paths from 3a306ec0bc
++ git apply -v -
+Checking patch tests/aggregation/tests.py...
+Applied patch tests/aggregation/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 aggregation.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application aggregation
+Found 103 test(s).
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: aggregation, auth, contenttypes, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table aggregation_author
+    Creating table aggregation_publisher
+    Creating table aggregation_book
+    Creating table aggregation_store
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+test_non_aggregate_annotation_pruned (aggregation.tests.AggregateAnnotationPruningTests) ... ERROR
+test_referenced_aggregate_annotation_kept (aggregation.tests.AggregateAnnotationPruningTests) ... ok
+test_unreferenced_aggregate_annotation_pruned (aggregation.tests.AggregateAnnotationPruningTests) ... ERROR
+test_unused_aliased_aggregate_pruned (aggregation.tests.AggregateAnnotationPruningTests) ... ERROR
+test_add_implementation (aggregation.tests.AggregateTestCase) ... ok
+test_aggregate_alias (aggregation.tests.AggregateTestCase) ... ok
+test_aggregate_annotation (aggregation.tests.AggregateTestCase) ... ok
+test_aggregate_in_order_by (aggregation.tests.AggregateTestCase) ... ok
+test_aggregate_join_transform (aggregation.tests.AggregateTestCase) ... ok
+test_aggregate_multi_join (aggregation.tests.AggregateTestCase) ... ok
+test_aggregate_over_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_aggregate_over_complex_annotation (aggregation.tests.AggregateTestCase) ... ok
+test_aggregate_transform (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_after_annotation (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_compound_expression (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_expression (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_group_by (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_integer (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_not_in_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_passed_another_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_unset (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_unsupported_by_count (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_using_date_from_database (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_using_date_from_python (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_using_datetime_from_database (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_using_datetime_from_python (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_using_decimal_from_database (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_using_decimal_from_python (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_using_duration_from_database (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_using_duration_from_python (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_using_time_from_database (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_using_time_from_python (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_default_zero (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_exists_annotation (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_exists_multivalued_outeref (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_expressions (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_filter_exists (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_nested_subquery_outerref (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_order_by_not_selected_annotation_values (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_random_ordering (aggregation.tests.AggregateTestCase)
+Random() is not included in the GROUP BY when used for ordering. ... ok
+test_aggregation_subquery_annotation (aggregation.tests.AggregateTestCase)
+Subquery annotations are excluded from the GROUP BY if they are ... ok
+test_aggregation_subquery_annotation_exists (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_subquery_annotation_multivalued (aggregation.tests.AggregateTestCase)
+Subquery annotations must be included in the GROUP BY if they use ... ERROR
+test_aggregation_subquery_annotation_related_field (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_subquery_annotation_values (aggregation.tests.AggregateTestCase)
+Subquery annotations and external aliases are excluded from the GROUP ... ok
+test_aggregation_subquery_annotation_values_collision (aggregation.tests.AggregateTestCase) ... ok
+test_alias_sql_injection (aggregation.tests.AggregateTestCase) ... ok
+test_annotate_basic (aggregation.tests.AggregateTestCase) ... ok
+test_annotate_defer (aggregation.tests.AggregateTestCase) ... ok
+test_annotate_defer_select_related (aggregation.tests.AggregateTestCase) ... ok
+test_annotate_m2m (aggregation.tests.AggregateTestCase) ... ok
+test_annotate_ordering (aggregation.tests.AggregateTestCase) ... ok
+test_annotate_over_annotate (aggregation.tests.AggregateTestCase) ... ok
+test_annotate_values (aggregation.tests.AggregateTestCase) ... ok
+test_annotate_values_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_annotate_values_list (aggregation.tests.AggregateTestCase) ... ok
+test_annotated_aggregate_over_annotated_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_annotation (aggregation.tests.AggregateTestCase) ... ok
+test_annotation_expressions (aggregation.tests.AggregateTestCase) ... ok
+test_arguments_must_be_expressions (aggregation.tests.AggregateTestCase) ... ok
+test_avg_decimal_field (aggregation.tests.AggregateTestCase) ... ok
+test_avg_duration_field (aggregation.tests.AggregateTestCase) ... ok
+test_backwards_m2m_annotate (aggregation.tests.AggregateTestCase) ... ok
+test_coalesced_empty_result_set (aggregation.tests.AggregateTestCase) ... ok
+test_combine_different_types (aggregation.tests.AggregateTestCase) ... ok
+test_complex_aggregations_require_kwarg (aggregation.tests.AggregateTestCase) ... ok
+test_complex_values_aggregation (aggregation.tests.AggregateTestCase) ... ok
+test_count (aggregation.tests.AggregateTestCase) ... ok
+test_count_distinct_expression (aggregation.tests.AggregateTestCase) ... ok
+test_count_star (aggregation.tests.AggregateTestCase) ... ok
+test_dates_with_aggregation (aggregation.tests.AggregateTestCase)
+.dates() returns a distinct set of dates when applied to a ... ok
+test_decimal_max_digits_has_no_effect (aggregation.tests.AggregateTestCase) ... ok
+test_distinct_on_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_empty_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_empty_result_optimization (aggregation.tests.AggregateTestCase) ... ok
+test_even_more_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_exists_extra_where_with_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_exists_none_with_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_expression_on_aggregation (aggregation.tests.AggregateTestCase) ... ok
+test_filter_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_filter_in_subquery_or_aggregation (aggregation.tests.AggregateTestCase)
+Filtering against an aggregate requires the usage of the HAVING clause. ... ok
+test_filtering (aggregation.tests.AggregateTestCase) ... ok
+test_fkey_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_group_by_exists_annotation (aggregation.tests.AggregateTestCase)
+Exists annotations are included in the GROUP BY if they are ... ok
+test_group_by_subquery_annotation (aggregation.tests.AggregateTestCase)
+Subquery annotations are included in the GROUP BY if they are ... ok
+test_grouped_annotation_in_group_by (aggregation.tests.AggregateTestCase)
+An annotation included in values() before an aggregate should be ... ok
+test_more_aggregation (aggregation.tests.AggregateTestCase) ... ok
+test_multi_arg_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_multiple_aggregates (aggregation.tests.AggregateTestCase) ... ok
+test_non_grouped_annotation_not_in_group_by (aggregation.tests.AggregateTestCase)
+An annotation not included in values() before an aggregate should be ... ok
+test_nonaggregate_aggregation_throws (aggregation.tests.AggregateTestCase) ... ok
+test_nonfield_annotation (aggregation.tests.AggregateTestCase) ... ok
+test_order_of_precedence (aggregation.tests.AggregateTestCase) ... ok
+test_related_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_reverse_fkey_annotate (aggregation.tests.AggregateTestCase) ... ok
+test_single_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_sum_distinct_aggregate (aggregation.tests.AggregateTestCase)
+Sum on a distinct() QuerySet should aggregate only the distinct items. ... ERROR
+test_sum_duration_field (aggregation.tests.AggregateTestCase) ... ok
+test_ticket11881 (aggregation.tests.AggregateTestCase)
+Subqueries do not needlessly contain ORDER BY, SELECT FOR UPDATE or ... ok
+test_ticket12886 (aggregation.tests.AggregateTestCase)
+Aggregation over sliced queryset works correctly. ... ok
+test_ticket17424 (aggregation.tests.AggregateTestCase)
+Doing exclude() on a foreign model after annotate() doesn't crash. ... ok
+test_values_aggregation (aggregation.tests.AggregateTestCase) ... ok
+test_values_annotation_with_expression (aggregation.tests.AggregateTestCase) ... ok
+
+======================================================================
+ERROR: test_non_aggregate_annotation_pruned (aggregation.tests.AggregateAnnotationPruningTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/aggregation/tests.py", line 2102, in test_non_aggregate_annotation_pruned
+    Book.objects.annotate(
+  File "/testbed/django/db/models/query.py", line 625, in count
+    return self.query.get_count(using=self.db)
+  File "/testbed/django/db/models/sql/query.py", line 558, in get_count
+    obj.annotation_select = {k: v for k, v in obj.annotation_select.items() if k in used_annotations}
+AttributeError: can't set attribute
+
+======================================================================
+ERROR: test_unreferenced_aggregate_annotation_pruned (aggregation.tests.AggregateAnnotationPruningTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/aggregation/tests.py", line 2111, in test_unreferenced_aggregate_annotation_pruned
+    Book.objects.annotate(
+  File "/testbed/django/db/models/query.py", line 625, in count
+    return self.query.get_count(using=self.db)
+  File "/testbed/django/db/models/sql/query.py", line 558, in get_count
+    obj.annotation_select = {k: v for k, v in obj.annotation_select.items() if k in used_annotations}
+AttributeError: can't set attribute
+
+======================================================================
+ERROR: test_unused_aliased_aggregate_pruned (aggregation.tests.AggregateAnnotationPruningTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/aggregation/tests.py", line 2093, in test_unused_aliased_aggregate_pruned
+    Book.objects.alias(
+  File "/testbed/django/db/models/query.py", line 625, in count
+    return self.query.get_count(using=self.db)
+  File "/testbed/django/db/models/sql/query.py", line 558, in get_count
+    obj.annotation_select = {k: v for k, v in obj.annotation_select.items() if k in used_annotations}
+AttributeError: can't set attribute
+
+======================================================================
+ERROR: test_aggregation_subquery_annotation_multivalued (aggregation.tests.AggregateTestCase)
+Subquery annotations must be included in the GROUP BY if they use
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/testcases.py", line 1604, in skip_wrapper
+    return test_func(*args, **kwargs)
+  File "/testbed/tests/aggregation/tests.py", line 1540, in test_aggregation_subquery_annotation_multivalued
+    self.assertEqual(author_qs.count(), Author.objects.count())
+  File "/testbed/django/db/models/query.py", line 625, in count
+    return self.query.get_count(using=self.db)
+  File "/testbed/django/db/models/sql/query.py", line 558, in get_count
+    obj.annotation_select = {k: v for k, v in obj.annotation_select.items() if k in used_annotations}
+AttributeError: can't set attribute
+
+======================================================================
+ERROR: test_sum_distinct_aggregate (aggregation.tests.AggregateTestCase)
+Sum on a distinct() QuerySet should aggregate only the distinct items.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/aggregation/tests.py", line 666, in test_sum_distinct_aggregate
+    self.assertEqual(authors.count(), 3)
+  File "/testbed/django/db/models/query.py", line 625, in count
+    return self.query.get_count(using=self.db)
+  File "/testbed/django/db/models/sql/query.py", line 558, in get_count
+    obj.annotation_select = {k: v for k, v in obj.annotation_select.items() if k in used_annotations}
+AttributeError: can't set attribute
+
+----------------------------------------------------------------------
+Ran 103 tests in 0.385s
+
+FAILED (errors=5)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout 321ecb40f4da842926e1bc07e11df4aabe53ca4b tests/aggregation/tests.py
+Updated 1 path from 3a306ec0bc

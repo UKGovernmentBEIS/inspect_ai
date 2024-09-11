@@ -1,0 +1,34 @@
+{
+    "sympy__sympy-13974": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "test_tensor_product_simp"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_tensor_product_abstract",
+                    "test_issue_5923"
+                ],
+                "failure": [
+                    "test_tensor_product_expand",
+                    "test_tensor_product_commutator"
+                ]
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

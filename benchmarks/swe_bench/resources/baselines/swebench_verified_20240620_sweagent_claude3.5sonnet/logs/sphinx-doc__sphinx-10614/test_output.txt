@@ -1,0 +1,580 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sphinx/ext/graphviz.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	tox.ini.orig
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit ac2b7599d212af7d04649959ce6926c63c3133fa
+Author: grayjk <grayjk@gmail.com>
+Date:   Mon Aug 7 17:20:30 2023 -0400
+
+    autosummary: Extract summary line after "e.g." (#11196)
+    
+    Co-authored-by: Adam Turner <9087854+AA-Turner@users.noreply.github.com>
+
+diff --git a/CHANGES b/CHANGES
+index 645a6cd4c..e05488388 100644
+--- a/CHANGES
++++ b/CHANGES
+@@ -44,6 +44,7 @@ Bugs fixed
+   Patch by Ralf Grubenmann.
+ * #11529: Line Block in LaTeX builder outputs spurious empty token.
+   Patch by Adrian Vollmer.
++* #11196: autosummary: Summary line extraction failed with "e.g."
+ 
+ Testing
+ -------
+diff --git a/sphinx/ext/autosummary/__init__.py b/sphinx/ext/autosummary/__init__.py
+index ddee2fa5a..ff948d83d 100644
+--- a/sphinx/ext/autosummary/__init__.py
++++ b/sphinx/ext/autosummary/__init__.py
+@@ -100,7 +100,7 @@ logger = logging.getLogger(__name__)
+ periods_re = re.compile(r'\.(?:\s+)')
+ literal_re = re.compile(r'::\s*$')
+ 
+-WELL_KNOWN_ABBREVIATIONS = ('et al.', ' i.e.',)
++WELL_KNOWN_ABBREVIATIONS = ('et al.', 'e.g.', 'i.e.')
+ 
+ 
+ # -- autosummary_toc node ------------------------------------------------------
+diff --git a/tests/test_ext_autosummary.py b/tests/test_ext_autosummary.py
+index 0f917df1e..93cf195af 100644
+--- a/tests/test_ext_autosummary.py
++++ b/tests/test_ext_autosummary.py
+@@ -102,6 +102,15 @@ def test_extract_summary(capsys):
+     doc = ['Blabla, i.e. bla.']
+     assert extract_summary(doc, document) == ' '.join(doc)
+ 
++    doc = ['Blabla, (i.e. bla).']
++    assert extract_summary(doc, document) == ' '.join(doc)
++
++    doc = ['Blabla, e.g. bla.']
++    assert extract_summary(doc, document) == ' '.join(doc)
++
++    doc = ['Blabla, (e.g. bla).']
++    assert extract_summary(doc, document) == ' '.join(doc)
++
+     doc = ['Blabla, et al. bla.']
+     assert extract_summary(doc, document) == ' '.join(doc)
+ 
++ git diff ac2b7599d212af7d04649959ce6926c63c3133fa
+diff --git a/sphinx/ext/graphviz.py b/sphinx/ext/graphviz.py
+index 8b21d9e3b..1e2655efa 100644
+--- a/sphinx/ext/graphviz.py
++++ b/sphinx/ext/graphviz.py
+@@ -218,13 +218,20 @@ class GraphvizSimple(SphinxDirective):
+ 
+ 
+ def fix_svg_relative_paths(self: SphinxTranslator, filepath: str) -> None:
+-    """Change relative links in generated svg files to be relative to imgpath."""
++    """Change relative links in generated svg files to be relative to the document."""
+     tree = ET.parse(filepath)  # NoQA: S314
+     root = tree.getroot()
+     ns = {'svg': 'http://www.w3.org/2000/svg', 'xlink': 'http://www.w3.org/1999/xlink'}
+     href_name = '{http://www.w3.org/1999/xlink}href'
+     modified = False
+ 
++    # Get the directory of the current document
++    if hasattr(self, 'document') and 'source' in self.document:
++        docdir = path.dirname(self.document['source'])
++    else:
++        # Fallback to the directory of the output file
++        docdir = path.dirname(filepath)
++
+     for element in chain(
+         root.findall('.//svg:image[@xlink:href]', ns),
+         root.findall('.//svg:a[@xlink:href]', ns),
+@@ -234,11 +241,9 @@ def fix_svg_relative_paths(self: SphinxTranslator, filepath: str) -> None:
+             # not a relative link
+             continue
+ 
+-        old_path = path.join(self.builder.outdir, url)
+-        new_path = path.relpath(
+-            old_path,
+-            start=path.join(self.builder.outdir, self.builder.imgpath),
+-        )
++        # Make the path relative to the document directory
++        old_path = path.normpath(path.join(docdir, url))
++        new_path = path.relpath(old_path, start=docdir)
+         modified_url = urlunsplit((scheme, hostname, new_path, query, fragment))
+ 
+         element.set(href_name, modified_url)
+@@ -330,12 +335,15 @@ def render_dot_html(self: HTML5Translator, node: graphviz, code: str, options: d
+         if 'align' in node:
+             self.body.append('<div align="%s" class="align-%s">' %
+                              (node['align'], node['align']))
++        
++        # Convert fname to a relative path
++        relative_fname = path.relpath(outfn, self.builder.outdir)
++        relative_fname = relative_fname.replace(path.sep, '/')  # Ensure forward slashes
++        
+         if format == 'svg':
+             self.body.append('<div class="graphviz">')
+-            self.body.append('<object data="%s" type="image/svg+xml" class="%s">\n' %
+-                             (fname, imgcls))
+-            self.body.append('<p class="warning">%s</p>' % alt)
+-            self.body.append('</object></div>\n')
++            self.body.append('<img src="%s" alt="%s" class="%s" />' % (relative_fname, alt, imgcls))
++            self.body.append('</div>\n')
+         else:
+             assert outfn is not None
+             with open(outfn + '.map', encoding='utf-8') as mapfile:
+@@ -344,14 +352,14 @@ def render_dot_html(self: HTML5Translator, node: graphviz, code: str, options: d
+                     # has a map
+                     self.body.append('<div class="graphviz">')
+                     self.body.append('<img src="%s" alt="%s" usemap="#%s" class="%s" />' %
+-                                     (fname, alt, imgmap.id, imgcls))
++                                     (relative_fname, alt, imgmap.id, imgcls))
+                     self.body.append('</div>\n')
+                     self.body.append(imgmap.generate_clickable_map())
+                 else:
+                     # nothing in image map
+                     self.body.append('<div class="graphviz">')
+                     self.body.append('<img src="%s" alt="%s" class="%s" />' %
+-                                     (fname, alt, imgcls))
++                                     (relative_fname, alt, imgcls))
+                     self.body.append('</div>\n')
+         if 'align' in node:
+             self.body.append('</div>\n')
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e '.[test]'
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: sphinxcontrib-applehelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (1.0.8)
+Requirement already satisfied: sphinxcontrib-devhelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (1.0.6)
+Requirement already satisfied: sphinxcontrib-jsmath in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (1.0.1)
+Requirement already satisfied: sphinxcontrib-htmlhelp>=2.0.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (2.0.6)
+Requirement already satisfied: sphinxcontrib-serializinghtml>=1.1.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (1.1.10)
+Requirement already satisfied: sphinxcontrib-qthelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (1.0.8)
+Requirement already satisfied: Jinja2>=3.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (3.1.4)
+Requirement already satisfied: Pygments>=2.13 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (2.18.0)
+Requirement already satisfied: docutils<0.21,>=0.18.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (0.20.1)
+Requirement already satisfied: snowballstemmer>=2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (2.2.0)
+Requirement already satisfied: babel>=2.9 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (2.15.0)
+Requirement already satisfied: alabaster<0.8,>=0.7 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (0.7.16)
+Requirement already satisfied: imagesize>=1.3 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (1.4.1)
+Requirement already satisfied: requests>=2.25.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (2.32.3)
+Requirement already satisfied: packaging>=21.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (24.1)
+Requirement already satisfied: importlib-metadata>=4.8 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (8.2.0)
+Requirement already satisfied: pytest>=4.6 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (8.3.2)
+Requirement already satisfied: html5lib in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (1.1)
+Requirement already satisfied: cython in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (3.0.10)
+Requirement already satisfied: filelock in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==7.2.0) (3.15.4)
+Requirement already satisfied: zipp>=0.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from importlib-metadata>=4.8->Sphinx==7.2.0) (3.19.2)
+Requirement already satisfied: MarkupSafe>=2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Jinja2>=3.0->Sphinx==7.2.0) (2.1.5)
+Requirement already satisfied: iniconfig in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest>=4.6->Sphinx==7.2.0) (2.0.0)
+Requirement already satisfied: pluggy<2,>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest>=4.6->Sphinx==7.2.0) (1.5.0)
+Requirement already satisfied: exceptiongroup>=1.0.0rc8 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest>=4.6->Sphinx==7.2.0) (1.2.2)
+Requirement already satisfied: tomli>=1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest>=4.6->Sphinx==7.2.0) (2.0.1)
+Requirement already satisfied: charset-normalizer<4,>=2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.25.0->Sphinx==7.2.0) (3.3.2)
+Requirement already satisfied: idna<4,>=2.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.25.0->Sphinx==7.2.0) (3.7)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.25.0->Sphinx==7.2.0) (2.2.2)
+Requirement already satisfied: certifi>=2017.4.17 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.25.0->Sphinx==7.2.0) (2024.7.4)
+Requirement already satisfied: six>=1.9 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from html5lib->Sphinx==7.2.0) (1.16.0)
+Requirement already satisfied: webencodings in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from html5lib->Sphinx==7.2.0) (0.5.1)
+Checking if build backend supports build_editable: started
+Checking if build backend supports build_editable: finished with status 'done'
+Building wheels for collected packages: Sphinx
+  Building editable for Sphinx (pyproject.toml): started
+  Building editable for Sphinx (pyproject.toml): finished with status 'done'
+  Created wheel for Sphinx: filename=sphinx-7.2.0-py3-none-any.whl size=4349 sha256=3e80c5149f76940232ca3b829d73a5dc5f43182f7693446a276a66c9c04e9294
+  Stored in directory: /tmp/pip-ephem-wheel-cache-a7p63l3b/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Sphinx
+Installing collected packages: Sphinx
+  Attempting uninstall: Sphinx
+    Found existing installation: Sphinx 7.2.0
+    Uninstalling Sphinx-7.2.0:
+      Successfully uninstalled Sphinx-7.2.0
+Successfully installed Sphinx-7.2.0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout ac2b7599d212af7d04649959ce6926c63c3133fa tests/roots/test-ext-inheritance_diagram/conf.py tests/roots/test-ext-inheritance_diagram/index.rst tests/roots/test-ext-inheritance_diagram/test.py tests/test_ext_inheritance_diagram.py
+Updated 0 paths from bc0bc1d03
++ git apply -v -
+Checking patch tests/roots/test-ext-inheritance_diagram/conf.py...
+Checking patch tests/roots/test-ext-inheritance_diagram/index.rst...
+Checking patch tests/roots/test-ext-inheritance_diagram/subdir/index.rst...
+Checking patch tests/roots/test-ext-inheritance_diagram/subdir/other.py...
+Checking patch tests/roots/test-ext-inheritance_diagram/test.py...
+Checking patch tests/test_ext_inheritance_diagram.py...
+Applied patch tests/roots/test-ext-inheritance_diagram/conf.py cleanly.
+Applied patch tests/roots/test-ext-inheritance_diagram/index.rst cleanly.
+Applied patch tests/roots/test-ext-inheritance_diagram/subdir/index.rst cleanly.
+Applied patch tests/roots/test-ext-inheritance_diagram/subdir/other.py cleanly.
+Applied patch tests/roots/test-ext-inheritance_diagram/test.py cleanly.
+Applied patch tests/test_ext_inheritance_diagram.py cleanly.
++ tox --current-env -epy39 -v -- tests/roots/test-ext-inheritance_diagram/conf.py tests/roots/test-ext-inheritance_diagram/index.rst tests/roots/test-ext-inheritance_diagram/subdir/index.rst tests/roots/test-ext-inheritance_diagram/subdir/other.py tests/roots/test-ext-inheritance_diagram/test.py tests/test_ext_inheritance_diagram.py
+py39: commands[0]> python -X dev -X warn_default_encoding -m pytest --durations 25 tests/roots/test-ext-inheritance_diagram/conf.py tests/roots/test-ext-inheritance_diagram/index.rst tests/roots/test-ext-inheritance_diagram/subdir/index.rst tests/roots/test-ext-inheritance_diagram/subdir/other.py tests/roots/test-ext-inheritance_diagram/test.py tests/test_ext_inheritance_diagram.py
+[1m============================= test session starts ==============================[0m
+platform linux -- Python 3.9.19, pytest-8.3.2, pluggy-1.5.0
+cachedir: .tox/py39/.pytest_cache
+libraries: Sphinx-7.2.0+/ac2b7599d, docutils-0.20.1
+base tmp_path: /tmp/pytest-of-root/pytest-0
+rootdir: /testbed
+configfile: pyproject.toml
+collected 6 items
+
+tests/test_ext_inheritance_diagram.py [32m.[0m[32m.[0m[31mF[0m[32m.[0m[32m.[0m[32m.[0m[31m                             [100%][0m
+
+=================================== FAILURES ===================================
+[31m[1m______________________ test_inheritance_diagram_svg_html _______________________[0m
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_inheritance_diagram_svg_h0')
+app = <SphinxTestApp buildername='html'>
+
+    [0m[37m@pytest[39;49;00m.mark.sphinx([33m'[39;49;00m[33mhtml[39;49;00m[33m'[39;49;00m, testroot=[33m'[39;49;00m[33mext-inheritance_diagram[39;49;00m[33m'[39;49;00m,[90m[39;49;00m
+                        confoverrides={[33m'[39;49;00m[33mgraphviz_output_format[39;49;00m[33m'[39;49;00m: [33m'[39;49;00m[33msvg[39;49;00m[33m'[39;49;00m})[90m[39;49;00m
+    [37m@pytest[39;49;00m.mark.usefixtures([33m'[39;49;00m[33mif_graphviz_found[39;49;00m[33m'[39;49;00m)[90m[39;49;00m
+    [94mdef[39;49;00m [92mtest_inheritance_diagram_svg_html[39;49;00m(tmp_path, app):[90m[39;49;00m
+        inv_file = tmp_path / [33m'[39;49;00m[33minventory[39;49;00m[33m'[39;49;00m[90m[39;49;00m
+        inv_file.write_bytes(subdir_inventory)[90m[39;49;00m
+        app.config.intersphinx_mapping = {[90m[39;49;00m
+            [33m"[39;49;00m[33msubdir[39;49;00m[33m"[39;49;00m: ([33m'[39;49;00m[33mhttps://example.org[39;49;00m[33m'[39;49;00m, [96mstr[39;49;00m(inv_file)),[90m[39;49;00m
+        }[90m[39;49;00m
+        app.config.intersphinx_cache_limit = [94m0[39;49;00m[90m[39;49;00m
+        normalize_intersphinx_mapping(app, app.config)[90m[39;49;00m
+        load_mappings(app)[90m[39;49;00m
+    [90m[39;49;00m
+        app.builder.build_all()[90m[39;49;00m
+    [90m[39;49;00m
+        content = (app.outdir / [33m'[39;49;00m[33mindex.html[39;49;00m[33m'[39;49;00m).read_text(encoding=[33m'[39;49;00m[33mutf8[39;49;00m[33m'[39;49;00m)[90m[39;49;00m
+        base_svgs = re.findall([33m'[39;49;00m[33m<object data=[39;49;00m[33m"[39;49;00m[33m(_images/inheritance-[39;49;00m[33m\\[39;49;00m[33mw+.svg?)[39;49;00m[33m"[39;49;00m[33m'[39;49;00m, content)[90m[39;49;00m
+    [90m[39;49;00m
+        pattern = ([33m'[39;49;00m[33m<figure class=[39;49;00m[33m"[39;49;00m[33malign-default[39;49;00m[33m"[39;49;00m[33m id=[39;49;00m[33m"[39;49;00m[33mid1[39;49;00m[33m"[39;49;00m[33m>[39;49;00m[33m\n[39;49;00m[33m'[39;49;00m[90m[39;49;00m
+                   [33m'[39;49;00m[33m<div class=[39;49;00m[33m"[39;49;00m[33mgraphviz[39;49;00m[33m"[39;49;00m[33m>[39;49;00m[33m'[39;49;00m[90m[39;49;00m
+                   [33m'[39;49;00m[33m<object data=[39;49;00m[33m"[39;49;00m[33m_images/inheritance-[39;49;00m[33m\\[39;49;00m[33mw+.svg[39;49;00m[33m"[39;49;00m[33m [39;49;00m[33m'[39;49;00m[90m[39;49;00m
+                   [33m'[39;49;00m[33mtype=[39;49;00m[33m"[39;49;00m[33mimage/svg[39;49;00m[33m\\[39;49;00m[33m+xml[39;49;00m[33m"[39;49;00m[33m class=[39;49;00m[33m"[39;49;00m[33minheritance graphviz[39;49;00m[33m"[39;49;00m[33m>[39;49;00m[33m\n[39;49;00m[33m'[39;49;00m[90m[39;49;00m
+                   [33m'[39;49;00m[33m<p class=[39;49;00m[33m\"[39;49;00m[33mwarning[39;49;00m[33m\"[39;49;00m[33m>Inheritance diagram of test.Foo</p>[39;49;00m[33m'[39;49;00m[90m[39;49;00m
+                   [33m'[39;49;00m[33m</object></div>[39;49;00m[33m\n[39;49;00m[33m<figcaption>[39;49;00m[33m\n[39;49;00m[33m<p><span class=[39;49;00m[33m"[39;49;00m[33mcaption-text[39;49;00m[33m"[39;49;00m[33m>[39;49;00m[33m'[39;49;00m[90m[39;49;00m
+                   [33m'[39;49;00m[33mTest Foo!</span><a class=[39;49;00m[33m"[39;49;00m[33mheaderlink[39;49;00m[33m"[39;49;00m[33m href=[39;49;00m[33m"[39;49;00m[33m#id1[39;49;00m[33m"[39;49;00m[33m [39;49;00m[33m'[39;49;00m[90m[39;49;00m
+                   [33m'[39;49;00m[33mtitle=[39;49;00m[33m"[39;49;00m[33mPermalink to this image[39;49;00m[33m"[39;49;00m[33m>[39;49;00m[33m\xb6[39;49;00m[33m</a></p>[39;49;00m[33m\n[39;49;00m[33m</figcaption>[39;49;00m[33m\n[39;49;00m[33m</figure>[39;49;00m[33m\n[39;49;00m[33m'[39;49;00m)[90m[39;49;00m
+    [90m[39;49;00m
+>       [94massert[39;49;00m re.search(pattern, content, re.M)[90m[39;49;00m
+[1m[31mE       assert None[0m
+[1m[31mE        +  where None = <function search at 0x7f6e6a0069b0>('<figure class="align-default" id="id1">\n<div class="graphviz"><object data="_images/inheritance-\\w+.svg" type="imag...est Foo!</span><a class="headerlink" href="#id1" title="Permalink to this image">¶</a></p>\n</figcaption>\n</figure>\n', '<!DOCTYPE html>\n\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width...ref="_sources/index.rst.txt"\n          rel="nofollow">Page source</a>\n    </div>\n\n    \n\n    \n  </body>\n</html>', re.MULTILINE)[0m
+[1m[31mE        +    where <function search at 0x7f6e6a0069b0> = re.search[0m
+[1m[31mE        +    and   re.MULTILINE = re.M[0m
+
+[1m[31mtests/test_ext_inheritance_diagram.py[0m:224: AssertionError
+--------------------------- Captured stdout teardown ---------------------------
+# testroot: root
+# builder: html
+# srcdir: /tmp/pytest-of-root/pytest-0/ext-inheritance_diagram
+# outdir: /tmp/pytest-of-root/pytest-0/ext-inheritance_diagram/_build/html
+# status: 
+[01mRunning Sphinx v7.2.0+/ac2b7599d[39;49;00m
+[01mloading pickled environment... [39;49;00mdone
+loading intersphinx inventory from /tmp/pytest-of-root/pytest-0/test_inheritance_diagram_svg_h0/inventory...
+[01mbuilding [mo]: [39;49;00mall of 0 po files
+[01mwriting output... [39;49;00m
+[01mbuilding [html]: [39;49;00mall source files
+[01mupdating environment: [39;49;00m[config changed ('intersphinx_mapping')] 2 added, 0 changed, 0 removed
+[2K[01mreading sources... [39;49;00m[ 50%] [35mindex[39;49;00m[2K[01mreading sources... [39;49;00m[100%] [35msubdir/index[39;49;00m
+[01mlooking for now-outdated files... [39;49;00mnone found
+[01mpickling environment... [39;49;00mdone
+[01mchecking consistency... [39;49;00mdone
+[01mpreparing documents... [39;49;00mdone
+[01mcopying assets... [39;49;00m[01mcopying static files... [39;49;00mdone
+[01mcopying extra files... [39;49;00mdone
+done
+[2K[01mwriting output... [39;49;00m[ 50%] [32mindex[39;49;00m[2K[01mwriting output... [39;49;00m[100%] [32msubdir/index[39;49;00m
+[01mgenerating indices... [39;49;00mgenindex done
+[01mwriting additional pages... [39;49;00msearch done
+[01mdumping search index in English (code: en)... [39;49;00mdone
+[01mdumping object inventory... [39;49;00mdone
+
+# warning: 
+[91m/tmp/pytest-of-root/pytest-0/ext-inheritance_diagram/subdir/index.rst: WARNING: document isn't included in any toctree[39;49;00m
+
+============================= slowest 25 durations =============================
+0.92s call     tests/test_ext_inheritance_diagram.py::test_inheritance_diagram
+0.62s setup    tests/test_ext_inheritance_diagram.py::test_inheritance_diagram
+0.60s call     tests/test_ext_inheritance_diagram.py::test_inheritance_diagram_latex_alias
+0.56s call     tests/test_ext_inheritance_diagram.py::test_inheritance_diagram_svg_html
+0.54s call     tests/test_ext_inheritance_diagram.py::test_inheritance_diagram_png_html
+0.30s call     tests/test_ext_inheritance_diagram.py::test_inheritance_diagram_latex
+0.11s setup    tests/test_ext_inheritance_diagram.py::test_inheritance_diagram_latex
+0.10s setup    tests/test_ext_inheritance_diagram.py::test_inheritance_diagram_latex_alias
+0.07s setup    tests/test_ext_inheritance_diagram.py::test_inheritance_diagram_png_html
+0.07s setup    tests/test_ext_inheritance_diagram.py::test_inheritance_diagram_svg_html
+0.01s call     tests/test_ext_inheritance_diagram.py::test_import_classes
+0.01s teardown tests/test_ext_inheritance_diagram.py::test_inheritance_diagram
+0.01s teardown tests/test_ext_inheritance_diagram.py::test_inheritance_diagram_svg_html
+
+(5 durations < 0.005s hidden.  Use -vv to show these durations.)
+[36m[1m=========================== short test summary info ============================[0m
+[31mFAILED[0m tests/test_ext_inheritance_diagram.py::[1mtest_inheritance_diagram_svg_html[0m - assert None
+[31m========================= [31m[1m1 failed[0m, [32m5 passed[0m[31m in 4.99s[0m[31m ==========================[0m
+py39: exit 1 (6.27 seconds) /testbed> python -X dev -X warn_default_encoding -m pytest --durations 25 tests/roots/test-ext-inheritance_diagram/conf.py tests/roots/test-ext-inheritance_diagram/index.rst tests/roots/test-ext-inheritance_diagram/subdir/index.rst tests/roots/test-ext-inheritance_diagram/subdir/other.py tests/roots/test-ext-inheritance_diagram/test.py tests/test_ext_inheritance_diagram.py pid=115
+  py39: FAIL code 1 (6.31=setup[0.04]+cmd[6.27] seconds)
+  evaluation failed :( (6.54 seconds)
++ git checkout ac2b7599d212af7d04649959ce6926c63c3133fa tests/roots/test-ext-inheritance_diagram/conf.py tests/roots/test-ext-inheritance_diagram/index.rst tests/roots/test-ext-inheritance_diagram/test.py tests/test_ext_inheritance_diagram.py
+Updated 4 paths from bc0bc1d03

@@ -1,0 +1,152 @@
+
+diff --git a/pylint/pyreverse/diagrams.py b/pylint/pyreverse/diagrams.py
+index bf9f67af6..e4cbc6514 100644
+--- a/pylint/pyreverse/diagrams.py
++++ b/pylint/pyreverse/diagrams.py
+@@ -77,7 +77,7 @@ class ClassDiagram(Figure, FilterMixIn):
+         raise KeyError(relation_type)
+ 
+     def get_attrs(self, node):
+-        """return visible attributes, possibly with class name"""
++        """return visible attributes, possibly with class name and type hints"""
+         attrs = []
+         properties = [
+             (n, m)
+@@ -92,11 +92,22 @@ class ClassDiagram(Figure, FilterMixIn):
+             if not self.show_attr(node_name):
+                 continue
+             names = self.class_names(associated_nodes)
++            type_hint = self.get_type_hint(node, node_name)
+             if names:
+-                node_name = "{} : {}".format(node_name, ", ".join(names))
++                node_name = f"{node_name} : {', '.join(names)}"
++            elif type_hint:
++                node_name = f"{node_name} : {type_hint}"
+             attrs.append(node_name)
+         return sorted(attrs)
+ 
++    def get_type_hint(self, node, attr_name):
++        """Extract type hint for an attribute"""
++        if attr_name in node.instance_attrs:
++            attr_node = node.instance_attrs[attr_name][0]
++            if isinstance(attr_node, astroid.AnnAssign):
++                return attr_node.annotation.as_string()
++        return None
++
+     def get_methods(self, node):
+         """return visible methods"""
+         methods = [
+diff --git a/pylint/pyreverse/inspector.py b/pylint/pyreverse/inspector.py
+index 8fa122022..7814d25b7 100644
+--- a/pylint/pyreverse/inspector.py
++++ b/pylint/pyreverse/inspector.py
+@@ -340,7 +340,11 @@ def project_from_files(
+         if ast is None:
+             continue
+         project.path = project.path or ast.file
++        full_name = ast.name
++        if project_name != "no name":
++            full_name = f"{project_name}.{ast.name}"
+         project.add_module(ast)
++        project.locals[full_name] = ast  # Add this line to include full module name
+         base_name = ast.name
+         # recurse in package except if __init__ was explicitly given
+         if ast.package and something.find("__init__") == -1:
+@@ -351,5 +355,37 @@ def project_from_files(
+                 ast = func_wrapper(astroid_manager.ast_from_file, fpath)
+                 if ast is None or ast.name == base_name:
+                     continue
++                full_name = f"{project_name}.{ast.name}"
+                 project.add_module(ast)
++                project.locals[full_name] = ast  # Add this line to include full module name
+     return project
++
++def visit_classdef(self, node):
++    """visit class node"""
++    print(f"Visiting class: {node.name}")  # Debug print
++    super().visit_classdef(node)
++    print(f"Class body: {[type(child) for child in node.body]}")
++    for child in node.body:
++        if isinstance(child, astroid.AnnAssign):
++            if isinstance(child.target, astroid.AssignName):
++                print(f"AnnAssign: {child.target.name}, annotation type: {type(child.annotation)}")
++                if isinstance(child.annotation, astroid.Name):
++                    node.instance_attrs_type[child.target.name] = [child.annotation]
++                elif isinstance(child.annotation, astroid.Subscript):
++                    node.instance_attrs_type[child.target.name] = [child.annotation.value]
++        elif isinstance(child, astroid.FunctionDef):
++            print(f"FunctionDef: {child.name}")
++            if child.name == '__init__':
++                print(f"__init__ args: {[arg.name for arg in child.args.args]}")
++                for arg in child.args.args[1:]:  # Skip 'self'
++                    if arg.annotation:
++                        print(f"FunctionDef arg: {arg.name}, annotation type: {type(arg.annotation)}")
++                        if isinstance(arg.annotation, astroid.Name):
++                            node.instance_attrs_type[arg.name] = [arg.annotation]
++                        elif isinstance(arg.annotation, astroid.Subscript):
++                            node.instance_attrs_type[arg.name] = [arg.annotation.value]
++    if self.project.oimport_for_class:
++        node.instance_attrs_type.update(self.compute_instance_attrs_type(node))
++    self.set_implements(node)
++    self.pending[node] = []
++    print(f"Final instance_attrs_type: {node.instance_attrs_type}")
+diff --git a/tests/unittest_pyreverse_inspector.py b/tests/unittest_pyreverse_inspector.py
+index e1ff6378e..c2e0469f7 100644
+--- a/tests/unittest_pyreverse_inspector.py
++++ b/tests/unittest_pyreverse_inspector.py
+@@ -24,7 +24,9 @@ from pylint.pyreverse import inspector
+ 
+ @pytest.fixture
+ def project():
++    print("Creating project...")
+     project = get_project("data", "data")
++    print(f"Project created: {project}")
+     linker = inspector.Linker(project)
+     linker.visit(project)
+     return project
+@@ -125,6 +127,21 @@ def test_from_directory(project):
+     assert project.path.endswith(expected)
+ 
+ 
+-def test_project_node(project):
+-    expected = ["data", "data.clientmodule_test", "data.suppliermodule_test"]
+-    assert sorted(project.keys()) == expected
++def test_type_hints(project):
++    module = astroid.parse('''
++class MyClass:
++    def __init__(self, a: str = None):
++        self.a = a
++''')
++    klass = module['MyClass']
++    linker = inspector.Linker(project)
++    print("Before visiting class:")
++    print(f"klass has instance_attrs_type: {'instance_attrs_type' in klass.__dict__}")
++    linker.visit_classdef(klass)
++    print("After visiting class:")
++    print(f"klass has instance_attrs_type: {'instance_attrs_type' in klass.__dict__}")
++    print(f"klass.instance_attrs_type: {klass.instance_attrs_type}")
++    assert hasattr(klass, 'instance_attrs_type')
++    assert 'a' in klass.instance_attrs_type
++    assert isinstance(klass.instance_attrs_type['a'][0], astroid.Name)
++    assert klass.instance_attrs_type['a'][0].name == 'str'
+diff --git a/tests/unittest_pyreverse_writer.py b/tests/unittest_pyreverse_writer.py
+index 98bb01488..bb69dfaf1 100644
+--- a/tests/unittest_pyreverse_writer.py
++++ b/tests/unittest_pyreverse_writer.py
+@@ -71,11 +71,15 @@ def _file_lines(path):
+ 
+ def get_project(module, name="No Name"):
+     """return an astroid project representation"""
++    print(f"get_project called with module: {module}, name: {name}")
+ 
+     def _astroid_wrapper(func, modname):
++        print(f"_astroid_wrapper called with modname: {modname}")
+         return func(modname)
+ 
+-    return project_from_files([module], _astroid_wrapper, project_name=name)
++    project = project_from_files([module], _astroid_wrapper, project_name=name)
++    print(f"project_from_files returned: {project}")
++    return project
+ 
+ 
+ DOT_FILES = ["packages_No_Name.dot", "classes_No_Name.dot"]

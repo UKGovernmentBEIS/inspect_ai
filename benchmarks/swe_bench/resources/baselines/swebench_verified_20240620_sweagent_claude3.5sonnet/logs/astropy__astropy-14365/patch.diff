@@ -1,0 +1,104 @@
+
+diff --git a/astropy/io/ascii/qdp.py b/astropy/io/ascii/qdp.py
+index 83a4f004a..40c8edd85 100644
+--- a/astropy/io/ascii/qdp.py
++++ b/astropy/io/ascii/qdp.py
+@@ -60,7 +60,7 @@ def _line_type(line, delimiter=None):
+     ValueError: Unrecognized QDP line...
+     """
+     _decimal_re = r"[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?"
+-    _command_re = r"READ [TS]ERR(\s+[0-9]+)+"
++    _command_re = r"read [ts]err(\s+[0-9]+)+"
+ 
+     sep = delimiter
+     if delimiter is None:
+@@ -68,7 +68,7 @@ def _line_type(line, delimiter=None):
+     _new_re = rf"NO({sep}NO)+"
+     _data_re = rf"({_decimal_re}|NO|[-+]?nan)({sep}({_decimal_re}|NO|[-+]?nan))*)"
+     _type_re = rf"^\s*((?P<command>{_command_re})|(?P<new>{_new_re})|(?P<data>{_data_re})?\s*(\!(?P<comment>.*))?\s*$"
+-    _line_type_re = re.compile(_type_re)
++    _line_type_re = re.compile(_type_re, re.IGNORECASE)
+     line = line.strip()
+     if not line:
+         return "comment"
+diff --git a/astropy/io/ascii/tests/test_qdp.py b/astropy/io/ascii/tests/test_qdp.py
+index ef24e6f6a..9207ab22b 100644
+--- a/astropy/io/ascii/tests/test_qdp.py
++++ b/astropy/io/ascii/tests/test_qdp.py
+@@ -245,3 +245,31 @@ def test_get_lines_from_qdp(tmp_path):
+         assert file_output[i] == line
+         assert list_output[i] == line
+         assert text_output[i] == line
++def test_lowercase_commands(tmp_path):
++    example_qdp = """
++    ! QDP file with lowercase commands
++    read terr 1
++    read serr 2
++    ! Data
++    !MJD            Err (pos)       Err(neg)        Rate            Error
++    53000.123456 2.37847222222222e-05    -2.37847222222222e-05   0.726155        0.583890
++    55045.099887 1.14467592592593e-05    -1.14467592592593e-05   2.410935        1.393592
++    """
++
++    path = tmp_path / "test_lowercase.qdp"
++    with open(path, "w") as fp:
++        print(example_qdp, file=fp)
++
++    with pytest.warns(AstropyUserWarning, match="table_id not specified"):
++        table = ascii.read(path, format="qdp", names=["MJD", "Rate"])
++    
++    assert len(table) == 2
++    assert "MJD" in table.colnames
++    assert "Rate" in table.colnames
++    assert np.isclose(table["MJD"][0], 53000.123456)
++    assert np.isclose(table["Rate"][0], 0.726155)
++    assert np.isclose(table["MJD_perr"][0], 2.37847222222222e-05)
++    assert np.isclose(table["MJD_nerr"][0], -2.37847222222222e-05)
++    assert np.isclose(table["Rate_err"][0], 0.583890)
++
++print("New test case added successfully.")
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..46c4e5486
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,8 @@
++from astropy.table import Table
++try:
++    Table.read('test.qdp', format='ascii.qdp')
++    print("Table read successfully. The issue may have been fixed.")
++except ValueError as e:
++    print(f"ValueError occurred: {e}")
++    print("The issue is still present.")
++print("Script completed.")
+diff --git a/test.qdp b/test.qdp
+new file mode 100644
+index 000000000..5479bdc81
+--- /dev/null
++++ b/test.qdp
+@@ -0,0 +1,2 @@
++read serr 1 2 
++1 0.5 1 0.5
+diff --git a/test_qdp_case_insensitive.py b/test_qdp_case_insensitive.py
+new file mode 100644
+index 000000000..c5fb3964a
+--- /dev/null
++++ b/test_qdp_case_insensitive.py
+@@ -0,0 +1,17 @@
++from astropy.table import Table
++
++# Test data
++qdp_data = """
++read serr 1 2 
++1 0.5 1 0.5
++"""
++
++# Try to read the table
++try:
++    table = Table.read(qdp_data, format='ascii.qdp')
++    print("Table read successfully:")
++    print(table)
++except Exception as e:
++    print(f"Error reading table: {str(e)}")
++
++print("Test completed.")

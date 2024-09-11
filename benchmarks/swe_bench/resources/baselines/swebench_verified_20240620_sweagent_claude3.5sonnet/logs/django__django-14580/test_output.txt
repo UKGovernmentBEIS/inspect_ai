@@ -1,0 +1,556 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
++ git show
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/migrations/writer.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
+commit 36fa071d6ebd18a61c4d7f1b5c9d17106134bd44
+Author: Allan Feldman <afeldman@newrelic.com>
+Date:   Wed Jun 30 17:37:10 2021 +0200
+
+    Fixed #32889 -- Allowed per-request sync_to_async context in ASGIHandler .
+    
+    By using a asgiref's ThreadSensitiveContext context manager, requests
+    will be able to execute independently of other requests when sync work
+    is involved.
+    
+    Prior to this commit, a single global thread was used to execute any
+    sync work independent of the request from which that work was scheduled.
+    This could result in contention for the global sync thread in the case
+    of a slow sync function.
+    
+    Requests are now isolated to their own sync thread.
+
+diff --git a/django/core/handlers/asgi.py b/django/core/handlers/asgi.py
+index 7fbabe4510..2b8cc8b76e 100644
+--- a/django/core/handlers/asgi.py
++++ b/django/core/handlers/asgi.py
+@@ -3,7 +3,7 @@ import sys
+ import tempfile
+ import traceback
+ 
+-from asgiref.sync import sync_to_async
++from asgiref.sync import ThreadSensitiveContext, sync_to_async
+ 
+ from django.conf import settings
+ from django.core import signals
+@@ -144,6 +144,14 @@ class ASGIHandler(base.BaseHandler):
+                 'Django can only handle ASGI/HTTP connections, not %s.'
+                 % scope['type']
+             )
++
++        async with ThreadSensitiveContext():
++            await self.handle(scope, receive, send)
++
++    async def handle(self, scope, receive, send):
++        """
++        Handles the ASGI request. Called via the __call__ method.
++        """
+         # Receive the HTTP request body as a stream object.
+         try:
+             body_file = await self.read_body(receive)
+diff --git a/tests/asgi/tests.py b/tests/asgi/tests.py
+index 3509bb0aa7..7eb35724df 100644
+--- a/tests/asgi/tests.py
++++ b/tests/asgi/tests.py
+@@ -4,7 +4,6 @@ import threading
+ from pathlib import Path
+ from unittest import skipIf
+ 
+-from asgiref.sync import SyncToAsync
+ from asgiref.testing import ApplicationCommunicator
+ 
+ from django.contrib.staticfiles.handlers import ASGIStaticFilesHandler
+@@ -16,7 +15,7 @@ from django.test import (
+ )
+ from django.utils.http import http_date
+ 
+-from .urls import test_filename
++from .urls import sync_waiter, test_filename
+ 
+ TEST_STATIC_ROOT = Path(__file__).parent / 'project' / 'static'
+ 
+@@ -235,11 +234,39 @@ class ASGITest(SimpleTestCase):
+         # Give response.close() time to finish.
+         await communicator.wait()
+ 
+-        # At this point, AsyncToSync does not have a current executor. Thus
+-        # SyncToAsync falls-back to .single_thread_executor.
+-        target_thread = next(iter(SyncToAsync.single_thread_executor._threads))
++        # AsyncToSync should have executed the signals in the same thread.
+         request_started_thread, request_finished_thread = signal_handler.threads
+-        self.assertEqual(request_started_thread, target_thread)
+-        self.assertEqual(request_finished_thread, target_thread)
++        self.assertEqual(request_started_thread, request_finished_thread)
+         request_started.disconnect(signal_handler)
+         request_finished.disconnect(signal_handler)
++
++    async def test_concurrent_async_uses_multiple_thread_pools(self):
++        sync_waiter.active_threads.clear()
++
++        # Send 2 requests concurrently
++        application = get_asgi_application()
++        scope = self.async_request_factory._base_scope(path='/wait/')
++        communicators = []
++        for _ in range(2):
++            communicators.append(ApplicationCommunicator(application, scope))
++            await communicators[-1].send_input({'type': 'http.request'})
++
++        # Each request must complete with a status code of 200
++        # If requests aren't scheduled concurrently, the barrier in the
++        # sync_wait view will time out, resulting in a 500 status code.
++        for communicator in communicators:
++            response_start = await communicator.receive_output()
++            self.assertEqual(response_start['type'], 'http.response.start')
++            self.assertEqual(response_start['status'], 200)
++            response_body = await communicator.receive_output()
++            self.assertEqual(response_body['type'], 'http.response.body')
++            self.assertEqual(response_body['body'], b'Hello World!')
++            # Give response.close() time to finish.
++            await communicator.wait()
++
++        # The requests should have scheduled on different threads. Note
++        # active_threads is a set (a thread can only appear once), therefore
++        # length is a sufficient check.
++        self.assertEqual(len(sync_waiter.active_threads), 2)
++
++        sync_waiter.active_threads.clear()
+diff --git a/tests/asgi/urls.py b/tests/asgi/urls.py
+index ff8d21ea7c..22d85604d1 100644
+--- a/tests/asgi/urls.py
++++ b/tests/asgi/urls.py
+@@ -1,3 +1,5 @@
++import threading
++
+ from django.http import FileResponse, HttpResponse
+ from django.urls import path
+ 
+@@ -14,6 +16,18 @@ def hello_meta(request):
+     )
+ 
+ 
++def sync_waiter(request):
++    with sync_waiter.lock:
++        sync_waiter.active_threads.add(threading.current_thread())
++    sync_waiter.barrier.wait(timeout=0.5)
++    return hello(request)
++
++
++sync_waiter.active_threads = set()
++sync_waiter.lock = threading.Lock()
++sync_waiter.barrier = threading.Barrier(2)
++
++
+ test_filename = __file__
+ 
+ 
+@@ -21,4 +35,5 @@ urlpatterns = [
+     path('', hello),
+     path('file/', lambda x: FileResponse(open(test_filename, 'rb'))),
+     path('meta/', hello_meta),
++    path('wait/', sync_waiter),
+ ]
++ git diff 36fa071d6ebd18a61c4d7f1b5c9d17106134bd44
+diff --git a/django/db/migrations/writer.py b/django/db/migrations/writer.py
+index 4918261fb0..9171956a62 100644
+--- a/django/db/migrations/writer.py
++++ b/django/db/migrations/writer.py
+@@ -163,12 +163,12 @@ class MigrationWriter:
+                 self.needs_manual_porting = True
+ 
+         # django.db.migrations is always used, but models import may not be.
+-        # If models import exists, merge it with migrations import.
+-        if "from django.db import models" in imports:
+-            imports.discard("from django.db import models")
+-            imports.add("from django.db import migrations, models")
+-        else:
+-            imports.add("from django.db import migrations")
++        # django.db.migrations is always used, but models import may not be.
++        django_imports = ["migrations"]
++        if any('models.' in op for op in operations):
++            django_imports.append("models")
++        imports = {imp for imp in imports if not imp.startswith("from django.db import")}
++        imports.add(f"from django.db import {', '.join(sorted(django_imports))}")
+ 
+         # Sort imports by the package / module to be imported (the part after
+         # "from" in "from ... import ..." or after "import" in "import ...").
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.3.2 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0.dev20210701101319) (3.8.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0.dev20210701101319) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0.dev20210701101319) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from asgiref>=3.3.2->Django==4.0.dev20210701101319) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.0.dev20210701101319-0.editable-py3-none-any.whl size=26192 sha256=1a9fd53ffd80feda11d9030bf149d21fcbef559cbd27e317aabd2ddb4bfe9192
+  Stored in directory: /tmp/pip-ephem-wheel-cache-his6am9d/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.0.dev20210701101319
+    Uninstalling Django-4.0.dev20210701101319:
+      Successfully uninstalled Django-4.0.dev20210701101319
+Successfully installed Django-4.0.dev20210701101319
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 36fa071d6ebd18a61c4d7f1b5c9d17106134bd44 tests/migrations/test_writer.py
+Updated 0 paths from 91289a6651
++ git apply -v -
+Checking patch tests/migrations/test_writer.py...
+Applied patch tests/migrations/test_writer.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 migrations.test_writer
+test_args_kwargs_signature (migrations.test_writer.OperationWriterTests) ... ok
+test_args_signature (migrations.test_writer.OperationWriterTests) ... ok
+test_empty_signature (migrations.test_writer.OperationWriterTests) ... ok
+test_expand_args_signature (migrations.test_writer.OperationWriterTests) ... ok
+test_kwargs_signature (migrations.test_writer.OperationWriterTests) ... ok
+test_multiline_args_signature (migrations.test_writer.OperationWriterTests) ... ok
+test_nested_args_signature (migrations.test_writer.OperationWriterTests) ... ok
+test_nested_operation_expand_args_signature (migrations.test_writer.OperationWriterTests) ... ok
+test_custom_operation (migrations.test_writer.WriterTests) ... ok
+test_deconstruct_class_arguments (migrations.test_writer.WriterTests) ... ok
+test_migration_file_header_comments (migrations.test_writer.WriterTests)
+Test comments at top of file. ... ok
+test_migration_path (migrations.test_writer.WriterTests) ... ok
+test_models_import_omitted (migrations.test_writer.WriterTests)
+django.db.models shouldn't be imported if unused. ... ok
+test_register_non_serializer (migrations.test_writer.WriterTests) ... ok
+test_register_serializer (migrations.test_writer.WriterTests) ... ok
+test_serialize_builtin_types (migrations.test_writer.WriterTests) ... ok
+test_serialize_builtins (migrations.test_writer.WriterTests) ... ok
+test_serialize_choices (migrations.test_writer.WriterTests) ... ok
+test_serialize_class_based_validators (migrations.test_writer.WriterTests)
+Ticket #22943: Test serialization of class-based validators, including ... ok
+test_serialize_collections (migrations.test_writer.WriterTests) ... ok
+test_serialize_compiled_regex (migrations.test_writer.WriterTests)
+Make sure compiled regex can be serialized. ... ok
+test_serialize_constants (migrations.test_writer.WriterTests) ... ok
+test_serialize_datetime (migrations.test_writer.WriterTests) ... ok
+test_serialize_empty_nonempty_tuple (migrations.test_writer.WriterTests)
+Ticket #22679: makemigrations generates invalid code for (an empty ... ok
+test_serialize_enums (migrations.test_writer.WriterTests) ... ok
+test_serialize_fields (migrations.test_writer.WriterTests) ... ok
+test_serialize_frozensets (migrations.test_writer.WriterTests) ... ok
+test_serialize_functions (migrations.test_writer.WriterTests) ... ok
+test_serialize_functools_partial (migrations.test_writer.WriterTests) ... ok
+test_serialize_functools_partialmethod (migrations.test_writer.WriterTests) ... ok
+test_serialize_iterators (migrations.test_writer.WriterTests) ... ok
+test_serialize_lazy_objects (migrations.test_writer.WriterTests) ... ok
+test_serialize_local_function_reference (migrations.test_writer.WriterTests)
+A reference in a local scope can't be serialized. ... ok
+test_serialize_managers (migrations.test_writer.WriterTests) ... ok
+test_serialize_multiline_strings (migrations.test_writer.WriterTests) ... ok
+test_serialize_nested_class (migrations.test_writer.WriterTests) ... ok
+test_serialize_numbers (migrations.test_writer.WriterTests) ... ok
+test_serialize_path_like (migrations.test_writer.WriterTests) ... ok
+test_serialize_pathlib (migrations.test_writer.WriterTests) ... ok
+test_serialize_range (migrations.test_writer.WriterTests) ... ok
+test_serialize_set (migrations.test_writer.WriterTests) ... ok
+test_serialize_settings (migrations.test_writer.WriterTests) ... ok
+test_serialize_strings (migrations.test_writer.WriterTests) ... ok
+test_serialize_timedelta (migrations.test_writer.WriterTests) ... ok
+test_serialize_type_model (migrations.test_writer.WriterTests) ... FAIL
+test_serialize_type_none (migrations.test_writer.WriterTests) ... ok
+test_serialize_unbound_method_reference (migrations.test_writer.WriterTests)
+An unbound method used within a class body can be serialized. ... ok
+test_serialize_uuid (migrations.test_writer.WriterTests) ... ok
+test_simple_migration (migrations.test_writer.WriterTests)
+Tests serializing a simple migration. ... ok
+test_sorted_imports (migrations.test_writer.WriterTests)
+#24155 - Tests ordering of imports. ... ok
+
+======================================================================
+FAIL: test_serialize_type_model (migrations.test_writer.WriterTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/migrations/test_writer.py", line 663, in test_serialize_type_model
+    self.assertSerializedResultEqual(
+  File "/testbed/tests/migrations/test_writer.py", line 221, in assertSerializedResultEqual
+    self.assertEqual(MigrationWriter.serialize(value), target)
+AssertionError: Tuples differ: ("('models.Model', set())", set()) != ("('models.Model', {'from django.db import models'})", set())
+
+First differing element 0:
+"('models.Model', set())"
+"('models.Model', {'from django.db import models'})"
+
+- ("('models.Model', set())", set())
++ ("('models.Model', {'from django.db import models'})", set())
+
+----------------------------------------------------------------------
+Ran 50 tests in 0.092s
+
+FAILED (failures=1)
+Testing against Django installed in '/testbed/django'
+Importing application migrations
+Found 50 test(s).
+Skipping setup of unused database(s): default, other.
+System check identified no issues (0 silenced).
++ git checkout 36fa071d6ebd18a61c4d7f1b5c9d17106134bd44 tests/migrations/test_writer.py
+Updated 1 path from 91289a6651

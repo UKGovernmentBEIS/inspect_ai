@@ -1,0 +1,58 @@
+
+diff --git a/bug_fix_comparison.png b/bug_fix_comparison.png
+new file mode 100644
+index 0000000000..5c5e9ed741
+Binary files /dev/null and b/bug_fix_comparison.png differ
+diff --git a/bug_fix_comparison_extended.png b/bug_fix_comparison_extended.png
+new file mode 100644
+index 0000000000..cf84813819
+Binary files /dev/null and b/bug_fix_comparison_extended.png differ
+diff --git a/bug_reproduction.png b/bug_reproduction.png
+new file mode 100644
+index 0000000000..7cc06dddad
+Binary files /dev/null and b/bug_reproduction.png differ
+diff --git a/lib/matplotlib/lines.py b/lib/matplotlib/lines.py
+index 35bebe92e5..f9d6d1fae8 100644
+--- a/lib/matplotlib/lines.py
++++ b/lib/matplotlib/lines.py
+@@ -62,7 +62,8 @@ def _get_dash_pattern(style):
+ def _scale_dashes(offset, dashes, lw):
+     if not rcParams['lines.scale_dashes']:
+         return offset, dashes
+-    scaled_offset = offset * lw
++    # Do not scale the offset to fix issue with dash pattern offset in patch objects
++    scaled_offset = offset
+     scaled_dashes = ([x * lw if x is not None else None for x in dashes]
+                      if dashes is not None else None)
+     return scaled_offset, scaled_dashes
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..c9aa8f3f10
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,25 @@
++import matplotlib.pyplot as plt
++import matplotlib as mpl
++
++plt.figure(figsize=(15,15))
++ax = plt.gca()
++
++# Original problematic rectangles
++ax.add_patch(mpl.patches.Rectangle((0.5,0.5),1,1, alpha=0.5, edgecolor='r', linewidth=4, ls=(0,(10,10))))
++ax.add_patch(mpl.patches.Rectangle((0.5,0.5),1,1, alpha=0.5, edgecolor='b', linewidth=4, ls=(10,(10,10))))
++
++# New rectangles that should show the fix
++ax.add_patch(mpl.patches.Rectangle((0.7,0.7),1,1, alpha=0.5, edgecolor='g', linewidth=4, ls=(0,(10,10))))
++ax.add_patch(mpl.patches.Rectangle((0.7,0.7),1,1, alpha=0.5, edgecolor='y', linewidth=4, ls=(10,(10,10))))
++
++# Additional test cases with different line widths and dash patterns
++ax.add_patch(mpl.patches.Rectangle((2,0.5),1,1, alpha=0.5, edgecolor='c', linewidth=2, ls=(0,(5,5))))
++ax.add_patch(mpl.patches.Rectangle((2,0.5),1,1, alpha=0.5, edgecolor='m', linewidth=2, ls=(5,(5,5))))
++
++ax.add_patch(mpl.patches.Rectangle((2,2),1,1, alpha=0.5, edgecolor='k', linewidth=6, ls=(0,(15,5))))
++ax.add_patch(mpl.patches.Rectangle((2,2),1,1, alpha=0.5, edgecolor='orange', linewidth=6, ls=(15,(15,5))))
++
++plt.ylim([0,3.5])
++plt.xlim([0,3.5])
++plt.savefig('bug_fix_comparison_extended.png')
++print("Script completed successfully, image saved as bug_fix_comparison_extended.png")

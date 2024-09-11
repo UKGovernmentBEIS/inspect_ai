@@ -1,0 +1,2230 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh
++++ '[' -n '' ']'
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh
++++ '[' -n /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh
++++ '[' -n '' ']'
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/gdal ']'
++++ export GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ export GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ '[' '!' -d /opt/miniconda3/envs/testbed/lib/gdalplugins ']'
++++ export CPL_ZIP_ENCODING=UTF-8
++++ CPL_ZIP_ENCODING=UTF-8
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/epsg_csv ']'
++++ '[' -d /opt/miniconda3/envs/testbed/Library/share/epsg_csv ']'
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/proj ']'
++++ export PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ '[' -f /opt/miniconda3/envs/testbed/share/proj/copyright_and_licenses.csv ']'
++++ export PROJ_NETWORK=ON
++++ PROJ_NETWORK=ON
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/udunits ']'
++++ export UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++++ UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   xarray/core/dataset.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_issue.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 45c0a114e2b7b27b83c9618bc05b36afac82183c
+Author: Benoit Bovy <benbovy@gmail.com>
+Date:   Tue Sep 27 11:33:40 2022 +0200
+
+    Raise UserWarning when rename creates a new dimension coord (#6999)
+    
+    * warn when rename creates a new dimension coord
+    
+    UseWarning: no index is created anymore.
+    
+    * update what's new
+
+diff --git a/doc/whats-new.rst b/doc/whats-new.rst
+index efc03bb1..36f523df 100644
+--- a/doc/whats-new.rst
++++ b/doc/whats-new.rst
+@@ -65,6 +65,10 @@ Bug fixes
+   By `András Gunyhó <https://github.com/mgunyho>`_.
+ - Avoid use of random numbers in `test_weighted.test_weighted_operations_nonequal_coords` (:issue:`6504`, :pull:`6961`).
+   By `Luke Conibear <https://github.com/lukeconibear>`_.
++- Raise a ``UserWarning`` when renaming a coordinate or a dimension creates a
++  non-indexed dimension coordinate, and suggest the user creating an index
++  either with ``swap_dims`` or ``set_index`` (:issue:`6607`, :pull:`6999`). By
++  `Benoît Bovy <https://github.com/benbovy>`_.
+ - Use ``keep_attrs=True`` in grouping and resampling operations by default (:issue:`7012`).
+   This means :py:attr:`Dataset.attrs` and :py:attr:`DataArray.attrs` are now preserved by default.
+   By `Deepak Cherian <https://github.com/dcherian>`_.
+diff --git a/xarray/core/dataarray.py b/xarray/core/dataarray.py
+index bfb4d570..6c09d8c1 100644
+--- a/xarray/core/dataarray.py
++++ b/xarray/core/dataarray.py
+@@ -2063,11 +2063,11 @@ class DataArray(
+         if utils.is_dict_like(new_name_or_name_dict) or new_name_or_name_dict is None:
+             # change dims/coords
+             name_dict = either_dict_or_kwargs(new_name_or_name_dict, names, "rename")
+-            dataset = self._to_temp_dataset().rename(name_dict)
++            dataset = self._to_temp_dataset()._rename(name_dict)
+             return self._from_temp_dataset(dataset)
+         if utils.hashable(new_name_or_name_dict) and names:
+             # change name + dims/coords
+-            dataset = self._to_temp_dataset().rename(names)
++            dataset = self._to_temp_dataset()._rename(names)
+             dataarray = self._from_temp_dataset(dataset)
+             return dataarray._replace(name=new_name_or_name_dict)
+         # only change name
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index eda5a727..620f32f8 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -3560,6 +3560,48 @@ class Dataset(
+ 
+         return variables, coord_names, dims, indexes
+ 
++    def _rename(
++        self: T_Dataset,
++        name_dict: Mapping[Any, Hashable] | None = None,
++        **names: Hashable,
++    ) -> T_Dataset:
++        """Also used internally by DataArray so that the warning (if any)
++        is raised at the right stack level.
++        """
++        name_dict = either_dict_or_kwargs(name_dict, names, "rename")
++        for k in name_dict.keys():
++            if k not in self and k not in self.dims:
++                raise ValueError(
++                    f"cannot rename {k!r} because it is not a "
++                    "variable or dimension in this dataset"
++                )
++
++            create_dim_coord = False
++            new_k = name_dict[k]
++
++            if k in self.dims and new_k in self._coord_names:
++                coord_dims = self._variables[name_dict[k]].dims
++                if coord_dims == (k,):
++                    create_dim_coord = True
++            elif k in self._coord_names and new_k in self.dims:
++                coord_dims = self._variables[k].dims
++                if coord_dims == (new_k,):
++                    create_dim_coord = True
++
++            if create_dim_coord:
++                warnings.warn(
++                    f"rename {k!r} to {name_dict[k]!r} does not create an index "
++                    "anymore. Try using swap_dims instead or use set_index "
++                    "after rename to create an indexed coordinate.",
++                    UserWarning,
++                    stacklevel=3,
++                )
++
++        variables, coord_names, dims, indexes = self._rename_all(
++            name_dict=name_dict, dims_dict=name_dict
++        )
++        return self._replace(variables, coord_names, dims=dims, indexes=indexes)
++
+     def rename(
+         self: T_Dataset,
+         name_dict: Mapping[Any, Hashable] | None = None,
+@@ -3588,18 +3630,7 @@ class Dataset(
+         Dataset.rename_dims
+         DataArray.rename
+         """
+-        name_dict = either_dict_or_kwargs(name_dict, names, "rename")
+-        for k in name_dict.keys():
+-            if k not in self and k not in self.dims:
+-                raise ValueError(
+-                    f"cannot rename {k!r} because it is not a "
+-                    "variable or dimension in this dataset"
+-                )
+-
+-        variables, coord_names, dims, indexes = self._rename_all(
+-            name_dict=name_dict, dims_dict=name_dict
+-        )
+-        return self._replace(variables, coord_names, dims=dims, indexes=indexes)
++        return self._rename(name_dict=name_dict, **names)
+ 
+     def rename_dims(
+         self: T_Dataset,
+diff --git a/xarray/tests/test_dataarray.py b/xarray/tests/test_dataarray.py
+index ab6e5763..f27a6c07 100644
+--- a/xarray/tests/test_dataarray.py
++++ b/xarray/tests/test_dataarray.py
+@@ -1742,6 +1742,23 @@ class TestDataArray:
+         )
+         assert_identical(renamed_all, expected_all)
+ 
++    def test_rename_dimension_coord_warnings(self) -> None:
++        # create a dimension coordinate by renaming a dimension or coordinate
++        # should raise a warning (no index created)
++        da = DataArray([0, 0], coords={"x": ("y", [0, 1])}, dims="y")
++
++        with pytest.warns(
++            UserWarning, match="rename 'x' to 'y' does not create an index.*"
++        ):
++            da.rename(x="y")
++
++        da = xr.DataArray([0, 0], coords={"y": ("x", [0, 1])}, dims="x")
++
++        with pytest.warns(
++            UserWarning, match="rename 'x' to 'y' does not create an index.*"
++        ):
++            da.rename(x="y")
++
+     def test_init_value(self) -> None:
+         expected = DataArray(
+             np.full((3, 4), 3), dims=["x", "y"], coords=[range(3), range(4)]
+diff --git a/xarray/tests/test_dataset.py b/xarray/tests/test_dataset.py
+index e0bc73ec..fc2806c7 100644
+--- a/xarray/tests/test_dataset.py
++++ b/xarray/tests/test_dataset.py
+@@ -2892,6 +2892,23 @@ class TestDataset:
+         actual_2 = original.rename_dims({"x": "x_new"})
+         assert "x" in actual_2.xindexes
+ 
++    def test_rename_dimension_coord_warnings(self) -> None:
++        # create a dimension coordinate by renaming a dimension or coordinate
++        # should raise a warning (no index created)
++        ds = Dataset(coords={"x": ("y", [0, 1])})
++
++        with pytest.warns(
++            UserWarning, match="rename 'x' to 'y' does not create an index.*"
++        ):
++            ds.rename(x="y")
++
++        ds = Dataset(coords={"y": ("x", [0, 1])})
++
++        with pytest.warns(
++            UserWarning, match="rename 'x' to 'y' does not create an index.*"
++        ):
++            ds.rename(x="y")
++
+     def test_rename_multiindex(self) -> None:
+         mindex = pd.MultiIndex.from_tuples([([1, 2]), ([3, 4])], names=["a", "b"])
+         original = Dataset({}, {"x": mindex})
++ git diff 45c0a114e2b7b27b83c9618bc05b36afac82183c
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index 620f32f8..b89792fb 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -365,7 +365,7 @@ class DataVariables(Mapping[Any, "DataArray"]):
+         )
+ 
+     def __len__(self) -> int:
+-        return len(self._dataset._variables) - len(self._dataset._coord_names)
++        return sum(1 for key in self._dataset._variables if key not in self._dataset._coord_names)
+ 
+     def __contains__(self, key: Hashable) -> bool:
+         return key in self._dataset._variables and key not in self._dataset._coord_names
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/udunits2-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/proj4-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/geotiff-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/gdal-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmpy-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmf-deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval '. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/udunits2-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/proj4-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/geotiff-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/gdal-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmpy-deactivate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmf-deactivate.sh"
+PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/udunits2-deactivate.sh
+++++ unset UDUNITS2_XML_PATH
+++++ '[' -n '' ']'
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/proj4-deactivate.sh
+++++ unset PROJ_DATA
+++++ unset PROJ_NETWORK
+++++ '[' -n '' ']'
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libxml2_deactivate.sh
+++++ test -n ''
+++++ unset XML_CATALOG_FILES
+++++ unset xml_catalog_files_libxml2
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/libglib_deactivate.sh
+++++ export GSETTINGS_SCHEMA_DIR=
+++++ GSETTINGS_SCHEMA_DIR=
+++++ unset GSETTINGS_SCHEMA_DIR_CONDA_BACKUP
+++++ '[' -z ']'
+++++ unset GSETTINGS_SCHEMA_DIR
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/geotiff-deactivate.sh
+++++ unset GEOTIFF_CSV
+++++ '[' -n '' ']'
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/gdal-deactivate.sh
+++++ unset GDAL_DATA
+++++ '[' -n '' ']'
+++++ unset GDAL_DRIVER_PATH
+++++ '[' -n '' ']'
+++++ unset CPL_ZIP_ENCODING
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmpy-deactivate.sh
+++++ unset ESMFMKFILE
+++++ '[' -n /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
+++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++++ unset _CONDA_SET_ESMFMKFILE
++++ . /opt/miniconda3/envs/testbed/etc/conda/deactivate.d/esmf-deactivate.sh
+++++ unset ESMFMKFILE
+++++ '[' -n '' ']'
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\''
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh"
+. "/opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh"'
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmf-activate.sh
++++ '[' -n '' ']'
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/esmpy-activate.sh
++++ '[' -n /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ _CONDA_SET_ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ '[' -f /opt/miniconda3/envs/testbed/lib/esmf.mk ']'
++++ export ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
++++ ESMFMKFILE=/opt/miniconda3/envs/testbed/lib/esmf.mk
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/gdal-activate.sh
++++ '[' -n '' ']'
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/gdal ']'
++++ export GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ GDAL_DATA=/opt/miniconda3/envs/testbed/share/gdal
++++ export GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ GDAL_DRIVER_PATH=/opt/miniconda3/envs/testbed/lib/gdalplugins
++++ '[' '!' -d /opt/miniconda3/envs/testbed/lib/gdalplugins ']'
++++ export CPL_ZIP_ENCODING=UTF-8
++++ CPL_ZIP_ENCODING=UTF-8
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/geotiff-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/epsg_csv ']'
++++ '[' -d /opt/miniconda3/envs/testbed/Library/share/epsg_csv ']'
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libglib_activate.sh
++++ export GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ GSETTINGS_SCHEMA_DIR_CONDA_BACKUP=
++++ export GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
++++ GSETTINGS_SCHEMA_DIR=/opt/miniconda3/envs/testbed/share/glib-2.0/schemas
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/libxml2_activate.sh
++++ test -n ''
++++ xml_catalog_files_libxml2=
++++ XML_CATALOG_FILES=
++++ conda_catalog_files=
++++ ifs_libxml2=' 	
+'
++++ IFS=' '
++++ rem=/opt/miniconda3/envs/testbed
++++ for pre in ${rem}
++++ test '' = /opt/miniconda3/envs/testbed
++++ conda_catalog_files=/opt/miniconda3/envs/testbed
++++ rem=
++++ IFS=' 	
+'
++++ conda_catalog_files='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ export 'XML_CATALOG_FILES=file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ XML_CATALOG_FILES='file:///opt/miniconda3/envs/testbed/etc/xml/catalog file:///etc/xml/catalog'
++++ unset conda_catalog_files ifs_libxml2 rem
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/proj4-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/proj ']'
++++ export PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ PROJ_DATA=/opt/miniconda3/envs/testbed/share/proj
++++ '[' -f /opt/miniconda3/envs/testbed/share/proj/copyright_and_licenses.csv ']'
++++ export PROJ_NETWORK=ON
++++ PROJ_NETWORK=ON
+++ . /opt/miniconda3/envs/testbed/etc/conda/activate.d/udunits2-activate.sh
++++ '[' -n '' ']'
++++ '[' -d /opt/miniconda3/envs/testbed/share/udunits ']'
++++ export UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++++ UDUNITS2_XML_PATH=/opt/miniconda3/envs/testbed/share/udunits/udunits2.xml
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: numpy>=1.19 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from xarray==2022.6.1.dev78+g45c0a114.d20240725) (1.23.0)
+Requirement already satisfied: pandas>=1.2 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from xarray==2022.6.1.dev78+g45c0a114.d20240725) (1.5.3)
+Requirement already satisfied: packaging>=20.0 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from xarray==2022.6.1.dev78+g45c0a114.d20240725) (23.1)
+Requirement already satisfied: python-dateutil>=2.8.1 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from pandas>=1.2->xarray==2022.6.1.dev78+g45c0a114.d20240725) (2.8.2)
+Requirement already satisfied: pytz>=2020.1 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from pandas>=1.2->xarray==2022.6.1.dev78+g45c0a114.d20240725) (2023.3)
+Requirement already satisfied: six>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.10/site-packages (from python-dateutil>=2.8.1->pandas>=1.2->xarray==2022.6.1.dev78+g45c0a114.d20240725) (1.16.0)
+Building wheels for collected packages: xarray
+  Building editable for xarray (pyproject.toml): started
+  Building editable for xarray (pyproject.toml): finished with status 'done'
+  Created wheel for xarray: filename=xarray-2022.6.1.dev78+g45c0a114.d20240725-0.editable-py3-none-any.whl size=9155 sha256=7eb4396b088d5634fad8913a34cd04cb7be8ae3a3ac79b753b72ae6cc617859c
+  Stored in directory: /tmp/pip-ephem-wheel-cache-u4iizi5x/wheels/0d/a6/cb/465a7b303d624cc531250fa27c75d038ddc29430bdb6ba7c9f
+Successfully built xarray
+Installing collected packages: xarray
+  Attempting uninstall: xarray
+    Found existing installation: xarray 2022.6.1.dev78+g45c0a114
+    Uninstalling xarray-2022.6.1.dev78+g45c0a114:
+      Successfully uninstalled xarray-2022.6.1.dev78+g45c0a114
+Successfully installed xarray-2022.6.1.dev78+g45c0a114.d20240725
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 45c0a114e2b7b27b83c9618bc05b36afac82183c xarray/tests/test_dataarray.py xarray/tests/test_dataset.py xarray/tests/test_groupby.py
+Updated 0 paths from 7ac08be3
++ git apply -v -
+Checking patch xarray/tests/test_dataarray.py...
+Checking patch xarray/tests/test_dataset.py...
+Checking patch xarray/tests/test_groupby.py...
+Applied patch xarray/tests/test_dataarray.py cleanly.
+Applied patch xarray/tests/test_dataset.py cleanly.
+Applied patch xarray/tests/test_groupby.py cleanly.
++ pytest -rA xarray/tests/test_dataarray.py xarray/tests/test_dataset.py xarray/tests/test_groupby.py
+============================= test session starts ==============================
+platform linux -- Python 3.10.14, pytest-7.4.0, pluggy-1.5.0
+rootdir: /testbed
+configfile: setup.cfg
+plugins: hypothesis-6.108.4, cov-5.0.0, env-1.1.3, xdist-3.6.1
+collected 969 items
+
+xarray/tests/test_dataarray.py ......................................... [  4%]
+....................................................F.......x........... [ 11%]
+........................................................................ [ 19%]
+.......................................................xX............... [ 26%]
+........................................................................ [ 33%]
+.x...........x.....................................x.......x............ [ 41%]
+.............................................s...                        [ 46%]
+xarray/tests/test_dataset.py ........................................... [ 50%]
+...............................................................xX....... [ 58%]
+...............F.FFFFFFFFF.............................................. [ 65%]
+........................................................................ [ 73%]
+........................................................................ [ 80%]
+.................................................s..                     [ 85%]
+xarray/tests/test_groupby.py ..............................F............ [ 90%]
+........................................................................ [ 97%]
+.....................                                                    [100%]
+
+=================================== FAILURES ===================================
+________________________ TestDataArray.test_reset_index ________________________
+
+self = <xarray.tests.test_dataarray.TestDataArray object at 0x7f5eecc6f280>
+
+    def test_reset_index(self) -> None:
+        indexes = [self.mindex.get_level_values(n) for n in self.mindex.names]
+        coords = {idx.name: ("x", idx) for idx in indexes}
+        expected = DataArray(self.mda.values, coords=coords, dims="x")
+    
+        obj = self.mda.reset_index("x")
+>       assert_identical(obj, expected, check_default_indexes=False)
+E       AssertionError: Left and right DataArray objects are not identical
+E       
+E       Differing coordinates:
+E       L   level_1  (x) object 'a' 'a' 'b' 'b'
+E       R   level_1  (x) object 'a' 'a' 'b' 'b'
+E       L   level_2  (x) int64 1 2 1 2
+E       R   level_2  (x) int64 1 2 1 2
+E       Coordinates only on the left object:
+E           x        (x) object MultiIndex
+
+/testbed/xarray/tests/test_dataarray.py:2013: AssertionError
+_________________________ TestDataset.test_reset_index _________________________
+
+self = <xarray.tests.test_dataset.TestDataset object at 0x7f5eeb788af0>
+
+    def test_reset_index(self) -> None:
+        ds = create_test_multiindex()
+        mindex = ds["x"].to_index()
+        indexes = [mindex.get_level_values(n) for n in mindex.names]
+        coords = {idx.name: ("x", idx) for idx in indexes}
+        expected = Dataset({}, coords=coords)
+    
+        obj = ds.reset_index("x")
+>       assert_identical(obj, expected, check_default_indexes=False)
+E       AssertionError: Left and right Dataset objects are not identical
+E       
+E       Differing coordinates:
+E       L   level_1  (x) object 'a' 'a' 'b' 'b'
+E       R   level_1  (x) object 'a' 'a' 'b' 'b'
+E       L   level_2  (x) int64 1 2 1 2
+E       R   level_2  (x) int64 1 2 1 2
+E       Coordinates only on the left object:
+E           x        (x) object MultiIndex
+
+/testbed/xarray/tests/test_dataset.py:3268: AssertionError
+____________________ TestDataset.test_reset_index_drop_dims ____________________
+
+self = <xarray.tests.test_dataset.TestDataset object at 0x7f5eeb788340>
+
+    def test_reset_index_drop_dims(self) -> None:
+        ds = Dataset(coords={"x": [1, 2]})
+        reset = ds.reset_index("x", drop=True)
+>       assert len(reset.dims) == 0
+E       AssertionError: assert 1 == 0
+E        +  where 1 = len(Frozen({'x': 2}))
+E        +    where Frozen({'x': 2}) = <xarray.Dataset>\nDimensions:  (x: 2)\nCoordinates:\nData variables:\n    *empty*.dims
+
+/testbed/xarray/tests/test_dataset.py:3285: AssertionError
+_ TestDataset.test_reset_index_drop_convert[foo-False-dropped0-converted0-renamed0] _
+
+self = <xarray.tests.test_dataset.TestDataset object at 0x7f5eeb788d90>
+arg = 'foo', drop = False, dropped = [], converted = [], renamed = {'bar': 'x'}
+
+    @pytest.mark.parametrize(
+        "arg,drop,dropped,converted,renamed",
+        [
+            ("foo", False, [], [], {"bar": "x"}),
+            ("foo", True, ["foo"], [], {"bar": "x"}),
+            ("x", False, ["x"], ["foo", "bar"], {}),
+            ("x", True, ["x", "foo", "bar"], [], {}),
+            (["foo", "bar"], False, ["x"], ["foo", "bar"], {}),
+            (["foo", "bar"], True, ["x", "foo", "bar"], [], {}),
+            (["x", "foo"], False, ["x"], ["foo", "bar"], {}),
+            (["foo", "x"], True, ["x", "foo", "bar"], [], {}),
+        ],
+    )
+    def test_reset_index_drop_convert(
+        self, arg, drop, dropped, converted, renamed
+    ) -> None:
+        # regressions https://github.com/pydata/xarray/issues/6946 and
+        # https://github.com/pydata/xarray/issues/6989
+        # check that multi-index dimension or level coordinates are dropped, converted
+        # from IndexVariable to Variable or renamed to dimension as expected
+        midx = pd.MultiIndex.from_product([["a", "b"], [1, 2]], names=("foo", "bar"))
+        ds = xr.Dataset(coords={"x": midx})
+        reset = ds.reset_index(arg, drop=drop)
+    
+        for name in dropped:
+            assert name not in reset.variables
+        for name in converted:
+            assert_identical(reset[name].variable, ds[name].variable.to_base_variable())
+        for old_name, new_name in renamed.items():
+>           assert_identical(ds[old_name].variable, reset[new_name].variable)
+E           AssertionError: Left and right IndexVariable objects are not identical
+E           
+E           Differing values:
+E           L
+E               array([1, 2, 1, 2])
+E           R
+E               array([('a', 1), ('a', 2), ('b', 1), ('b', 2)], dtype=object)
+
+/testbed/xarray/tests/test_dataset.py:3316: AssertionError
+_ TestDataset.test_reset_index_drop_convert[foo-True-dropped1-converted1-renamed1] _
+
+self = <xarray.tests.test_dataset.TestDataset object at 0x7f5eeb788e20>
+arg = 'foo', drop = True, dropped = ['foo'], converted = []
+renamed = {'bar': 'x'}
+
+    @pytest.mark.parametrize(
+        "arg,drop,dropped,converted,renamed",
+        [
+            ("foo", False, [], [], {"bar": "x"}),
+            ("foo", True, ["foo"], [], {"bar": "x"}),
+            ("x", False, ["x"], ["foo", "bar"], {}),
+            ("x", True, ["x", "foo", "bar"], [], {}),
+            (["foo", "bar"], False, ["x"], ["foo", "bar"], {}),
+            (["foo", "bar"], True, ["x", "foo", "bar"], [], {}),
+            (["x", "foo"], False, ["x"], ["foo", "bar"], {}),
+            (["foo", "x"], True, ["x", "foo", "bar"], [], {}),
+        ],
+    )
+    def test_reset_index_drop_convert(
+        self, arg, drop, dropped, converted, renamed
+    ) -> None:
+        # regressions https://github.com/pydata/xarray/issues/6946 and
+        # https://github.com/pydata/xarray/issues/6989
+        # check that multi-index dimension or level coordinates are dropped, converted
+        # from IndexVariable to Variable or renamed to dimension as expected
+        midx = pd.MultiIndex.from_product([["a", "b"], [1, 2]], names=("foo", "bar"))
+        ds = xr.Dataset(coords={"x": midx})
+        reset = ds.reset_index(arg, drop=drop)
+    
+        for name in dropped:
+            assert name not in reset.variables
+        for name in converted:
+            assert_identical(reset[name].variable, ds[name].variable.to_base_variable())
+        for old_name, new_name in renamed.items():
+>           assert_identical(ds[old_name].variable, reset[new_name].variable)
+E           AssertionError: Left and right IndexVariable objects are not identical
+E           
+E           Differing values:
+E           L
+E               array([1, 2, 1, 2])
+E           R
+E               array([('a', 1), ('a', 2), ('b', 1), ('b', 2)], dtype=object)
+
+/testbed/xarray/tests/test_dataset.py:3316: AssertionError
+_ TestDataset.test_reset_index_drop_convert[x-False-dropped2-converted2-renamed2] _
+
+self = <xarray.tests.test_dataset.TestDataset object at 0x7f5eeb788e80>
+arg = 'x', drop = False, dropped = ['x'], converted = ['foo', 'bar']
+renamed = {}
+
+    @pytest.mark.parametrize(
+        "arg,drop,dropped,converted,renamed",
+        [
+            ("foo", False, [], [], {"bar": "x"}),
+            ("foo", True, ["foo"], [], {"bar": "x"}),
+            ("x", False, ["x"], ["foo", "bar"], {}),
+            ("x", True, ["x", "foo", "bar"], [], {}),
+            (["foo", "bar"], False, ["x"], ["foo", "bar"], {}),
+            (["foo", "bar"], True, ["x", "foo", "bar"], [], {}),
+            (["x", "foo"], False, ["x"], ["foo", "bar"], {}),
+            (["foo", "x"], True, ["x", "foo", "bar"], [], {}),
+        ],
+    )
+    def test_reset_index_drop_convert(
+        self, arg, drop, dropped, converted, renamed
+    ) -> None:
+        # regressions https://github.com/pydata/xarray/issues/6946 and
+        # https://github.com/pydata/xarray/issues/6989
+        # check that multi-index dimension or level coordinates are dropped, converted
+        # from IndexVariable to Variable or renamed to dimension as expected
+        midx = pd.MultiIndex.from_product([["a", "b"], [1, 2]], names=("foo", "bar"))
+        ds = xr.Dataset(coords={"x": midx})
+        reset = ds.reset_index(arg, drop=drop)
+    
+        for name in dropped:
+>           assert name not in reset.variables
+E           AssertionError: assert 'x' not in Frozen({'x': <xarray.IndexVariable 'x' (x: 4)>\narray([('a', 1), ('a', 2), ('b', 1), ('b', 2)], dtype=object), 'foo': <...e 'x' (x: 4)>\narray(['a', 'a', 'b', 'b'], dtype=object), 'bar': <xarray.IndexVariable 'x' (x: 4)>\narray([1, 2, 1, 2])})
+E            +  where Frozen({'x': <xarray.IndexVariable 'x' (x: 4)>\narray([('a', 1), ('a', 2), ('b', 1), ('b', 2)], dtype=object), 'foo': <...e 'x' (x: 4)>\narray(['a', 'a', 'b', 'b'], dtype=object), 'bar': <xarray.IndexVariable 'x' (x: 4)>\narray([1, 2, 1, 2])}) = <xarray.Dataset>\nDimensions:  (x: 4)\nCoordinates:\n    x        (x) object MultiIndex\n    foo      (x) object 'a' 'a' 'b' 'b'\n    bar      (x) int64 1 2 1 2\nData variables:\n    *empty*.variables
+
+/testbed/xarray/tests/test_dataset.py:3312: AssertionError
+_ TestDataset.test_reset_index_drop_convert[x-True-dropped3-converted3-renamed3] _
+
+self = <xarray.tests.test_dataset.TestDataset object at 0x7f5eeb788b80>
+arg = 'x', drop = True, dropped = ['x', 'foo', 'bar'], converted = []
+renamed = {}
+
+    @pytest.mark.parametrize(
+        "arg,drop,dropped,converted,renamed",
+        [
+            ("foo", False, [], [], {"bar": "x"}),
+            ("foo", True, ["foo"], [], {"bar": "x"}),
+            ("x", False, ["x"], ["foo", "bar"], {}),
+            ("x", True, ["x", "foo", "bar"], [], {}),
+            (["foo", "bar"], False, ["x"], ["foo", "bar"], {}),
+            (["foo", "bar"], True, ["x", "foo", "bar"], [], {}),
+            (["x", "foo"], False, ["x"], ["foo", "bar"], {}),
+            (["foo", "x"], True, ["x", "foo", "bar"], [], {}),
+        ],
+    )
+    def test_reset_index_drop_convert(
+        self, arg, drop, dropped, converted, renamed
+    ) -> None:
+        # regressions https://github.com/pydata/xarray/issues/6946 and
+        # https://github.com/pydata/xarray/issues/6989
+        # check that multi-index dimension or level coordinates are dropped, converted
+        # from IndexVariable to Variable or renamed to dimension as expected
+        midx = pd.MultiIndex.from_product([["a", "b"], [1, 2]], names=("foo", "bar"))
+        ds = xr.Dataset(coords={"x": midx})
+        reset = ds.reset_index(arg, drop=drop)
+    
+        for name in dropped:
+>           assert name not in reset.variables
+E           AssertionError: assert 'foo' not in Frozen({'foo': <xarray.IndexVariable 'x' (x: 4)>\narray(['a', 'a', 'b', 'b'], dtype=object), 'bar': <xarray.IndexVariable 'x' (x: 4)>\narray([1, 2, 1, 2])})
+E            +  where Frozen({'foo': <xarray.IndexVariable 'x' (x: 4)>\narray(['a', 'a', 'b', 'b'], dtype=object), 'bar': <xarray.IndexVariable 'x' (x: 4)>\narray([1, 2, 1, 2])}) = <xarray.Dataset>\nDimensions:  (x: 4)\nCoordinates:\n    foo      (x) object 'a' 'a' 'b' 'b'\n    bar      (x) int64 1 2 1 2\nData variables:\n    *empty*.variables
+
+/testbed/xarray/tests/test_dataset.py:3312: AssertionError
+_ TestDataset.test_reset_index_drop_convert[arg4-False-dropped4-converted4-renamed4] _
+
+self = <xarray.tests.test_dataset.TestDataset object at 0x7f5eeb788f40>
+arg = ['foo', 'bar'], drop = False, dropped = ['x'], converted = ['foo', 'bar']
+renamed = {}
+
+    @pytest.mark.parametrize(
+        "arg,drop,dropped,converted,renamed",
+        [
+            ("foo", False, [], [], {"bar": "x"}),
+            ("foo", True, ["foo"], [], {"bar": "x"}),
+            ("x", False, ["x"], ["foo", "bar"], {}),
+            ("x", True, ["x", "foo", "bar"], [], {}),
+            (["foo", "bar"], False, ["x"], ["foo", "bar"], {}),
+            (["foo", "bar"], True, ["x", "foo", "bar"], [], {}),
+            (["x", "foo"], False, ["x"], ["foo", "bar"], {}),
+            (["foo", "x"], True, ["x", "foo", "bar"], [], {}),
+        ],
+    )
+    def test_reset_index_drop_convert(
+        self, arg, drop, dropped, converted, renamed
+    ) -> None:
+        # regressions https://github.com/pydata/xarray/issues/6946 and
+        # https://github.com/pydata/xarray/issues/6989
+        # check that multi-index dimension or level coordinates are dropped, converted
+        # from IndexVariable to Variable or renamed to dimension as expected
+        midx = pd.MultiIndex.from_product([["a", "b"], [1, 2]], names=("foo", "bar"))
+        ds = xr.Dataset(coords={"x": midx})
+        reset = ds.reset_index(arg, drop=drop)
+    
+        for name in dropped:
+>           assert name not in reset.variables
+E           AssertionError: assert 'x' not in Frozen({'x': <xarray.IndexVariable 'x' (x: 4)>\narray([('a', 1), ('a', 2), ('b', 1), ('b', 2)], dtype=object), 'foo': <...e 'x' (x: 4)>\narray(['a', 'a', 'b', 'b'], dtype=object), 'bar': <xarray.IndexVariable 'x' (x: 4)>\narray([1, 2, 1, 2])})
+E            +  where Frozen({'x': <xarray.IndexVariable 'x' (x: 4)>\narray([('a', 1), ('a', 2), ('b', 1), ('b', 2)], dtype=object), 'foo': <...e 'x' (x: 4)>\narray(['a', 'a', 'b', 'b'], dtype=object), 'bar': <xarray.IndexVariable 'x' (x: 4)>\narray([1, 2, 1, 2])}) = <xarray.Dataset>\nDimensions:  (x: 4)\nCoordinates:\n    x        (x) object MultiIndex\n    foo      (x) object 'a' 'a' 'b' 'b'\n    bar      (x) int64 1 2 1 2\nData variables:\n    *empty*.variables
+
+/testbed/xarray/tests/test_dataset.py:3312: AssertionError
+_ TestDataset.test_reset_index_drop_convert[arg5-True-dropped5-converted5-renamed5] _
+
+self = <xarray.tests.test_dataset.TestDataset object at 0x7f5eeb6959c0>
+arg = ['foo', 'bar'], drop = True, dropped = ['x', 'foo', 'bar'], converted = []
+renamed = {}
+
+    @pytest.mark.parametrize(
+        "arg,drop,dropped,converted,renamed",
+        [
+            ("foo", False, [], [], {"bar": "x"}),
+            ("foo", True, ["foo"], [], {"bar": "x"}),
+            ("x", False, ["x"], ["foo", "bar"], {}),
+            ("x", True, ["x", "foo", "bar"], [], {}),
+            (["foo", "bar"], False, ["x"], ["foo", "bar"], {}),
+            (["foo", "bar"], True, ["x", "foo", "bar"], [], {}),
+            (["x", "foo"], False, ["x"], ["foo", "bar"], {}),
+            (["foo", "x"], True, ["x", "foo", "bar"], [], {}),
+        ],
+    )
+    def test_reset_index_drop_convert(
+        self, arg, drop, dropped, converted, renamed
+    ) -> None:
+        # regressions https://github.com/pydata/xarray/issues/6946 and
+        # https://github.com/pydata/xarray/issues/6989
+        # check that multi-index dimension or level coordinates are dropped, converted
+        # from IndexVariable to Variable or renamed to dimension as expected
+        midx = pd.MultiIndex.from_product([["a", "b"], [1, 2]], names=("foo", "bar"))
+        ds = xr.Dataset(coords={"x": midx})
+        reset = ds.reset_index(arg, drop=drop)
+    
+        for name in dropped:
+>           assert name not in reset.variables
+E           AssertionError: assert 'x' not in Frozen({'x': <xarray.IndexVariable 'x' (x: 4)>\narray([('a', 1), ('a', 2), ('b', 1), ('b', 2)], dtype=object)})
+E            +  where Frozen({'x': <xarray.IndexVariable 'x' (x: 4)>\narray([('a', 1), ('a', 2), ('b', 1), ('b', 2)], dtype=object)}) = <xarray.Dataset>\nDimensions:  (x: 4)\nCoordinates:\n    x        (x) object MultiIndex\nData variables:\n    *empty*.variables
+
+/testbed/xarray/tests/test_dataset.py:3312: AssertionError
+_ TestDataset.test_reset_index_drop_convert[arg6-False-dropped6-converted6-renamed6] _
+
+self = <xarray.tests.test_dataset.TestDataset object at 0x7f5eecb3e1d0>
+arg = ['x', 'foo'], drop = False, dropped = ['x'], converted = ['foo', 'bar']
+renamed = {}
+
+    @pytest.mark.parametrize(
+        "arg,drop,dropped,converted,renamed",
+        [
+            ("foo", False, [], [], {"bar": "x"}),
+            ("foo", True, ["foo"], [], {"bar": "x"}),
+            ("x", False, ["x"], ["foo", "bar"], {}),
+            ("x", True, ["x", "foo", "bar"], [], {}),
+            (["foo", "bar"], False, ["x"], ["foo", "bar"], {}),
+            (["foo", "bar"], True, ["x", "foo", "bar"], [], {}),
+            (["x", "foo"], False, ["x"], ["foo", "bar"], {}),
+            (["foo", "x"], True, ["x", "foo", "bar"], [], {}),
+        ],
+    )
+    def test_reset_index_drop_convert(
+        self, arg, drop, dropped, converted, renamed
+    ) -> None:
+        # regressions https://github.com/pydata/xarray/issues/6946 and
+        # https://github.com/pydata/xarray/issues/6989
+        # check that multi-index dimension or level coordinates are dropped, converted
+        # from IndexVariable to Variable or renamed to dimension as expected
+        midx = pd.MultiIndex.from_product([["a", "b"], [1, 2]], names=("foo", "bar"))
+        ds = xr.Dataset(coords={"x": midx})
+        reset = ds.reset_index(arg, drop=drop)
+    
+        for name in dropped:
+>           assert name not in reset.variables
+E           AssertionError: assert 'x' not in Frozen({'x': <xarray.IndexVariable 'x' (x: 4)>\narray([('a', 1), ('a', 2), ('b', 1), ('b', 2)], dtype=object), 'foo': <...e 'x' (x: 4)>\narray(['a', 'a', 'b', 'b'], dtype=object), 'bar': <xarray.IndexVariable 'x' (x: 4)>\narray([1, 2, 1, 2])})
+E            +  where Frozen({'x': <xarray.IndexVariable 'x' (x: 4)>\narray([('a', 1), ('a', 2), ('b', 1), ('b', 2)], dtype=object), 'foo': <...e 'x' (x: 4)>\narray(['a', 'a', 'b', 'b'], dtype=object), 'bar': <xarray.IndexVariable 'x' (x: 4)>\narray([1, 2, 1, 2])}) = <xarray.Dataset>\nDimensions:  (x: 4)\nCoordinates:\n    x        (x) object MultiIndex\n    foo      (x) object 'a' 'a' 'b' 'b'\n  * bar      (x) int64 1 2 1 2\nData variables:\n    *empty*.variables
+
+/testbed/xarray/tests/test_dataset.py:3312: AssertionError
+_ TestDataset.test_reset_index_drop_convert[arg7-True-dropped7-converted7-renamed7] _
+
+self = <xarray.tests.test_dataset.TestDataset object at 0x7f5eecb3cf40>
+arg = ['foo', 'x'], drop = True, dropped = ['x', 'foo', 'bar'], converted = []
+renamed = {}
+
+    @pytest.mark.parametrize(
+        "arg,drop,dropped,converted,renamed",
+        [
+            ("foo", False, [], [], {"bar": "x"}),
+            ("foo", True, ["foo"], [], {"bar": "x"}),
+            ("x", False, ["x"], ["foo", "bar"], {}),
+            ("x", True, ["x", "foo", "bar"], [], {}),
+            (["foo", "bar"], False, ["x"], ["foo", "bar"], {}),
+            (["foo", "bar"], True, ["x", "foo", "bar"], [], {}),
+            (["x", "foo"], False, ["x"], ["foo", "bar"], {}),
+            (["foo", "x"], True, ["x", "foo", "bar"], [], {}),
+        ],
+    )
+    def test_reset_index_drop_convert(
+        self, arg, drop, dropped, converted, renamed
+    ) -> None:
+        # regressions https://github.com/pydata/xarray/issues/6946 and
+        # https://github.com/pydata/xarray/issues/6989
+        # check that multi-index dimension or level coordinates are dropped, converted
+        # from IndexVariable to Variable or renamed to dimension as expected
+        midx = pd.MultiIndex.from_product([["a", "b"], [1, 2]], names=("foo", "bar"))
+        ds = xr.Dataset(coords={"x": midx})
+        reset = ds.reset_index(arg, drop=drop)
+    
+        for name in dropped:
+>           assert name not in reset.variables
+E           AssertionError: assert 'bar' not in Frozen({'bar': <xarray.IndexVariable 'x' (x: 4)>\narray([1, 2, 1, 2])})
+E            +  where Frozen({'bar': <xarray.IndexVariable 'x' (x: 4)>\narray([1, 2, 1, 2])}) = <xarray.Dataset>\nDimensions:  (x: 4)\nCoordinates:\n  * bar      (x) int64 1 2 1 2\nData variables:\n    *empty*.variables
+
+/testbed/xarray/tests/test_dataset.py:3312: AssertionError
+___________________________ test_groupby_drops_nans ____________________________
+
+    @pytest.mark.filterwarnings("ignore:invalid value encountered in divide:RuntimeWarning")
+    def test_groupby_drops_nans() -> None:
+        # GH2383
+        # nan in 2D data variable (requires stacking)
+        ds = xr.Dataset(
+            {
+                "variable": (("lat", "lon", "time"), np.arange(60.0).reshape((4, 3, 5))),
+                "id": (("lat", "lon"), np.arange(12.0).reshape((4, 3))),
+            },
+            coords={"lat": np.arange(4), "lon": np.arange(3), "time": np.arange(5)},
+        )
+    
+        ds["id"].values[0, 0] = np.nan
+        ds["id"].values[3, 0] = np.nan
+        ds["id"].values[-1, -1] = np.nan
+    
+        grouped = ds.groupby(ds.id)
+    
+        # non reduction operation
+        expected1 = ds.copy()
+        expected1.variable.values[0, 0, :] = np.nan
+        expected1.variable.values[-1, -1, :] = np.nan
+        expected1.variable.values[3, 0, :] = np.nan
+        actual1 = grouped.map(lambda x: x).transpose(*ds.variable.dims)
+        assert_identical(actual1, expected1)
+    
+        # reduction along grouped dimension
+        actual2 = grouped.mean()
+        stacked = ds.stack({"xy": ["lat", "lon"]})
+        expected2 = (
+            stacked.variable.where(stacked.id.notnull())
+            .rename({"xy": "id"})
+            .to_dataset()
+            .reset_index("id", drop=True)
+            .assign(id=stacked.id.values)
+            .dropna("id")
+            .transpose(*actual2.dims)
+        )
+>       assert_identical(actual2, expected2)
+E       AssertionError: Left and right Dataset objects are not identical
+E       
+E       Differing coordinates:
+E       L * id        (id) float64 1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 10.0
+E       R * id        (id) float64 1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 10.0
+E       Coordinates only on the right object:
+E           lon       (id) int64 1 2 0 1 2 0 1 2 1
+E           lat       (id) int64 0 0 1 1 1 2 2 2 3
+E       Differing data variables:
+E       L   variable  (time, id) float64 5.0 10.0 15.0 20.0 25.0 ... 34.0 39.0 44.0 54.0
+E       R   variable  (time, id) float64 5.0 10.0 15.0 20.0 25.0 ... 34.0 39.0 44.0 54.0
+
+/testbed/xarray/tests/test_groupby.py:545: AssertionError
+=============================== warnings summary ===============================
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pydap/lib.py:5
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pydap/lib.py:5: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+    from pkg_resources import get_distribution
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap.responses')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2350
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2350
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2350
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2350: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(parent)
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap.handlers')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+../opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/pkg_resources/__init__.py:2871: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('pydap.tests')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_cdms2_sgrid
+xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_cdms2_sgrid
+xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_cdms2_sgrid
+xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_cdms2_sgrid
+  /opt/miniconda3/envs/testbed/lib/python3.10/site-packages/numpy/ma/core.py:7939: DeprecationWarning: elementwise comparison failed; this will raise an error in the future.
+    if not np.all(xinf == filled(np.isinf(y), False)):
+
+xarray/tests/test_dataset.py::TestDataset::test_rename_same_name
+  /testbed/xarray/tests/test_dataset.py:2842: UserWarning: rename 'dim2' to 'dim2' does not create an index anymore. Try using swap_dims instead or use set_index after rename to create an indexed coordinate.
+    renamed = data.rename(newnames)
+
+xarray/tests/test_dataset.py::TestDataset::test_rename_multiindex
+  /testbed/xarray/tests/test_dataset.py:2921: UserWarning: rename 'x' to 'a' does not create an index anymore. Try using swap_dims instead or use set_index after rename to create an indexed coordinate.
+    original.rename({"x": "a"})
+
+xarray/tests/test_dataset.py::TestDataset::test_rename_multiindex
+  /testbed/xarray/tests/test_dataset.py:2923: UserWarning: rename 'a' to 'x' does not create an index anymore. Try using swap_dims instead or use set_index after rename to create an indexed coordinate.
+    original.rename({"a": "x"})
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+____________________________ TestDataset.test_repr _____________________________
+----------------------------- Captured stdout call -----------------------------
+<xarray.Dataset>
+Dimensions:  (dim2: 9, dim3: 10, time: 20, dim1: 8)
+Coordinates:
+  * dim2     (dim2) float64 0.0 0.5 1.0 1.5 2.0 2.5 3.0 3.5 4.0
+  * dim3     (dim3) <U1 'a' 'b' 'c' 'd' 'e' 'f' 'g' 'h' 'i' 'j'
+  * time     (time) datetime64[ns] 2000-01-01 2000-01-02 ... 2000-01-20
+    numbers  (dim3) int64 0 1 2 0 0 1 1 2 2 3
+Dimensions without coordinates: dim1
+Data variables:
+    var1     (dim1, dim2) float64 -1.086 0.9973 0.283 ... 0.1995 0.4684 -0.8312
+    var2     (dim1, dim2) float64 1.162 -1.097 -2.123 ... 0.1302 1.267 0.3328
+    var3     (dim3, dim1) float64 0.5565 -0.2121 0.4563 ... -0.2452 -0.3616
+Attributes:
+    foo:      bar
+<xarray.Dataset>
+Dimensions:  ()
+Data variables:
+    *empty*
+<xarray.Dataset>
+Dimensions:  ()
+Data variables:
+    foo      float64 1.0
+_______________________ TestDataset.test_repr_multiindex _______________________
+----------------------------- Captured stdout call -----------------------------
+<xarray.Dataset>
+Dimensions:  (x: 4)
+Coordinates:
+  * x        (x) object MultiIndex
+  * level_1  (x) object 'a' 'a' 'b' 'b'
+  * level_2  (x) int64 1 2 1 2
+Data variables:
+    *empty*
+<xarray.Dataset>
+Dimensions:                  (x: 4)
+Coordinates:
+  * x                        (x) object MultiIndex
+  * a_quite_long_level_name  (x) object 'a' 'a' 'b' 'b'
+  * level_2                  (x) int64 1 2 1 2
+Data variables:
+    *empty*
+_______________________ TestDataset.test_constructor_0d ________________________
+----------------------------- Captured stdout call -----------------------------
+True
+None
+3.4
+nan
+hello
+b'raw'
+2000-01-01
+2000-01-01 12:00:00
+2000-01-01 12:00:00
+<xarray.tests.test_dataset.TestDataset.test_constructor_0d.<locals>.Arbitrary object at 0x7f5eec4298a0>
+=========================== short test summary info ============================
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_repr
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_repr_multiindex
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_repr_multiindex_long
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_properties
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_data_property
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_indexes
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_get_index
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_get_index_size_zero
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_struct_array_dims
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_name
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_dims
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sizes
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_encoding
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_constructor
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_constructor_invalid
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_constructor_from_self_described
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_constructor_from_self_described_chunked
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_constructor_from_0d
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_constructor_dask_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_equals_and_identical
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_equals_failures
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_broadcast_equals
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_getitem
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_getitem_dict
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_getitem_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_getitem_dataarray
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_getitem_empty_index
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_setitem
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_setitem_fancy
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_setitem_dataarray
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_contains
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pickle
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_chunk
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_isel
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_isel_types
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_isel_fancy
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sel
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sel_dataarray
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sel_invalid_slice
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sel_dataarray_datetime_slice
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sel_float
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sel_float_multiindex
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sel_no_index
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sel_method
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sel_drop
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_isel_drop
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_head
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_tail
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_thin
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_loc
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_loc_datetime64_value
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_loc_assign
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_loc_assign_dataarray
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_loc_single_boolean
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_loc_dim_name_collision_with_sel_params
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_selection_multiindex
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_selection_multiindex_remove_unused
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_selection_multiindex_from_level
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_virtual_default_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_virtual_time_components
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_coords_to_index
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_coord_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reset_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_assign_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_assign_coords_existing_multiindex
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_coords_alignment
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_set_coords_update_index
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_set_coords_multiindex_level
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_coords_replacement_alignment
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_coords_non_string
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_coords_delitem_delete_indexes
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_coords_delitem_multiindex_level
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_broadcast_like
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reindex_like
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reindex_like_no_index
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reindex_regressions
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reindex_method
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reindex_fill_value[fill_value0]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reindex_fill_value[2]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reindex_fill_value[2.0]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reindex_fill_value[fill_value3]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reindex_str_dtype[str]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reindex_str_dtype[bytes]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_rename
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_rename_dimension_coord_warnings
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_init_value
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_swap_dims
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_expand_dims_error
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_expand_dims
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_expand_dims_with_scalar_coordinate
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_expand_dims_with_greater_dim_size
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_set_index
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reset_index_keep_attrs
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reorder_levels
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_dataset_getitem
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_array_interface
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_astype_attrs
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_astype_dtype
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_astype_order
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_is_null
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_math
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_math_automatic_alignment
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_non_overlapping_dataarrays_return_empty_result
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_empty_dataarrays_return_empty_result
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_inplace_math_basics
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_inplace_math_error
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_inplace_math_automatic_alignment
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_math_name
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_math_with_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_index_math
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_dataset_math
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_stack_unstack
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_stack_unstack_decreasing_coordinate
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_unstack_pandas_consistency
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_stack_nonunique_consistency[1-numpy]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_stack_nonunique_consistency[1-dask]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_unstacked_dataset_raises_value_error
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_transpose
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_squeeze
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_squeeze_drop
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_drop_coordinates
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_drop_multiindex_level
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_drop_all_multiindex_levels
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_drop_index_labels
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_drop_index_positions
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_dropna
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_where
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_where_lambda
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_where_string
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_cumops
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reduce
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reduce_keepdims
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reduce_keepdims_bottleneck
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reduce_dtype
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reduce_out
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[None-None-0.25-True]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[None-None-0.25-False]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[None-None-0.25-None]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[None-None-q1-True]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[None-None-q1-False]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[None-None-q1-None]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[None-None-q2-True]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[None-None-q2-False]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[None-None-q2-None]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[0-x-0.25-True]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[0-x-0.25-False]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[0-x-0.25-None]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[0-x-q1-True]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[0-x-q1-False]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[0-x-q1-None]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[0-x-q2-True]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[0-x-q2-False]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[0-x-q2-None]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[axis2-dim2-0.25-True]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[axis2-dim2-0.25-False]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[axis2-dim2-0.25-None]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[axis2-dim2-q1-True]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[axis2-dim2-q1-False]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[axis2-dim2-q1-None]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[axis2-dim2-q2-True]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[axis2-dim2-q2-False]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[axis2-dim2-q2-None]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[axis3-dim3-0.25-True]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[axis3-dim3-0.25-False]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[axis3-dim3-0.25-None]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[axis3-dim3-q1-True]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[axis3-dim3-q1-False]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[axis3-dim3-q1-None]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[axis3-dim3-q2-True]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[axis3-dim3-q2-False]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile[axis3-dim3-q2-None]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile_method[midpoint]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile_method[lower]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile_interpolation_deprecated[midpoint]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_quantile_interpolation_deprecated[lower]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_reduce_keep_attrs
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_assign_attrs
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_propagate_attrs[<lambda>0]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_propagate_attrs[<lambda>1]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_propagate_attrs[absolute]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_propagate_attrs[abs]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_fillna
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_dtype
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_copy
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_override
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_override_error[darrays0]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_override_error[darrays1]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_exclude
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_indexes
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_without_indexes_exclude
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_mixed_indexes
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_without_indexes_errors
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_align_str_dtype
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_broadcast_arrays
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_broadcast_arrays_misaligned
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_broadcast_arrays_nocopy
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_broadcast_arrays_exclude
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_broadcast_coordinates
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_pandas
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_dataframe
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_dataframe_multiindex
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_dataframe_0length
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_pandas_name_matches_coordinate
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_series
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_from_series_multiindex
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_from_series_sparse
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_from_multiindex_series_sparse
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_empty_series
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_series_categorical_index
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_dict[True]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_dict[False]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_dict_with_time_dim
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_dict_with_nan_nat
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_dict_with_numpy_attrs
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_masked_array
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_cdms2_classic
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_cdms2_sgrid
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_and_from_cdms2_ugrid
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_dataset_whole
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_dataset_split
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_to_dataset_retains_keys
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test__title_for_slice
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test__title_for_slice_truncate
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_dataarray_diff_n1
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_coordinate_diff
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_shift[2-int--5]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_shift[2-int-0]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_shift[2-int-1]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_shift[2-int-2]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_shift[fill_value1-float--5]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_shift[fill_value1-float-0]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_shift[fill_value1-float-1]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_shift[fill_value1-float-2]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_roll_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_roll_no_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_copy_with_data
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_real_and_imag
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_setattr_raises
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_full_like
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_dot
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_dot_align_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_matmul
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_matmul_align_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_binary_op_propagate_indexes
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_binary_op_join_setting
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_combine_first
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_sortby
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_rank
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_polyfit[True-True]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_polyfit[True-False]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_polyfit[False-True]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_polyfit[False-False]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_constant
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_coords
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_stat_length[None-minimum]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_stat_length[None-maximum]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_stat_length[None-mean]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_stat_length[None-median]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_stat_length[3-minimum]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_stat_length[3-maximum]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_stat_length[3-mean]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_stat_length[3-median]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_stat_length[stat_length2-minimum]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_stat_length[stat_length2-maximum]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_stat_length[stat_length2-mean]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_stat_length[stat_length2-median]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_stat_length[stat_length3-minimum]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_stat_length[stat_length3-maximum]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_stat_length[stat_length3-mean]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_stat_length[stat_length3-median]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_linear_ramp[None]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_linear_ramp[3]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_linear_ramp[end_values2]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_linear_ramp[end_values3]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_reflect[None-reflect]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_reflect[None-symmetric]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_reflect[even-reflect]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_reflect[even-symmetric]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_reflect[odd-reflect]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_pad_reflect[odd-symmetric]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_query[numpy-python-pandas]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_query[numpy-python-python]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_query[numpy-None-pandas]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_query[numpy-None-python]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_query[numpy-numexpr-pandas]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_query[numpy-numexpr-python]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_query[dask-python-pandas]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_query[dask-python-python]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_query[dask-None-pandas]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_query[dask-None-python]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_query[dask-numexpr-pandas]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_query[dask-numexpr-python]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_curvefit[True]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_curvefit[False]
+PASSED xarray/tests/test_dataarray.py::TestDataArray::test_curvefit_helpers
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_min[int]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_min[float]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_min[nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_min[obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_min[allnan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_min[datetime]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_max[int]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_max[float]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_max[nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_max[obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_max[allnan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_max[datetime]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmin[int]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmin[float]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmin[nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmin[obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmin[allnan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmin[datetime]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmax[int]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmax[float]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmax[nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmax[obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmax[allnan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmax[datetime]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmin[True-int]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmin[True-float]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmin[True-nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmin[True-obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmin[True-allnan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmin[False-int]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmin[False-float]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmin[False-nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmin[False-obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmin[False-allnan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmin[False-datetime]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmax[True-int]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmax[True-float]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmax[True-nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmax[True-obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmax[True-allnan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmax[False-int]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmax[False-float]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmax[False-nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmax[False-obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmax[False-allnan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_idxmax[False-datetime]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmin_dim[int]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmin_dim[float]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmin_dim[nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmin_dim[obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmin_dim[allnan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmin_dim[datetime]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmax_dim[int]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmax_dim[float]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmax_dim[nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmax_dim[obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmax_dim[allnan]
+PASSED xarray/tests/test_dataarray.py::TestReduce1D::test_argmax_dim[datetime]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_min[int]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_min[nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_min[obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_min[datetime]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_max[int]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_max[nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_max[obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_max[datetime]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_argmin[int]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_argmin[nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_argmin[obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_argmin[datetime]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_argmax[int]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_argmax[nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_argmax[obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_argmax[datetime]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_idxmin[dask-int]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_idxmin[dask-nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_idxmin[dask-obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_idxmin[nodask-int]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_idxmin[nodask-nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_idxmin[nodask-obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_idxmin[nodask-datetime]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_idxmax[dask-int]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_idxmax[dask-nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_idxmax[dask-obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_idxmax[nodask-int]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_idxmax[nodask-nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_idxmax[nodask-obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_idxmax[nodask-datetime]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_argmin_dim[int]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_argmin_dim[nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_argmin_dim[obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_argmin_dim[datetime]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_argmax_dim[int]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_argmax_dim[nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_argmax_dim[obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce2D::test_argmax_dim[datetime]
+PASSED xarray/tests/test_dataarray.py::TestReduce3D::test_argmin_dim[int]
+PASSED xarray/tests/test_dataarray.py::TestReduce3D::test_argmin_dim[nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce3D::test_argmin_dim[obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce3D::test_argmin_dim[datetime]
+PASSED xarray/tests/test_dataarray.py::TestReduce3D::test_argmax_dim[int]
+PASSED xarray/tests/test_dataarray.py::TestReduce3D::test_argmax_dim[nan]
+PASSED xarray/tests/test_dataarray.py::TestReduce3D::test_argmax_dim[obj]
+PASSED xarray/tests/test_dataarray.py::TestReduce3D::test_argmax_dim[datetime]
+PASSED xarray/tests/test_dataarray.py::TestReduceND::test_idxminmax_dask[3-idxmin]
+PASSED xarray/tests/test_dataarray.py::TestReduceND::test_idxminmax_dask[3-idxmax]
+PASSED xarray/tests/test_dataarray.py::TestReduceND::test_idxminmax_dask[5-idxmin]
+PASSED xarray/tests/test_dataarray.py::TestReduceND::test_idxminmax_dask[5-idxmax]
+PASSED xarray/tests/test_dataarray.py::test_isin[numpy-repeating_ints]
+PASSED xarray/tests/test_dataarray.py::test_isin[dask-repeating_ints]
+PASSED xarray/tests/test_dataarray.py::test_raise_no_warning_for_nan_in_binary_ops
+PASSED xarray/tests/test_dataarray.py::test_no_warning_for_all_nan
+PASSED xarray/tests/test_dataarray.py::test_name_in_masking
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_to_and_from_iris
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_to_and_from_iris_dask
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_da_name_from_cube[var_name-height-Height-var_name-attrs0]
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_da_name_from_cube[None-height-Height-height-attrs1]
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_da_name_from_cube[None-None-Height-Height-attrs2]
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_da_name_from_cube[None-None-None-None-attrs3]
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_da_coord_name_from_cube[var_name-height-Height-var_name-attrs0]
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_da_coord_name_from_cube[None-height-Height-height-attrs1]
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_da_coord_name_from_cube[None-None-Height-Height-attrs2]
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_da_coord_name_from_cube[None-None-None-unknown-attrs3]
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_prevent_duplicate_coord_names
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_fallback_to_iris_AuxCoord[coord_values0]
+PASSED xarray/tests/test_dataarray.py::TestIrisConversion::test_fallback_to_iris_AuxCoord[coord_values1]
+PASSED xarray/tests/test_dataarray.py::test_no_dict
+PASSED xarray/tests/test_dataarray.py::test_subclass_slots
+PASSED xarray/tests/test_dataarray.py::test_weakref
+PASSED xarray/tests/test_dataarray.py::test_delete_coords
+PASSED xarray/tests/test_dataarray.py::test_deepcopy_obj_array
+PASSED xarray/tests/test_dataarray.py::test_clip[1-numpy]
+PASSED xarray/tests/test_dataarray.py::test_clip[1-dask]
+PASSED xarray/tests/test_dataarray.py::TestDropDuplicates::test_drop_duplicates_1d[first]
+PASSED xarray/tests/test_dataarray.py::TestDropDuplicates::test_drop_duplicates_1d[last]
+PASSED xarray/tests/test_dataarray.py::TestDropDuplicates::test_drop_duplicates_1d[False]
+PASSED xarray/tests/test_dataarray.py::TestDropDuplicates::test_drop_duplicates_2d
+PASSED xarray/tests/test_dataarray.py::TestNumpyCoercion::test_from_numpy
+PASSED xarray/tests/test_dataarray.py::TestNumpyCoercion::test_from_dask
+PASSED xarray/tests/test_dataarray.py::TestNumpyCoercion::test_from_pint
+PASSED xarray/tests/test_dataarray.py::TestNumpyCoercion::test_from_sparse
+PASSED xarray/tests/test_dataarray.py::TestNumpyCoercion::test_from_pint_wrapping_dask
+PASSED xarray/tests/test_dataarray.py::TestStackEllipsis::test_result_as_expected
+PASSED xarray/tests/test_dataarray.py::TestStackEllipsis::test_error_on_ellipsis_without_list
+PASSED xarray/tests/test_dataset.py::TestDataset::test_repr
+PASSED xarray/tests/test_dataset.py::TestDataset::test_repr_multiindex
+PASSED xarray/tests/test_dataset.py::TestDataset::test_repr_period_index
+PASSED xarray/tests/test_dataset.py::TestDataset::test_unicode_data
+PASSED xarray/tests/test_dataset.py::TestDataset::test_repr_nep18
+PASSED xarray/tests/test_dataset.py::TestDataset::test_info
+PASSED xarray/tests/test_dataset.py::TestDataset::test_constructor
+PASSED xarray/tests/test_dataset.py::TestDataset::test_constructor_invalid_dims
+PASSED xarray/tests/test_dataset.py::TestDataset::test_constructor_1d
+PASSED xarray/tests/test_dataset.py::TestDataset::test_constructor_0d
+PASSED xarray/tests/test_dataset.py::TestDataset::test_constructor_auto_align
+PASSED xarray/tests/test_dataset.py::TestDataset::test_constructor_pandas_sequence
+PASSED xarray/tests/test_dataset.py::TestDataset::test_constructor_pandas_single
+PASSED xarray/tests/test_dataset.py::TestDataset::test_constructor_compat
+PASSED xarray/tests/test_dataset.py::TestDataset::test_constructor_with_coords
+PASSED xarray/tests/test_dataset.py::TestDataset::test_properties
+PASSED xarray/tests/test_dataset.py::TestDataset::test_asarray
+PASSED xarray/tests/test_dataset.py::TestDataset::test_get_index
+PASSED xarray/tests/test_dataset.py::TestDataset::test_attr_access
+PASSED xarray/tests/test_dataset.py::TestDataset::test_variable
+PASSED xarray/tests/test_dataset.py::TestDataset::test_modify_inplace
+PASSED xarray/tests/test_dataset.py::TestDataset::test_coords_properties
+PASSED xarray/tests/test_dataset.py::TestDataset::test_coords_modify
+PASSED xarray/tests/test_dataset.py::TestDataset::test_update_index
+PASSED xarray/tests/test_dataset.py::TestDataset::test_coords_setitem_with_new_dimension
+PASSED xarray/tests/test_dataset.py::TestDataset::test_coords_setitem_multiindex
+PASSED xarray/tests/test_dataset.py::TestDataset::test_coords_set
+PASSED xarray/tests/test_dataset.py::TestDataset::test_coords_to_dataset
+PASSED xarray/tests/test_dataset.py::TestDataset::test_coords_merge
+PASSED xarray/tests/test_dataset.py::TestDataset::test_coords_merge_mismatched_shape
+PASSED xarray/tests/test_dataset.py::TestDataset::test_data_vars_properties
+PASSED xarray/tests/test_dataset.py::TestDataset::test_equals_and_identical
+PASSED xarray/tests/test_dataset.py::TestDataset::test_equals_failures
+PASSED xarray/tests/test_dataset.py::TestDataset::test_broadcast_equals
+PASSED xarray/tests/test_dataset.py::TestDataset::test_attrs
+PASSED xarray/tests/test_dataset.py::TestDataset::test_chunks_does_not_load_data
+PASSED xarray/tests/test_dataset.py::TestDataset::test_chunk
+PASSED xarray/tests/test_dataset.py::TestDataset::test_dask_is_lazy
+PASSED xarray/tests/test_dataset.py::TestDataset::test_isel
+PASSED xarray/tests/test_dataset.py::TestDataset::test_isel_fancy
+PASSED xarray/tests/test_dataset.py::TestDataset::test_isel_dataarray
+PASSED xarray/tests/test_dataset.py::TestDataset::test_isel_fancy_convert_index_variable
+PASSED xarray/tests/test_dataset.py::TestDataset::test_sel
+PASSED xarray/tests/test_dataset.py::TestDataset::test_sel_dataarray
+PASSED xarray/tests/test_dataset.py::TestDataset::test_sel_dataarray_mindex
+PASSED xarray/tests/test_dataset.py::TestDataset::test_sel_categorical
+PASSED xarray/tests/test_dataset.py::TestDataset::test_sel_categorical_error
+PASSED xarray/tests/test_dataset.py::TestDataset::test_categorical_index
+PASSED xarray/tests/test_dataset.py::TestDataset::test_categorical_reindex
+PASSED xarray/tests/test_dataset.py::TestDataset::test_categorical_multiindex
+PASSED xarray/tests/test_dataset.py::TestDataset::test_sel_drop
+PASSED xarray/tests/test_dataset.py::TestDataset::test_sel_drop_mindex
+PASSED xarray/tests/test_dataset.py::TestDataset::test_isel_drop
+PASSED xarray/tests/test_dataset.py::TestDataset::test_head
+PASSED xarray/tests/test_dataset.py::TestDataset::test_tail
+PASSED xarray/tests/test_dataset.py::TestDataset::test_thin
+PASSED xarray/tests/test_dataset.py::TestDataset::test_sel_fancy
+PASSED xarray/tests/test_dataset.py::TestDataset::test_sel_method
+PASSED xarray/tests/test_dataset.py::TestDataset::test_loc
+PASSED xarray/tests/test_dataset.py::TestDataset::test_selection_multiindex
+PASSED xarray/tests/test_dataset.py::TestDataset::test_broadcast_like
+PASSED xarray/tests/test_dataset.py::TestDataset::test_to_pandas
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reindex_like
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reindex
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reindex_attrs_encoding
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reindex_warning
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reindex_variables_copied
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reindex_method
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reindex_fill_value[fill_value0]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reindex_fill_value[2]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reindex_fill_value[2.0]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reindex_fill_value[fill_value3]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reindex_like_fill_value[fill_value0]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reindex_like_fill_value[2]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reindex_like_fill_value[2.0]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reindex_like_fill_value[fill_value3]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reindex_str_dtype[str]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reindex_str_dtype[bytes]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_align_fill_value[fill_value0]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_align_fill_value[2]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_align_fill_value[2.0]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_align_fill_value[fill_value3]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_align
+PASSED xarray/tests/test_dataset.py::TestDataset::test_align_exact
+PASSED xarray/tests/test_dataset.py::TestDataset::test_align_override
+PASSED xarray/tests/test_dataset.py::TestDataset::test_align_exclude
+PASSED xarray/tests/test_dataset.py::TestDataset::test_align_nocopy
+PASSED xarray/tests/test_dataset.py::TestDataset::test_align_indexes
+PASSED xarray/tests/test_dataset.py::TestDataset::test_align_non_unique
+PASSED xarray/tests/test_dataset.py::TestDataset::test_align_str_dtype
+PASSED xarray/tests/test_dataset.py::TestDataset::test_align_index_var_attrs[left]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_align_index_var_attrs[override]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_broadcast
+PASSED xarray/tests/test_dataset.py::TestDataset::test_broadcast_nocopy
+PASSED xarray/tests/test_dataset.py::TestDataset::test_broadcast_exclude
+PASSED xarray/tests/test_dataset.py::TestDataset::test_broadcast_misaligned
+PASSED xarray/tests/test_dataset.py::TestDataset::test_broadcast_multi_index
+PASSED xarray/tests/test_dataset.py::TestDataset::test_variable_indexing
+PASSED xarray/tests/test_dataset.py::TestDataset::test_drop_variables
+PASSED xarray/tests/test_dataset.py::TestDataset::test_drop_multiindex_level
+PASSED xarray/tests/test_dataset.py::TestDataset::test_drop_index_labels
+PASSED xarray/tests/test_dataset.py::TestDataset::test_drop_labels_by_keyword
+PASSED xarray/tests/test_dataset.py::TestDataset::test_drop_labels_by_position
+PASSED xarray/tests/test_dataset.py::TestDataset::test_drop_dims
+PASSED xarray/tests/test_dataset.py::TestDataset::test_copy
+PASSED xarray/tests/test_dataset.py::TestDataset::test_copy_with_data
+PASSED xarray/tests/test_dataset.py::TestDataset::test_copy_with_data_errors
+PASSED xarray/tests/test_dataset.py::TestDataset::test_rename
+PASSED xarray/tests/test_dataset.py::TestDataset::test_rename_old_name
+PASSED xarray/tests/test_dataset.py::TestDataset::test_rename_same_name
+PASSED xarray/tests/test_dataset.py::TestDataset::test_rename_dims
+PASSED xarray/tests/test_dataset.py::TestDataset::test_rename_vars
+PASSED xarray/tests/test_dataset.py::TestDataset::test_rename_dimension_coord
+PASSED xarray/tests/test_dataset.py::TestDataset::test_rename_dimension_coord_warnings
+PASSED xarray/tests/test_dataset.py::TestDataset::test_rename_multiindex
+PASSED xarray/tests/test_dataset.py::TestDataset::test_rename_perserve_attrs_encoding
+PASSED xarray/tests/test_dataset.py::TestDataset::test_rename_does_not_change_CFTimeIndex_type
+PASSED xarray/tests/test_dataset.py::TestDataset::test_rename_does_not_change_DatetimeIndex_type
+PASSED xarray/tests/test_dataset.py::TestDataset::test_swap_dims
+PASSED xarray/tests/test_dataset.py::TestDataset::test_expand_dims_error
+PASSED xarray/tests/test_dataset.py::TestDataset::test_expand_dims_int
+PASSED xarray/tests/test_dataset.py::TestDataset::test_expand_dims_coords
+PASSED xarray/tests/test_dataset.py::TestDataset::test_expand_dims_existing_scalar_coord
+PASSED xarray/tests/test_dataset.py::TestDataset::test_isel_expand_dims_roundtrip
+PASSED xarray/tests/test_dataset.py::TestDataset::test_expand_dims_mixed_int_and_coords
+PASSED xarray/tests/test_dataset.py::TestDataset::test_expand_dims_kwargs_python36plus
+PASSED xarray/tests/test_dataset.py::TestDataset::test_set_index
+PASSED xarray/tests/test_dataset.py::TestDataset::test_set_index_deindexed_coords
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reset_index_keep_attrs
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reorder_levels
+PASSED xarray/tests/test_dataset.py::TestDataset::test_stack
+PASSED xarray/tests/test_dataset.py::TestDataset::test_stack_create_index[True-expected_keys0]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_stack_create_index[False-expected_keys1]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_stack_create_index[None-expected_keys2]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_stack_multi_index
+PASSED xarray/tests/test_dataset.py::TestDataset::test_stack_non_dim_coords
+PASSED xarray/tests/test_dataset.py::TestDataset::test_unstack
+PASSED xarray/tests/test_dataset.py::TestDataset::test_unstack_errors
+PASSED xarray/tests/test_dataset.py::TestDataset::test_unstack_fill_value
+PASSED xarray/tests/test_dataset.py::TestDataset::test_unstack_sparse
+PASSED xarray/tests/test_dataset.py::TestDataset::test_stack_unstack_fast
+PASSED xarray/tests/test_dataset.py::TestDataset::test_stack_unstack_slow
+PASSED xarray/tests/test_dataset.py::TestDataset::test_to_stacked_array_invalid_sample_dims
+PASSED xarray/tests/test_dataset.py::TestDataset::test_to_stacked_array_name
+PASSED xarray/tests/test_dataset.py::TestDataset::test_to_stacked_array_dtype_dims
+PASSED xarray/tests/test_dataset.py::TestDataset::test_to_stacked_array_to_unstacked_dataset
+PASSED xarray/tests/test_dataset.py::TestDataset::test_to_stacked_array_to_unstacked_dataset_different_dimension
+PASSED xarray/tests/test_dataset.py::TestDataset::test_update
+PASSED xarray/tests/test_dataset.py::TestDataset::test_update_overwrite_coords
+PASSED xarray/tests/test_dataset.py::TestDataset::test_update_multiindex_level
+PASSED xarray/tests/test_dataset.py::TestDataset::test_update_auto_align
+PASSED xarray/tests/test_dataset.py::TestDataset::test_getitem
+PASSED xarray/tests/test_dataset.py::TestDataset::test_getitem_hashable
+PASSED xarray/tests/test_dataset.py::TestDataset::test_getitem_multiple_dtype
+PASSED xarray/tests/test_dataset.py::TestDataset::test_virtual_variables_default_coords
+PASSED xarray/tests/test_dataset.py::TestDataset::test_virtual_variables_time
+PASSED xarray/tests/test_dataset.py::TestDataset::test_virtual_variable_same_name
+PASSED xarray/tests/test_dataset.py::TestDataset::test_time_season
+PASSED xarray/tests/test_dataset.py::TestDataset::test_slice_virtual_variable
+PASSED xarray/tests/test_dataset.py::TestDataset::test_setitem
+PASSED xarray/tests/test_dataset.py::TestDataset::test_setitem_pandas
+PASSED xarray/tests/test_dataset.py::TestDataset::test_setitem_auto_align
+PASSED xarray/tests/test_dataset.py::TestDataset::test_setitem_dimension_override
+PASSED xarray/tests/test_dataset.py::TestDataset::test_setitem_with_coords
+PASSED xarray/tests/test_dataset.py::TestDataset::test_setitem_align_new_indexes
+PASSED xarray/tests/test_dataset.py::TestDataset::test_setitem_str_dtype[str]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_setitem_str_dtype[bytes]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_setitem_using_list
+PASSED xarray/tests/test_dataset.py::TestDataset::test_setitem_using_list_errors[var_list0-data0-Different lengths]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_setitem_using_list_errors[var_list1-data1-Empty list of variables]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_setitem_using_list_errors[var_list2-data2-assign single DataArray]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_assign
+PASSED xarray/tests/test_dataset.py::TestDataset::test_assign_coords
+PASSED xarray/tests/test_dataset.py::TestDataset::test_assign_attrs
+PASSED xarray/tests/test_dataset.py::TestDataset::test_assign_multiindex_level
+PASSED xarray/tests/test_dataset.py::TestDataset::test_assign_coords_existing_multiindex
+PASSED xarray/tests/test_dataset.py::TestDataset::test_assign_all_multiindex_coords
+PASSED xarray/tests/test_dataset.py::TestDataset::test_merge_multiindex_level
+PASSED xarray/tests/test_dataset.py::TestDataset::test_setitem_original_non_unique_index
+PASSED xarray/tests/test_dataset.py::TestDataset::test_setitem_both_non_unique_index
+PASSED xarray/tests/test_dataset.py::TestDataset::test_setitem_multiindex_level
+PASSED xarray/tests/test_dataset.py::TestDataset::test_delitem
+PASSED xarray/tests/test_dataset.py::TestDataset::test_delitem_multiindex_level
+PASSED xarray/tests/test_dataset.py::TestDataset::test_squeeze
+PASSED xarray/tests/test_dataset.py::TestDataset::test_squeeze_drop
+PASSED xarray/tests/test_dataset.py::TestDataset::test_to_array
+PASSED xarray/tests/test_dataset.py::TestDataset::test_to_and_from_dataframe
+PASSED xarray/tests/test_dataset.py::TestDataset::test_from_dataframe_categorical
+PASSED xarray/tests/test_dataset.py::TestDataset::test_from_dataframe_sparse
+PASSED xarray/tests/test_dataset.py::TestDataset::test_to_and_from_empty_dataframe
+PASSED xarray/tests/test_dataset.py::TestDataset::test_from_dataframe_multiindex
+PASSED xarray/tests/test_dataset.py::TestDataset::test_from_dataframe_unsorted_levels
+PASSED xarray/tests/test_dataset.py::TestDataset::test_from_dataframe_non_unique_columns
+PASSED xarray/tests/test_dataset.py::TestDataset::test_convert_dataframe_with_many_types_and_multiindex
+PASSED xarray/tests/test_dataset.py::TestDataset::test_to_and_from_dict
+PASSED xarray/tests/test_dataset.py::TestDataset::test_to_and_from_dict_with_time_dim
+PASSED xarray/tests/test_dataset.py::TestDataset::test_to_and_from_dict_with_nan_nat
+PASSED xarray/tests/test_dataset.py::TestDataset::test_to_dict_with_numpy_attrs
+PASSED xarray/tests/test_dataset.py::TestDataset::test_pickle
+PASSED xarray/tests/test_dataset.py::TestDataset::test_lazy_load
+PASSED xarray/tests/test_dataset.py::TestDataset::test_dropna
+PASSED xarray/tests/test_dataset.py::TestDataset::test_fillna
+PASSED xarray/tests/test_dataset.py::TestDataset::test_propagate_attrs[<lambda>0]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_propagate_attrs[<lambda>1]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_propagate_attrs[absolute]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_propagate_attrs[abs]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_where
+PASSED xarray/tests/test_dataset.py::TestDataset::test_where_other
+PASSED xarray/tests/test_dataset.py::TestDataset::test_where_drop
+PASSED xarray/tests/test_dataset.py::TestDataset::test_where_drop_empty
+PASSED xarray/tests/test_dataset.py::TestDataset::test_where_drop_no_indexes
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_coords
+PASSED xarray/tests/test_dataset.py::TestDataset::test_mean_uint_dtype
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_bad_dim
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_cumsum
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_cumsum_test_dims[cumsum-dim1-expected0]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_cumsum_test_dims[cumsum-dim2-expected1]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_cumsum_test_dims[cumsum-dim3-expected2]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_cumsum_test_dims[cumsum-time-expected3]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_cumsum_test_dims[cumprod-dim1-expected0]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_cumsum_test_dims[cumprod-dim2-expected1]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_cumsum_test_dims[cumprod-dim3-expected2]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_cumsum_test_dims[cumprod-time-expected3]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_non_numeric
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_strings
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_dtypes
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_keep_attrs
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_argmin
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_scalars
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_only_one_axis
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_no_axis
+PASSED xarray/tests/test_dataset.py::TestDataset::test_reduce_keepdims
+PASSED xarray/tests/test_dataset.py::TestDataset::test_quantile[0.25-True]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_quantile[0.25-False]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_quantile[0.25-None]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_quantile[q1-True]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_quantile[q1-False]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_quantile[q1-None]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_quantile[q2-True]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_quantile[q2-False]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_quantile[q2-None]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_quantile_skipna[True]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_quantile_skipna[False]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_quantile_method[midpoint]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_quantile_method[lower]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_quantile_interpolation_deprecated[midpoint]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_quantile_interpolation_deprecated[lower]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_rank
+PASSED xarray/tests/test_dataset.py::TestDataset::test_rank_use_bottleneck
+PASSED xarray/tests/test_dataset.py::TestDataset::test_count
+PASSED xarray/tests/test_dataset.py::TestDataset::test_map
+PASSED xarray/tests/test_dataset.py::TestDataset::test_apply_pending_deprecated_map
+PASSED xarray/tests/test_dataset.py::TestDataset::test_dataset_number_math
+PASSED xarray/tests/test_dataset.py::TestDataset::test_unary_ops
+PASSED xarray/tests/test_dataset.py::TestDataset::test_dataset_array_math
+PASSED xarray/tests/test_dataset.py::TestDataset::test_dataset_dataset_math
+PASSED xarray/tests/test_dataset.py::TestDataset::test_dataset_math_auto_align
+PASSED xarray/tests/test_dataset.py::TestDataset::test_dataset_math_errors
+PASSED xarray/tests/test_dataset.py::TestDataset::test_dataset_transpose
+PASSED xarray/tests/test_dataset.py::TestDataset::test_dataset_ellipsis_transpose_different_ordered_vars
+PASSED xarray/tests/test_dataset.py::TestDataset::test_dataset_retains_period_index_on_transpose
+PASSED xarray/tests/test_dataset.py::TestDataset::test_dataset_diff_n1_simple
+PASSED xarray/tests/test_dataset.py::TestDataset::test_dataset_diff_n1_label
+PASSED xarray/tests/test_dataset.py::TestDataset::test_dataset_diff_n1
+PASSED xarray/tests/test_dataset.py::TestDataset::test_dataset_diff_n2
+PASSED xarray/tests/test_dataset.py::TestDataset::test_dataset_diff_exception_n_neg
+PASSED xarray/tests/test_dataset.py::TestDataset::test_dataset_diff_exception_label_str
+PASSED xarray/tests/test_dataset.py::TestDataset::test_shift[fill_value0]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_shift[2]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_shift[2.0]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_shift[fill_value3]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_roll_coords
+PASSED xarray/tests/test_dataset.py::TestDataset::test_roll_no_coords
+PASSED xarray/tests/test_dataset.py::TestDataset::test_roll_multidim
+PASSED xarray/tests/test_dataset.py::TestDataset::test_real_and_imag
+PASSED xarray/tests/test_dataset.py::TestDataset::test_setattr_raises
+PASSED xarray/tests/test_dataset.py::TestDataset::test_filter_by_attrs
+PASSED xarray/tests/test_dataset.py::TestDataset::test_binary_op_propagate_indexes
+PASSED xarray/tests/test_dataset.py::TestDataset::test_binary_op_join_setting
+PASSED xarray/tests/test_dataset.py::TestDataset::test_full_like
+PASSED xarray/tests/test_dataset.py::TestDataset::test_combine_first
+PASSED xarray/tests/test_dataset.py::TestDataset::test_sortby
+PASSED xarray/tests/test_dataset.py::TestDataset::test_attribute_access
+PASSED xarray/tests/test_dataset.py::TestDataset::test_ipython_key_completion
+PASSED xarray/tests/test_dataset.py::TestDataset::test_polyfit_output
+PASSED xarray/tests/test_dataset.py::TestDataset::test_polyfit_warnings
+PASSED xarray/tests/test_dataset.py::TestDataset::test_pad
+PASSED xarray/tests/test_dataset.py::TestDataset::test_astype_attrs
+PASSED xarray/tests/test_dataset.py::TestDataset::test_query[numpy-python-pandas]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_query[numpy-python-python]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_query[numpy-None-pandas]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_query[numpy-None-python]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_query[numpy-numexpr-pandas]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_query[numpy-numexpr-python]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_query[dask-python-pandas]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_query[dask-python-python]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_query[dask-None-pandas]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_query[dask-None-python]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_query[dask-numexpr-pandas]
+PASSED xarray/tests/test_dataset.py::TestDataset::test_query[dask-numexpr-python]
+PASSED xarray/tests/test_dataset.py::test_isin[numpy-test_elements0]
+PASSED xarray/tests/test_dataset.py::test_isin[numpy-test_elements1]
+PASSED xarray/tests/test_dataset.py::test_isin[numpy-test_elements2]
+PASSED xarray/tests/test_dataset.py::test_isin[dask-test_elements0]
+PASSED xarray/tests/test_dataset.py::test_isin[dask-test_elements1]
+PASSED xarray/tests/test_dataset.py::test_isin[dask-test_elements2]
+PASSED xarray/tests/test_dataset.py::test_isin_dataset
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords0-unaligned_coords0]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords0-unaligned_coords1]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords0-unaligned_coords2]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords0-unaligned_coords3]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords0-unaligned_coords4]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords0-unaligned_coords5]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords0-unaligned_coords6]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords0-unaligned_coords7]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords0-unaligned_coords8]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords0-unaligned_coords9]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords1-unaligned_coords0]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords1-unaligned_coords1]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords1-unaligned_coords2]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords1-unaligned_coords3]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords1-unaligned_coords4]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords1-unaligned_coords5]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords1-unaligned_coords6]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords1-unaligned_coords7]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords1-unaligned_coords8]
+PASSED xarray/tests/test_dataset.py::test_dataset_constructor_aligns_to_explicit_coords[coords1-unaligned_coords9]
+PASSED xarray/tests/test_dataset.py::test_error_message_on_set_supplied
+PASSED xarray/tests/test_dataset.py::test_constructor_raises_with_invalid_coords[unaligned_coords0]
+PASSED xarray/tests/test_dataset.py::test_dir_expected_attrs[numpy-3]
+PASSED xarray/tests/test_dataset.py::test_dir_expected_attrs[dask-3]
+PASSED xarray/tests/test_dataset.py::test_dir_non_string[1-numpy]
+PASSED xarray/tests/test_dataset.py::test_dir_non_string[1-dask]
+PASSED xarray/tests/test_dataset.py::test_dir_unicode[1-numpy]
+PASSED xarray/tests/test_dataset.py::test_dir_unicode[1-dask]
+PASSED xarray/tests/test_dataset.py::test_raise_no_warning_for_nan_in_binary_ops
+PASSED xarray/tests/test_dataset.py::test_raise_no_warning_assert_close[numpy-2]
+PASSED xarray/tests/test_dataset.py::test_raise_no_warning_assert_close[dask-2]
+PASSED xarray/tests/test_dataset.py::test_differentiate[1-True]
+PASSED xarray/tests/test_dataset.py::test_differentiate[1-False]
+PASSED xarray/tests/test_dataset.py::test_differentiate[2-True]
+PASSED xarray/tests/test_dataset.py::test_differentiate[2-False]
+PASSED xarray/tests/test_dataset.py::test_differentiate_datetime[True]
+PASSED xarray/tests/test_dataset.py::test_differentiate_datetime[False]
+PASSED xarray/tests/test_dataset.py::test_differentiate_cftime[True]
+PASSED xarray/tests/test_dataset.py::test_differentiate_cftime[False]
+PASSED xarray/tests/test_dataset.py::test_integrate[True]
+PASSED xarray/tests/test_dataset.py::test_integrate[False]
+PASSED xarray/tests/test_dataset.py::test_cumulative_integrate[True]
+PASSED xarray/tests/test_dataset.py::test_cumulative_integrate[False]
+PASSED xarray/tests/test_dataset.py::test_trapz_datetime[np-True]
+PASSED xarray/tests/test_dataset.py::test_trapz_datetime[np-False]
+PASSED xarray/tests/test_dataset.py::test_trapz_datetime[cftime-True]
+PASSED xarray/tests/test_dataset.py::test_trapz_datetime[cftime-False]
+PASSED xarray/tests/test_dataset.py::test_no_dict
+PASSED xarray/tests/test_dataset.py::test_subclass_slots
+PASSED xarray/tests/test_dataset.py::test_weakref
+PASSED xarray/tests/test_dataset.py::test_deepcopy_obj_array
+PASSED xarray/tests/test_dataset.py::test_clip[1-numpy]
+PASSED xarray/tests/test_dataset.py::test_clip[1-dask]
+PASSED xarray/tests/test_dataset.py::TestDropDuplicates::test_drop_duplicates_1d[first]
+PASSED xarray/tests/test_dataset.py::TestDropDuplicates::test_drop_duplicates_1d[last]
+PASSED xarray/tests/test_dataset.py::TestDropDuplicates::test_drop_duplicates_1d[False]
+PASSED xarray/tests/test_dataset.py::TestNumpyCoercion::test_from_numpy
+PASSED xarray/tests/test_dataset.py::TestNumpyCoercion::test_from_dask
+PASSED xarray/tests/test_dataset.py::TestNumpyCoercion::test_from_pint
+PASSED xarray/tests/test_dataset.py::TestNumpyCoercion::test_from_sparse
+PASSED xarray/tests/test_dataset.py::TestNumpyCoercion::test_from_pint_wrapping_dask
+PASSED xarray/tests/test_dataset.py::test_string_keys_typing
+PASSED xarray/tests/test_groupby.py::test_consolidate_slices
+PASSED xarray/tests/test_groupby.py::test_groupby_dims_property
+PASSED xarray/tests/test_groupby.py::test_multi_index_groupby_map
+PASSED xarray/tests/test_groupby.py::test_reduce_numeric_only
+PASSED xarray/tests/test_groupby.py::test_multi_index_groupby_sum
+PASSED xarray/tests/test_groupby.py::test_groupby_da_datetime
+PASSED xarray/tests/test_groupby.py::test_groupby_duplicate_coordinate_labels
+PASSED xarray/tests/test_groupby.py::test_groupby_input_mutation
+PASSED xarray/tests/test_groupby.py::test_groupby_map_shrink_groups[obj0]
+PASSED xarray/tests/test_groupby.py::test_groupby_map_shrink_groups[obj1]
+PASSED xarray/tests/test_groupby.py::test_groupby_map_change_group_size[obj0]
+PASSED xarray/tests/test_groupby.py::test_groupby_map_change_group_size[obj1]
+PASSED xarray/tests/test_groupby.py::test_da_groupby_map_func_args
+PASSED xarray/tests/test_groupby.py::test_ds_groupby_map_func_args
+PASSED xarray/tests/test_groupby.py::test_da_groupby_empty
+PASSED xarray/tests/test_groupby.py::test_da_groupby_quantile
+PASSED xarray/tests/test_groupby.py::test_ds_groupby_quantile
+PASSED xarray/tests/test_groupby.py::test_groupby_quantile_interpolation_deprecated[False]
+PASSED xarray/tests/test_groupby.py::test_groupby_quantile_interpolation_deprecated[True]
+PASSED xarray/tests/test_groupby.py::test_da_groupby_assign_coords
+PASSED xarray/tests/test_groupby.py::test_groupby_repr[obj0-x]
+PASSED xarray/tests/test_groupby.py::test_groupby_repr[obj0-y]
+PASSED xarray/tests/test_groupby.py::test_groupby_repr[obj0-z]
+PASSED xarray/tests/test_groupby.py::test_groupby_repr[obj0-month]
+PASSED xarray/tests/test_groupby.py::test_groupby_repr[obj1-x]
+PASSED xarray/tests/test_groupby.py::test_groupby_repr[obj1-y]
+PASSED xarray/tests/test_groupby.py::test_groupby_repr[obj1-z]
+PASSED xarray/tests/test_groupby.py::test_groupby_repr[obj1-month]
+PASSED xarray/tests/test_groupby.py::test_groupby_repr_datetime[obj0]
+PASSED xarray/tests/test_groupby.py::test_groupby_repr_datetime[obj1]
+PASSED xarray/tests/test_groupby.py::test_groupby_grouping_errors
+PASSED xarray/tests/test_groupby.py::test_groupby_reduce_dimension_error
+PASSED xarray/tests/test_groupby.py::test_groupby_multiple_string_args
+PASSED xarray/tests/test_groupby.py::test_groupby_bins_timeseries
+PASSED xarray/tests/test_groupby.py::test_groupby_none_group_name
+PASSED xarray/tests/test_groupby.py::test_groupby_getitem
+PASSED xarray/tests/test_groupby.py::test_groupby_dataset
+PASSED xarray/tests/test_groupby.py::test_groupby_dataset_returns_new_type
+PASSED xarray/tests/test_groupby.py::test_groupby_dataset_iter
+PASSED xarray/tests/test_groupby.py::test_groupby_dataset_errors
+PASSED xarray/tests/test_groupby.py::test_groupby_dataset_reduce
+PASSED xarray/tests/test_groupby.py::test_groupby_dataset_math[True]
+PASSED xarray/tests/test_groupby.py::test_groupby_dataset_math[False]
+PASSED xarray/tests/test_groupby.py::test_groupby_math_more
+PASSED xarray/tests/test_groupby.py::test_groupby_bins_math[True]
+PASSED xarray/tests/test_groupby.py::test_groupby_bins_math[False]
+PASSED xarray/tests/test_groupby.py::test_groupby_math_nD_group
+PASSED xarray/tests/test_groupby.py::test_groupby_dataset_math_virtual
+PASSED xarray/tests/test_groupby.py::test_groupby_math_dim_order
+PASSED xarray/tests/test_groupby.py::test_groupby_dataset_nan
+PASSED xarray/tests/test_groupby.py::test_groupby_dataset_order
+PASSED xarray/tests/test_groupby.py::test_groupby_dataset_fillna
+PASSED xarray/tests/test_groupby.py::test_groupby_dataset_where
+PASSED xarray/tests/test_groupby.py::test_groupby_dataset_assign
+PASSED xarray/tests/test_groupby.py::test_groupby_dataset_map_dataarray_func
+PASSED xarray/tests/test_groupby.py::test_groupby_dataarray_map_dataset_func
+PASSED xarray/tests/test_groupby.py::test_groupby_flox_kwargs[kwargs0]
+PASSED xarray/tests/test_groupby.py::test_groupby_flox_kwargs[kwargs1]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_stack_groupby_unsorted_coord
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_iter
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_properties
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_identity[True-True-x-False]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_identity[True-True-y-False]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_identity[True-True-y-True]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_identity[True-True-abc-False]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_identity[True-False-x-False]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_identity[True-False-y-False]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_identity[True-False-y-True]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_identity[True-False-abc-False]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_identity[False-True-x-False]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_identity[False-True-y-False]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_identity[False-True-y-True]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_identity[False-True-abc-False]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_identity[False-False-x-False]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_identity[False-False-y-False]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_identity[False-False-y-True]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_identity[False-False-abc-False]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_sum
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_reductions[sum]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_reductions[mean]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_reductions[median]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_count
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_reduce_keep_attrs[None-True]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_reduce_keep_attrs[None-False]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_reduce_keep_attrs[True-True]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_reduce_keep_attrs[True-False]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_reduce_keep_attrs[False-True]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_reduce_keep_attrs[False-False]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_keep_attrs[None]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_keep_attrs[True]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_keep_attrs[False]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_center
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_ndarray
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_map_changes_metadata
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_math_squeeze[True]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_math_squeeze[False]
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_math
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_math_not_aligned
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_restore_dim_order
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_restore_coord_dims
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_first_and_last
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_multidim
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_multidim_map
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_bins
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_bins_empty
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_bins_multidim
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_bins_sort
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_assign_coords
+PASSED xarray/tests/test_groupby.py::TestDataArrayGroupBy::test_groupby_fillna
+PASSED xarray/tests/test_groupby.py::TestDataArrayResample::test_resample
+PASSED xarray/tests/test_groupby.py::TestDataArrayResample::test_da_resample_func_args
+PASSED xarray/tests/test_groupby.py::TestDataArrayResample::test_resample_first
+PASSED xarray/tests/test_groupby.py::TestDataArrayResample::test_resample_bad_resample_dim
+PASSED xarray/tests/test_groupby.py::TestDataArrayResample::test_resample_drop_nondim_coords
+PASSED xarray/tests/test_groupby.py::TestDataArrayResample::test_resample_keep_attrs
+PASSED xarray/tests/test_groupby.py::TestDataArrayResample::test_resample_skipna
+PASSED xarray/tests/test_groupby.py::TestDataArrayResample::test_upsample
+PASSED xarray/tests/test_groupby.py::TestDataArrayResample::test_upsample_nd
+PASSED xarray/tests/test_groupby.py::TestDataArrayResample::test_upsample_tolerance
+PASSED xarray/tests/test_groupby.py::TestDataArrayResample::test_upsample_interpolate
+PASSED xarray/tests/test_groupby.py::TestDataArrayResample::test_upsample_interpolate_bug_2197
+PASSED xarray/tests/test_groupby.py::TestDataArrayResample::test_upsample_interpolate_regression_1605
+PASSED xarray/tests/test_groupby.py::TestDataArrayResample::test_upsample_interpolate_dask[True]
+PASSED xarray/tests/test_groupby.py::TestDataArrayResample::test_upsample_interpolate_dask[False]
+PASSED xarray/tests/test_groupby.py::TestDatasetResample::test_resample_and_first
+PASSED xarray/tests/test_groupby.py::TestDatasetResample::test_resample_min_count
+PASSED xarray/tests/test_groupby.py::TestDatasetResample::test_resample_by_mean_with_keep_attrs
+PASSED xarray/tests/test_groupby.py::TestDatasetResample::test_resample_loffset
+PASSED xarray/tests/test_groupby.py::TestDatasetResample::test_resample_by_mean_discarding_attrs
+PASSED xarray/tests/test_groupby.py::TestDatasetResample::test_resample_by_last_discarding_attrs
+PASSED xarray/tests/test_groupby.py::TestDatasetResample::test_resample_drop_nondim_coords
+PASSED xarray/tests/test_groupby.py::TestDatasetResample::test_resample_old_api
+PASSED xarray/tests/test_groupby.py::TestDatasetResample::test_resample_ds_da_are_the_same
+PASSED xarray/tests/test_groupby.py::TestDatasetResample::test_ds_resample_apply_func_args
+PASSED xarray/tests/test_groupby.py::test_groupby_cumsum
+SKIPPED [1] xarray/tests/test_dataarray.py:6572: requires cupy
+SKIPPED [1] xarray/tests/test_dataset.py:6684: requires cupy
+XFAIL xarray/tests/test_dataarray.py::TestDataArray::test_astype_subok - reason: DataArray cannot be backed yet by a subclasses of np.ndarray
+XFAIL xarray/tests/test_dataarray.py::TestDataArray::test_copy_coords[True-expected_orig0]
+XFAIL xarray/tests/test_dataarray.py::TestReduce1D::test_idxmin[True-datetime] - reason: dask operation 'argmin' breaks when dtype is datetime64 (M)
+XFAIL xarray/tests/test_dataarray.py::TestReduce1D::test_idxmax[True-datetime] - reason: dask operation 'argmax' breaks when dtype is datetime64 (M)
+XFAIL xarray/tests/test_dataarray.py::TestReduce2D::test_idxmin[dask-datetime] - reason: dask operation 'argmin' breaks when dtype is datetime64 (M)
+XFAIL xarray/tests/test_dataarray.py::TestReduce2D::test_idxmax[dask-datetime] - reason: dask operation 'argmax' breaks when dtype is datetime64 (M)
+XFAIL xarray/tests/test_dataset.py::TestDataset::test_copy_coords[True-expected_orig0]
+XPASS xarray/tests/test_dataarray.py::TestDataArray::test_copy_coords[False-expected_orig1] 
+XPASS xarray/tests/test_dataset.py::TestDataset::test_copy_coords[False-expected_orig1] 
+FAILED xarray/tests/test_dataarray.py::TestDataArray::test_reset_index - Asse...
+FAILED xarray/tests/test_dataset.py::TestDataset::test_reset_index - Assertio...
+FAILED xarray/tests/test_dataset.py::TestDataset::test_reset_index_drop_dims
+FAILED xarray/tests/test_dataset.py::TestDataset::test_reset_index_drop_convert[foo-False-dropped0-converted0-renamed0]
+FAILED xarray/tests/test_dataset.py::TestDataset::test_reset_index_drop_convert[foo-True-dropped1-converted1-renamed1]
+FAILED xarray/tests/test_dataset.py::TestDataset::test_reset_index_drop_convert[x-False-dropped2-converted2-renamed2]
+FAILED xarray/tests/test_dataset.py::TestDataset::test_reset_index_drop_convert[x-True-dropped3-converted3-renamed3]
+FAILED xarray/tests/test_dataset.py::TestDataset::test_reset_index_drop_convert[arg4-False-dropped4-converted4-renamed4]
+FAILED xarray/tests/test_dataset.py::TestDataset::test_reset_index_drop_convert[arg5-True-dropped5-converted5-renamed5]
+FAILED xarray/tests/test_dataset.py::TestDataset::test_reset_index_drop_convert[arg6-False-dropped6-converted6-renamed6]
+FAILED xarray/tests/test_dataset.py::TestDataset::test_reset_index_drop_convert[arg7-True-dropped7-converted7-renamed7]
+FAILED xarray/tests/test_groupby.py::test_groupby_drops_nans - AssertionError...
+= 12 failed, 946 passed, 2 skipped, 7 xfailed, 2 xpassed, 15 warnings in 54.98s =
++ git checkout 45c0a114e2b7b27b83c9618bc05b36afac82183c xarray/tests/test_dataarray.py xarray/tests/test_dataset.py xarray/tests/test_groupby.py
+Updated 3 paths from 7ac08be3

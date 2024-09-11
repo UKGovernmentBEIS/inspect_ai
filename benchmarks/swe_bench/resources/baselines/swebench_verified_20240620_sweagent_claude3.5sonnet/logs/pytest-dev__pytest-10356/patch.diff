@@ -1,0 +1,74 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..226e25365
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,27 @@
++import pytest
++from _pytest.mark.structures import get_unpacked_marks
++
++@pytest.mark.foo
++class Foo:
++    pass
++
++@pytest.mark.bar
++class Bar:
++    pass
++
++class TestDings(Foo, Bar):
++    @pytest.mark.baz
++    def test_dings(self):
++        pass
++
++@pytest.mark.qux
++class TestMoreDings(TestDings):
++    pass
++
++print("Markers for Foo:", [m.name for m in get_unpacked_marks(Foo)])
++print("Markers for Bar:", [m.name for m in get_unpacked_marks(Bar)])
++print("Markers for TestDings:", [m.name for m in get_unpacked_marks(TestDings)])
++print("Markers for TestMoreDings:", [m.name for m in get_unpacked_marks(TestMoreDings)])
++print("Markers for test_dings:", [m.name for m in get_unpacked_marks(TestDings.test_dings)])
++
++print("Script completed successfully, no errors.")
+diff --git a/src/_pytest/mark/structures.py b/src/_pytest/mark/structures.py
+index 800a25c92..c54f759a0 100644
+--- a/src/_pytest/mark/structures.py
++++ b/src/_pytest/mark/structures.py
+@@ -356,11 +356,30 @@ class MarkDecorator:
+ 
+ 
+ def get_unpacked_marks(obj: object) -> Iterable[Mark]:
+-    """Obtain the unpacked marks that are stored on an object."""
+-    mark_list = getattr(obj, "pytestmark", [])
+-    if not isinstance(mark_list, list):
+-        mark_list = [mark_list]
+-    return normalize_mark_list(mark_list)
++    """Obtain the unpacked marks that are stored on an object and its parent classes."""
++    mark_dict = {}
++    
++    if inspect.isclass(obj):
++        # Collect marks from all parent classes
++        for cls in reversed(inspect.getmro(obj)):
++            cls_marks = getattr(cls, "pytestmark", [])
++            if not isinstance(cls_marks, list):
++                cls_marks = [cls_marks]
++            for mark in cls_marks:
++                mark_obj = getattr(mark, "mark", mark)
++                if isinstance(mark_obj, Mark):
++                    mark_dict[mark_obj.name] = mark_obj
++    else:
++        # For non-class objects, get marks as before
++        obj_marks = getattr(obj, "pytestmark", [])
++        if not isinstance(obj_marks, list):
++            obj_marks = [obj_marks]
++        for mark in obj_marks:
++            mark_obj = getattr(mark, "mark", mark)
++            if isinstance(mark_obj, Mark):
++                mark_dict[mark_obj.name] = mark_obj
++    
++    return mark_dict.values()
+ 
+ 
+ def normalize_mark_list(

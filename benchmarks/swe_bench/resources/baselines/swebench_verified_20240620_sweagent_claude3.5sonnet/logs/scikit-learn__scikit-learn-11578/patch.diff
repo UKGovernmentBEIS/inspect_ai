@@ -1,0 +1,58 @@
+
+diff --git a/sklearn/linear_model/logistic.py b/sklearn/linear_model/logistic.py
+index e4ea696ce..6ae92e104 100644
+--- a/sklearn/linear_model/logistic.py
++++ b/sklearn/linear_model/logistic.py
+@@ -922,7 +922,7 @@ def _log_reg_scoring_path(X, y, train, test, pos_class=None, Cs=10,
+         check_input=False, max_squared_sum=max_squared_sum,
+         sample_weight=sample_weight)
+ 
+-    log_reg = LogisticRegression(fit_intercept=fit_intercept)
++    log_reg = LogisticRegression(fit_intercept=fit_intercept, multi_class=multi_class, solver=solver, max_iter=max_iter, penalty=penalty, dual=dual, tol=tol)
+ 
+     # The score method of Logistic Regression has a classes_ attribute.
+     if multi_class == 'ovr':
+diff --git a/sklearn/linear_model/tests/test_logistic_regression.py b/sklearn/linear_model/tests/test_logistic_regression.py
+new file mode 100644
+index 000000000..df2d59bd3
+--- /dev/null
++++ b/sklearn/linear_model/tests/test_logistic_regression.py
+@@ -0,0 +1,38 @@
++import numpy as np
++from sklearn.linear_model import LogisticRegressionCV
++from sklearn.datasets import make_classification
++from sklearn.model_selection import train_test_split
++from sklearn.metrics import make_scorer, log_loss
++
++def test_logistic_regression_cv_multinomial():
++    # Generate a random dataset
++    X, y = make_classification(n_samples=1000, n_classes=3, n_informative=4,
++                               random_state=0)
++    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
++
++    # Create neg_log_loss scorer
++    neg_log_loss_scorer = make_scorer(log_loss, greater_is_better=False, needs_proba=True)
++
++    # Fit LogisticRegressionCV with multinomial option and neg_log_loss scorer
++    clf = LogisticRegressionCV(cv=5, multi_class='multinomial', scoring=neg_log_loss_scorer, random_state=0)
++    clf.fit(X_train, y_train)
++
++    # Get probabilities using predict_proba
++    proba = clf.predict_proba(X_test)
++
++    # Calculate log loss manually
++    manual_log_loss = log_loss(y_test, proba)
++
++    # Get the best score from CV (which should be negative log loss)
++    cv_neg_log_loss = -clf.scores_[1].mean(axis=0).max()
++
++    print(f"Manual log loss: {manual_log_loss}")
++    print(f"CV negative log loss: {cv_neg_log_loss}")
++    print(f"Difference: {abs(manual_log_loss - cv_neg_log_loss)}")
++
++    assert np.isclose(manual_log_loss, cv_neg_log_loss, rtol=1e-2)
++
++    print("Test passed successfully.")
++
++if __name__ == "__main__":
++    test_logistic_regression_cv_multinomial()

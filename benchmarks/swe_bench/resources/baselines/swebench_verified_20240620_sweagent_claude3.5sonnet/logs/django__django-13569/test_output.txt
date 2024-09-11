@@ -1,0 +1,459 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/models/sql/compiler.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	django_setup.py
+	manage.py
+	reproduce_issue.py
+	reproduce_issue_combined.py
+	run_test.sh
+	test_case.py
+	test_models.py
+	test_settings.py
+	testapp/
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 257f8495d6c93e30ab0f52af4c488d7344bcf112
+Author: Carlton Gibson <carlton.gibson@noumenal.es>
+Date:   Tue Oct 20 09:52:04 2020 +0200
+
+    Fixed #32069 -- Fixed admin change-form layout on small screens.
+    
+    Restored flex-wrap CSS declaration to form elements at smallest breakpoint.
+    This was present since the responsive admin was introduced in dc37e8846eeedc3a9100ca21fdc9d579bc534c89.
+    Regression in 8ee4bb6ffcb3346c0fa8fb194986fbf9edadc822, where it was accidentally removed.
+
+diff --git a/django/contrib/admin/static/admin/css/responsive.css b/django/contrib/admin/static/admin/css/responsive.css
+index b1acdc6feb..48e5114fdf 100644
+--- a/django/contrib/admin/static/admin/css/responsive.css
++++ b/django/contrib/admin/static/admin/css/responsive.css
+@@ -558,6 +558,7 @@ input[type="submit"], button {
+     .aligned .form-row,
+     .aligned .form-row > div {
+         display: flex;
++        flex-wrap: wrap;
+         max-width: 100vw;
+     }
+ 
+diff --git a/docs/releases/3.1.3.txt b/docs/releases/3.1.3.txt
+index bfd78a7648..9c58586f46 100644
+--- a/docs/releases/3.1.3.txt
++++ b/docs/releases/3.1.3.txt
+@@ -45,3 +45,6 @@ Bugfixes
+   :exc:`RestrictedError.restricted_objects <django.db.models.RestrictedError>`
+   attributes returned iterators instead of :py:class:`set` of objects
+   (:ticket:`32107`).
++
++* Fixed a regression in Django 3.1.2 that caused incorrect form input layout on
++  small screens in the admin change form view (:ticket:`32069`).
++ git diff 257f8495d6c93e30ab0f52af4c488d7344bcf112
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index 04e430a42e..d3d0b704d6 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -128,7 +128,7 @@ class SQLCompiler:
+         for expr, (sql, params, is_ref) in order_by:
+             # Skip References to the select clause, as all expressions in the
+             # select clause are already part of the group by.
+-            if not is_ref:
++            if not is_ref and not isinstance(expr.expression, Random):
+                 expressions.extend(expr.get_group_by_cols())
+         having_group_by = self.having.get_group_by_cols() if self.having else ()
+         for expr in having_group_by:
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: asgiref>=3.2.10 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (3.4.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (0.4.4)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref>=3.2.10->Django==3.2) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.2
+    Uninstalling Django-3.2:
+      Successfully uninstalled Django-3.2
+  Running setup.py develop for Django
+Successfully installed Django-3.2
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 257f8495d6c93e30ab0f52af4c488d7344bcf112 tests/aggregation/tests.py
+Updated 0 paths from 2423849309
++ git apply -v -
+Checking patch tests/aggregation/tests.py...
+Applied patch tests/aggregation/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 aggregation.tests
+Testing against Django installed in '/testbed/django'
+Importing application aggregation
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: aggregation, auth, contenttypes, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table aggregation_author
+    Creating table aggregation_publisher
+    Creating table aggregation_book
+    Creating table aggregation_store
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique...Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+ OK
+test_add_implementation (aggregation.tests.AggregateTestCase) ... System check identified no issues (0 silenced).
+ok
+test_aggregate_alias (aggregation.tests.AggregateTestCase) ... ok
+test_aggregate_annotation (aggregation.tests.AggregateTestCase) ... ok
+test_aggregate_in_order_by (aggregation.tests.AggregateTestCase) ... ok
+test_aggregate_multi_join (aggregation.tests.AggregateTestCase) ... ok
+test_aggregate_over_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_aggregate_over_complex_annotation (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_exists_annotation (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_expressions (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_order_by_not_selected_annotation_values (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_random_ordering (aggregation.tests.AggregateTestCase)
+Random() is not included in the GROUP BY when used for ordering. ... ok
+test_aggregation_subquery_annotation (aggregation.tests.AggregateTestCase)
+Subquery annotations are excluded from the GROUP BY if they are ... ok
+test_aggregation_subquery_annotation_exists (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_subquery_annotation_multivalued (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_subquery_annotation_related_field (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_subquery_annotation_values (aggregation.tests.AggregateTestCase) ... ok
+test_aggregation_subquery_annotation_values_collision (aggregation.tests.AggregateTestCase) ... ok
+test_annotate_basic (aggregation.tests.AggregateTestCase) ... ok
+test_annotate_defer (aggregation.tests.AggregateTestCase) ... ok
+test_annotate_defer_select_related (aggregation.tests.AggregateTestCase) ... ok
+test_annotate_m2m (aggregation.tests.AggregateTestCase) ... ok
+test_annotate_ordering (aggregation.tests.AggregateTestCase) ... ok
+test_annotate_over_annotate (aggregation.tests.AggregateTestCase) ... ok
+test_annotate_values (aggregation.tests.AggregateTestCase) ... ok
+test_annotate_values_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_annotate_values_list (aggregation.tests.AggregateTestCase) ... ok
+test_annotated_aggregate_over_annotated_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_annotation (aggregation.tests.AggregateTestCase) ... ok
+test_annotation_expressions (aggregation.tests.AggregateTestCase) ... ok
+test_arguments_must_be_expressions (aggregation.tests.AggregateTestCase) ... ok
+test_avg_decimal_field (aggregation.tests.AggregateTestCase) ... ok
+test_avg_duration_field (aggregation.tests.AggregateTestCase) ... ok
+test_backwards_m2m_annotate (aggregation.tests.AggregateTestCase) ... ok
+test_combine_different_types (aggregation.tests.AggregateTestCase) ... ok
+test_complex_aggregations_require_kwarg (aggregation.tests.AggregateTestCase) ... ok
+test_complex_values_aggregation (aggregation.tests.AggregateTestCase) ... ok
+test_count (aggregation.tests.AggregateTestCase) ... ok
+test_count_distinct_expression (aggregation.tests.AggregateTestCase) ... ok
+test_count_star (aggregation.tests.AggregateTestCase) ... ok
+test_dates_with_aggregation (aggregation.tests.AggregateTestCase) ... ok
+test_decimal_max_digits_has_no_effect (aggregation.tests.AggregateTestCase) ... ok
+test_distinct_on_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_empty_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_even_more_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_expression_on_aggregation (aggregation.tests.AggregateTestCase) ... ok
+test_filter_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_filtering (aggregation.tests.AggregateTestCase) ... ok
+test_fkey_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_group_by_exists_annotation (aggregation.tests.AggregateTestCase) ... ok
+test_group_by_subquery_annotation (aggregation.tests.AggregateTestCase) ... ok
+test_grouped_annotation_in_group_by (aggregation.tests.AggregateTestCase) ... ok
+test_more_aggregation (aggregation.tests.AggregateTestCase) ... ok
+test_multi_arg_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_multiple_aggregates (aggregation.tests.AggregateTestCase) ... ok
+test_non_grouped_annotation_not_in_group_by (aggregation.tests.AggregateTestCase) ... ok
+test_nonaggregate_aggregation_throws (aggregation.tests.AggregateTestCase) ... ok
+test_nonfield_annotation (aggregation.tests.AggregateTestCase) ... ok
+test_order_of_precedence (aggregation.tests.AggregateTestCase) ... ok
+test_related_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_reverse_fkey_annotate (aggregation.tests.AggregateTestCase) ... ok
+test_single_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_sum_distinct_aggregate (aggregation.tests.AggregateTestCase) ... ok
+test_sum_duration_field (aggregation.tests.AggregateTestCase) ... ok
+test_ticket11881 (aggregation.tests.AggregateTestCase) ... ok
+test_ticket12886 (aggregation.tests.AggregateTestCase) ... ok
+test_ticket17424 (aggregation.tests.AggregateTestCase) ... ok
+test_values_aggregation (aggregation.tests.AggregateTestCase) ... ok
+test_values_annotation_with_expression (aggregation.tests.AggregateTestCase) ... ok
+
+----------------------------------------------------------------------
+Ran 68 tests in 0.351s
+
+OK
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout 257f8495d6c93e30ab0f52af4c488d7344bcf112 tests/aggregation/tests.py
+Updated 1 path from 2423849309

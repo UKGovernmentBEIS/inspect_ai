@@ -1,0 +1,102 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..050fce41f9
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,10 @@
++from sympy.combinatorics import Permutation
++
++try:
++    p = Permutation([[0,1],[0,1]])
++    print("Permutation created successfully:")
++    print(p)
++except ValueError as e:
++    print("ValueError raised:", str(e))
++
++print("Script completed successfully, no errors.")
+diff --git a/sympy/combinatorics/permutations.py b/sympy/combinatorics/permutations.py
+index 136ed5a478..4df41ab444 100644
+--- a/sympy/combinatorics/permutations.py
++++ b/sympy/combinatorics/permutations.py
+@@ -859,7 +859,11 @@ def __new__(cls, *args, **kwargs):
+         if not args:  # a
+             return _af_new(list(range(size or 0)))
+         elif len(args) > 1:  # c
+-            return _af_new(Cycle(*args).list(size))
++            cycles = [Cycle(*arg) for arg in args]
++            p = Permutation()
++            for cycle in cycles:
++                p = p * Permutation(cycle)
++            return _af_new(p.array_form, size=size)
+         if len(args) == 1:
+             a = args[0]
+             if isinstance(a, Perm):  # g
+@@ -870,24 +874,28 @@ def __new__(cls, *args, **kwargs):
+                 return _af_new(a.list(size))
+             if not is_sequence(a):  # b
+                 return _af_new(list(range(a + 1)))
++            if len(a) == 1 and is_sequence(a[0]):
++                a = a[0]
+             if has_variety(is_sequence(ai) for ai in a):
+-                ok = False
++                # Handle both disjoint and non-disjoint cycles
++                p = Permutation()
++                for cycle in a:
++                    if is_sequence(cycle):
++                        p = p * Permutation(Cycle(*cycle))
++                    else:
++                        p = p * Permutation(Cycle(cycle))
++                return _af_new(p.array_form, size=size)
+         else:
+             ok = False
+         if not ok:
+             raise ValueError("Permutation argument must be a list of ints, "
+                              "a list of lists, Permutation or Cycle.")
+ 
+-
+-        # safe to assume args are valid; this also makes a copy
+-        # of the args
+-        args = list(args[0])
+-
+         is_cycle = args and is_sequence(args[0])
+         if is_cycle:  # e
+-            args = [[int(i) for i in c] for c in args]
++            args = [[int(i) for i in c] if is_sequence(c) else [int(c)] for c in args[0]]
+         else:  # d
+-            args = [int(i) for i in args]
++            args = [int(i) for i in args[0]]
+ 
+         # if there are n elements present, 0, 1, ..., n-1 should be present
+         # unless a cycle notation has been provided. A 0 will be added
+diff --git a/test_permutation.py b/test_permutation.py
+new file mode 100644
+index 0000000000..674a67e431
+--- /dev/null
++++ b/test_permutation.py
+@@ -0,0 +1,25 @@
++from sympy.combinatorics import Permutation, Cycle
++
++def test_non_disjoint_cycles():
++    p = Permutation(Cycle(0, 1)(0, 1))
++    print("Permutation created successfully:")
++    print(p)
++    print("Array form:", p.array_form)
++    print("Cyclic form:", p.cyclic_form)
++    
++    # Test if it's the identity permutation
++    assert p.is_Identity, "The permutation should be the identity"
++
++    # Test with a more complex non-disjoint cycle
++    q = Permutation(Cycle(0, 1, 2)(1, 2, 3))
++    print("\nMore complex permutation:")
++    print(q)
++    print("Array form:", q.array_form)
++    print("Cyclic form:", q.cyclic_form)
++    
++    # The expected result should be [2,3,0,1]
++    assert q.array_form == [2,3,0,1], "The permutation is not correct"
++
++print("Running tests...")
++test_non_disjoint_cycles()
++print("All tests passed successfully.")

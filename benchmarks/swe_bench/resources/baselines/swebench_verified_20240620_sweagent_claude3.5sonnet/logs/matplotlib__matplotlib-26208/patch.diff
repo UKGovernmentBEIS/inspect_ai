@@ -1,0 +1,100 @@
+
+diff --git a/debug_output.txt b/debug_output.txt
+new file mode 100644
+index 0000000000..1987550ace
+--- /dev/null
++++ b/debug_output.txt
+@@ -0,0 +1,25 @@
++Creating figure and first axis (ax1)
++Axis 1 dataLim: [ inf -inf] / 
++
++Plotting stackplot on ax1
++Debug: points = [[  0.         -22.71770833]
++ [  1.          26.585     ]], minpos = [ 1.    26.585], changed = 1
++Debug: Before update: self._points = [[ inf  inf]
++ [-inf -inf]], self._minpos = [inf inf]
++Debug: After update: self._points = [[  0.         -22.71770833]
++ [  1.          26.585     ]], self._minpos = [ 1.    26.585]
++Axis 1 dataLim: [-22.71770833  26.585     ] / 
++
++Creating twin axis (ax2)
++Axis 1 dataLim: [-22.71770833  26.585     ] / Axis 2 dataLim: [ inf -inf] / 
++
++Plotting on ax2
++Debug: points = [[ 0.       -2.983302]
++ [ 1.       -0.085014]], minpos = [ 1. inf], changed = 1
++Debug: Before update: self._points = [[ inf  inf]
++ [-inf -inf]], self._minpos = [inf inf]
++Debug: After update: self._points = [[ 0.       -2.983302]
++ [ 1.       -0.085014]], self._minpos = [ 1. inf]
++Axis 1 dataLim: [ inf -inf] / Axis 2 dataLim: [-2.983302 -0.085014] / 
++
++Script completed successfully, no errors.
+diff --git a/lib/matplotlib/transforms.py b/lib/matplotlib/transforms.py
+index f2ffa09932..0ce89ce9d7 100644
+--- a/lib/matplotlib/transforms.py
++++ b/lib/matplotlib/transforms.py
+@@ -877,6 +877,9 @@ class Bbox(BboxBase):
+         points, minpos, changed = update_path_extents(
+             path, None, self._points, self._minpos, ignore)
+ 
++        print(f"Debug: points = {points}, minpos = {minpos}, changed = {changed}")
++        print(f"Debug: Before update: self._points = {self._points}, self._minpos = {self._minpos}")
++
+         if changed:
+             self.invalidate()
+             if updatex:
+@@ -886,6 +889,8 @@ class Bbox(BboxBase):
+                 self._points[:, 1] = points[:, 1]
+                 self._minpos[1] = minpos[1]
+ 
++        print(f"Debug: After update: self._points = {self._points}, self._minpos = {self._minpos}")
++
+     def update_from_data_x(self, x, ignore=None):
+         """
+         Update the x-bounds of the `Bbox` based on the passed in data. After
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..34e9405cc3
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,39 @@
++import matplotlib.pyplot as plt
++import sys
++
++def print_datalim(*ax):
++    for i, ax_ in enumerate(ax):
++        print(f"Axis {i+1} dataLim: {ax_.dataLim.intervaly}", end=' / ')
++    print()
++
++df1_index = ['16 May', '17 May']  # == df2_index
++df1_values = [-22.717708333333402, 26.584999999999937]
++df2_values = [-0.08501399999999998, -2.9833019999999966]
++
++# Redirect stdout to a file
++original_stdout = sys.stdout
++with open('debug_output.txt', 'w') as f:
++    sys.stdout = f
++
++    print("Creating figure and first axis (ax1)")
++    fig, ax1 = plt.subplots()
++    print_datalim(ax1)
++
++    print("\nPlotting stackplot on ax1")
++    ax1.stackplot(df1_index, df1_values)
++    print_datalim(ax1)
++
++    print("\nCreating twin axis (ax2)")
++    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
++    print_datalim(ax1, ax2)
++
++    print("\nPlotting on ax2")
++    ax2.plot(df1_index, df2_values)
++    print_datalim(ax1, ax2)
++
++    print("\nScript completed successfully, no errors.")
++
++# Restore stdout
++sys.stdout = original_stdout
++
++print("Debug output has been written to debug_output.txt")

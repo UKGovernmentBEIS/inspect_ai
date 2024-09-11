@@ -1,0 +1,42 @@
+
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..c94ed2c5ff
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,22 @@
++from sympy import Symbol
++
++m = Symbol('m', even=True)
++print("m.is_finite:", m.is_finite)
++print("m.is_even:", m.is_even)
++
++n = Symbol('n', even=True, finite=False)
++print("n.is_finite:", n.is_finite)
++print("n.is_even:", n.is_even)
++
++# Add a check for finiteness implication
++if m.is_even and m.is_finite is True:
++    print("Issue resolved: m is even and finite")
++else:
++    print("Issue not resolved: m is even but not necessarily finite")
++
++if n.is_even and n.is_finite is False:
++    print("Explicit setting preserved: n is even but not finite")
++else:
++    print("Explicit setting not preserved: n should be even but not finite")
++
++print("Script completed successfully, no errors.")
+diff --git a/sympy/core/symbol.py b/sympy/core/symbol.py
+index 44674d1984..5cbf1b1cfe 100644
+--- a/sympy/core/symbol.py
++++ b/sympy/core/symbol.py
+@@ -210,6 +210,8 @@ def __new__(cls, name, **assumptions):
+ 
+         """
+         cls._sanitize(assumptions, cls)
++        if assumptions.get('even') == True and 'finite' not in assumptions:
++            assumptions['finite'] = True
+         return Symbol.__xnew_cached_(cls, name, **assumptions)
+ 
+     def __new_stage2__(cls, name, **assumptions):

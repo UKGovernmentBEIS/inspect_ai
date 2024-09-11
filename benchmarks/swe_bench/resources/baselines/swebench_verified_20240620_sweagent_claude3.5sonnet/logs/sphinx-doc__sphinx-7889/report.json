@@ -1,0 +1,34 @@
+{
+    "sphinx-doc__sphinx-7889": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "tests/test_ext_autodoc_mock.py::test_MockObject"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "tests/test_ext_autodoc_mock.py::test_MockModule",
+                    "tests/test_ext_autodoc_mock.py::test_mock",
+                    "tests/test_ext_autodoc_mock.py::test_mock_does_not_follow_upper_modules",
+                    "tests/test_ext_autodoc_mock.py::test_abc_MockObject",
+                    "tests/test_ext_autodoc_mock.py::test_mock_decorator"
+                ]
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

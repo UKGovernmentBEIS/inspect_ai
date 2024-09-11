@@ -1,0 +1,41 @@
+
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 4648daf395..29b662c021 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -1077,10 +1077,13 @@ class Query(BaseExpression):
+         elif isinstance(value, (list, tuple)):
+             # The items of the iterable may be expressions and therefore need
+             # to be resolved independently.
+-            return type(value)(
++            resolved_values = (
+                 self.resolve_lookup_value(sub_value, can_reuse, allow_joins)
+                 for sub_value in value
+             )
++            if isinstance(value, tuple) and hasattr(value, '_fields'):  # Check if it's a named tuple
++                return type(value)(*resolved_values)
++            return type(value)(resolved_values)
+         return value
+ 
+     def solve_lookup_type(self, lookup):
+diff --git a/test_named_tuple.py b/test_named_tuple.py
+new file mode 100644
+index 0000000000..3fc6a537d0
+--- /dev/null
++++ b/test_named_tuple.py
+@@ -0,0 +1,15 @@
++from django.db.models import Q
++from collections import namedtuple
++
++Range = namedtuple('Range', ['near', 'far'])
++
++try:
++    # This should work now with our fix
++    q = Q(id__range=Range(1, 10))
++    print("Test passed: Named tuple used successfully in Q object")
++    # Let's print the Q object to verify its contents
++    print(f"Q object: {q}")
++except TypeError as e:
++    print(f"Test failed: {str(e)}")
++
++print("Test completed.")

@@ -1,0 +1,786 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/forms/boundfield.py
+	modified:   django/forms/forms.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 84400d2e9db7c51fee4e9bb04c028f665b8e7624
+Author: Ties Jan Hefting <hello@tiesjan.com>
+Date:   Wed Jul 7 22:50:30 2021 +0200
+
+    Fixed #32905 -- Added CSS class for non-form errors of formsets.
+
+diff --git a/AUTHORS b/AUTHORS
+index 4e4dbc00fd..72a87ce7b7 100644
+--- a/AUTHORS
++++ b/AUTHORS
+@@ -906,6 +906,7 @@ answer newbie questions, and generally made Django that much better:
+     Thomas Stromberg <tstromberg@google.com>
+     Thomas Tanner <tanner@gmx.net>
+     tibimicu@gmx.net
++    Ties Jan Hefting <hello@tiesjan.com>
+     Tim Allen <tim@pyphilly.org>
+     Tim Givois <tim.givois.mendez@gmail.com>
+     Tim Graham <timograham@gmail.com>
+diff --git a/django/forms/formsets.py b/django/forms/formsets.py
+index a89c35599f..b8e0d62fd9 100644
+--- a/django/forms/formsets.py
++++ b/django/forms/formsets.py
+@@ -333,7 +333,7 @@ class BaseFormSet:
+         self._non_form_errors.
+         """
+         self._errors = []
+-        self._non_form_errors = self.error_class()
++        self._non_form_errors = self.error_class(error_class='nonform')
+         empty_forms_count = 0
+ 
+         if not self.is_bound:  # Stop further processing.
+@@ -380,7 +380,10 @@ class BaseFormSet:
+             # Give self.clean() a chance to do cross-form validation.
+             self.clean()
+         except ValidationError as e:
+-            self._non_form_errors = self.error_class(e.error_list)
++            self._non_form_errors = self.error_class(
++                e.error_list,
++                error_class='nonform'
++            )
+ 
+     def clean(self):
+         """
+diff --git a/docs/releases/4.0.txt b/docs/releases/4.0.txt
+index f0742db7bd..ee3922c9b6 100644
+--- a/docs/releases/4.0.txt
++++ b/docs/releases/4.0.txt
+@@ -218,6 +218,10 @@ Forms
+   error message. This allows custom error messages to use the ``%(value)s``
+   placeholder.
+ 
++* :class:`~django.forms.formsets.BaseFormSet` now renders non-form errors with
++  an additional class of ``nonform`` to help distinguish them from
++  form-specific errors.
++
+ Generic Views
+ ~~~~~~~~~~~~~
+ 
+diff --git a/docs/topics/forms/formsets.txt b/docs/topics/forms/formsets.txt
+index 1f2c7c3fad..0281b6a4d6 100644
+--- a/docs/topics/forms/formsets.txt
++++ b/docs/topics/forms/formsets.txt
+@@ -365,6 +365,20 @@ The formset ``clean`` method is called after all the ``Form.clean`` methods
+ have been called. The errors will be found using the ``non_form_errors()``
+ method on the formset.
+ 
++Non-form errors will be rendered with an additional class of ``nonform`` to
++help distinguish them from form-specific errors. For example,
++``{{ formset.non_form_errors }}`` would look like:
++
++.. code-block:: html+django
++
++    <ul class="errorlist nonform">
++        <li>Articles in a set must have distinct titles.</li>
++    </ul>
++
++.. versionchanged:: 4.0
++
++    The additional ``nonform`` class was added.
++
+ Validating the number of forms in a formset
+ ===========================================
+ 
+diff --git a/tests/admin_views/tests.py b/tests/admin_views/tests.py
+index 880ba0b85f..b277476296 100644
+--- a/tests/admin_views/tests.py
++++ b/tests/admin_views/tests.py
+@@ -3348,7 +3348,10 @@ class AdminViewListEditable(TestCase):
+         response = self.client.post(reverse('admin:admin_views_person_changelist'), data)
+         non_form_errors = response.context['cl'].formset.non_form_errors()
+         self.assertIsInstance(non_form_errors, ErrorList)
+-        self.assertEqual(str(non_form_errors), str(ErrorList(["Grace is not a Zombie"])))
++        self.assertEqual(
++            str(non_form_errors),
++            str(ErrorList(['Grace is not a Zombie'], error_class='nonform')),
++        )
+ 
+     def test_list_editable_ordering(self):
+         collector = Collector.objects.create(id=1, name="Frederick Clegg")
+diff --git a/tests/forms_tests/tests/test_formsets.py b/tests/forms_tests/tests/test_formsets.py
+index 889560aa74..5afb816f7f 100644
+--- a/tests/forms_tests/tests/test_formsets.py
++++ b/tests/forms_tests/tests/test_formsets.py
+@@ -337,6 +337,10 @@ class FormsFormsetTestCase(SimpleTestCase):
+         formset = ChoiceFormSet(data, auto_id=False, prefix='choices')
+         self.assertFalse(formset.is_valid())
+         self.assertEqual(formset.non_form_errors(), ['Please submit at most 1 form.'])
++        self.assertEqual(
++            str(formset.non_form_errors()),
++            '<ul class="errorlist nonform"><li>Please submit at most 1 form.</li></ul>',
++        )
+ 
+     def test_formset_validate_min_flag(self):
+         """
+@@ -359,6 +363,11 @@ class FormsFormsetTestCase(SimpleTestCase):
+         formset = ChoiceFormSet(data, auto_id=False, prefix='choices')
+         self.assertFalse(formset.is_valid())
+         self.assertEqual(formset.non_form_errors(), ['Please submit at least 3 forms.'])
++        self.assertEqual(
++            str(formset.non_form_errors()),
++            '<ul class="errorlist nonform"><li>'
++            'Please submit at least 3 forms.</li></ul>',
++        )
+ 
+     def test_formset_validate_min_unchanged_forms(self):
+         """
+@@ -983,6 +992,11 @@ class FormsFormsetTestCase(SimpleTestCase):
+         formset = FavoriteDrinksFormSet(data, prefix='drinks')
+         self.assertFalse(formset.is_valid())
+         self.assertEqual(formset.non_form_errors(), ['You may only specify a drink once.'])
++        self.assertEqual(
++            str(formset.non_form_errors()),
++            '<ul class="errorlist nonform"><li>'
++            'You may only specify a drink once.</li></ul>',
++        )
+ 
+     def test_formset_iteration(self):
+         """Formset instances are iterable."""
++ git diff 84400d2e9db7c51fee4e9bb04c028f665b8e7624
+diff --git a/django/forms/boundfield.py b/django/forms/boundfield.py
+index 88adadb37d..bb2b6b62f8 100644
+--- a/django/forms/boundfield.py
++++ b/django/forms/boundfield.py
+@@ -69,6 +69,23 @@ class BoundField:
+                 % type(idx).__name__
+             )
+         return self.subwidgets[idx]
++    @property
++    def _did_change(self):
++        """
++        Return True if the data for this field has changed from its initial value.
++        """
++        data = self.data
++        initial = self.initial if self.form.is_bound else self.form.initial.get(self.name, self.field.initial)
++        if isinstance(data, str) and isinstance(initial, str):
++            return data != initial
++        elif isinstance(data, datetime.datetime) and isinstance(initial, datetime.datetime):
++            return data.replace(microsecond=0) != initial.replace(microsecond=0)
++        elif isinstance(data, datetime.date) and isinstance(initial, datetime.date):
++            return data != initial
++        elif isinstance(data, (list, tuple)) and isinstance(initial, (list, tuple)):
++            return set(data) != set(initial)
++        else:
++            return data != initial
+ 
+     @property
+     def errors(self):
+diff --git a/django/forms/forms.py b/django/forms/forms.py
+index d14037bfe9..da89fe0b14 100644
+--- a/django/forms/forms.py
++++ b/django/forms/forms.py
+@@ -5,6 +5,7 @@ Form classes
+ import copy
+ 
+ from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
++from django.forms.boundfield import BoundField
+ from django.forms.fields import Field, FileField
+ from django.forms.utils import ErrorDict, ErrorList
+ from django.forms.widgets import Media, MediaDefiningClass
+@@ -106,6 +107,13 @@ class BaseForm:
+                     renderer = renderer()
+         self.renderer = renderer
+ 
++    def is_multipart(self):
++        """
++        Return True if the form needs to be multipart-encoded, i.e. it has
++        FileInput, or False otherwise.
++        """
++        return any(field.widget.needs_multipart_form for field in self.fields.values())
++
+     def order_fields(self, field_order):
+         """
+         Rearrange the fields according to field_order.
+@@ -384,27 +392,34 @@ class BaseForm:
+ 
+         self._clean_fields()
+         self._clean_form()
+-        self._post_clean()
++    def _bound_items(self):
++        """
++        Yield BoundField objects for each field in the form, in the order
++        in which the fields were declared.
++        """
++        for name, field in self.fields.items():
++            yield name, BoundField(self, field, name)
++
+ 
+     def _clean_fields(self):
+-        for name, field in self.fields.items():
++        for name, bf in self._bound_items():
++            field = bf.field
+             if field.disabled:
+                 value = self.get_initial_for_field(field, name)
+             else:
+-                value = self._field_data_value(field, self.add_prefix(name))
++                value = bf.data
+             try:
+                 if isinstance(field, FileField):
+                     initial = self.get_initial_for_field(field, name)
+-                    value = field.clean(value, initial)
++                    value = bf.field.clean(value, initial)
+                 else:
+-                    value = field.clean(value)
++                    value = bf.field.clean(value)
+                 self.cleaned_data[name] = value
+                 if hasattr(self, 'clean_%s' % name):
+                     value = getattr(self, 'clean_%s' % name)()
+                     self.cleaned_data[name] = value
+             except ValidationError as e:
+                 self.add_error(name, e)
+-
+     def _clean_form(self):
+         try:
+             cleaned_data = self.clean()
+@@ -436,43 +451,10 @@ class BaseForm:
+ 
+     @cached_property
+     def changed_data(self):
+-        data = []
+-        for name, field in self.fields.items():
+-            data_value = self._field_data_value(field, self.add_prefix(name))
+-            if not field.show_hidden_initial:
+-                # Use the BoundField's initial as this is the value passed to
+-                # the widget.
+-                initial_value = self[name].initial
+-            else:
+-                initial_prefixed_name = self.add_initial_prefix(name)
+-                hidden_widget = field.hidden_widget()
+-                try:
+-                    initial_value = field.to_python(
+-                        self._widget_data_value(hidden_widget, initial_prefixed_name)
+-                    )
+-                except ValidationError:
+-                    # Always assume data has changed if validation fails.
+-                    data.append(name)
+-                    continue
+-            if field.has_changed(initial_value, data_value):
+-                data.append(name)
+-        return data
+-
+-    @property
+-    def media(self):
+-        """Return all media required to render the widgets on this form."""
+-        media = Media()
+-        for field in self.fields.values():
+-            media = media + field.widget.media
+-        return media
+-
+-    def is_multipart(self):
+-        """
+-        Return True if the form needs to be multipart-encoded, i.e. it has
+-        FileInput, or False otherwise.
+-        """
+-        return any(field.widget.needs_multipart_form for field in self.fields.values())
+-
++        return [
++            name for name, field in self._bound_items()
++            if field._did_change
++        ]
+     def hidden_fields(self):
+         """
+         Return a list of all the BoundField objects that are hidden fields.
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.3.2 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0.dev20210715050039) (3.8.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0.dev20210715050039) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0.dev20210715050039) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from asgiref>=3.3.2->Django==4.0.dev20210715050039) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.0.dev20210715050039-0.editable-py3-none-any.whl size=26234 sha256=82ed016cdcd6425a318bbde7894c6474e66f7b5119b98ebefcc57498d122db15
+  Stored in directory: /tmp/pip-ephem-wheel-cache-08_7cphz/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.0.dev20210715050039
+    Uninstalling Django-4.0.dev20210715050039:
+      Successfully uninstalled Django-4.0.dev20210715050039
+Successfully installed Django-4.0.dev20210715050039
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 84400d2e9db7c51fee4e9bb04c028f665b8e7624 tests/forms_tests/tests/test_forms.py
+Updated 0 paths from 467414be65
++ git apply -v -
+Checking patch tests/forms_tests/tests/test_forms.py...
+Applied patch tests/forms_tests/tests/test_forms.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 forms_tests.tests.test_forms
+test_accessing_clean (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_auto_id (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_auto_id_false (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_auto_id_on_form_and_field (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_auto_id_true (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_baseform_repr (forms_tests.tests.test_forms.FormsTestCase)
+BaseForm.__repr__() should contain some basic information about the ... ok
+test_baseform_repr_dont_trigger_validation (forms_tests.tests.test_forms.FormsTestCase)
+BaseForm.__repr__() shouldn't trigger the form validation. ... ok
+test_basic_processing_in_view (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_bool (forms_tests.tests.test_forms.FormsTestCase)
+BoundField without any choices (subwidgets) evaluates to True. ... ok
+test_boundfield_css_classes (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_empty_label (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_id_for_label (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_id_for_label_override_by_attrs (forms_tests.tests.test_forms.FormsTestCase)
+If an id is provided in `Widget.attrs`, it overrides the generated ID, ... ok
+test_boundfield_initial_called_once (forms_tests.tests.test_forms.FormsTestCase)
+Multiple calls to BoundField().value() in an unbound form should return ... ok
+test_boundfield_invalid_index (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_label_tag (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_label_tag_custom_widget_id_for_label (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_label_tag_no_id (forms_tests.tests.test_forms.FormsTestCase)
+If a widget has no id, label_tag just returns the text with no ... ok
+test_boundfield_slice (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_value_disabled_callable_initial (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_values (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_boundfield_widget_type (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_callable_initial_data (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_changed_data (forms_tests.tests.test_forms.FormsTestCase) ... FAIL
+test_changing_cleaned_data_in_clean (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_changing_cleaned_data_nothing_returned (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_checkbox_auto_id (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_class_prefix (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_cleaned_data_only_fields (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_custom_boundfield (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_custom_empty_values (forms_tests.tests.test_forms.FormsTestCase)
+Form fields can customize what is considered as an empty value ... ok
+test_datetime_changed_data_callable_with_microseconds (forms_tests.tests.test_forms.FormsTestCase) ... FAIL
+test_datetime_clean_disabled_callable_initial_bound_field (forms_tests.tests.test_forms.FormsTestCase)
+The cleaned value for a form with a disabled DateTimeField and callable ... FAIL
+test_datetime_clean_disabled_callable_initial_microseconds (forms_tests.tests.test_forms.FormsTestCase)
+Cleaning a form with a disabled DateTimeField and callable initial ... FAIL
+test_dynamic_construction (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_dynamic_initial_data (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_empty_data_files_multi_value_dict (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_empty_dict (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_empty_permitted (forms_tests.tests.test_forms.FormsTestCase) ... FAIL
+test_empty_permitted_and_use_required_attribute (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_empty_querydict_args (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_error_dict (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_error_dict_as_json_escape_html (forms_tests.tests.test_forms.FormsTestCase)
+#21962 - adding html escape flag to ErrorDict ... ok
+test_error_escaping (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_error_html_required_html_classes (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_error_list (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_error_list_class_has_one_class_specified (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_error_list_class_not_specified (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_error_list_with_hidden_field_errors_has_correct_class (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_error_list_with_non_field_errors_has_correct_class (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_errorlist_override (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_escaping (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_explicit_field_order (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_extracting_hidden_and_visible (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_field_deep_copy_error_messages (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_field_name (forms_tests.tests.test_forms.FormsTestCase)
+#5749 - `field_name` may be used as a key in _html_output(). ... ok
+test_field_name_with_hidden_input (forms_tests.tests.test_forms.FormsTestCase)
+BaseForm._html_output() should merge all the hidden input fields and ... ok
+test_field_name_with_hidden_input_and_non_matching_row_ender (forms_tests.tests.test_forms.FormsTestCase)
+BaseForm._html_output() should merge all the hidden input fields and ... ok
+test_field_named_data (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_field_order (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_field_with_css_class (forms_tests.tests.test_forms.FormsTestCase)
+`css_classes` may be used as a key in _html_output() (class comes ... ok
+test_field_without_css_classes (forms_tests.tests.test_forms.FormsTestCase)
+`css_classes` may be used as a key in _html_output() (empty classes). ... ok
+test_filefield_initial_callable (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_filefield_with_fileinput_required (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_form (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_form_html_attributes (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_form_with_disabled_fields (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_form_with_iterable_boundfield (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_form_with_iterable_boundfield_id (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_form_with_noniterable_boundfield (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_forms_with_choices (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_forms_with_file_fields (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_forms_with_multiple_choice (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_forms_with_null_boolean (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_forms_with_prefixes (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_forms_with_radio (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_get_initial_for_field (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_has_error (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_help_text (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_hidden_data (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_hidden_initial_gets_id (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_hidden_widget (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_html_output_with_hidden_input_field_errors (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_html_safe (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_id_on_field (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_initial_data (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_initial_datetime_values (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_iterable_boundfield_select (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_label_has_required_css_class (forms_tests.tests.test_forms.FormsTestCase)
+#17922 - required_css_class is added to the label_tag() of required fields. ... ok
+test_label_split_datetime_not_displayed (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_label_suffix (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_label_tag_override (forms_tests.tests.test_forms.FormsTestCase)
+BoundField label_suffix (if provided) overrides Form label_suffix ... ok
+test_multipart_encoded_form (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_multiple_choice_checkbox (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_multiple_choice_list_data (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_multiple_hidden (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_multivalue_deep_copy (forms_tests.tests.test_forms.FormsTestCase)
+#19298 -- MultiValueField needs to override the default as it needs ... ok
+test_multivalue_field_validation (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_multivalue_initial_data (forms_tests.tests.test_forms.FormsTestCase)
+#23674 -- invalid initial data should not break form.changed_data() ... ok
+test_multivalue_optional_subfields (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_only_hidden_fields (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_optional_data (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_specifying_labels (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_subclassing_forms (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_templates_with_forms (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_unbound_form (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_unicode_values (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_update_error_dict (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_use_required_attribute_false (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_use_required_attribute_true (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_validating_multiple_fields (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_validators_independence (forms_tests.tests.test_forms.FormsTestCase)
+The list of form field validators can be modified without polluting ... ok
+test_various_boolean_values (forms_tests.tests.test_forms.FormsTestCase) ... ok
+test_widget_output (forms_tests.tests.test_forms.FormsTestCase) ... Testing against Django installed in '/testbed/django'
+Importing application forms_tests
+Found 120 test(s).
+Skipping setup of unused database(s): default, other.
+System check identified no issues (0 silenced).
+ok
+test_attribute_class (forms_tests.tests.test_forms.RendererTests) ... ok
+test_attribute_instance (forms_tests.tests.test_forms.RendererTests) ... ok
+test_attribute_override (forms_tests.tests.test_forms.RendererTests) ... ok
+test_default (forms_tests.tests.test_forms.RendererTests) ... ok
+test_kwarg_class (forms_tests.tests.test_forms.RendererTests) ... ok
+test_kwarg_instance (forms_tests.tests.test_forms.RendererTests) ... ok
+
+======================================================================
+FAIL: test_changed_data (forms_tests.tests.test_forms.FormsTestCase)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/forms_tests/tests/test_forms.py", line 2010, in test_changed_data
+    self.assertNotIn('birthday', p.changed_data)
+AssertionError: 'birthday' unexpectedly found in ['last_name', 'birthday']
+
+======================================================================
+FAIL: test_datetime_changed_data_callable_with_microseconds (forms_tests.tests.test_forms.FormsTestCase)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/forms_tests/tests/test_forms.py", line 2162, in test_datetime_changed_data_callable_with_microseconds
+    self.assertEqual(form.changed_data, [])
+AssertionError: Lists differ: ['dt'] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+'dt'
+
+- ['dt']
++ []
+
+======================================================================
+FAIL: test_datetime_clean_disabled_callable_initial_bound_field (forms_tests.tests.test_forms.FormsTestCase)
+The cleaned value for a form with a disabled DateTimeField and callable
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/forms_tests/tests/test_forms.py", line 2155, in test_datetime_clean_disabled_callable_initial_bound_field
+    self.assertEqual(cleaned, bf.initial)
+AssertionError: datetime.datetime(2006, 10, 25, 14, 30, 46) != datetime.datetime(2006, 10, 25, 14, 30, 47)
+
+======================================================================
+FAIL: test_datetime_clean_disabled_callable_initial_microseconds (forms_tests.tests.test_forms.FormsTestCase)
+Cleaning a form with a disabled DateTimeField and callable initial
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/forms_tests/tests/test_forms.py", line 2141, in test_datetime_clean_disabled_callable_initial_microseconds
+    self.assertEqual(form.cleaned_data, {
+AssertionError: {'dt': datetime.datetime(2006, 10, 25, 14, 30, 46, 123456)} != {'dt': datetime.datetime(2006, 10, 25, 14, 30, 46)}
+- {'dt': datetime.datetime(2006, 10, 25, 14, 30, 46, 123456)}
+?                                                 --------
+
++ {'dt': datetime.datetime(2006, 10, 25, 14, 30, 46)}
+
+======================================================================
+FAIL: test_empty_permitted (forms_tests.tests.test_forms.FormsTestCase)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/forms_tests/tests/test_forms.py", line 2781, in test_empty_permitted
+    self.assertTrue(form.is_valid())
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 120 tests in 0.461s
+
+FAILED (failures=5)
++ git checkout 84400d2e9db7c51fee4e9bb04c028f665b8e7624 tests/forms_tests/tests/test_forms.py
+Updated 1 path from 467414be65

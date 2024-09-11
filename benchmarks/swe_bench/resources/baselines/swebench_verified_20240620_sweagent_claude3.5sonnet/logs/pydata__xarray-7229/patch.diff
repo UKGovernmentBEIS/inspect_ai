@@ -1,0 +1,97 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 00000000..f48d30a5
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,17 @@
++import xarray as xr
++
++# Load the dataset
++ds = xr.tutorial.load_dataset("air_temperature")
++
++# Apply xr.where with keep_attrs=True
++result = xr.where(True, ds.air, ds.air, keep_attrs=True)
++
++# Print the time attributes
++print("Time attributes after xr.where:")
++print(result.time.attrs)
++
++# Print the original time attributes for comparison
++print("\nOriginal time attributes:")
++print(ds.time.attrs)
++
++print("\nScript completed successfully.")
+diff --git a/xarray/core/computation.py b/xarray/core/computation.py
+index 3f7e8f74..1649bae3 100644
+--- a/xarray/core/computation.py
++++ b/xarray/core/computation.py
+@@ -3,6 +3,11 @@ Functions for applying functions that act on arrays to xarray's labeled data.
+ """
+ from __future__ import annotations
+ 
++import typing
++
++if typing.TYPE_CHECKING:
++    from .dataset import Dataset
++    from .dataarray import DataArray
+ import functools
+ import itertools
+ import operator
+@@ -1857,22 +1862,26 @@ def where(cond, x, y, keep_attrs=None):
+     """
+     if keep_attrs is None:
+         keep_attrs = _get_keep_attrs(default=False)
+-    if keep_attrs is True:
+-        # keep the attributes of x, the second parameter, by default to
+-        # be consistent with the `where` method of `DataArray` and `Dataset`
+-        keep_attrs = lambda attrs, context: getattr(x, "attrs", {})
+-
+-    # alignment for three arguments is complicated, so don't support it yet
+-    return apply_ufunc(
+-        duck_array_ops.where,
++    
++    def _where(cond, x, y):
++        return np.where(cond, x, y)
++    
++    out = apply_ufunc(
++        _where,
+         cond,
+         x,
+         y,
+-        join="exact",
+-        dataset_join="exact",
+-        dask="allowed",
+         keep_attrs=keep_attrs,
++        dask="allowed",
+     )
++    
++    # Preserve coordinate attributes
++    if out.__class__.__name__ in ("Dataset", "DataArray"):
++        for coord in out.coords:
++            if coord in x.coords:
++                out.coords[coord].attrs.update(x.coords[coord].attrs)
++    
++    return out
+ 
+ 
+ @overload
+diff --git a/xarray/core/merge.py b/xarray/core/merge.py
+index 859b3aef..c89671e7 100644
+--- a/xarray/core/merge.py
++++ b/xarray/core/merge.py
+@@ -642,7 +642,13 @@ def merge_attrs(variable_attrs, combine_attrs, context=None):
+     elif combine_attrs == "drop":
+         return {}
+     elif combine_attrs == "override":
+-        return dict(variable_attrs[0])
++        result = dict(variable_attrs[0])
++        # Preserve coordinate attributes
++        for attrs in variable_attrs[1:]:
++            for key, value in attrs.items():
++                if key not in result:
++                    result[key] = value
++        return result
+     elif combine_attrs == "no_conflicts":
+         result = dict(variable_attrs[0])
+         for attrs in variable_attrs[1:]:

@@ -1,0 +1,86 @@
+
+diff --git a/django/db/migrations/autodetector.py b/django/db/migrations/autodetector.py
+index 30616c0172..6b14b6cc5d 100644
+--- a/django/db/migrations/autodetector.py
++++ b/django/db/migrations/autodetector.py
+@@ -163,6 +163,7 @@ class MigrationAutodetector:
+         self._prepare_field_lists()
+         self._generate_through_model_map()
+ 
++        # Generate non-rename model operations
+         # Generate non-rename model operations
+         self.generate_deleted_models()
+         self.generate_created_models()
+diff --git a/run_test.py b/run_test.py
+new file mode 100644
+index 0000000000..037d37a251
+--- /dev/null
++++ b/run_test.py
+@@ -0,0 +1,34 @@
++import os
++import django
++from django.conf import settings
++from django.test.utils import setup_test_environment
++from django.test.runner import DiscoverRunner
++
++# Configure Django settings
++if not settings.configured:
++    settings.configure(
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',  # Use an in-memory database for testing
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++            'tests',
++        ],
++        USE_TZ=True,
++    )
++
++django.setup()
++setup_test_environment()
++
++runner = DiscoverRunner(verbosity=2, interactive=False)
++suite = runner.test_suite()
++specific_test = runner.test_loader.loadTestsFromName('tests.migrations.test_autodetector.AutodetectorTests.test_move_field_to_subclass')
++suite.addTest(specific_test)
++result = runner.run_suite(suite)
++
++print("Test execution completed.")
++exit(not result.wasSuccessful())
+diff --git a/tests/migrations/test_autodetector.py b/tests/migrations/test_autodetector.py
+index daff57fc2c..fdc5ea5c3b 100644
+--- a/tests/migrations/test_autodetector.py
++++ b/tests/migrations/test_autodetector.py
+@@ -2454,3 +2454,28 @@ class AutodetectorTests(TestCase):
+         self.assertNumberMigrations(changes, 'app', 1)
+         self.assertOperationTypes(changes, 'app', 0, ['DeleteModel'])
+         self.assertOperationAttributes(changes, 'app', 0, 0, name='Dog')
++    def test_move_field_to_subclass(self):
++        # Initial state with a field on the parent model
++        parent = ModelState('app', 'Parent', [
++            ("id", models.AutoField(primary_key=True)),
++            ("name", models.CharField(max_length=100)),
++        ])
++        child = ModelState('app', 'Child', [], bases=('app.Parent',))
++
++        # New state with the field moved to the child model
++        parent_new = ModelState('app', 'Parent', [
++            ("id", models.AutoField(primary_key=True)),
++        ])
++        child_new = ModelState('app', 'Child', [
++            ("name", models.CharField(max_length=100)),
++        ], bases=('app.Parent',))
++
++        changes = self.get_changes([parent, child], [parent_new, child_new])
++
++        # Assert that we have the correct number and type of operations
++        self.assertNumberMigrations(changes, 'app', 1)
++        self.assertOperationTypes(changes, 'app', 0, ['RemoveField', 'AddField'])
++
++        # Assert that the operations are in the correct order
++        self.assertOperationAttributes(changes, 'app', 0, 0, name='name', model_name='parent')
++        self.assertOperationAttributes(changes, 'app', 0, 1, name='name', model_name='child')

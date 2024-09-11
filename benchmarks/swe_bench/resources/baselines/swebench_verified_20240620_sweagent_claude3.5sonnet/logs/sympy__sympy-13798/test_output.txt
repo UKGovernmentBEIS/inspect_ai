@@ -1,0 +1,606 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sympy/printing/latex.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test_latex_mul_symbol.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 7121bdf1facdd90d05b6994b4c2e5b2865a4638a
+Merge: 7d0231704a 98a3f70b3b
+Author: Chris Smith <smichr@gmail.com>
+Date:   Tue Dec 26 08:24:02 2017 -0600
+
+    Merge pull request #13796 from ArighnaIITG/13699_issue2
+    
+    Used fuzzy_bool instead of ternary sort.
+
++ git diff 7121bdf1facdd90d05b6994b4c2e5b2865a4638a
+diff --git a/sympy/printing/latex.py b/sympy/printing/latex.py
+index ad4d7d9613..90c1f8757b 100644
+--- a/sympy/printing/latex.py
++++ b/sympy/printing/latex.py
+@@ -156,11 +156,13 @@ def __init__(self, settings=None):
+             "times": r" \times "
+         }
+ 
+-        self._settings['mul_symbol_latex'] = \
+-            mul_symbol_table[self._settings['mul_symbol']]
++        if self._settings['mul_symbol'] in mul_symbol_table:
++            self._settings['mul_symbol_latex'] = mul_symbol_table[self._settings['mul_symbol']]
++        else:
++            self._settings['mul_symbol_latex'] = r" " + self._settings['mul_symbol'] + r" "
+ 
+         self._settings['mul_symbol_latex_numbers'] = \
+-            mul_symbol_table[self._settings['mul_symbol'] or 'dot']
++            mul_symbol_table[self._settings['mul_symbol']] if self._settings['mul_symbol'] in mul_symbol_table else r" " + self._settings['mul_symbol'] + r" "
+ 
+         self._delim_dict = {'(': ')', '[': ']'}
+ 
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: mpmath>=0.19 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from sympy==1.1.2.dev0) (1.3.0)
+Installing collected packages: sympy
+  Attempting uninstall: sympy
+    Found existing installation: sympy 1.1.2.dev0
+    Uninstalling sympy-1.1.2.dev0:
+      Successfully uninstalled sympy-1.1.2.dev0
+  Running setup.py develop for sympy
+Successfully installed sympy-1.1.2.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 7121bdf1facdd90d05b6994b4c2e5b2865a4638a sympy/printing/tests/test_latex.py
+Updated 0 paths from 72f278ebf0
++ git apply -v -
+Checking patch sympy/printing/tests/test_latex.py...
+Hunk #1 succeeded at 63 (offset 1 line).
+Applied patch sympy/printing/tests/test_latex.py cleanly.
++ PYTHONWARNINGS=ignore::UserWarning,ignore::SyntaxWarning
++ bin/test -C --verbose sympy/printing/tests/test_latex.py
+/testbed/sympy/core/basic.py:3: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Mapping, defaultdict
+/testbed/sympy/core/containers.py:271: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  class OrderedSet(collections.MutableSet):
+/testbed/sympy/plotting/plot.py:28: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Callable
+/testbed/sympy/core/basic.py:3: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Mapping, defaultdict
+/testbed/sympy/core/containers.py:271: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  class OrderedSet(collections.MutableSet):
+/testbed/sympy/plotting/plot.py:28: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Callable
+============================= test process starts ==============================
+executable:         /opt/miniconda3/envs/testbed/bin/python  (3.9.19-final-0) [CPython]
+architecture:       64-bit
+cache:              no
+ground types:       python 
+numpy:              None
+random seed:        21098502
+hash randomization: on (PYTHONHASHSEED=3523085797)
+
+sympy/printing/tests/test_latex.py[116] 
+test_printmethod ok
+test_latex_basic F
+test_latex_builtins ok
+test_latex_SingularityFunction ok
+test_latex_cycle ok
+test_latex_permutation ok
+test_latex_Float F
+test_latex_vector_expressions ok
+test_latex_symbols ok
+test_latex_symbols_failing f
+test_latex_functions ok
+test_hyper_printing ok
+test_latex_bessel ok
+test_latex_fresnel ok
+test_latex_brackets ok
+test_latex_indexed E
+test_latex_derivatives E
+test_latex_subs ok
+test_latex_integrals ok
+test_latex_sets ok
+test_latex_Range ok
+test_latex_sequences ok
+test_latex_FourierSeries E
+test_latex_FormalPowerSeries E
+test_latex_intervals ok
+test_latex_AccumuBounds ok
+test_latex_emptyset ok
+test_latex_commutator ok
+test_latex_union ok
+test_latex_symmetric_difference ok
+test_latex_Complement ok
+test_latex_Complexes ok
+test_latex_productset ok
+test_latex_Naturals ok
+test_latex_Naturals0 ok
+test_latex_Integers ok
+test_latex_ImageSet ok
+test_latex_ConditionSet ok
+test_latex_ComplexRegion ok
+test_latex_Contains ok
+test_latex_sum ok
+test_latex_product ok
+test_latex_limits ok
+test_issue_3568 ok
+test_latex ok
+test_latex_dict ok
+test_latex_list ok
+test_latex_rational ok
+test_latex_inverse ok
+test_latex_DiracDelta ok
+test_latex_Heaviside ok
+test_latex_KroneckerDelta ok
+test_latex_LeviCivita ok
+test_mode ok
+test_latex_Piecewise ok
+test_latex_Matrix ok
+test_latex_matrix_with_functions E
+test_latex_NDimArray E
+test_latex_mul_symbol ok
+test_latex_issue_4381 F
+test_latex_issue_4576 ok
+test_latex_pow_fraction ok
+test_noncommutative ok
+test_latex_order ok
+test_latex_Lambda ok
+test_latex_PolyElement ok
+test_latex_FracElement ok
+test_latex_Poly ok
+test_latex_ComplexRootOf ok
+test_latex_RootSum ok
+test_settings ok
+test_latex_numbers ok
+test_latex_euler ok
+test_lamda ok
+test_custom_symbol_names ok
+test_matAdd ok
+test_matMul ok
+test_latex_MatrixSlice ok
+test_latex_RandomDomain ok
+test_PrettyPoly ok
+test_integral_transforms ok
+test_PolynomialRingBase ok
+test_categories ok
+test_Modules ok
+test_QuotientRing ok
+test_Tr ok
+test_Adjoint ok
+test_Hadamard ok
+test_ZeroMatrix ok
+test_boolean_args_order ok
+test_imaginary ok
+test_builtins_without_args ok
+test_latex_greek_functions ok
+test_translate ok
+test_other_symbols ok
+test_modifiers ok
+test_greek_symbols ok
+test_builtin_without_args_mismatched_names f
+test_builtin_no_args ok
+test_issue_6853 ok
+test_Mul ok
+test_Pow ok
+test_issue_7180 ok
+test_issue_8409 ok
+test_issue_8470 E
+test_issue_7117 ok
+test_issue_2934 ok
+test_issue_10489 ok
+test_issue_12886 ok
+test_issue_13559 E
+test_issue_13651 ok
+test_latex_UnevaluatedExpr ok
+test_MatrixElement_printing ok
+test_Quaternion_latex_printing ok
+test_TensorProduct_printing E
+test_WedgeProduct_printing ok                                             [FAIL]
+
+
+________________________________________________________________________________
+____________ sympy/printing/tests/test_latex.py:test_latex_indexed _____________
+  File "/testbed/sympy/printing/tests/test_latex.py", line 500, in test_latex_indexed
+    indexed_latex = latex(Psi_indexed[0] * conjugate(Psi_indexed[0]))
+  File "/testbed/sympy/tensor/indexed.py", line 418, in __getitem__
+    return Indexed(self, indices, **kw_args)
+  File "/testbed/sympy/tensor/indexed.py", line 155, in __new__
+    if isinstance(base, (NDimArray, collections.Iterable, Tuple, MatrixBase)) and all([i.is_number for i in args]):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+__________ sympy/printing/tests/test_latex.py:test_latex_derivatives ___________
+  File "/testbed/sympy/printing/tests/test_latex.py", line 513, in test_latex_derivatives
+    assert latex(diff(x**3, x, evaluate=False)) == \
+  File "/testbed/sympy/printing/latex.py", line 2205, in latex
+    return LatexPrinter(settings).doprint(expr)
+  File "/testbed/sympy/printing/latex.py", line 177, in doprint
+    tex = Printer.doprint(self, expr)
+  File "/testbed/sympy/printing/printer.py", line 235, in doprint
+    return self._str(self._print(expr))
+  File "/testbed/sympy/printing/printer.py", line 259, in _print
+    return getattr(self, printmethod)(expr, *args, **kwargs)
+  File "/testbed/sympy/printing/latex.py", line 605, in _print_Derivative
+    if requires_partial(expr):
+  File "/testbed/sympy/printing/conventions.py", line 80, in requires_partial
+    if not isinstance(expr.free_symbols, collections.Iterable):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_________ sympy/printing/tests/test_latex.py:test_latex_FourierSeries __________
+  File "/testbed/sympy/printing/tests/test_latex.py", line 668, in test_latex_FourierSeries
+    assert latex(fourier_series(x, (x, -pi, pi))) == latex_str
+  File "/testbed/sympy/series/fourier.py", line 481, in fourier_series
+    bn = fourier_sin_seq(f, limits, n)
+  File "/testbed/sympy/series/fourier.py", line 35, in fourier_sin_seq
+    return SeqFormula(2 * sin_term * integrate(func * sin_term, limits)
+  File "/testbed/sympy/integrals/integrals.py", line 1336, in integrate
+    return integral.doit(deep=False, meijerg=meijerg, conds=conds,
+  File "/testbed/sympy/integrals/integrals.py", line 511, in doit
+    antideriv = self._eval_integral(
+  File "/testbed/sympy/integrals/integrals.py", line 935, in _eval_integral
+    h = heurisch_wrapper(g, x, hints=[])
+  File "/testbed/sympy/integrals/heurisch.py", line 129, in heurisch_wrapper
+    res = heurisch(f, x, rewrite, hints, mappings, retries, degree_offset,
+  File "/testbed/sympy/integrals/heurisch.py", line 429, in heurisch
+    terms |= components(dcache.get_diff(g), x)
+  File "/testbed/sympy/integrals/heurisch.py", line 248, in get_diff
+    cache[f] = cancel(f.diff(self.x))
+  File "/testbed/sympy/core/expr.py", line 3008, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_______ sympy/printing/tests/test_latex.py:test_latex_FormalPowerSeries ________
+  File "/testbed/sympy/printing/tests/test_latex.py", line 673, in test_latex_FormalPowerSeries
+    assert latex(fps(log(1 + x))) == latex_str
+  File "/testbed/sympy/series/formal.py", line 1250, in fps
+    result = compute_fps(f, x, x0, dir, hyper, order, rational, full)
+  File "/testbed/sympy/series/formal.py", line 900, in compute_fps
+    return _compute_fps(f, x, x0, dir, hyper, order, rational, full)
+  File "/testbed/sympy/series/formal.py", line 817, in _compute_fps
+    result = rational_algorithm(f, x, k, order, full)
+  File "/testbed/sympy/series/formal.py", line 96, in rational_algorithm
+    diff = diff.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3008, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_____ sympy/printing/tests/test_latex.py:test_latex_matrix_with_functions ______
+  File "/testbed/sympy/printing/tests/test_latex.py", line 936, in test_latex_matrix_with_functions
+    [cos(theta1(t).diff(t)), sin(theta1(t).diff(t))]])
+  File "/testbed/sympy/core/expr.py", line 3008, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1241, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+___________ sympy/printing/tests/test_latex.py:test_latex_NDimArray ____________
+  File "/testbed/sympy/printing/tests/test_latex.py", line 954, in test_latex_NDimArray
+    M = ArrayType(x)
+  File "/testbed/sympy/tensor/array/dense_ndim_array.py", line 138, in __new__
+    return cls._new(iterable, shape, **kwargs)
+  File "/testbed/sympy/tensor/array/dense_ndim_array.py", line 144, in _new
+    shape, flat_list = cls._handle_ndarray_creation_inputs(iterable, shape, **kwargs)
+  File "/testbed/sympy/tensor/array/ndim_array.py", line 138, in _handle_ndarray_creation_inputs
+    elif shape is None and isinstance(iterable, collections.Iterable):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+______________ sympy/printing/tests/test_latex.py:test_issue_8470 ______________
+  File "/testbed/sympy/printing/tests/test_latex.py", line 1613, in test_issue_8470
+    e = parse_expr("-B*A", evaluate=False)
+  File "/testbed/sympy/parsing/sympy_parser.py", line 892, in parse_expr
+    code = compile(evaluateFalse(code), '<string>', 'eval')
+ValueError: Name node can't be used with 'False' constant
+________________________________________________________________________________
+_____________ sympy/printing/tests/test_latex.py:test_issue_13559 ______________
+  File "/testbed/sympy/printing/tests/test_latex.py", line 1646, in test_issue_13559
+    expr = parse_expr('5/1', evaluate=False)
+  File "/testbed/sympy/parsing/sympy_parser.py", line 892, in parse_expr
+    code = compile(evaluateFalse(code), '<string>', 'eval')
+ValueError: Name node can't be used with 'False' constant
+________________________________________________________________________________
+________ sympy/printing/tests/test_latex.py:test_TensorProduct_printing ________
+  File "/testbed/sympy/printing/tests/test_latex.py", line 1690, in test_TensorProduct_printing
+    assert latex(TensorProduct(A, B)) == r"A \otimes B"
+  File "/testbed/sympy/tensor/functions.py", line 28, in __new__
+    if isinstance(arg, (collections.Iterable, MatrixBase, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+
+________________________________________________________________________________
+_____________ sympy/printing/tests/test_latex.py:test_latex_basic ______________
+  File "/testbed/sympy/printing/tests/test_latex.py", line 66, in test_latex_basic
+    assert latex(3*x**2*y, mul_symbol='\\,') == r"3\,x^{2}\,y"
+AssertionError
+________________________________________________________________________________
+_____________ sympy/printing/tests/test_latex.py:test_latex_Float ______________
+  File "/testbed/sympy/printing/tests/test_latex.py", line 172, in test_latex_Float
+    assert latex(Float(1.0e100)) == r"1.0 \cdot 10^{100}"
+AssertionError
+________________________________________________________________________________
+___________ sympy/printing/tests/test_latex.py:test_latex_issue_4381 ___________
+  File "/testbed/sympy/printing/tests/test_latex.py", line 999, in test_latex_issue_4381
+    assert latex(y) == r'4 \cdot 4^{\log{\left (2 \right )}}'
+AssertionError
+
+ tests finished: 102 passed, 3 failed, 2 expected to fail, 9 exceptions, 
+in 3.68 seconds 
+DO *NOT* COMMIT!
++ git checkout 7121bdf1facdd90d05b6994b4c2e5b2865a4638a sympy/printing/tests/test_latex.py
+Updated 1 path from 72f278ebf0

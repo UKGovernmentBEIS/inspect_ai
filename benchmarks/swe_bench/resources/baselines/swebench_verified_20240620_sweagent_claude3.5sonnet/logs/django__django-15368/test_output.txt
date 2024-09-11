@@ -1,0 +1,709 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/models/query.py
+	modified:   tests/queries/test_query.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit e972620ada4f9ed7bc57f28e133e85c85b0a7b20
+Author: Mariusz Felisiak <felisiak.mariusz@gmail.com>
+Date:   Thu Jan 27 18:51:39 2022 +0100
+
+    Fixed #33462 -- Fixed migration crash when altering type of primary key with MTI and foreign key.
+    
+    This prevents duplicated operations when altering type of primary key
+    with MTI and foreign key. Previously, a foreign key to the base model
+    was added twice, once directly and once by the inheritance model.
+    
+    Thanks bcail for the report.
+    
+    Regression in 325d7710ce9f6155bb55610ad6b4580d31263557.
+
+diff --git a/django/db/backends/base/schema.py b/django/db/backends/base/schema.py
+index 412fb46f16..4cd4567cbc 100644
+--- a/django/db/backends/base/schema.py
++++ b/django/db/backends/base/schema.py
+@@ -30,7 +30,9 @@ def _is_relevant_relation(relation, altered_field):
+ 
+ 
+ def _all_related_fields(model):
+-    return model._meta._get_fields(forward=False, reverse=True, include_hidden=True)
++    return model._meta._get_fields(
++        forward=False, reverse=True, include_hidden=True, include_parents=False,
++    )
+ 
+ 
+ def _related_non_m2m_objects(old_field, new_field):
+diff --git a/docs/releases/4.0.2.txt b/docs/releases/4.0.2.txt
+index 8227d98622..af0f728c54 100644
+--- a/docs/releases/4.0.2.txt
++++ b/docs/releases/4.0.2.txt
+@@ -28,3 +28,7 @@ Bugfixes
+ 
+ * Fixed a regression in Django 4.0 that caused incorrect
+   :attr:`.ModelAdmin.radio_fields` layout in the admin (:ticket:`33407`).
++
++* Fixed a duplicate operation regression in Django 4.0 that caused a migration
++  crash when altering a primary key type for a concrete parent model referenced
++  by a foreign key (:ticket:`33462`).
+diff --git a/tests/migrations/test_operations.py b/tests/migrations/test_operations.py
+index ae6d0f1a92..7de4dd5d8b 100644
+--- a/tests/migrations/test_operations.py
++++ b/tests/migrations/test_operations.py
+@@ -1622,6 +1622,73 @@ class OperationTests(OperationTestBase):
+                 (f'{app_label}_shetlandpony', 'pony_ptr_id'),
+             )
+ 
++    def test_alter_field_pk_mti_and_fk_to_base(self):
++        app_label = 'test_alflpkmtiftb'
++        project_state = self.set_up_test_model(
++            app_label, mti_model=True, related_model=True,
++        )
++        operation = migrations.AlterField(
++            'Pony',
++            'id',
++            models.BigAutoField(primary_key=True),
++        )
++        new_state = project_state.clone()
++        operation.state_forwards(app_label, new_state)
++        self.assertIsInstance(
++            new_state.models[app_label, 'pony'].fields['id'],
++            models.BigAutoField,
++        )
++
++        def _get_column_id_type(cursor, table, column):
++            return [
++                c.type_code
++                for c in connection.introspection.get_table_description(
++                    cursor,
++                    f'{app_label}_{table}',
++                )
++                if c.name == column
++            ][0]
++
++        def assertIdTypeEqualsMTIFkType():
++            with connection.cursor() as cursor:
++                parent_id_type = _get_column_id_type(cursor, 'pony', 'id')
++                fk_id_type = _get_column_id_type(cursor, 'rider', 'pony_id')
++                child_id_type = _get_column_id_type(cursor, 'shetlandpony', 'pony_ptr_id')
++            self.assertEqual(parent_id_type, child_id_type)
++            self.assertEqual(parent_id_type, fk_id_type)
++
++        assertIdTypeEqualsMTIFkType()
++        # Alter primary key.
++        with connection.schema_editor() as editor:
++            operation.database_forwards(app_label, editor, project_state, new_state)
++        assertIdTypeEqualsMTIFkType()
++        if connection.features.supports_foreign_keys:
++            self.assertFKExists(
++                f'{app_label}_shetlandpony',
++                ['pony_ptr_id'],
++                (f'{app_label}_pony', 'id'),
++            )
++            self.assertFKExists(
++                f'{app_label}_rider',
++                ['pony_id'],
++                (f'{app_label}_pony', 'id'),
++            )
++        # Reversal.
++        with connection.schema_editor() as editor:
++            operation.database_backwards(app_label, editor, new_state, project_state)
++        assertIdTypeEqualsMTIFkType()
++        if connection.features.supports_foreign_keys:
++            self.assertFKExists(
++                f'{app_label}_shetlandpony',
++                ['pony_ptr_id'],
++                (f'{app_label}_pony', 'id'),
++            )
++            self.assertFKExists(
++                f'{app_label}_rider',
++                ['pony_id'],
++                (f'{app_label}_pony', 'id'),
++            )
++
+     @skipUnlessDBFeature('supports_foreign_keys')
+     def test_alter_field_reloads_state_on_fk_with_to_field_target_type_change(self):
+         app_label = 'test_alflrsfkwtflttc'
++ git diff e972620ada4f9ed7bc57f28e133e85c85b0a7b20
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index f8d848e926..f2f9797d88 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -670,7 +670,7 @@ class QuerySet:
+                 when_statements = []
+                 for obj in batch_objs:
+                     attr = getattr(obj, field.attname)
+-                    if not isinstance(attr, Expression):
++                    if not hasattr(attr, 'resolve_expression'):
+                         attr = Value(attr, output_field=field)
+                     when_statements.append(When(pk=obj.pk, then=attr))
+                 case_statement = Case(*when_statements, output_field=field)
+diff --git a/tests/queries/test_query.py b/tests/queries/test_query.py
+index 6ed766e3ae..e2fb11dff1 100644
+--- a/tests/queries/test_query.py
++++ b/tests/queries/test_query.py
+@@ -1,84 +1,36 @@
+ from datetime import datetime
+ 
+ from django.core.exceptions import FieldError
++from django.db import models
+ from django.db.models import BooleanField, CharField, F, Q
+-from django.db.models.expressions import Col, Func
++from django.db.models.expressions import Col, Func, Value
+ from django.db.models.fields.related_lookups import RelatedIsNull
+-from django.db.models.functions import Lower
+ from django.db.models.lookups import Exact, GreaterThan, IsNull, LessThan
+-from django.db.models.sql.query import JoinPromoter, Query
+-from django.db.models.sql.where import OR
+-from django.test import SimpleTestCase
+-from django.test.utils import register_lookup
+-
+-from .models import Author, Item, ObjectC, Ranking
+-
+-
+-class TestQuery(SimpleTestCase):
+-    def test_simple_query(self):
+-        query = Query(Author)
+-        where = query.build_where(Q(num__gt=2))
+-        lookup = where.children[0]
+-        self.assertIsInstance(lookup, GreaterThan)
+-        self.assertEqual(lookup.rhs, 2)
+-        self.assertEqual(lookup.lhs.target, Author._meta.get_field('num'))
+-
+-    def test_non_alias_cols_query(self):
+-        query = Query(Author, alias_cols=False)
+-        where = query.build_where(Q(num__gt=2, name__isnull=False) | Q(num__lt=F('id')))
+-
+-        name_isnull_lookup, num_gt_lookup = where.children[0].children
+-        self.assertIsInstance(num_gt_lookup, GreaterThan)
+-        self.assertIsInstance(num_gt_lookup.lhs, Col)
+-        self.assertIsNone(num_gt_lookup.lhs.alias)
+-        self.assertIsInstance(name_isnull_lookup, IsNull)
+-        self.assertIsInstance(name_isnull_lookup.lhs, Col)
+-        self.assertIsNone(name_isnull_lookup.lhs.alias)
+-
+-        num_lt_lookup = where.children[1]
+-        self.assertIsInstance(num_lt_lookup, LessThan)
+-        self.assertIsInstance(num_lt_lookup.rhs, Col)
+-        self.assertIsNone(num_lt_lookup.rhs.alias)
+-        self.assertIsInstance(num_lt_lookup.lhs, Col)
+-        self.assertIsNone(num_lt_lookup.lhs.alias)
+-
+-    def test_complex_query(self):
+-        query = Query(Author)
+-        where = query.build_where(Q(num__gt=2) | Q(num__lt=0))
+-        self.assertEqual(where.connector, OR)
+-
+-        lookup = where.children[0]
+-        self.assertIsInstance(lookup, GreaterThan)
+-        self.assertEqual(lookup.rhs, 2)
+-        self.assertEqual(lookup.lhs.target, Author._meta.get_field('num'))
+-
+-        lookup = where.children[1]
+-        self.assertIsInstance(lookup, LessThan)
+-        self.assertEqual(lookup.rhs, 0)
+-        self.assertEqual(lookup.lhs.target, Author._meta.get_field('num'))
+-
+-    def test_multiple_fields(self):
+-        query = Query(Item, alias_cols=False)
+-        where = query.build_where(Q(modified__gt=F('created')))
+-        lookup = where.children[0]
+-        self.assertIsInstance(lookup, GreaterThan)
+-        self.assertIsInstance(lookup.rhs, Col)
+-        self.assertIsNone(lookup.rhs.alias)
+-        self.assertIsInstance(lookup.lhs, Col)
+-        self.assertIsNone(lookup.lhs.alias)
+-        self.assertEqual(lookup.rhs.target, Item._meta.get_field('created'))
+-        self.assertEqual(lookup.lhs.target, Item._meta.get_field('modified'))
+-
+-    def test_transform(self):
+-        query = Query(Author, alias_cols=False)
+-        with register_lookup(CharField, Lower):
+-            where = query.build_where(~Q(name__lower='foo'))
+-        lookup = where.children[0]
+-        self.assertIsInstance(lookup, Exact)
+-        self.assertIsInstance(lookup.lhs, Lower)
+-        self.assertIsInstance(lookup.lhs.lhs, Col)
+-        self.assertIsNone(lookup.lhs.lhs.alias)
+-        self.assertEqual(lookup.lhs.lhs.target, Author._meta.get_field('name'))
++from django.db.models.sql import Query
++from django.db.models.sql.query import JoinPromoter
++from django.test import SimpleTestCase, TestCase
++from django.test.utils import isolate_apps, register_lookup
++
++from .models import Author, ExtraInfo, Item, ObjectC, Ranking
++
++
++class TestQuery(TestCase):
++    def test_bulk_update_with_f_expression(self):
++        # Create and save the objects first
++        extra_info = ExtraInfo.objects.create()
++        obj = Author.objects.create(name='test', num=30, extra=extra_info)
++        
++        # Now update the num with an F expression
++        obj.num = F('name')
++        
++        # Use the actual bulk_update method
++        Author.objects.bulk_update([obj], ['num'])
++
++        # Refresh the object from the database
++        obj.refresh_from_db()
++
++        # Check if the F expression was preserved
++        self.assertEqual(str(obj.num), obj.name)
+ 
+     def test_negated_nullable(self):
+         query = Query(Item)
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.4.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20220127175139) (3.8.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Django==4.1.dev20220127175139) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from asgiref>=3.4.1->Django==4.1.dev20220127175139) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.1.dev20220127175139-0.editable-py3-none-any.whl size=26918 sha256=6a2df9ce152d99e194f043db231aefa4a108f78c23cb71ba091480437f0887da
+  Stored in directory: /tmp/pip-ephem-wheel-cache-8pbko8tm/wheels/7d/66/67/70d1ee2124ccf21d601c352e25cdca10f611f7c8b3f9ffb9e4
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.1.dev20220127175139
+    Uninstalling Django-4.1.dev20220127175139:
+      Successfully uninstalled Django-4.1.dev20220127175139
+Successfully installed Django-4.1.dev20220127175139
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout e972620ada4f9ed7bc57f28e133e85c85b0a7b20 tests/queries/test_bulk_update.py
+Updated 0 paths from 1039312b04
++ git apply -v -
+Checking patch tests/queries/test_bulk_update.py...
+Applied patch tests/queries/test_bulk_update.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 queries.test_bulk_update
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/testbed/django'
+Importing application queries
+Found 30 test(s).
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, queries, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table queries_dumbcategory
+    Creating table queries_namedcategory
+    Creating table queries_tag
+    Creating table queries_note
+    Creating table queries_annotation
+    Creating table queries_datetimepk
+    Creating table queries_extrainfo
+    Creating table queries_author
+    Creating table queries_item
+    Creating table queries_report
+    Creating table queries_reportcomment
+    Creating table queries_ranking
+    Creating table queries_cover
+    Creating table queries_number
+    Creating table queries_valid
+    Creating table queries_x
+    Creating table queries_y
+    Creating table queries_loopx
+    Creating table queries_loopy
+    Creating table queries_loopz
+    Creating table queries_managedmodel
+    Creating table queries_detail
+    Creating table queries_member
+    Creating table queries_child
+    Creating table queries_custompk
+    Creating table queries_related
+    Creating table queries_custompktag
+    Creating table queries_celebrity
+    Creating table queries_tvchef
+    Creating table queries_fan
+    Creating table queries_leafa
+    Creating table queries_leafb
+    Creating table queries_join
+    Creating table queries_reservedname
+    Creating table queries_sharedconnection
+    Creating table queries_pointera
+    Creating table queries_pointerb
+    Creating table queries_singleobject
+    Creating table queries_relatedobject
+    Creating table queries_plaything
+    Creating table queries_article
+    Creating table queries_food
+    Creating table queries_eaten
+    Creating table queries_node
+    Creating table queries_objecta
+    Creating table queries_childobjecta
+    Creating table queries_objectb
+    Creating table queries_objectc
+    Creating table queries_simplecategory
+    Creating table queries_specialcategory
+    Creating table queries_categoryitem
+    Creating table queries_mixedcasefieldcategoryitem
+    Creating table queries_mixedcasedbcolumncategoryitem
+    Creating table queries_onetoonecategory
+    Creating table queries_categoryrelationship
+    Creating table queries_commonmixedcaseforeignkeys
+    Creating table queries_nullablename
+    Creating table queries_modeld
+    Creating table queries_modelc
+    Creating table queries_modelb
+    Creating table queries_modela
+    Creating table queries_job
+    Creating table queries_jobresponsibilities
+    Creating table queries_responsibility
+    Creating table queries_fk1
+    Creating table queries_fk2
+    Creating table queries_fk3
+    Creating table queries_basea
+    Creating table queries_identifier
+    Creating table queries_program
+    Creating table queries_channel
+    Creating table queries_book
+    Creating table queries_chapter
+    Creating table queries_paragraph
+    Creating table queries_page
+    Creating table queries_myobject
+    Creating table queries_order
+    Creating table queries_orderitem
+    Creating table queries_baseuser
+    Creating table queries_task
+    Creating table queries_staff
+    Creating table queries_staffuser
+    Creating table queries_ticket21203parent
+    Creating table queries_ticket21203child
+    Creating table queries_person
+    Creating table queries_company
+    Creating table queries_employment
+    Creating table queries_school
+    Creating table queries_student
+    Creating table queries_classroom
+    Creating table queries_teacher
+    Creating table queries_ticket23605aparent
+    Creating table queries_ticket23605a
+    Creating table queries_ticket23605b
+    Creating table queries_ticket23605c
+    Creating table Individual
+    Creating table RelatedIndividual
+    Creating table queries_customdbcolumn
+    Creating table queries_returningmodel
+    Creating table queries_nonintegerpkreturningmodel
+    Creating table queries_jsonfieldnullable
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+test_batch_size (queries.test_bulk_update.BulkUpdateNoteTests) ... System check identified no issues (1 silenced).
+ok
+test_foreign_keys_do_not_lookup (queries.test_bulk_update.BulkUpdateNoteTests) ... ok
+test_functions (queries.test_bulk_update.BulkUpdateNoteTests) ... ok
+test_multiple_fields (queries.test_bulk_update.BulkUpdateNoteTests) ... ok
+test_set_field_to_null (queries.test_bulk_update.BulkUpdateNoteTests) ... ok
+test_set_mixed_fields_to_null (queries.test_bulk_update.BulkUpdateNoteTests) ... ok
+test_simple (queries.test_bulk_update.BulkUpdateNoteTests) ... ok
+test_unsaved_models (queries.test_bulk_update.BulkUpdateNoteTests) ... ok
+test_booleanfield (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_custom_db_columns (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_custom_pk (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_datetime_field (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_empty_objects (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_f_expression (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_falsey_pk_value (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_field_references (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_inherited_fields (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_invalid_batch_size (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_ipaddressfield (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_json_field (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_large_batch (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_no_fields (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_nonexistent_field (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_nullable_fk_after_related_save (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_only_concrete_fields_allowed (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_unsaved_parent (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_unspecified_unsaved_parent (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_update_custom_primary_key (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_update_primary_key (queries.test_bulk_update.BulkUpdateTests) ... ok
+test_updated_rows_when_passing_duplicates (queries.test_bulk_update.BulkUpdateTests) ... ok
+
+----------------------------------------------------------------------
+Ran 30 tests in 0.858s
+
+OK
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout e972620ada4f9ed7bc57f28e133e85c85b0a7b20 tests/queries/test_bulk_update.py
+Updated 1 path from 1039312b04

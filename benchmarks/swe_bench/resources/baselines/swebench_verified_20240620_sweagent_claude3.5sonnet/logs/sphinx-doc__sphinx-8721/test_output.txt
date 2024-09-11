@@ -1,0 +1,909 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   doc/usage/extensions/viewcode.rst
+	modified:   sphinx/config.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	setup.py.orig
+	tox.ini.orig
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 82ef497a8c88f0f6e50d84520e7276bfbf65025d
+Merge: 42de5e288 cead0f6dd
+Author: Takeshi KOMIYA <i.tkomiya@gmail.com>
+Date:   Wed Jan 20 21:12:22 2021 +0900
+
+    Merge pull request #8702 from tk0miya/4304_linkcheck_same_url
+    
+    linkcheck: Do not check the availability of the same URL repeatedly
+
++ git diff 82ef497a8c88f0f6e50d84520e7276bfbf65025d
+diff --git a/doc/usage/extensions/viewcode.rst b/doc/usage/extensions/viewcode.rst
+index d3c3c44fb..053b524e6 100644
+--- a/doc/usage/extensions/viewcode.rst
++++ b/doc/usage/extensions/viewcode.rst
+@@ -52,18 +52,20 @@ Configuration
+ 
+ .. confval:: viewcode_enable_epub
+ 
+-   If this is ``True``, viewcode extension is also enabled even if you use
+-   epub builders. This extension generates pages outside toctree, but this
+-   is not preferred as epub format.
++   If this is ``True``, the viewcode extension will generate pages for epub builders.
++   When set to ``False`` (the default), viewcode pages are not created for epub output.
+ 
+-   Until 1.4.x, this extension is always enabled. If you want to generate
+-   epub as same as 1.4.x, you should set ``True``, but epub format checker's
+-   score becomes worse.
++   This extension generates pages outside the toctree, which is not preferred
++   in the epub format. Setting this to ``True`` may negatively affect epub format
++   checker scores.
+ 
+    The default is ``False``.
+ 
+    .. versionadded:: 1.5
+ 
++   .. versionchanged:: 4.0
++      Default value changed to ``False``.
++
+    .. warning::
+ 
+       Not all epub readers support pages generated by viewcode extension.
+diff --git a/sphinx/config.py b/sphinx/config.py
+index 4c038b061..8cfd00e5e 100644
+--- a/sphinx/config.py
++++ b/sphinx/config.py
+@@ -98,6 +98,7 @@ class Config:
+         # general options
+         'project': ('Python', 'env', []),
+         'author': ('unknown', 'env', []),
++        'viewcode_enable_epub': (False, 'env', []),
+         'project_copyright': ('', 'html', [str]),
+         'copyright': (lambda c: c.project_copyright, 'html', [str]),
+         'version': ('', 'env', []),
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e '.[test]'
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: sphinxcontrib-applehelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (1.0.4)
+Requirement already satisfied: sphinxcontrib-devhelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (1.0.2)
+Requirement already satisfied: sphinxcontrib-jsmath in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (1.0.1)
+Requirement already satisfied: sphinxcontrib-htmlhelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (2.0.1)
+Requirement already satisfied: sphinxcontrib-serializinghtml in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (1.1.5)
+Requirement already satisfied: sphinxcontrib-qthelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (1.0.3)
+Requirement already satisfied: Jinja2>=2.3 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (2.11.3)
+Requirement already satisfied: Pygments>=2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (2.18.0)
+Requirement already satisfied: docutils>=0.12 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (0.21.2)
+Requirement already satisfied: snowballstemmer>=1.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (2.2.0)
+Requirement already satisfied: babel>=1.3 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (2.15.0)
+Requirement already satisfied: alabaster<0.8,>=0.7 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (0.7.11)
+Requirement already satisfied: imagesize in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (1.4.1)
+Requirement already satisfied: requests>=2.5.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (2.32.3)
+Requirement already satisfied: setuptools in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (69.5.1)
+Requirement already satisfied: packaging in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (24.1)
+Requirement already satisfied: pytest in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (8.3.2)
+Requirement already satisfied: pytest-cov in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (5.0.0)
+Requirement already satisfied: html5lib in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (1.1)
+Requirement already satisfied: cython in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.5.0.dev20240725) (3.0.10)
+Requirement already satisfied: MarkupSafe>=0.23 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Jinja2>=2.3->Sphinx==3.5.0.dev20240725) (2.0.1)
+Requirement already satisfied: charset-normalizer<4,>=2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.5.0.dev20240725) (3.3.2)
+Requirement already satisfied: idna<4,>=2.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.5.0.dev20240725) (3.7)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.5.0.dev20240725) (2.2.2)
+Requirement already satisfied: certifi>=2017.4.17 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.5.0.dev20240725) (2024.7.4)
+Requirement already satisfied: six>=1.9 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from html5lib->Sphinx==3.5.0.dev20240725) (1.16.0)
+Requirement already satisfied: webencodings in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from html5lib->Sphinx==3.5.0.dev20240725) (0.5.1)
+Requirement already satisfied: iniconfig in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.5.0.dev20240725) (2.0.0)
+Requirement already satisfied: pluggy<2,>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.5.0.dev20240725) (1.5.0)
+Requirement already satisfied: exceptiongroup>=1.0.0rc8 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.5.0.dev20240725) (1.2.2)
+Requirement already satisfied: tomli>=1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.5.0.dev20240725) (2.0.1)
+Requirement already satisfied: coverage>=5.2.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from coverage[toml]>=5.2.1->pytest-cov->Sphinx==3.5.0.dev20240725) (7.6.0)
+Installing collected packages: Sphinx
+  Attempting uninstall: Sphinx
+    Found existing installation: Sphinx 3.5.0.dev20240725
+    Uninstalling Sphinx-3.5.0.dev20240725:
+      Successfully uninstalled Sphinx-3.5.0.dev20240725
+  Running setup.py develop for Sphinx
+Successfully installed Sphinx-3.5.0.dev20240725
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 82ef497a8c88f0f6e50d84520e7276bfbf65025d tests/test_ext_viewcode.py
+Updated 0 paths from b0a7f24a7
++ git apply -v -
+Checking patch tests/test_ext_viewcode.py...
+Applied patch tests/test_ext_viewcode.py cleanly.
++ tox --current-env -epy39 -v -- tests/test_ext_viewcode.py
+py39: commands[0]> python -X dev -m pytest --durations 25 tests/test_ext_viewcode.py
+[1m============================= test session starts ==============================[0m
+platform linux -- Python 3.9.19, pytest-8.3.2, pluggy-1.5.0
+cachedir: .tox/py39/.pytest_cache
+libraries: Sphinx-3.5.0+/82ef497a8, docutils-0.21.2
+base tempdir: /tmp/pytest-of-root/pytest-0
+rootdir: /testbed
+configfile: setup.cfg
+plugins: cov-5.0.0
+collected 5 items
+
+tests/test_ext_viewcode.py [31mE[0m[31mE[0m[31mE[0m[32m.[0m[31mE[0m[31m                                         [100%][0m
+
+==================================== ERRORS ====================================
+[31m[1m_______________________ ERROR at setup of test_viewcode ________________________[0m
+
+test_params = {'shared_result': None}
+app_params = app_params(args=[], kwargs={'srcdir': path('/tmp/pytest-of-root/pytest-0/ext-viewcode')})
+make_app = <function make_app.<locals>.make at 0x7ff96245cf50>
+shared_result = <sphinx.testing.fixtures.SharedResult object at 0x7ff9623c5af0>
+
+    [0m[37m@pytest[39;49;00m.fixture(scope=[33m'[39;49;00m[33mfunction[39;49;00m[33m'[39;49;00m)[90m[39;49;00m
+    [94mdef[39;49;00m [92mapp[39;49;00m(test_params: Dict, app_params: Tuple[Dict, Dict], make_app: Callable,[90m[39;49;00m
+            shared_result: SharedResult) -> Generator[SphinxTestApp, [94mNone[39;49;00m, [94mNone[39;49;00m]:[90m[39;49;00m
+    [90m    [39;49;00m[33m"""[39;49;00m
+    [33m    provides sphinx.application.Sphinx object[39;49;00m
+    [33m    """[39;49;00m[90m[39;49;00m
+        args, kwargs = app_params[90m[39;49;00m
+>       app_ = make_app(*args, **kwargs)[90m[39;49;00m
+
+[1m[31msphinx/testing/fixtures.py[0m:149: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+[1m[31msphinx/testing/fixtures.py[0m:195: in make
+    [0mapp_ = SphinxTestApp(*args, **kwargs)  [90m# type: Any[39;49;00m[90m[39;49;00m
+[1m[31msphinx/testing/util.py[0m:133: in __init__
+    [0m[96msuper[39;49;00m().[92m__init__[39;49;00m(srcdir, confdir, outdir, doctreedir,[90m[39;49;00m
+[1m[31msphinx/application.py[0m:245: in __init__
+    [0m[96mself[39;49;00m.setup_extension(extension)[90m[39;49;00m
+[1m[31msphinx/application.py[0m:402: in setup_extension
+    [0m[96mself[39;49;00m.registry.load_extension([96mself[39;49;00m, extname)[90m[39;49;00m
+[1m[31msphinx/registry.py[0m:430: in load_extension
+    [0mmetadata = setup(app)[90m[39;49;00m
+[1m[31msphinx/ext/viewcode.py[0m:281: in setup
+    [0mapp.add_config_value([33m'[39;49;00m[33mviewcode_enable_epub[39;49;00m[33m'[39;49;00m, [94mFalse[39;49;00m, [94mFalse[39;49;00m)[90m[39;49;00m
+[1m[31msphinx/application.py[0m:517: in add_config_value
+    [0m[96mself[39;49;00m.config.add(name, default, rebuild, types)[90m[39;49;00m
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sphinx.config.Config object at 0x7ff9645bd0f0>
+name = 'viewcode_enable_epub', default = False, rebuild = '', types = ()
+
+    [0m[94mdef[39;49;00m [92madd[39;49;00m([96mself[39;49;00m, name: [96mstr[39;49;00m, default: Any, rebuild: Union[[96mbool[39;49;00m, [96mstr[39;49;00m], types: Any) -> [94mNone[39;49;00m:[90m[39;49;00m
+        [94mif[39;49;00m name [95min[39;49;00m [96mself[39;49;00m.values:[90m[39;49;00m
+>           [94mraise[39;49;00m ExtensionError(__([33m'[39;49;00m[33mConfig value [39;49;00m[33m%r[39;49;00m[33m already present[39;49;00m[33m'[39;49;00m) % name)[90m[39;49;00m
+[1m[31mE           sphinx.errors.ExtensionError: Config value 'viewcode_enable_epub' already present[0m
+
+[1m[31msphinx/config.py[0m:283: ExtensionError
+[31m[1m_________________ ERROR at setup of test_viewcode_epub_default _________________[0m
+
+test_params = {'shared_result': None}
+app_params = app_params(args=['epub'], kwargs={'srcdir': path('/tmp/pytest-of-root/pytest-0/ext-viewcode')})
+make_app = <function make_app.<locals>.make at 0x7ff9615bf370>
+shared_result = <sphinx.testing.fixtures.SharedResult object at 0x7ff9619c14b0>
+
+    [0m[37m@pytest[39;49;00m.fixture(scope=[33m'[39;49;00m[33mfunction[39;49;00m[33m'[39;49;00m)[90m[39;49;00m
+    [94mdef[39;49;00m [92mapp[39;49;00m(test_params: Dict, app_params: Tuple[Dict, Dict], make_app: Callable,[90m[39;49;00m
+            shared_result: SharedResult) -> Generator[SphinxTestApp, [94mNone[39;49;00m, [94mNone[39;49;00m]:[90m[39;49;00m
+    [90m    [39;49;00m[33m"""[39;49;00m
+    [33m    provides sphinx.application.Sphinx object[39;49;00m
+    [33m    """[39;49;00m[90m[39;49;00m
+        args, kwargs = app_params[90m[39;49;00m
+>       app_ = make_app(*args, **kwargs)[90m[39;49;00m
+
+[1m[31msphinx/testing/fixtures.py[0m:149: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+[1m[31msphinx/testing/fixtures.py[0m:195: in make
+    [0mapp_ = SphinxTestApp(*args, **kwargs)  [90m# type: Any[39;49;00m[90m[39;49;00m
+[1m[31msphinx/testing/util.py[0m:133: in __init__
+    [0m[96msuper[39;49;00m().[92m__init__[39;49;00m(srcdir, confdir, outdir, doctreedir,[90m[39;49;00m
+[1m[31msphinx/application.py[0m:245: in __init__
+    [0m[96mself[39;49;00m.setup_extension(extension)[90m[39;49;00m
+[1m[31msphinx/application.py[0m:402: in setup_extension
+    [0m[96mself[39;49;00m.registry.load_extension([96mself[39;49;00m, extname)[90m[39;49;00m
+[1m[31msphinx/registry.py[0m:430: in load_extension
+    [0mmetadata = setup(app)[90m[39;49;00m
+[1m[31msphinx/ext/viewcode.py[0m:281: in setup
+    [0mapp.add_config_value([33m'[39;49;00m[33mviewcode_enable_epub[39;49;00m[33m'[39;49;00m, [94mFalse[39;49;00m, [94mFalse[39;49;00m)[90m[39;49;00m
+[1m[31msphinx/application.py[0m:517: in add_config_value
+    [0m[96mself[39;49;00m.config.add(name, default, rebuild, types)[90m[39;49;00m
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sphinx.config.Config object at 0x7ff962439d70>
+name = 'viewcode_enable_epub', default = False, rebuild = '', types = ()
+
+    [0m[94mdef[39;49;00m [92madd[39;49;00m([96mself[39;49;00m, name: [96mstr[39;49;00m, default: Any, rebuild: Union[[96mbool[39;49;00m, [96mstr[39;49;00m], types: Any) -> [94mNone[39;49;00m:[90m[39;49;00m
+        [94mif[39;49;00m name [95min[39;49;00m [96mself[39;49;00m.values:[90m[39;49;00m
+>           [94mraise[39;49;00m ExtensionError(__([33m'[39;49;00m[33mConfig value [39;49;00m[33m%r[39;49;00m[33m already present[39;49;00m[33m'[39;49;00m) % name)[90m[39;49;00m
+[1m[31mE           sphinx.errors.ExtensionError: Config value 'viewcode_enable_epub' already present[0m
+
+[1m[31msphinx/config.py[0m:283: ExtensionError
+[31m[1m_________________ ERROR at setup of test_viewcode_epub_enabled _________________[0m
+
+test_params = {'shared_result': None}
+app_params = app_params(args=['epub'], kwargs={'confoverrides': {'viewcode_enable_epub': True}, 'srcdir': path('/tmp/pytest-of-root/pytest-0/ext-viewcode')})
+make_app = <function make_app.<locals>.make at 0x7ff9614234b0>
+shared_result = <sphinx.testing.fixtures.SharedResult object at 0x7ff961c030a0>
+
+    [0m[37m@pytest[39;49;00m.fixture(scope=[33m'[39;49;00m[33mfunction[39;49;00m[33m'[39;49;00m)[90m[39;49;00m
+    [94mdef[39;49;00m [92mapp[39;49;00m(test_params: Dict, app_params: Tuple[Dict, Dict], make_app: Callable,[90m[39;49;00m
+            shared_result: SharedResult) -> Generator[SphinxTestApp, [94mNone[39;49;00m, [94mNone[39;49;00m]:[90m[39;49;00m
+    [90m    [39;49;00m[33m"""[39;49;00m
+    [33m    provides sphinx.application.Sphinx object[39;49;00m
+    [33m    """[39;49;00m[90m[39;49;00m
+        args, kwargs = app_params[90m[39;49;00m
+>       app_ = make_app(*args, **kwargs)[90m[39;49;00m
+
+[1m[31msphinx/testing/fixtures.py[0m:149: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+[1m[31msphinx/testing/fixtures.py[0m:195: in make
+    [0mapp_ = SphinxTestApp(*args, **kwargs)  [90m# type: Any[39;49;00m[90m[39;49;00m
+[1m[31msphinx/testing/util.py[0m:133: in __init__
+    [0m[96msuper[39;49;00m().[92m__init__[39;49;00m(srcdir, confdir, outdir, doctreedir,[90m[39;49;00m
+[1m[31msphinx/application.py[0m:245: in __init__
+    [0m[96mself[39;49;00m.setup_extension(extension)[90m[39;49;00m
+[1m[31msphinx/application.py[0m:402: in setup_extension
+    [0m[96mself[39;49;00m.registry.load_extension([96mself[39;49;00m, extname)[90m[39;49;00m
+[1m[31msphinx/registry.py[0m:430: in load_extension
+    [0mmetadata = setup(app)[90m[39;49;00m
+[1m[31msphinx/ext/viewcode.py[0m:281: in setup
+    [0mapp.add_config_value([33m'[39;49;00m[33mviewcode_enable_epub[39;49;00m[33m'[39;49;00m, [94mFalse[39;49;00m, [94mFalse[39;49;00m)[90m[39;49;00m
+[1m[31msphinx/application.py[0m:517: in add_config_value
+    [0m[96mself[39;49;00m.config.add(name, default, rebuild, types)[90m[39;49;00m
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sphinx.config.Config object at 0x7ff961a7dc80>
+name = 'viewcode_enable_epub', default = False, rebuild = '', types = ()
+
+    [0m[94mdef[39;49;00m [92madd[39;49;00m([96mself[39;49;00m, name: [96mstr[39;49;00m, default: Any, rebuild: Union[[96mbool[39;49;00m, [96mstr[39;49;00m], types: Any) -> [94mNone[39;49;00m:[90m[39;49;00m
+        [94mif[39;49;00m name [95min[39;49;00m [96mself[39;49;00m.values:[90m[39;49;00m
+>           [94mraise[39;49;00m ExtensionError(__([33m'[39;49;00m[33mConfig value [39;49;00m[33m%r[39;49;00m[33m already present[39;49;00m[33m'[39;49;00m) % name)[90m[39;49;00m
+[1m[31mE           sphinx.errors.ExtensionError: Config value 'viewcode_enable_epub' already present[0m
+
+[1m[31msphinx/config.py[0m:283: ExtensionError
+[31m[1m__________________ ERROR at setup of test_local_source_files ___________________[0m
+
+test_params = {'shared_result': None}
+app_params = app_params(args=[], kwargs={'srcdir': path('/tmp/pytest-of-root/pytest-0/ext-viewcode-find')})
+make_app = <function make_app.<locals>.make at 0x7ff960e11690>
+shared_result = <sphinx.testing.fixtures.SharedResult object at 0x7ff960e1e5f0>
+
+    [0m[37m@pytest[39;49;00m.fixture(scope=[33m'[39;49;00m[33mfunction[39;49;00m[33m'[39;49;00m)[90m[39;49;00m
+    [94mdef[39;49;00m [92mapp[39;49;00m(test_params: Dict, app_params: Tuple[Dict, Dict], make_app: Callable,[90m[39;49;00m
+            shared_result: SharedResult) -> Generator[SphinxTestApp, [94mNone[39;49;00m, [94mNone[39;49;00m]:[90m[39;49;00m
+    [90m    [39;49;00m[33m"""[39;49;00m
+    [33m    provides sphinx.application.Sphinx object[39;49;00m
+    [33m    """[39;49;00m[90m[39;49;00m
+        args, kwargs = app_params[90m[39;49;00m
+>       app_ = make_app(*args, **kwargs)[90m[39;49;00m
+
+[1m[31msphinx/testing/fixtures.py[0m:149: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+[1m[31msphinx/testing/fixtures.py[0m:195: in make
+    [0mapp_ = SphinxTestApp(*args, **kwargs)  [90m# type: Any[39;49;00m[90m[39;49;00m
+[1m[31msphinx/testing/util.py[0m:133: in __init__
+    [0m[96msuper[39;49;00m().[92m__init__[39;49;00m(srcdir, confdir, outdir, doctreedir,[90m[39;49;00m
+[1m[31msphinx/application.py[0m:245: in __init__
+    [0m[96mself[39;49;00m.setup_extension(extension)[90m[39;49;00m
+[1m[31msphinx/application.py[0m:402: in setup_extension
+    [0m[96mself[39;49;00m.registry.load_extension([96mself[39;49;00m, extname)[90m[39;49;00m
+[1m[31msphinx/registry.py[0m:430: in load_extension
+    [0mmetadata = setup(app)[90m[39;49;00m
+[1m[31msphinx/ext/viewcode.py[0m:281: in setup
+    [0mapp.add_config_value([33m'[39;49;00m[33mviewcode_enable_epub[39;49;00m[33m'[39;49;00m, [94mFalse[39;49;00m, [94mFalse[39;49;00m)[90m[39;49;00m
+[1m[31msphinx/application.py[0m:517: in add_config_value
+    [0m[96mself[39;49;00m.config.add(name, default, rebuild, types)[90m[39;49;00m
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sphinx.config.Config object at 0x7ff9623c3140>
+name = 'viewcode_enable_epub', default = False, rebuild = '', types = ()
+
+    [0m[94mdef[39;49;00m [92madd[39;49;00m([96mself[39;49;00m, name: [96mstr[39;49;00m, default: Any, rebuild: Union[[96mbool[39;49;00m, [96mstr[39;49;00m], types: Any) -> [94mNone[39;49;00m:[90m[39;49;00m
+        [94mif[39;49;00m name [95min[39;49;00m [96mself[39;49;00m.values:[90m[39;49;00m
+>           [94mraise[39;49;00m ExtensionError(__([33m'[39;49;00m[33mConfig value [39;49;00m[33m%r[39;49;00m[33m already present[39;49;00m[33m'[39;49;00m) % name)[90m[39;49;00m
+[1m[31mE           sphinx.errors.ExtensionError: Config value 'viewcode_enable_epub' already present[0m
+
+[1m[31msphinx/config.py[0m:283: ExtensionError
+[33m=============================== warnings summary ===============================[0m
+sphinx/util/docutils.py:45
+  /testbed/sphinx/util/docutils.py:45: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    __version_info__ = tuple(LooseVersion(docutils.__version__).version)
+
+sphinx/registry.py:22
+  /testbed/sphinx/registry.py:22: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+    from pkg_resources import iter_entry_points
+
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('sphinxcontrib')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+sphinx/directives/patches.py:14
+  /testbed/sphinx/directives/patches.py:14: DeprecationWarning: The `docutils.parsers.rst.directive.html` module will be removed in Docutils 2.0. Since Docutils 0.18, the "Meta" node is defined in `docutils.parsers.rst.directives.misc`.
+    from docutils.parsers.rst.directives import html, images, tables
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/__init__.py:210: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse():  # type: Node
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/i18n.py:95: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.translatable):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/__init__.py:110: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for ref in self.document.traverse(nodes.substitution_reference):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/__init__.py:131: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.target):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/__init__.py:150: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.block_quote):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/__init__.py:175: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.Element):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/__init__.py:222: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.index):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/__init__.py:189: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.section):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/__init__.py:279: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.doctest_block):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/domains/citation.py:116: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.citation):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/domains/citation.py:135: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.citation_reference):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/builders/latex/transforms.py:36: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(matcher):  # type: nodes.Element
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/__init__.py:291: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(matcher):  # type: Element
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/util/compat.py:44: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.index):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/domains/index.py:51: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in document.traverse(addnodes.index):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/domains/math.py:84: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    self.data['has_equations'][docname] = any(document.traverse(math_node))
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/environment/collectors/asset.py:46: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in doctree.traverse(nodes.image):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/environment/collectors/asset.py:127: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in doctree.traverse(addnodes.download_reference):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/environment/collectors/title.py:46: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in doctree.traverse(nodes.section):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/ext/linkcode.py:42: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for objnode in doctree.traverse(addnodes.desc):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/__init__.py:301: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.system_message):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/__init__.py:390: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.manpage):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/i18n.py:488: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for inline in self.document.traverse(matcher):  # type: nodes.inline
+
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/domains/python.py:283: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in result.traverse(nodes.Text):
+
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/builders/html/__init__.py:422: DeprecationWarning: The frontend.OptionParser class will be replaced by a subclass of argparse.ArgumentParser in Docutils 0.21 or later.
+    self.docsettings = OptionParser(
+
+tests/test_ext_viewcode.py: 72 warnings
+  /opt/miniconda3/envs/testbed/lib/python3.9/optparse.py:1000: DeprecationWarning: The frontend.Option class will be removed in Docutils 0.21 or later.
+    option = self.option_class(*args, **kwargs)
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/domains/c.py:3494: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(AliasNode):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/domains/cpp.py:7070: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(AliasNode):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/post_transforms/__init__.py:69: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.pending_xref):
+
+tests/test_ext_viewcode.py: 10 warnings
+  /testbed/sphinx/util/nodes.py:598: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in document.traverse(addnodes.only):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/post_transforms/images.py:33: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.image):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/post_transforms/__init__.py:216: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.desc_sig_element):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/builders/latex/transforms.py:48: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.substitution_definition):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/builders/html/transforms.py:44: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(matcher):  # type: nodes.literal
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/builders/latex/transforms.py:606: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.title):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/builders/latex/transforms.py:608: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for i, index in enumerate(node.traverse(addnodes.index)):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/post_transforms/code.py:43: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.highlightlang):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/post_transforms/code.py:95: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for lbnode in self.document.traverse(nodes.literal_block):  # type: nodes.literal_block
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/transforms/post_transforms/code.py:99: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for dbnode in self.document.traverse(nodes.doctest_block):  # type: nodes.doctest_block
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/environment/__init__.py:541: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for toctreenode in doctree.traverse(addnodes.toctree):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/environment/adapters/toctree.py:203: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for subtocnode in toc.traverse(addnodes.toctree):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/environment/adapters/toctree.py:261: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for refnode in newnode.traverse(nodes.reference):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/builders/__init__.py:181: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in doctree.traverse(nodes.image):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/builders/html/__init__.py:844: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in doctree.traverse(nodes.image):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/environment/adapters/toctree.py:312: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in toc.traverse(nodes.reference):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/alabaster/layout.html:114: DeprecationWarning: 'soft_unicode' has been renamed to 'soft_str'. The old name will be removed in MarkupSafe 2.1.
+    _gaq.push(['_setAllowLinker', true]);
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/alabaster/about.html:70: DeprecationWarning: 'soft_unicode' has been renamed to 'soft_str'. The old name will be removed in MarkupSafe 2.1.
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/alabaster/about.html:99: DeprecationWarning: 'soft_unicode' has been renamed to 'soft_str'. The old name will be removed in MarkupSafe 2.1.
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/environment/adapters/toctree.py:328: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for toctreenode in doctree.traverse(addnodes.toctree):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/alabaster/layout.html:215: DeprecationWarning: 'soft_unicode' has been renamed to 'soft_str'. The old name will be removed in MarkupSafe 2.1.
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/alabaster/layout.html:238: DeprecationWarning: 'soft_unicode' has been renamed to 'soft_str'. The old name will be removed in MarkupSafe 2.1.
+
+tests/test_ext_viewcode.py::test_linkcode
+  <template>:33: DeprecationWarning: 'soft_unicode' has been renamed to 'soft_str'. The old name will be removed in MarkupSafe 2.1.
+
+tests/test_ext_viewcode.py::test_linkcode
+  <template>:224: DeprecationWarning: 'soft_unicode' has been renamed to 'soft_str'. The old name will be removed in MarkupSafe 2.1.
+
+tests/test_ext_viewcode.py::test_linkcode
+  <template>:386: DeprecationWarning: 'soft_unicode' has been renamed to 'soft_str'. The old name will be removed in MarkupSafe 2.1.
+
+tests/test_ext_viewcode.py::test_linkcode
+  <template>:401: DeprecationWarning: 'soft_unicode' has been renamed to 'soft_str'. The old name will be removed in MarkupSafe 2.1.
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/util/nodes.py:350: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for img in node.traverse(nodes.image):
+
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+tests/test_ext_viewcode.py::test_linkcode
+  /testbed/sphinx/util/nodes.py:352: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for raw in node.traverse(nodes.raw):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================= slowest 25 durations =============================
+0.94s setup    tests/test_ext_viewcode.py::test_viewcode
+0.91s call     tests/test_ext_viewcode.py::test_linkcode
+0.04s setup    tests/test_ext_viewcode.py::test_linkcode
+0.03s setup    tests/test_ext_viewcode.py::test_local_source_files
+0.03s setup    tests/test_ext_viewcode.py::test_viewcode_epub_enabled
+0.03s setup    tests/test_ext_viewcode.py::test_viewcode_epub_default
+
+(5 durations < 0.005s hidden.  Use -vv to show these durations.)
+[36m[1m=========================== short test summary info ============================[0m
+[31mERROR[0m tests/test_ext_viewcode.py::[1mtest_viewcode[0m - sphinx.errors.ExtensionError: Config value 'viewcode_enable_epub' already p...
+[31mERROR[0m tests/test_ext_viewcode.py::[1mtest_viewcode_epub_default[0m - sphinx.errors.ExtensionError: Config value 'viewcode_enable_epub' already p...
+[31mERROR[0m tests/test_ext_viewcode.py::[1mtest_viewcode_epub_enabled[0m - sphinx.errors.ExtensionError: Config value 'viewcode_enable_epub' already p...
+[31mERROR[0m tests/test_ext_viewcode.py::[1mtest_local_source_files[0m - sphinx.errors.ExtensionError: Config value 'viewcode_enable_epub' already p...
+[31m================== [32m1 passed[0m, [33m231 warnings[0m, [31m[1m4 errors[0m[31m in 2.84s[0m[31m ===================[0m
+py39: exit 1 (4.30 seconds) /testbed> python -X dev -m pytest --durations 25 tests/test_ext_viewcode.py pid=107
+  py39: FAIL code 1 (4.33=setup[0.03]+cmd[4.30] seconds)
+  evaluation failed :( (4.56 seconds)
++ git checkout 82ef497a8c88f0f6e50d84520e7276bfbf65025d tests/test_ext_viewcode.py
+Updated 1 path from b0a7f24a7

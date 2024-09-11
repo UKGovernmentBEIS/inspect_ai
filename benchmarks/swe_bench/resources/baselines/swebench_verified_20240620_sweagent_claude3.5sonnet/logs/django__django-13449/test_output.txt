@@ -1,0 +1,981 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/models/expressions.py
+	modified:   django/db/models/functions/window.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	manage.py
+	reproduce_lag_issue.py
+	test_app/
+	test_db.sqlite3
+	test_settings.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 2a55431a5678af52f669ffe7dff3dd0bd21727f8
+Author: Carlton Gibson <carlton.gibson@noumenal.es>
+Date:   Tue Sep 22 09:52:15 2020 +0200
+
+    Fixed #32016 -- Clarified manual logging config docs.
+
+diff --git a/docs/topics/logging.txt b/docs/topics/logging.txt
+index e8c59150a0..da051d8559 100644
+--- a/docs/topics/logging.txt
++++ b/docs/topics/logging.txt
+@@ -468,8 +468,15 @@ If you don't want to configure logging at all (or you want to manually
+ configure logging using your own approach), you can set
+ :setting:`LOGGING_CONFIG` to ``None``. This will disable the
+ configuration process for :ref:`Django's default logging
+-<default-logging-configuration>`. Here's an example that disables Django's
+-logging configuration and then manually configures logging:
++<default-logging-configuration>`.
++
++Setting :setting:`LOGGING_CONFIG` to ``None`` only means that the automatic
++configuration process is disabled, not logging itself. If you disable the
++configuration process, Django will still make logging calls, falling back to
++whatever default logging behavior is defined.
++
++Here's an example that disables Django's logging configuration and then
++manually configures logging:
+ 
+ .. code-block:: python
+     :caption: settings.py
+@@ -479,10 +486,11 @@ logging configuration and then manually configures logging:
+     import logging.config
+     logging.config.dictConfig(...)
+ 
+-Setting :setting:`LOGGING_CONFIG` to ``None`` only means that the automatic
+-configuration process is disabled, not logging itself. If you disable the
+-configuration process, Django will still make logging calls, falling back to
+-whatever default logging behavior is defined.
++Note that the default configuration process only calls
++:setting:`LOGGING_CONFIG` once settings are fully-loaded. In contrast, manually
++configuring the logging in your settings file will load your logging config
++immediately. As such, your logging config must appear *after* any settings on
++which it depends.
+ 
+ Django's logging extensions
+ ===========================
++ git diff 2a55431a5678af52f669ffe7dff3dd0bd21727f8
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index 90d90119d0..120f8c1da7 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -1255,99 +1255,39 @@ class OrderBy(BaseExpression):
+ 
+ class Window(Expression):
+     template = '%(expression)s OVER (%(window)s)'
+-    # Although the main expression may either be an aggregate or an
+-    # expression with an aggregate function, the GROUP BY that will
+-    # be introduced in the query as a result is not desired.
+-    contains_aggregate = False
+-    contains_over_clause = True
+-    filterable = False
+-
+-    def __init__(self, expression, partition_by=None, order_by=None, frame=None, output_field=None):
+-        self.partition_by = partition_by
+-        self.order_by = order_by
+-        self.frame = frame
+-
+-        if not getattr(expression, 'window_compatible', False):
+-            raise ValueError(
+-                "Expression '%s' isn't compatible with OVER clauses." %
+-                expression.__class__.__name__
+-            )
++    # ...
+ 
+-        if self.partition_by is not None:
+-            if not isinstance(self.partition_by, (tuple, list)):
+-                self.partition_by = (self.partition_by,)
+-            self.partition_by = ExpressionList(*self.partition_by)
+-
+-        if self.order_by is not None:
+-            if isinstance(self.order_by, (list, tuple)):
+-                self.order_by = ExpressionList(*self.order_by)
+-            elif not isinstance(self.order_by, BaseExpression):
+-                raise ValueError(
+-                    'order_by must be either an Expression or a sequence of '
+-                    'expressions.'
+-                )
+-        super().__init__(output_field=output_field)
+-        self.source_expression = self._parse_expressions(expression)[0]
+-
+-    def _resolve_output_field(self):
+-        return self.source_expression.output_field
++    def as_sql(self, compiler, connection, template=None):
++        if connection.vendor == 'sqlite':
++            return self.as_sqlite(compiler, connection)
++        # ... (keep the existing implementation)
++    def as_sqlite(self, compiler, connection):
++        return '', []
+ 
+     def get_source_expressions(self):
+-        return [self.source_expression, self.partition_by, self.order_by, self.frame]
++        return [self.expression] + self.partition_by + self.order_by
+ 
+     def set_source_expressions(self, exprs):
+-        self.source_expression, self.partition_by, self.order_by, self.frame = exprs
+-
+-    def as_sql(self, compiler, connection, template=None):
+-        connection.ops.check_expression_support(self)
+-        if not connection.features.supports_over_clause:
+-            raise NotSupportedError('This backend does not support window expressions.')
+-        expr_sql, params = compiler.compile(self.source_expression)
+-        window_sql, window_params = [], []
+-
+-        if self.partition_by is not None:
+-            sql_expr, sql_params = self.partition_by.as_sql(
+-                compiler=compiler, connection=connection,
+-                template='PARTITION BY %(expressions)s',
+-            )
+-            window_sql.extend(sql_expr)
+-            window_params.extend(sql_params)
+-
+-        if self.order_by is not None:
+-            window_sql.append(' ORDER BY ')
+-            order_sql, order_params = compiler.compile(self.order_by)
+-            window_sql.extend(order_sql)
+-            window_params.extend(order_params)
+-
+-        if self.frame:
+-            frame_sql, frame_params = compiler.compile(self.frame)
+-            window_sql.append(' ' + frame_sql)
+-            window_params.extend(frame_params)
+-
+-        params.extend(window_params)
+-        template = template or self.template
+-
+-        return template % {
+-            'expression': expr_sql,
+-            'window': ''.join(window_sql).strip()
+-        }, params
++        self.expression = exprs[0]
++        self.partition_by = exprs[1:len(self.partition_by) + 1]
++        self.order_by = exprs[len(self.partition_by) + 1:]
+ 
+     def __str__(self):
+-        return '{} OVER ({}{}{})'.format(
+-            str(self.source_expression),
+-            'PARTITION BY ' + str(self.partition_by) if self.partition_by else '',
+-            'ORDER BY ' + str(self.order_by) if self.order_by else '',
+-            str(self.frame or ''),
+-        )
+-
+-    def __repr__(self):
+-        return '<%s: %s>' % (self.__class__.__name__, self)
+-
+-    def get_group_by_cols(self, alias=None):
+-        return []
++        return f"{str(self.expression)} OVER ({self._window_frame_string()})"
+ 
++    def _window_frame_string(self):
++        if self.partition_by:
++            partition_by = 'PARTITION BY ' + ', '.join(str(expr) for expr in self.partition_by)
++        else:
++            partition_by = ''
++        if self.order_by:
++            order_by = 'ORDER BY ' + ', '.join(str(expr) for expr in self.order_by)
++        else:
++            order_by = ''
++        return f'{partition_by} {order_by}'.strip()
+ 
+ class WindowFrame(Expression):
++    # ... (keep the existing implementation)
+     """
+     Model the frame clause in window expressions. There are two types of frame
+     clauses which are subclasses, however, all processing and validation (by no
+diff --git a/django/db/models/functions/window.py b/django/db/models/functions/window.py
+index 84b2b24ffa..a155529f0d 100644
+--- a/django/db/models/functions/window.py
++++ b/django/db/models/functions/window.py
+@@ -1,6 +1,5 @@
+ from django.db.models.expressions import Func
+-from django.db.models.fields import FloatField, IntegerField
+-
++from django.db.models.fields import DecimalField, FloatField, IntegerField
+ __all__ = [
+     'CumeDist', 'DenseRank', 'FirstValue', 'Lag', 'LastValue', 'Lead',
+     'NthValue', 'Ntile', 'PercentRank', 'Rank', 'RowNumber',
+@@ -46,12 +45,41 @@ class LagLeadFunction(Func):
+ 
+     def _resolve_output_field(self):
+         sources = self.get_source_expressions()
+-        return sources[0].output_field
+-
++        output_field = sources[0].output_field
++        if isinstance(output_field, DecimalField):
++            from django.db.models.functions import Cast
++            return Cast(self, output_field=output_field)
++        return output_field
+ 
+ class Lag(LagLeadFunction):
+     function = 'LAG'
+ 
++    def as_sqlite(self, compiler, connection, **extra_context):
++        template = '''(SELECT {expression}
++                      FROM {table} AS t2
++                      WHERE t2.{partition} = {table}.{partition}
++                        AND t2.{order} < {table}.{order}
++                      ORDER BY t2.{order} DESC
++                      LIMIT 1
++                      OFFSET {offset} - 1)'''
++        
++        expressions = self.source_expressions
++        expression = compiler.compile(expressions[0])[0]
++        offset = expressions[1].value if len(expressions) > 1 else 1
++        
++        partition = extra_context.get('partition_by', 'id')
++        order = extra_context.get('order_by', 'id')
++        table = compiler.query.model._meta.db_table
++        
++        return template.format(expression=expression, offset=offset,
++                               partition=partition, order=order, table=table), []
++
++    def as_sql(self, compiler, connection, **extra_context):
++        if connection.vendor == 'sqlite':
++            return self.as_sqlite(compiler, connection, **extra_context)
++        
++        template = 'LAG(%(expressions)s) OVER (%(window)s)'
++        return super().as_sql(compiler, connection, template=template, **extra_context)
+ 
+ class LastValue(Func):
+     arity = 1
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: asgiref>=3.2.10 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (3.4.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (0.4.4)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref>=3.2.10->Django==3.2) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.2
+    Uninstalling Django-3.2:
+      Successfully uninstalled Django-3.2
+  Running setup.py develop for Django
+Successfully installed Django-3.2
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 2a55431a5678af52f669ffe7dff3dd0bd21727f8 tests/expressions_window/models.py tests/expressions_window/tests.py
+Updated 0 paths from 8eb629c5cb
++ git apply -v -
+Checking patch tests/expressions_window/models.py...
+Checking patch tests/expressions_window/tests.py...
+Applied patch tests/expressions_window/models.py cleanly.
+Applied patch tests/expressions_window/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 expressions_window.models expressions_window.tests
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+test_avg_salary_department (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_cume_dist (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_dense_rank (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_department_salary (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_distinct_window_function (expressions_window.tests.WindowFunctionTests) ... skipped "Database doesn't support feature(s): can_distinct_on_fields"
+test_fail_insert (expressions_window.tests.WindowFunctionTests)
+Window expressions can't be used in an INSERT statement. ... ERROR
+test_fail_update (expressions_window.tests.WindowFunctionTests)
+Window expressions can't be used in an UPDATE statement. ... ERROR
+test_first_value (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_function_list_of_values (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_invalid_end_value_range (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_invalid_start_value_range (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_invalid_type_end_row_range (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_invalid_type_end_value_range (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_invalid_type_start_row_range (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_invalid_type_start_value_range (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_lag (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_lag_decimalfield (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_last_value (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_lead (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_lead_default (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_lead_offset (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_max_per_year (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_min_department (expressions_window.tests.WindowFunctionTests)
+An alternative way to specify a query for FirstValue. ... ERROR
+test_multiple_ordering (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_multiple_partitioning (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_nth_returns_null (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_nthvalue (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_ntile (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_percent_rank (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_range_n_preceding_and_following (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_range_unbound (expressions_window.tests.WindowFunctionTests)
+A query with RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING. ... ERROR
+test_rank (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_related_ordering_with_count (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_row_number (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_row_number_no_ordering (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_row_range_rank (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_subquery_row_range_rank (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_unsupported_range_frame_end (expressions_window.tests.WindowFunctionTests) ... skipped "Database doesn't support feature(s): only_supports_unbounded_with_preceding_and_following"
+test_unsupported_range_frame_start (expressions_window.tests.WindowFunctionTests) ... skipped "Database doesn't support feature(s): only_supports_unbounded_with_preceding_and_following"
+test_window_expression_within_subquery (expressions_window.tests.WindowFunctionTests) ... ERROR
+test_unsupported_backend (expressions_window.tests.WindowUnsupportedTests) ... ERROR
+test_conditional_annotation (expressions_window.tests.NonQueryWindowTests) ... ERROR
+test_empty_group_by_cols (expressions_window.tests.NonQueryWindowTests) ... ERROR
+test_frame_empty_group_by_cols (expressions_window.tests.NonQueryWindowTests) ... ok
+test_frame_window_frame_notimplemented (expressions_window.tests.NonQueryWindowTests) ... ok
+test_invalid_filter (expressions_window.tests.NonQueryWindowTests) ... ERROR
+test_invalid_order_by (expressions_window.tests.NonQueryWindowTests) ... ERROR
+test_invalid_source_expression (expressions_window.tests.NonQueryWindowTests) ... ERROR
+test_window_frame_repr (expressions_window.tests.NonQueryWindowTests) ... ok
+test_window_repr (expressions_window.tests.NonQueryWindowTests) ... ERROR
+
+======================================================================
+ERROR: test_avg_salary_department (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 170, in test_avg_salary_department
+    partition_by='department',
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_cume_dist (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 353, in test_cume_dist
+    order_by=F('salary').asc(),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_dense_rank (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 52, in test_dense_rank
+    order_by=ExtractYear(F('hire_date')).asc(),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_department_salary (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 73, in test_department_salary
+    order_by=[F('hire_date').asc()],
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_fail_insert (expressions_window.tests.WindowFunctionTests)
+Window expressions can't be used in an INSERT statement.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 730, in test_fail_insert
+    salary=Window(expression=Sum(Value(10000), order_by=F('pk').asc())),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_fail_update (expressions_window.tests.WindowFunctionTests)
+Window expressions can't be used in an UPDATE statement.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 718, in test_fail_update
+    salary=Window(expression=Max('salary'), partition_by='department'),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_first_value (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 238, in test_first_value
+    order_by=F('hire_date').asc(),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_function_list_of_values (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 280, in test_function_list_of_values
+    partition_by='department',
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_invalid_end_value_range (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 761, in test_invalid_end_value_range
+    frame=ValueRange(end=-3),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_invalid_start_value_range (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 752, in test_invalid_start_value_range
+    frame=ValueRange(start=3),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_invalid_type_end_row_range (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 786, in test_invalid_type_end_row_range
+    frame=RowRange(end='a'),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_invalid_type_end_value_range (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 770, in test_invalid_type_end_value_range
+    frame=ValueRange(end='a'),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_invalid_type_start_row_range (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 815, in test_invalid_type_start_row_range
+    frame=RowRange(start='a'),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_invalid_type_start_value_range (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 778, in test_invalid_type_start_value_range
+    frame=ValueRange(start='a'),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_lag (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 196, in test_lag
+    order_by=[F('salary').asc(), F('name').asc()],
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_lag_decimalfield (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 217, in test_lag_decimalfield
+    order_by=[F('bonus').asc(), F('name').asc()],
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_last_value (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 259, in test_last_value
+    order_by=F('hire_date').asc(),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_lead (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 404, in test_lead
+    partition_by='department',
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_lead_default (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/testcases.py", line 1288, in skip_wrapper
+    return test_func(*args, **kwargs)
+  File "/testbed/tests/expressions_window/tests.py", line 453, in test_lead_default
+    order_by=F('department').asc(),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_lead_offset (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 429, in test_lead_offset
+    order_by=F('hire_date').asc(),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_max_per_year (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 329, in test_max_per_year
+    partition_by=ExtractYear('hire_date')
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_min_department (expressions_window.tests.WindowFunctionTests)
+An alternative way to specify a query for FirstValue.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 304, in test_min_department
+    order_by=[F('salary').asc(), F('name').asc()]
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_multiple_ordering (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 551, in test_multiple_ordering
+    order_by=[F('hire_date').asc(), F('name').asc()],
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_multiple_partitioning (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 525, in test_multiple_partitioning
+    partition_by=[F('department'), ExtractYear(F('hire_date'))],
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_nth_returns_null (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 514, in test_nth_returns_null
+    order_by=F('salary').asc()
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_nthvalue (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 376, in test_nthvalue
+    partition_by=F('department'),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_ntile (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 465, in test_ntile
+    order_by=F('salary').desc(),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_percent_rank (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 489, in test_percent_rank
+    order_by=[F('salary').asc(), F('name').asc()],
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_range_n_preceding_and_following (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/django/test/testcases.py", line 1288, in skip_wrapper
+    return test_func(*args, **kwargs)
+  File "/testbed/tests/expressions_window/tests.py", line 582, in test_range_n_preceding_and_following
+    frame=ValueRange(start=-2, end=2),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_range_unbound (expressions_window.tests.WindowFunctionTests)
+A query with RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 606, in test_range_unbound
+    frame=ValueRange(start=None, end=None),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_rank (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 98, in test_rank
+    order_by=ExtractYear(F('hire_date')).asc(),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_related_ordering_with_count (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 572, in test_related_ordering_with_count
+    order_by=['classification__code'],
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_row_number (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 124, in test_row_number
+    order_by=F('pk').asc(),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_row_number_no_ordering (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 149, in test_row_number_no_ordering
+    expression=RowNumber(),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_row_range_rank (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 666, in test_row_range_rank
+    frame=RowRange(start=None, end=3),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_subquery_row_range_rank (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------Testing against Django installed in '/testbed/django'
+Importing application expressions_window
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, expressions_window, messages, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table expressions_window_classification
+    Creating table expressions_window_employee
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 637, in test_subquery_row_range_rank
+    frame=RowRange(start=-1, end=1),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_window_expression_within_subquery (expressions_window.tests.WindowFunctionTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 735, in test_window_expression_within_subquery
+    highest=Window(FirstValue('id'), partition_by=F('department'), order_by=F('salary').desc())
+TypeError: __init__() got an unexpected keyword argument 'partition_by'
+
+======================================================================
+ERROR: test_unsupported_backend (expressions_window.tests.WindowUnsupportedTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 824, in test_unsupported_backend
+    Employee.objects.annotate(dense_rank=Window(expression=DenseRank())).get()
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_conditional_annotation (expressions_window.tests.NonQueryWindowTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 887, in test_conditional_annotation
+    dense_rank=Window(expression=DenseRank()),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_empty_group_by_cols (expressions_window.tests.NonQueryWindowTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 857, in test_empty_group_by_cols
+    window = Window(expression=Sum('pk'))
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_invalid_filter (expressions_window.tests.NonQueryWindowTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 873, in test_invalid_filter
+    qs = Employee.objects.annotate(dense_rank=Window(expression=DenseRank()))
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_invalid_order_by (expressions_window.tests.NonQueryWindowTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 904, in test_invalid_order_by
+    Window(expression=Sum('power'), order_by='-horse')
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_invalid_source_expression (expressions_window.tests.NonQueryWindowTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 909, in test_invalid_source_expression
+    Window(expression=Upper('name'))
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+======================================================================
+ERROR: test_window_repr (expressions_window.tests.NonQueryWindowTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/expressions_window/tests.py", line 830, in test_window_repr
+    repr(Window(expression=Sum('salary'), partition_by='department')),
+TypeError: __init__() got an unexpected keyword argument 'expression'
+
+----------------------------------------------------------------------
+Ran 50 tests in 0.060s
+
+FAILED (errors=44, skipped=3)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout 2a55431a5678af52f669ffe7dff3dd0bd21727f8 tests/expressions_window/models.py tests/expressions_window/tests.py
+Updated 2 paths from 8eb629c5cb

@@ -1,0 +1,55 @@
+{
+    "django__django-16667": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [
+                    "test_form_field (forms_tests.field_tests.test_datefield.DateFieldTest.test_form_field)"
+                ],
+                "failure": [
+                    "test_value_from_datadict (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_value_from_datadict)"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_datefield_1 (forms_tests.field_tests.test_datefield.DateFieldTest.test_datefield_1)",
+                    "test_datefield_2 (forms_tests.field_tests.test_datefield.DateFieldTest.test_datefield_2)",
+                    "test_datefield_3 (forms_tests.field_tests.test_datefield.DateFieldTest.test_datefield_3)",
+                    "test_datefield_4 (forms_tests.field_tests.test_datefield.DateFieldTest.test_datefield_4)",
+                    "test_datefield_5 (forms_tests.field_tests.test_datefield.DateFieldTest.test_datefield_5)",
+                    "test_datefield_changed (forms_tests.field_tests.test_datefield.DateFieldTest.test_datefield_changed)",
+                    "field.strptime() doesn't raise a UnicodeEncodeError (#16123)",
+                    "test_form_label_association (forms_tests.field_tests.test_datefield.DateFieldTest.test_form_label_association)",
+                    "DateField.has_changed() with SelectDateWidget works with a localized",
+                    "test_l10n_invalid_date_in (forms_tests.field_tests.test_datefield.DateFieldTest.test_l10n_invalid_date_in)",
+                    "test_custom_input_format (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_custom_input_format)",
+                    "test_custom_months (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_custom_months)",
+                    "test_fieldset (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_fieldset)",
+                    "test_format_value (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_format_value)",
+                    "test_l10n (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_l10n)",
+                    "test_render_datetime (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_render_datetime)",
+                    "test_render_empty (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_render_empty)",
+                    "Invalid dates should still render the failed date.",
+                    "Rendering the None or '' values should yield the same output.",
+                    "test_render_string (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_render_string)",
+                    "test_selectdate_empty_label (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_selectdate_empty_label)",
+                    "test_selectdate_required (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_selectdate_required)",
+                    "test_value_omitted_from_data (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_value_omitted_from_data)",
+                    "test_years_rendered_without_separator (forms_tests.widget_tests.test_selectdatewidget.SelectDateWidgetTest.test_years_rendered_without_separator)"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

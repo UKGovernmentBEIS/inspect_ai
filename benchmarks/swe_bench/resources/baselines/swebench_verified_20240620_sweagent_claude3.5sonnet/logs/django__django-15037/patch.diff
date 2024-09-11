@@ -1,0 +1,77 @@
+
+diff --git a/django/core/management/commands/inspectdb.py b/django/core/management/commands/inspectdb.py
+index f9b4bfb477..3983cb63d9 100644
+--- a/django/core/management/commands/inspectdb.py
++++ b/django/core/management/commands/inspectdb.py
+@@ -124,13 +124,20 @@ class Command(BaseCommand):
+                             "self" if relations[column_name][1] == table_name
+                             else table2model(relations[column_name][1])
+                         )
++                        
++                        # Find the constraint that corresponds to this relation
++                        for constraint in constraints.values():
++                            if constraint['foreign_key'] and constraint['columns'] == [column_name]:
++                                referenced_column = constraint['foreign_key'][1]
++                                if referenced_column != primary_key_column:
++                                    extra_params['to_field'] = referenced_column
++                                break
++                        
+                         if rel_to in known_models:
+                             field_type = '%s(%s' % (rel_type, rel_to)
+                         else:
+                             field_type = "%s('%s'" % (rel_type, rel_to)
+                     else:
+-                        # Calling `get_field_type` to get the field type string and any
+-                        # additional parameters and notes.
+                         field_type, field_params, field_notes = self.get_field_type(connection, table_name, row)
+                         extra_params.update(field_params)
+                         comment_notes.extend(field_notes)
+diff --git a/test_inspectdb.py b/test_inspectdb.py
+new file mode 100644
+index 0000000000..17afe70f74
+--- /dev/null
++++ b/test_inspectdb.py
+@@ -0,0 +1,43 @@
++import os
++import sys
++import django
++from django.core.management import call_command
++from django.db import connection
++from django.conf import settings
++
++# Set up a simple Django settings configuration
++if not settings.configured:
++    settings.configure(
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth',
++        ],
++    )
++
++django.setup()
++
++# Create test tables
++with connection.cursor() as cursor:
++    cursor.execute("CREATE TABLE foo (id INTEGER PRIMARY KEY AUTOINCREMENT, other_id INTEGER UNIQUE)")
++    cursor.execute("CREATE TABLE bar (id INTEGER PRIMARY KEY AUTOINCREMENT, other_id INTEGER, FOREIGN KEY(other_id) REFERENCES foo(other_id))")
++
++# Redirect stdout to capture output
++from io import StringIO
++old_stdout = sys.stdout
++sys.stdout = StringIO()
++
++# Run inspectdb command
++call_command('inspectdb', 'foo', 'bar', no_color=True)
++
++# Get the output and restore stdout
++output = sys.stdout.getvalue()
++sys.stdout = old_stdout
++
++print(output)
++print("Test completed.")

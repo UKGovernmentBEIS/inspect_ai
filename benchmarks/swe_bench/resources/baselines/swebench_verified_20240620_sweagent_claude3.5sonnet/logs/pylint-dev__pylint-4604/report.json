@@ -1,0 +1,48 @@
+{
+    "pylint-dev__pylint-4604": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_bitbucket_issue_78",
+                    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_no_name_in_module_skipped",
+                    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_all_elements_without_parent",
+                    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_redefined_builtin_ignored",
+                    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_redefined_builtin_custom_modules",
+                    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_redefined_builtin_modname_not_ignored",
+                    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_redefined_builtin_in_function",
+                    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_unassigned_global",
+                    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_listcomp_in_decorator",
+                    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_listcomp_in_ancestors",
+                    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_return_type_annotation",
+                    "tests/checkers/unittest_variables.py::TestVariablesChecker::test_attribute_in_type_comment",
+                    "tests/checkers/unittest_variables.py::TestVariablesCheckerWithTearDown::test_custom_callback_string",
+                    "tests/checkers/unittest_variables.py::TestVariablesCheckerWithTearDown::test_redefined_builtin_modname_not_ignored",
+                    "tests/checkers/unittest_variables.py::TestVariablesCheckerWithTearDown::test_redefined_builtin_in_function",
+                    "tests/checkers/unittest_variables.py::TestVariablesCheckerWithTearDown::test_import_as_underscore",
+                    "tests/checkers/unittest_variables.py::TestVariablesCheckerWithTearDown::test_lambda_in_classdef",
+                    "tests/checkers/unittest_variables.py::TestVariablesCheckerWithTearDown::test_nested_lambda",
+                    "tests/checkers/unittest_variables.py::TestVariablesCheckerWithTearDown::test_ignored_argument_names_no_message",
+                    "tests/checkers/unittest_variables.py::TestVariablesCheckerWithTearDown::test_ignored_argument_names_starred_args",
+                    "tests/checkers/unittest_variables.py::TestMissingSubmodule::test_package_all"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

@@ -1,0 +1,496 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/db/models/sql/query.py
+	modified:   tests/queries/tests.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit bc04941bf811d1ea2c79fb7fc20457ed2c7e3410
+Author: Hasan Ramezani <hasan.r67@gmail.com>
+Date:   Mon Mar 15 14:27:18 2021 +0100
+
+    Fixed #32536 -- Added links to BaseDetailView/BaseListView.get() methods in CBV docs.
+
+diff --git a/docs/ref/class-based-views/flattened-index.txt b/docs/ref/class-based-views/flattened-index.txt
+index 62972ef24e..92020eb384 100644
+--- a/docs/ref/class-based-views/flattened-index.txt
++++ b/docs/ref/class-based-views/flattened-index.txt
+@@ -114,7 +114,7 @@ Detail Views
+ 
+ * :meth:`~django.views.generic.base.View.as_view`
+ * :meth:`~django.views.generic.base.View.dispatch`
+-* ``get()``
++* :meth:`~django.views.generic.detail.BaseDetailView.get`
+ * :meth:`~django.views.generic.detail.SingleObjectMixin.get_context_data`
+ * :meth:`~django.views.generic.detail.SingleObjectMixin.get_object`
+ * ``head()``
+diff --git a/docs/ref/class-based-views/generic-display.txt b/docs/ref/class-based-views/generic-display.txt
+index 9126c6c50a..4bcca91bac 100644
+--- a/docs/ref/class-based-views/generic-display.txt
++++ b/docs/ref/class-based-views/generic-display.txt
+@@ -34,7 +34,7 @@ many projects they are typically the most commonly used views.
+     #. :meth:`~django.views.generic.detail.SingleObjectMixin.get_object()`
+     #. :meth:`~django.views.generic.detail.SingleObjectMixin.get_context_object_name()`
+     #. :meth:`~django.views.generic.detail.SingleObjectMixin.get_context_data()`
+-    #. ``get()``
++    #. :meth:`~django.views.generic.detail.BaseDetailView.get`
+     #. :meth:`~django.views.generic.base.TemplateResponseMixin.render_to_response()`
+ 
+     **Example myapp/views.py**::
+@@ -123,7 +123,7 @@ many projects they are typically the most commonly used views.
+     #. :meth:`~django.views.generic.list.MultipleObjectMixin.get_queryset()`
+     #. :meth:`~django.views.generic.list.MultipleObjectMixin.get_context_object_name()`
+     #. :meth:`~django.views.generic.list.MultipleObjectMixin.get_context_data()`
+-    #. ``get()``
++    #. :meth:`~django.views.generic.list.BaseListView.get`
+     #. :meth:`~django.views.generic.base.TemplateResponseMixin.render_to_response()`
+ 
+     **Example views.py**::
++ git diff bc04941bf811d1ea2c79fb7fc20457ed2c7e3410
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 6c728d17bf..7c23a045f4 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -2028,13 +2028,31 @@ class Query(BaseExpression):
+                     })
+                     seen_models.add(model)
+ 
+-        group_by = list(self.select)
++        group_by = []
++        ordering_fields = set(self.order_by)
++        ordering_aliases = set(item.split('.')[-1].strip('"') for item in ordering_fields if '.' in item)
++        ordering_full_cols = set(item.replace('"', '') for item in ordering_fields)
++        for item in self.select:
++            if isinstance(item, str):
++                column = item.split('.')[-1].strip('"')
++                full_col = item.replace('"', '')
++                if (column not in ordering_aliases and 
++                    item not in ordering_fields and 
++                    full_col not in ordering_full_cols and
++                    not any(full_col.endswith(f'.{field}') for field in ordering_aliases) and
++                    not any(item.endswith(f'"{field}"') for field in ordering_aliases) and
++                    not any(f'"{field}"' in item for field in ordering_aliases) and
++                    not any(item.endswith(f'.{field}') for field in ordering_aliases) and
++                    not any(f'.{field}' in item for field in ordering_aliases)):
++                    group_by.append(item)
++            else:
++                group_by.append(item)
+         if self.annotation_select:
+             for alias, annotation in self.annotation_select.items():
+                 if not allow_aliases or alias in column_names:
+                     alias = None
+                 group_by_cols = annotation.get_group_by_cols(alias=alias)
+-                group_by.extend(group_by_cols)
++                group_by.extend(col for col in group_by_cols if col not in ordering_fields)
+         self.group_by = tuple(group_by)
+ 
+     def add_select_related(self, fields):
+diff --git a/tests/queries/tests.py b/tests/queries/tests.py
+index b9b0a72686..43495b8c14 100644
+--- a/tests/queries/tests.py
++++ b/tests/queries/tests.py
+@@ -3930,4 +3930,26 @@ class Ticket23622Tests(TestCase):
+             set(Ticket23605A.objects.filter(qx).values_list('pk', flat=True)),
+             set(Ticket23605A.objects.filter(qy).values_list('pk', flat=True))
+         )
+-        self.assertSequenceEqual(Ticket23605A.objects.filter(qx), [a2])
++class TestMetaOrderingGroupBy(TestCase):
++    @classmethod
++    def setUpTestData(cls):
++        cls.extra1 = ExtraInfo.objects.create()
++        cls.extra2 = ExtraInfo.objects.create()
++        cls.author1 = Author.objects.create(name='Author 1', num=1, extra=cls.extra1)
++        cls.author2 = Author.objects.create(name='Author 2', num=2, extra=cls.extra2)
++
++    def test_meta_ordering_not_in_group_by(self):
++        from django.db import models, connection
++        from django.test.utils import CaptureQueriesContext
++
++        # Set up a query that uses both aggregation and ordering
++        query = Author.objects.values('extra').annotate(max_num=models.Max('num')).order_by('name')
++        
++        # Execute the query and capture the SQL
++        with CaptureQueriesContext(connection) as context:
++            list(query)  # Force query execution
++        
++        # Check that the captured SQL does not include 'name' in the GROUP BY clause
++        sql = context.captured_queries[0]['sql'].lower()
++        self.assertIn('group by', sql)
++        self.assertNotIn('name', sql.split('group by')[1])
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: asgiref>=3.2.10 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0) (3.8.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from Django==4.0) (0.5.1)
+Requirement already satisfied: typing-extensions>=4 in /opt/miniconda3/envs/testbed/lib/python3.8/site-packages (from asgiref>=3.2.10->Django==4.0) (4.12.2)
+Building wheels for collected packages: Django
+  Building editable for Django (pyproject.toml): started
+  Building editable for Django (pyproject.toml): finished with status 'done'
+  Created wheel for Django: filename=Django-4.0-0.editable-py3-none-any.whl size=25591 sha256=122324ef27d0dd9bdab1d2219a0c32de2c1a69757b36bf3cc75c09c77284c796
+  Stored in directory: /tmp/pip-ephem-wheel-cache-pis5jef6/wheels/b2/50/f1/218f2e9962a80d01a4b1297698978f9fb3b60056aa24343f24
+Successfully built Django
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 4.0
+    Uninstalling Django-4.0:
+      Successfully uninstalled Django-4.0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+Successfully installed Django-4.0
++ git checkout bc04941bf811d1ea2c79fb7fc20457ed2c7e3410 tests/ordering/tests.py
+Updated 0 paths from 9f4d51a713
++ git apply -v -
+Checking patch tests/ordering/tests.py...
+Applied patch tests/ordering/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 ordering.tests
+Testing against Django installed in '/testbed/django'
+Importing application ordering
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, ordering, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table ordering_author
+    Creating table ordering_article
+    Creating table ordering_childarticle
+    Creating table ordering_reference
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+System check identified no issues (0 silenced).
+test_default_ordering (ordering.tests.OrderingTests)
+By default, Article.objects.all() orders by pub_date descending, then ... ok
+test_default_ordering_by_f_expression (ordering.tests.OrderingTests)
+F expressions can be used in Meta.ordering. ... ok
+test_default_ordering_does_not_affect_group_by (ordering.tests.OrderingTests) ... FAIL
+test_default_ordering_override (ordering.tests.OrderingTests)
+Override ordering with order_by, which is in the same format as the ... ok
+test_extra_ordering (ordering.tests.OrderingTests)
+Ordering can be based on fields included from an 'extra' clause ... ok
+test_extra_ordering_quoting (ordering.tests.OrderingTests)
+If the extra clause uses an SQL keyword for a name, it will be ... ok
+test_extra_ordering_with_table_name (ordering.tests.OrderingTests) ... ok
+test_no_reordering_after_slicing (ordering.tests.OrderingTests) ... ok
+test_order_by_constant_value (ordering.tests.OrderingTests) ... ok
+test_order_by_f_expression (ordering.tests.OrderingTests) ... ok
+test_order_by_f_expression_duplicates (ordering.tests.OrderingTests)
+A column may only be included once (the first occurrence) so we check ... ok
+test_order_by_fk_attname (ordering.tests.OrderingTests)
+ordering by a foreign key by its attribute name prevents the query ... ok
+test_order_by_nulls_first (ordering.tests.OrderingTests) ... ok
+test_order_by_nulls_first_and_last (ordering.tests.OrderingTests) ... ok
+test_order_by_nulls_last (ordering.tests.OrderingTests) ... ok
+test_order_by_override (ordering.tests.OrderingTests)
+Only the last order_by has any effect (since they each override any ... ok
+test_order_by_pk (ordering.tests.OrderingTests)
+'pk' works as an ordering option in Meta. ... ok
+test_order_by_ptr_field_with_default_ordering_by_expression (ordering.tests.OrderingTests) ... ok
+test_order_by_self_referential_fk (ordering.tests.OrderingTests) ... ok
+test_orders_nulls_first_on_filtered_subquery (ordering.tests.OrderingTests) ... ok
+test_random_ordering (ordering.tests.OrderingTests)
+Use '?' to order randomly. ... ok
+test_related_ordering_duplicate_table_reference (ordering.tests.OrderingTests)
+An ordering referencing a model with an ordering referencing a model ... ok
+test_reverse_meta_ordering_pure (ordering.tests.OrderingTests) ... ok
+test_reverse_ordering_pure (ordering.tests.OrderingTests) ... ok
+test_reversed_ordering (ordering.tests.OrderingTests)
+Ordering can be reversed using the reverse() method on a queryset. ... ok
+test_stop_slicing (ordering.tests.OrderingTests)
+Use the 'stop' part of slicing notation to limit the results. ... ok
+test_stop_start_slicing (ordering.tests.OrderingTests)
+Use the 'stop' and 'start' parts of slicing notation to offset the ... ok
+
+======================================================================
+FAIL: test_default_ordering_does_not_affect_group_by (ordering.tests.OrderingTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/ordering/tests.py", line 492, in test_default_ordering_does_not_affect_group_by
+    self.assertCountEqual(articles, [
+AssertionError: Element counts were not equal:
+First has 3, Second has 0:  {'author': 1, 'count': 1}
+First has 0, Second has 1:  {'author': 1, 'count': 3}
+
+----------------------------------------------------------------------
+Ran 27 tests in 0.120s
+
+FAILED (failures=1)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout bc04941bf811d1ea2c79fb7fc20457ed2c7e3410 tests/ordering/tests.py
+Updated 1 path from 9f4d51a713

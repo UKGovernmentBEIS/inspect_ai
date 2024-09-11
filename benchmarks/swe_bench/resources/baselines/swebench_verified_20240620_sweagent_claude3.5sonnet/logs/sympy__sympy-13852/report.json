@@ -1,0 +1,33 @@
+{
+    "sympy__sympy-13852": {
+        "patch_is_None": false,
+        "patch_exists": true,
+        "patch_successfully_applied": true,
+        "resolved": false,
+        "tests_status": {
+            "FAIL_TO_PASS": {
+                "success": [],
+                "failure": [
+                    "test_polylog_values"
+                ]
+            },
+            "PASS_TO_PASS": {
+                "success": [
+                    "test_zeta_eval",
+                    "test_dirichlet_eta_eval",
+                    "test_stieltjes",
+                    "test_stieltjes_evalf"
+                ],
+                "failure": []
+            },
+            "FAIL_TO_FAIL": {
+                "success": [],
+                "failure": []
+            },
+            "PASS_TO_FAIL": {
+                "success": [],
+                "failure": []
+            }
+        }
+    }
+}

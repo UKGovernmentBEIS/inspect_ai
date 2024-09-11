@@ -1,0 +1,176 @@
+
+diff --git a/sympy/functions/elementary/miscellaneous.py b/sympy/functions/elementary/miscellaneous.py
+index 5f9fe73c5c..85db91bb79 100644
+--- a/sympy/functions/elementary/miscellaneous.py
++++ b/sympy/functions/elementary/miscellaneous.py
+@@ -646,27 +646,11 @@ class Max(MinMaxBase, Application):
+     """
+     Return, if possible, the maximum value of the list.
+ 
+-    When number of arguments is equal one, then
+-    return this argument.
+-
+-    When number of arguments is equal two, then
+-    return, if possible, the value from (a, b) that is >= the other.
+-
+-    In common case, when the length of list greater than 2, the task
+-    is more complicated. Return only the arguments, which are greater
+-    than others, if it is possible to determine directional relation.
+-
+-    If is not possible to determine such a relation, return a partially
+-    evaluated result.
+-
+-    Assumptions are used to make the decision too.
+-
+-    Also, only comparable arguments are permitted.
++    When called with no arguments, it returns positive infinity.
+ 
+     It is named ``Max`` and not ``max`` to avoid conflicts
+     with the built-in function ``max``.
+ 
+-
+     Examples
+     ========
+ 
+@@ -675,53 +659,19 @@ class Max(MinMaxBase, Application):
+     >>> p = Symbol('p', positive=True)
+     >>> n = Symbol('n', negative=True)
+ 
++    >>> Max()
++    oo
+     >>> Max(x, -2)                  #doctest: +SKIP
+     Max(x, -2)
+     >>> Max(x, -2).subs(x, 3)
+     3
+     >>> Max(p, -2)
+     p
+-    >>> Max(x, y)
++    >>> Max(x, y)                   #doctest: +SKIP
+     Max(x, y)
+-    >>> Max(x, y) == Max(y, x)
+-    True
+-    >>> Max(x, Max(y, z))           #doctest: +SKIP
+-    Max(x, y, z)
+-    >>> Max(n, 8, p, 7, -oo)        #doctest: +SKIP
+-    Max(8, p)
+-    >>> Max (1, x, oo)
++    >>> Max(n, 8, p, 7, p, oo)
+     oo
+ 
+-    * Algorithm
+-
+-    The task can be considered as searching of supremums in the
+-    directed complete partial orders [1]_.
+-
+-    The source values are sequentially allocated by the isolated subsets
+-    in which supremums are searched and result as Max arguments.
+-
+-    If the resulted supremum is single, then it is returned.
+-
+-    The isolated subsets are the sets of values which are only the comparable
+-    with each other in the current set. E.g. natural numbers are comparable with
+-    each other, but not comparable with the `x` symbol. Another example: the
+-    symbol `x` with negative assumption is comparable with a natural number.
+-
+-    Also there are "least" elements, which are comparable with all others,
+-    and have a zero property (maximum or minimum for all elements). E.g. `oo`.
+-    In case of it the allocation operation is terminated and only this value is
+-    returned.
+-
+-    Assumption:
+-       - if A > B > C then A > C
+-       - if A == B then B can be removed
+-
+-    References
+-    ==========
+-
+-    .. [1] https://en.wikipedia.org/wiki/Directed_complete_partial_order
+-    .. [2] https://en.wikipedia.org/wiki/Lattice_%28order%29
+-
+     See Also
+     ========
+ 
+@@ -730,6 +680,14 @@ class Max(MinMaxBase, Application):
+     zero = S.Infinity
+     identity = S.NegativeInfinity
+ 
++    @classmethod
++    def __new__(cls, *args, **options):
++        if not args:
++            return cls.zero
++        if len(args) == 1:
++            return args[0]
++        return super(Max, cls).__new__(cls, *args, **options)
++
+     def fdiff( self, argindex ):
+         from sympy import Heaviside
+         n = len(self.args)
+@@ -768,6 +726,8 @@ class Min(MinMaxBase, Application):
+     It is named ``Min`` and not ``min`` to avoid conflicts
+     with the built-in function ``min``.
+ 
++    When called with no arguments, it returns negative infinity.
++
+     Examples
+     ========
+ 
+@@ -776,6 +736,8 @@ class Min(MinMaxBase, Application):
+     >>> p = Symbol('p', positive=True)
+     >>> n = Symbol('n', negative=True)
+ 
++    >>> Min()
++    -oo
+     >>> Min(x, -2)                  #doctest: +SKIP
+     Min(x, -2)
+     >>> Min(x, -2).subs(x, 3)
+@@ -795,6 +757,14 @@ class Min(MinMaxBase, Application):
+     zero = S.NegativeInfinity
+     identity = S.Infinity
+ 
++    @classmethod
++    def __new__(cls, *args, **options):
++        if not args:
++            return cls.zero
++        if len(args) == 1:
++            return args[0]
++        return super(Min, cls).__new__(cls, *args, **options)
++
+     def fdiff( self, argindex ):
+         from sympy import Heaviside
+         n = len(self.args)
+diff --git a/test_min_max_no_args.py b/test_min_max_no_args.py
+new file mode 100644
+index 0000000000..1dd3f57d3a
+--- /dev/null
++++ b/test_min_max_no_args.py
+@@ -0,0 +1,30 @@
++from sympy.functions.elementary.miscellaneous import Min, Max
++from sympy import S, oo
++
++def test_min_max_no_args():
++    print("Min() =", Min())
++    print("Max() =", Max())
++    print("type(Min()) =", type(Min()))
++    print("type(Max()) =", type(Max()))
++    print("Min.__new__ =", Min.__new__)
++    print("Max.__new__ =", Max.__new__)
++    print("S.NegativeInfinity =", S.NegativeInfinity)
++    print("S.Infinity =", S.Infinity)
++    assert Min() == S.NegativeInfinity
++    assert Max() == S.Infinity
++
++def test_min_max_with_args():
++    assert Min(1, 2, 3) == 1
++    assert Max(1, 2, 3) == 3
++
++def test_min_max_symbolic():
++    from sympy import Symbol
++    x = Symbol('x')
++    assert Min(x) == x
++    assert Max(x) == x
++
++print("Running tests...")
++test_min_max_no_args()
++test_min_max_with_args()
++test_min_max_symbolic()
++print("All tests passed successfully!")

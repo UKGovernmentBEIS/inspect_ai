@@ -1,0 +1,124 @@
+
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index 33cc636b22..d72b47e506 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -743,6 +743,11 @@ class Query(BaseExpression):
+                 old_model = cur_model
+                 if name in self._filtered_relations:
+                     name = self._filtered_relations[name].relation_name
++                # Add check for proxy models
++                if opts.proxy:
++                    opts = opts.concrete_model._meta
++                    # Ensure we always include the 'id' field for proxy models
++                    add_to_dict(must_include, opts.model, opts.pk)
+                 source = opts.get_field(name)
+                 if is_reverse_o2o(source):
+                     cur_model = source.related_model
+@@ -784,6 +789,8 @@ class Query(BaseExpression):
+                     workset[model].update(values)
+             for model, fields in workset.items():
+                 target[model] = {f.attname for f in fields}
++                # Always include the 'id' field
++                target[model].add('id')
+         else:
+             for model, values in must_include.items():
+                 if model in seen:
+@@ -800,6 +807,8 @@ class Query(BaseExpression):
+                 seen.setdefault(model, set())
+             for model, fields in seen.items():
+                 target[model] = {f.attname for f in fields}
++                # Always include the 'id' field
++                target[model].add('id')
+ 
+     def table_alias(self, table_name, create=False, filtered_relation=None):
+         """
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..a74ac77e87
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,83 @@
++import django
++from django.conf import settings
++import os
++import sys
++
++# Create a temporary directory for our test app
++import tempfile
++temp_dir = tempfile.mkdtemp()
++app_dir = os.path.join(temp_dir, 'test_app')
++os.makedirs(app_dir)
++
++# Create an empty __init__.py file
++open(os.path.join(app_dir, '__init__.py'), 'w').close()
++
++# Add the temp directory to Python path
++sys.path.insert(0, temp_dir)
++
++settings.configure(
++    DEBUG=True,
++    DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}},
++    INSTALLED_APPS=['django.contrib.contenttypes', 'django.contrib.auth', 'test_app'],
++)
++django.setup()
++
++from django.db import models
++from django.core.management.base import BaseCommand
++from django.apps import AppConfig
++
++class TestAppConfig(AppConfig):
++    name = 'test_app'
++    verbose_name = "Test App"
++
++class CustomModel(models.Model):
++    name = models.CharField(max_length=16)
++
++    class Meta:
++        app_label = 'test_app'
++
++class ProxyCustomModel(CustomModel):
++    class Meta:
++        proxy = True
++        app_label = 'test_app'
++
++class AnotherModel(models.Model):
++    custom = models.ForeignKey(
++        ProxyCustomModel,
++        on_delete=models.SET_NULL,
++        null=True,
++        blank=True,
++    )
++
++    class Meta:
++        app_label = 'test_app'
++
++class Command(BaseCommand):
++    def handle(self, *args, **options):
++        queryset = AnotherModel.objects.select_related("custom").only("custom__name")
++        print(f"SQL Query: {queryset.query}")
++        list(queryset.all())
++
++if __name__ == "__main__":
++    # Run migrations
++    from django.core.management import call_command
++    call_command('makemigrations', 'test_app', verbosity=0)
++    call_command('migrate', verbosity=0)
++
++    # Create some test data
++    custom = ProxyCustomModel.objects.create(name="Test")
++    AnotherModel.objects.create(custom=custom)
++
++    # Run the command that reproduces the bug
++    cmd = Command()
++    try:
++        cmd.handle()
++        print("Bug not reproduced. The code ran without errors.")
++    except Exception as e:
++        print(f"Bug reproduced. Error: {str(e)}")
++
++    # Clean up
++    import shutil
++    shutil.rmtree(temp_dir)
++
++print("Script completed.")

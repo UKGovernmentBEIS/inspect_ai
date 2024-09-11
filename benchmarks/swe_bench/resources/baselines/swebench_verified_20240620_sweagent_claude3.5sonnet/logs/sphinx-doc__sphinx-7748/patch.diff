@@ -1,0 +1,248 @@
+
+diff --git a/CHANGES b/CHANGES
+index 6c2761c53..e17df69e9 100644
+--- a/CHANGES
++++ b/CHANGES
+@@ -34,6 +34,7 @@ Deprecated
+ Features added
+ --------------
+ 
++* autodoc: Add support for multiple signatures in docstrings
+ * LaTeX: Make the ``toplevel_sectioning`` setting optional in LaTeX theme
+ * LaTeX: Allow to override papersize and pointsize from LaTeX themes
+ * LaTeX: Add :confval:`latex_theme_options` to override theme options
+diff --git a/setup.py b/setup.py
+index 5e822fe9b..77b63df38 100644
+--- a/setup.py
++++ b/setup.py
+@@ -15,22 +15,22 @@ if sys.version_info < (3, 5):
+     sys.exit(1)
+ 
+ install_requires = [
+-    'sphinxcontrib-applehelp',
+-    'sphinxcontrib-devhelp',
++    'sphinxcontrib-applehelp<=1.0.7',
++    'sphinxcontrib-devhelp<=1.0.5',
+     'sphinxcontrib-jsmath',
+-    'sphinxcontrib-htmlhelp',
+-    'sphinxcontrib-serializinghtml',
+-    'sphinxcontrib-qthelp',
+-    'Jinja2>=2.3',
++    'sphinxcontrib-htmlhelp<=2.0.4',
++    'sphinxcontrib-serializinghtml<=1.1.9',
++    'sphinxcontrib-qthelp<=1.0.6',
++    'Jinja2<3.0',
+     'Pygments>=2.0',
+     'docutils>=0.12',
+     'snowballstemmer>=1.1',
+     'babel>=1.3',
+-    'alabaster>=0.7,<0.8',
++    'alabaster>=0.7,<0.7.12',
+     'imagesize',
+     'requests>=2.5.0',
+     'setuptools',
+-    'packaging',
++    'packaging', 'markupsafe<=2.0.1',
+ ]
+ 
+ extras_require = {
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index f8e4be999..869cb873d 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -1037,39 +1037,53 @@ class DocstringSignatureMixin:
+     feature of reading the signature from the docstring.
+     """
+ 
+-    def _find_signature(self, encoding: str = None) -> Tuple[str, str]:
++    def _find_signature(self, encoding: str = None) -> List[Tuple[str, str]]:
++        """Find and parse function signatures from the first line of the docstring.
++
++        This method now supports multiple signatures in the docstring.
++
++        Args:
++            encoding (str, optional): Deprecated. The encoding of the docstring.
++
++        Returns:
++            List[Tuple[str, str]]: A list of tuples, where each tuple contains:
++                - args (str): The arguments of the function signature.
++                - retann (str): The return annotation of the function signature.
++
++        Each signature in the docstring should be on a separate line and follow the format:
++        `func_name(arg1, arg2, ...) -> return_type`
++        """
+         if encoding is not None:
+             warnings.warn("The 'encoding' argument to autodoc.%s._find_signature() is "
+                           "deprecated." % self.__class__.__name__,
+                           RemovedInSphinx40Warning, stacklevel=2)
+-        docstrings = self.get_doc()
++        docstrings = self.get_doc(None)
+         self._new_docstrings = docstrings[:]
+-        result = None
++        results = []
+         for i, doclines in enumerate(docstrings):
+-            # no lines in docstring, no match
+             if not doclines:
+                 continue
+-            # match first line of docstring against signature RE
+-            match = py_ext_sig_re.match(doclines[0])
+-            if not match:
+-                continue
+-            exmod, path, base, args, retann = match.groups()
+-            # the base name must match ours
+-            valid_names = [self.objpath[-1]]  # type: ignore
+-            if isinstance(self, ClassDocumenter):
+-                valid_names.append('__init__')
+-                if hasattr(self.object, '__mro__'):
+-                    valid_names.extend(cls.__name__ for cls in self.object.__mro__)
+-            if base not in valid_names:
+-                continue
+-            # re-prepare docstring to ignore more leading indentation
+-            tab_width = self.directive.state.document.settings.tab_width  # type: ignore
+-            self._new_docstrings[i] = prepare_docstring('\n'.join(doclines[1:]),
+-                                                        tabsize=tab_width)
+-            result = args, retann
+-            # don't look any further
+-            break
+-        return result
++            for j, line in enumerate(doclines):
++                if line.strip().startswith(':'):
++                    break
++                m = py_ext_sig_re.match(line.strip())
++                if m:
++                    groups = m.groups()
++                    if len(groups) == 5:
++                        _, _, name, args, retann = groups
++                        if args:
++                            args = args.strip()
++                        if retann:
++                            retann = retann.strip()
++                        else:
++                            retann = ''
++                        results.append((args, retann))
++            if results:
++                docstrings[i] = doclines[j + 1:]
++                tab_width = self.directive.state.document.settings.tab_width  # type: ignore
++                self._new_docstrings[i] = prepare_docstring('\n'.join(docstrings[i]),
++                                                            tabsize=tab_width)
++        return results
+ 
+     def get_doc(self, encoding: str = None, ignore: int = None) -> List[List[str]]:
+         if encoding is not None:
+@@ -1082,13 +1096,28 @@ class DocstringSignatureMixin:
+         return super().get_doc(None, ignore)  # type: ignore
+ 
+     def format_signature(self, **kwargs: Any) -> str:
++        """Format the signature found in the docstring.
++
++        This method supports multiple signatures found in the docstring.
++
++        Returns:
++            str: A string representation of all found signatures, joined by ' or '.
++        """
+         if self.args is None and self.env.config.autodoc_docstring_signature:  # type: ignore
+             # only act if a signature is not explicitly given already, and if
+             # the feature is enabled
+-            result = self._find_signature()
+-            if result is not None:
+-                self.args, self.retann = result
+-        return super().format_signature(**kwargs)  # type: ignore
++            results = self._find_signature()
++            if results:
++                signatures = []
++                for args, retann in results:
++                    sig = ''
++                    if args:
++                        sig += '(' + args + ')'
++                    if retann:
++                        sig += ' -> ' + retann
++                    signatures.append(sig)
++                return ' or '.join(signatures)
++        return super().format_signature(**kwargs)
+ 
+ 
+ class DocstringStripSignatureMixin(DocstringSignatureMixin):
+@@ -1100,12 +1129,15 @@ class DocstringStripSignatureMixin(DocstringSignatureMixin):
+         if self.args is None and self.env.config.autodoc_docstring_signature:  # type: ignore
+             # only act if a signature is not explicitly given already, and if
+             # the feature is enabled
+-            result = self._find_signature()
+-            if result is not None:
+-                # Discarding _args is a only difference with
+-                # DocstringSignatureMixin.format_signature.
+-                # Documenter.format_signature use self.args value to format.
+-                _args, self.retann = result
++            results = self._find_signature()
++            if results:
++                # We only keep the last return annotation, if any.
++                self.retann = results[-1][1] if results[-1][1] else None
++                # Remove all signatures from the docstring
++                self._new_docstrings = [
++                    [line for line in docstring if not py_ext_sig_re.match(line.strip())]
++                    for docstring in self._new_docstrings
++                ]
+         return super().format_signature(**kwargs)
+ 
+ 
+diff --git a/tests/test_ext_autodoc_docstring_signature.py b/tests/test_ext_autodoc_docstring_signature.py
+new file mode 100644
+index 000000000..00b28ba2f
+--- /dev/null
++++ b/tests/test_ext_autodoc_docstring_signature.py
+@@ -0,0 +1,43 @@
++import pytest
++from unittest.mock import Mock, PropertyMock
++from sphinx.ext.autodoc import DocstringSignatureMixin
++
++def test_multiple_signatures():
++    class TestDocumenter(DocstringSignatureMixin):
++        env = Mock()
++        env.config.autodoc_docstring_signature = True
++        
++        def __init__(self):
++            self.args = None
++            self.retann = None
++            self.directive = Mock()
++            self.directive.state = Mock()
++            self.directive.state.document = Mock()
++            self.directive.state.document.settings = Mock()
++            type(self.directive.state.document.settings).tab_width = PropertyMock(return_value=8)
++        
++        def get_doc(self, encoding=None, ignore=None):
++            return [[
++                'This is a test function with multiple signatures.',
++                '',
++                'func(arg1, arg2)',
++                'func(arg1, arg2, arg3)',
++                'func(arg1, arg2, arg3, arg4) -> int',
++                '',
++                'Some more documentation...'
++            ]]
++
++    documenter = TestDocumenter()
++    signatures = documenter._find_signature()
++
++    assert len(signatures) == 3
++    assert signatures[0] == ('arg1, arg2', '')
++    assert signatures[1] == ('arg1, arg2, arg3', '')
++    assert signatures[2] == ('arg1, arg2, arg3, arg4', 'int')
++
++    formatted_sig = documenter.format_signature()
++    expected_sig = '(arg1, arg2) or (arg1, arg2, arg3) or (arg1, arg2, arg3, arg4) -> int'
++    assert formatted_sig == expected_sig
++
++if __name__ == '__main__':
++    pytest.main([__file__])
+diff --git a/tox.ini b/tox.ini
+index d9f040544..bf39854b6 100644
+--- a/tox.ini
++++ b/tox.ini
+@@ -28,7 +28,7 @@ extras =
+ setenv =
+     PYTHONWARNINGS = all,ignore::ImportWarning:importlib._bootstrap_external,ignore::DeprecationWarning:site,ignore::DeprecationWarning:distutils
+ commands=
+-    pytest --durations 25 {posargs}
++    pytest -rA --durations 25 {posargs}
+ 
+ [testenv:flake8]
+ basepython = python3

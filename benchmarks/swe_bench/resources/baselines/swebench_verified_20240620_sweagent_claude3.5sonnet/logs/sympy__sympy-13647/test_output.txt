@@ -1,0 +1,633 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   sympy/matrices/common.py
+	modified:   sympy/matrices/tests/test_matrices.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	reproduce_bug.py
+	test_col_insert.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 67e3c956083d0128a621f65ee86a7dacd4f9f19f
+Merge: 5cdce47f4a 5a1fe1650a
+Author: Francesco Bonazzi <franz.bonazzi@gmail.com>
+Date:   Mon Nov 27 12:13:22 2017 -0500
+
+    Merge pull request #13641 from Upabjojr/diff_and_arrays
+    
+    diff( ) now supports derivatives by matrices and arrays
+
++ git diff 67e3c956083d0128a621f65ee86a7dacd4f9f19f
+diff --git a/sympy/matrices/common.py b/sympy/matrices/common.py
+index 056d9bc497..2ede02c7c7 100644
+--- a/sympy/matrices/common.py
++++ b/sympy/matrices/common.py
+@@ -86,7 +86,9 @@ def entry(i, j):
+                 return self[i, j]
+             elif pos <= j < pos + other.cols:
+                 return other[i, j - pos]
+-            return self[i, j - pos - other.cols]
++            else:
++                # Fix: Correctly shift columns after insertion
++                return self[i, j - other.cols]
+ 
+         return self._new(self.rows, self.cols + other.cols,
+                          lambda i, j: entry(i, j))
+diff --git a/sympy/matrices/tests/test_matrices.py b/sympy/matrices/tests/test_matrices.py
+index 78bd30fc81..9e74c3ad39 100644
+--- a/sympy/matrices/tests/test_matrices.py
++++ b/sympy/matrices/tests/test_matrices.py
+@@ -2986,6 +2986,37 @@ def test_as_real_imag():
+         assert list(a) == list(m1)
+         assert list(b) == list(m1)
+ 
++def test_deprecated():
++    # Maintain tests for deprecated functions.  We must capture
++    # the deprecation warnings.  When the deprecated functionality is
++    # removed, the corresponding tests should be removed.
++    with warnings.catch_warnings():
++        warnings.filterwarnings("ignore", category=SymPyDeprecationWarning)
++        m = Matrix(3, 3, [0, 1, 0, -4, 4, 0, -2, 1, 2])
++        P, Jcells = m.jordan_cells()
++        assert Jcells[1] == Matrix(1, 1, [2])
++def test_col_insert_preserves_identity():
++    for cls in classes:
++        M = cls.eye(6)
++        V = cls.ones(6, 2) * 2
++        result = M.col_insert(3, V)
++        
++        # Check if the identity matrix part is preserved correctly
++        for i in range(6):
++            for j in range(6):
++                if i == j:
++                    assert result[i, j if j < 3 else j + 2] == 1, f"Identity not preserved at [{i}, {j if j < 3 else j + 2}]"
++                else:
++                    assert result[i, j if j < 3 else j + 2] == 0, f"Non-zero value at [{i}, {j if j < 3 else j + 2}]"
++        
++        # Check if the inserted columns are correct
++        for i in range(6):
++            assert result[i, 3] == 2
++            assert result[i, 4] == 2
++
++        # Check the final shape of the matrix
++        assert result.shape == (6, 8)
++
+ def test_deprecated():
+     # Maintain tests for deprecated functions.  We must capture
+     # the deprecation warnings.  When the deprecated functionality is
+@@ -2996,3 +3027,8 @@ def test_deprecated():
+         P, Jcells = m.jordan_cells()
+         assert Jcells[1] == Matrix(1, 1, [2])
+         assert Jcells[0] == Matrix(2, 2, [2, 1, 0, 2])
++
++if __name__ == '__main__':
++    print("Running test_col_insert_preserves_identity...")
++    test_col_insert_preserves_identity()
++    print("Test completed successfully.")
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: mpmath>=0.19 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from sympy==1.1.2.dev0) (1.3.0)
+Installing collected packages: sympy
+  Attempting uninstall: sympy
+    Found existing installation: sympy 1.1.2.dev0
+    Uninstalling sympy-1.1.2.dev0:
+      Successfully uninstalled sympy-1.1.2.dev0
+  Running setup.py develop for sympy
+Successfully installed sympy-1.1.2.dev0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 67e3c956083d0128a621f65ee86a7dacd4f9f19f sympy/matrices/tests/test_commonmatrix.py
+Updated 0 paths from 4d8642b3d8
++ git apply -v -
+Checking patch sympy/matrices/tests/test_commonmatrix.py...
+Applied patch sympy/matrices/tests/test_commonmatrix.py cleanly.
++ PYTHONWARNINGS=ignore::UserWarning,ignore::SyntaxWarning
++ bin/test -C --verbose sympy/matrices/tests/test_commonmatrix.py
+/testbed/sympy/core/basic.py:3: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Mapping, defaultdict
+/testbed/sympy/core/containers.py:271: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  class OrderedSet(collections.MutableSet):
+/testbed/sympy/plotting/plot.py:28: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Callable
+/testbed/sympy/core/basic.py:3: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Mapping, defaultdict
+/testbed/sympy/core/containers.py:271: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  class OrderedSet(collections.MutableSet):
+/testbed/sympy/plotting/plot.py:28: DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+  from collections import Callable
+============================= test process starts ==============================
+executable:         /opt/miniconda3/envs/testbed/bin/python  (3.9.19-final-0) [CPython]
+architecture:       64-bit
+cache:              no
+ground types:       python 
+numpy:              None
+random seed:        59300641
+hash randomization: on (PYTHONHASHSEED=2026934561)
+
+sympy/matrices/tests/test_commonmatrix.py[81] 
+test__MinimalMatrix ok
+test_vec ok
+test_tolist ok
+test_row_col_del ok
+test_get_diag_blocks1 ok
+test_get_diag_blocks2 ok
+test_shape ok
+test_reshape ok
+test_row_col ok
+test_row_join ok
+test_col_join ok
+test_row_insert ok
+test_col_insert ok
+test_extract ok
+test_hstack ok
+test_vstack ok
+test_atoms ok
+test_free_symbols ok
+test_has ok
+test_is_anti_symmetric ok
+test_diagonal_symmetrical ok
+test_is_hermitian ok
+test_is_Identity ok
+test_is_symbolic ok
+test_is_upper ok
+test_is_lower ok
+test_is_square ok
+test_is_symmetric ok
+test_is_hessenberg ok
+test_is_zero ok
+test_values ok
+test_applyfunc ok
+test_adjoint ok
+test_as_real_imag ok
+test_conjugate ok
+test_doit ok
+test_evalf ok
+test_expand ok
+test_refine E
+test_replace ok
+test_replace_map ok
+test_simplify ok
+test_subs ok
+test_trace ok
+test_xreplace ok
+test_permute ok
+test_abs ok
+test_add ok
+test_multiplication ok
+test_power ok
+test_neg ok
+test_sub ok
+test_div ok
+test_det ok
+test_adjugate ok
+test_cofactor_and_minors ok
+test_charpoly ok
+test_row_op ok
+test_col_op ok
+test_is_echelon ok
+test_echelon_form ok
+test_rref ok
+test_eye ok
+test_ones ok
+test_zeros ok
+test_diag ok
+test_jordan_block ok
+test_columnspace ok
+test_rowspace ok
+test_nullspace ok
+test_eigenvals ok
+test_eigenvects ok
+test_left_eigenvects ok
+test_diagonalize ok
+test_is_diagonalizable ok
+test_jordan_form ok
+test_singular_values ok
+test_diff f
+test_integrate ok
+test_jacobian2 E
+test_limit E                                                              [FAIL]
+
+
+________________________________________________________________________________
+____________ sympy/matrices/tests/test_commonmatrix.py:test_refine _____________
+  File "/testbed/sympy/matrices/tests/test_commonmatrix.py", line 490, in test_refine
+    m1 = m0.refine(Q.real(x) & Q.real(y))
+  File "/testbed/sympy/matrices/common.py", line 1753, in refine
+    return self.applyfunc(lambda x: refine(x, assumptions))
+  File "/testbed/sympy/matrices/common.py", line 1549, in applyfunc
+    return self._eval_applyfunc(f)
+  File "/testbed/sympy/matrices/common.py", line 1489, in _eval_applyfunc
+    out = self._new(self.rows, self.cols, [f(x) for x in self])
+  File "/testbed/sympy/matrices/common.py", line 1489, in <listcomp>
+    out = self._new(self.rows, self.cols, [f(x) for x in self])
+  File "/testbed/sympy/matrices/common.py", line 1753, in <lambda>
+    return self.applyfunc(lambda x: refine(x, assumptions))
+  File "/testbed/sympy/assumptions/refine.py", line 28, in refine
+    args = [refine(arg, assumptions) for arg in expr.args]
+  File "/testbed/sympy/assumptions/refine.py", line 28, in <listcomp>
+    args = [refine(arg, assumptions) for arg in expr.args]
+  File "/testbed/sympy/assumptions/refine.py", line 39, in refine
+    new_expr = handler(expr, assumptions)
+  File "/testbed/sympy/assumptions/refine.py", line 67, in refine_abs
+    if ask(Q.real(arg), assumptions) and \
+  File "/testbed/sympy/assumptions/ask.py", line 1247, in ask
+    from sympy.assumptions.satask import satask
+  File "/testbed/sympy/assumptions/satask.py", line 9, in <module>
+    from sympy.assumptions.sathandlers import fact_registry
+  File "/testbed/sympy/assumptions/sathandlers.py", line 3, in <module>
+    from collections import MutableMapping, defaultdict
+  File "<frozen importlib._bootstrap>", line 1055, in _handle_fromlist
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+___________ sympy/matrices/tests/test_commonmatrix.py:test_jacobian2 ___________
+  File "/testbed/sympy/matrices/tests/test_commonmatrix.py", line 1332, in test_jacobian2
+    assert X.jacobian(Y) == J
+  File "/testbed/sympy/matrices/matrices.py", line 1651, in jacobian
+    return self._new(m, n, lambda j, i: self[j].diff(X[i]))
+  File "/testbed/sympy/matrices/common.py", line 2161, in _new
+    return cls(*args, **kwargs)
+  File "/testbed/sympy/matrices/common.py", line 2166, in __init__
+    mat = list(mat(i, j) for i in range(rows) for j in range(cols))
+  File "/testbed/sympy/matrices/common.py", line 2166, in <genexpr>
+    mat = list(mat(i, j) for i in range(rows) for j in range(cols))
+  File "/testbed/sympy/matrices/matrices.py", line 1651, in <lambda>
+    return self._new(m, n, lambda j, i: self[j].diff(X[i]))
+  File "/testbed/sympy/core/expr.py", line 3008, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1227, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+________________________________________________________________________________
+_____________ sympy/matrices/tests/test_commonmatrix.py:test_limit _____________
+  File "/testbed/sympy/matrices/tests/test_commonmatrix.py", line 1342, in test_limit
+    assert m.limit(x, 5) == Matrix(2, 1, [S(1)/5, y])
+  File "/testbed/sympy/matrices/matrices.py", line 1674, in limit
+    return self.applyfunc(lambda x: x.limit(*args))
+  File "/testbed/sympy/matrices/common.py", line 1549, in applyfunc
+    return self._eval_applyfunc(f)
+  File "/testbed/sympy/matrices/common.py", line 1489, in _eval_applyfunc
+    out = self._new(self.rows, self.cols, [f(x) for x in self])
+  File "/testbed/sympy/matrices/common.py", line 1489, in <listcomp>
+    out = self._new(self.rows, self.cols, [f(x) for x in self])
+  File "/testbed/sympy/matrices/matrices.py", line 1674, in <lambda>
+    return self.applyfunc(lambda x: x.limit(*args))
+  File "/testbed/sympy/core/expr.py", line 2871, in limit
+    return limit(self, x, xlim, dir)
+  File "/testbed/sympy/series/limits.py", line 68, in limit
+    return Limit(e, z, z0, dir).doit(deep=False)
+  File "/testbed/sympy/series/limits.py", line 209, in doit
+    r = gruntz(e, z, z0, dir)
+  File "/testbed/sympy/series/gruntz.py", line 658, in gruntz
+    r = limitinf(e0, z)
+  File "/testbed/sympy/series/gruntz.py", line 428, in limitinf
+    c0, e0 = mrv_leadterm(e, x)
+  File "/testbed/sympy/series/gruntz.py", line 487, in mrv_leadterm
+    Omega, exps = mrv(e, x)
+  File "/testbed/sympy/series/gruntz.py", line 246, in mrv
+    e = powsimp(e, deep=True, combine='exp')
+  File "/testbed/sympy/simplify/powsimp.py", line 118, in powsimp
+    expr = expr.func(*[recurse(w) for w in expr.args])
+  File "/testbed/sympy/simplify/powsimp.py", line 118, in <listcomp>
+    expr = expr.func(*[recurse(w) for w in expr.args])
+  File "/testbed/sympy/simplify/powsimp.py", line 109, in recurse
+    return powsimp(arg, _deep, _combine, _force, _measure)
+  File "/testbed/sympy/simplify/powsimp.py", line 118, in powsimp
+    expr = expr.func(*[recurse(w) for w in expr.args])
+  File "/testbed/sympy/simplify/powsimp.py", line 118, in <listcomp>
+    expr = expr.func(*[recurse(w) for w in expr.args])
+  File "/testbed/sympy/simplify/powsimp.py", line 109, in recurse
+    return powsimp(arg, _deep, _combine, _force, _measure)
+  File "/testbed/sympy/simplify/powsimp.py", line 121, in powsimp
+    return recurse(expr*_y, deep=False)/_y
+  File "/testbed/sympy/core/decorators.py", line 91, in __sympifyit_wrapper
+    return func(a, b)
+  File "/testbed/sympy/core/decorators.py", line 132, in binary_op_wrapper
+    return func(self, other)
+  File "/testbed/sympy/core/expr.py", line 177, in __div__
+    return Mul(self, Pow(other, S.NegativeOne))
+  File "/testbed/sympy/core/operations.py", line 42, in __new__
+    c_part, nc_part, order_symbols = cls.flatten(args)
+  File "/testbed/sympy/core/mul.py", line 184, in flatten
+    if not a.is_zero and a.is_Rational:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/mul.py", line 1091, in _eval_is_algebraic
+    r = _fuzzy_group((a.is_algebraic for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/logic.py", line 78, in _fuzzy_group
+    for a in args:
+  File "/testbed/sympy/core/mul.py", line 1091, in <genexpr>
+    r = _fuzzy_group((a.is_algebraic for a in self.args), quick_exit=True)
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/power.py", line 1130, in _eval_is_algebraic
+    if self.base.is_zero or _is_one(self.base):
+  File "/testbed/sympy/core/power.py", line 1125, in _is_one
+    return (expr - 1).is_zero
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 522, in _eval_is_imaginary
+    if b.is_zero:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 303, in _ask
+    _ask(pk, obj)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 676, in _eval_is_negative
+    if s != self and s.is_negative and a.is_nonpositive:
+  File "/testbed/sympy/core/assumptions.py", line 248, in getit
+    return _ask(fact, self)
+  File "/testbed/sympy/core/assumptions.py", line 291, in _ask
+    a = evaluate(obj)
+  File "/testbed/sympy/core/add.py", line 679, in _eval_is_negative
+    v = _monotonic_sign(self)
+  File "/testbed/sympy/core/exprtools.py", line 120, in _monotonic_sign
+    d = self.diff(x)
+  File "/testbed/sympy/core/expr.py", line 3008, in diff
+    return Derivative(self, *new_symbols, **assumptions)
+  File "/testbed/sympy/core/function.py", line 1227, in __new__
+    if isinstance(v, (collections.Iterable, Tuple, MatrixCommon, NDimArray)):
+  File "/opt/miniconda3/envs/testbed/lib/python3.9/collections/__init__.py", line 62, in __getattr__
+    warnings.warn("Using or importing the ABCs from 'collections' instead "
+DeprecationWarning: Using or importing the ABCs from 'collections' instead of from 'collections.abc' is deprecated since Python 3.3, and in 3.10 it will stop working
+
+ tests finished: 77 passed, 1 expected to fail, 3 exceptions, in 15.48 seconds =
+DO *NOT* COMMIT!
++ git checkout 67e3c956083d0128a621f65ee86a7dacd4f9f19f sympy/matrices/tests/test_commonmatrix.py
+Updated 1 path from 4d8642b3d8

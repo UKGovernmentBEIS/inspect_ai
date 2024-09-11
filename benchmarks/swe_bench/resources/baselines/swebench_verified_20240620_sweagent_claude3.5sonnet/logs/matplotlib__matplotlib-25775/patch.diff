@@ -1,0 +1,144 @@
+
+diff --git a/lib/matplotlib/tests/test_text.py b/lib/matplotlib/tests/test_text.py
+index f86b9f111b..9d4963a4c5 100644
+--- a/lib/matplotlib/tests/test_text.py
++++ b/lib/matplotlib/tests/test_text.py
+@@ -902,3 +902,20 @@ def test_annotate_offset_fontsize():
+     points_coords, fontsize_coords = [ann.get_window_extent() for ann in anns]
+     fig.canvas.draw()
+     assert str(points_coords) == str(fontsize_coords)
++
++def test_text_antialiasing():
++    fig, ax = plt.subplots()
++    t = ax.text(0.5, 0.5, "Test", fontsize=12)
++
++    # Check default value
++    assert t._antialiased == True
++
++    # Test setting antialiased to False
++    t._antialiased = False
++    assert t._antialiased == False
++
++    # Test setting antialiased back to True
++    t._antialiased = True
++    assert t._antialiased == True
++
++    fig.canvas.draw()
+diff --git a/lib/matplotlib/text.py b/lib/matplotlib/text.py
+index 4591316cf9..edb86f76d0 100644
+--- a/lib/matplotlib/text.py
++++ b/lib/matplotlib/text.py
+@@ -93,7 +93,25 @@ def _get_text_metrics_with_cache_impl(
+     "fontweight": ["weight"],
+ })
+ class Text(Artist):
+-    """Handle storing and drawing of text in window or data coordinates."""
++    """
++    Handle storing and drawing of text in window or data coordinates.
++
++    The text is aligned relative to the anchor point (*x*, *y*) according
++    to ``horizontalalignment`` (default: 'left') and ``verticalalignment``
++    (default: 'bottom'). See also
++    :doc:`/gallery/text_labels_and_annotations/text_alignment`.
++
++    While Text accepts the 'label' keyword argument, by default it is not
++    added to the handles of a legend.
++
++    Valid keyword arguments are:
++
++    %(Text:kwdoc)s
++
++    antialiased : bool, default: True
++        Whether to use antialiased rendering. This can be accessed and modified
++        directly through the `_antialiased` attribute.
++    """
+ 
+     zorder = 3
+     _charsize_cache = dict()
+@@ -115,23 +133,9 @@ class Text(Artist):
+                  wrap=False,
+                  transform_rotates_text=False,
+                  parse_math=None,    # defaults to rcParams['text.parse_math']
++                 antialiased=None,   # defaults to rcParams['text.antialiased']
+                  **kwargs
+                  ):
+-        """
+-        Create a `.Text` instance at *x*, *y* with string *text*.
+-
+-        The text is aligned relative to the anchor point (*x*, *y*) according
+-        to ``horizontalalignment`` (default: 'left') and ``verticalalignment``
+-        (default: 'bottom'). See also
+-        :doc:`/gallery/text_labels_and_annotations/text_alignment`.
+-
+-        While Text accepts the 'label' keyword argument, by default it is not
+-        added to the handles of a legend.
+-
+-        Valid keyword arguments are:
+-
+-        %(Text:kwdoc)s
+-        """
+         super().__init__()
+         self._x, self._y = x, y
+         self._text = ''
+@@ -149,6 +153,7 @@ class Text(Artist):
+             transform_rotates_text=transform_rotates_text,
+             linespacing=linespacing,
+             rotation_mode=rotation_mode,
++            antialiased=antialiased,
+         )
+         self.update(kwargs)
+ 
+@@ -167,6 +172,7 @@ class Text(Artist):
+         transform_rotates_text=False,
+         linespacing=None,
+         rotation_mode=None,
++        antialiased=None,
+     ):
+         self.set_text(text)
+         self.set_color(
+@@ -183,11 +189,11 @@ class Text(Artist):
+         self._transform_rotates_text = transform_rotates_text
+         self._bbox_patch = None  # a FancyBboxPatch instance
+         self._renderer = None
++        self._antialiased = antialiased if antialiased is not None else mpl.rcParams.get('text.antialiased', True)
+         if linespacing is None:
+             linespacing = 1.2  # Maybe use rcParam later.
+         self.set_linespacing(linespacing)
+         self.set_rotation_mode(rotation_mode)
+-
+     def update(self, kwargs):
+         # docstring inherited
+         kwargs = cbook.normalize_kwargs(kwargs, Text)
+@@ -737,6 +743,7 @@ class Text(Artist):
+             gc.set_foreground(self.get_color())
+             gc.set_alpha(self.get_alpha())
+             gc.set_url(self._url)
++            gc.set_antialiased(self._antialiased)
+             self._set_gc_clip(gc)
+ 
+             angle = self.get_rotation()
+@@ -1998,5 +2005,23 @@ or callable, default: value of *xycoords*
+             return Bbox.null()
+         return super().get_tightbbox(renderer)
+ 
++    def set_antialiased(self, b):
++        """
++        Set whether to use antialiased rendering.
++
++        Parameters
++        ----------
++        b : bool
++        """
++        self._antialiased = b
++        self.stale = True
++
++    def get_antialiased(self):
++        """
++        Return whether the Text will be rendered with antialiasing.
+ 
+-_docstring.interpd.update(Annotation=Annotation.__init__.__doc__)
++        Returns
++        -------
++        bool
++        """
++        return self._antialiased

@@ -1,0 +1,43 @@
+
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 00000000..3d42df11
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,20 @@
++import numpy as np
++import xarray as xr
++
++dta = xr.DataArray([1., 1., 1.])
++wgt = xr.DataArray(np.array([1, 1, 0], dtype=np.bool_))
++
++result = dta.weighted(wgt).mean()
++print("Result:")
++print(result)
++
++print("\nExpected:")
++print(xr.DataArray(1.))
++
++print("\nSum of weights:")
++print(xr.dot(dta.notnull(), wgt))
++
++print("\nCorrected sum of weights:")
++print(xr.dot(dta.notnull(), wgt * 1))
++
++print("\nScript completed successfully, no errors.")
+diff --git a/xarray/core/weighted.py b/xarray/core/weighted.py
+index 996d2e4c..2587a273 100644
+--- a/xarray/core/weighted.py
++++ b/xarray/core/weighted.py
+@@ -142,7 +142,10 @@ class Weighted:
+         # we need to mask data values that are nan; else the weights are wrong
+         mask = da.notnull()
+ 
+-        sum_of_weights = self._reduce(mask, self.weights, dim=dim, skipna=False)
++        # Convert boolean weights to integers
++        weights = self.weights * 1 if self.weights.dtype == bool else self.weights
++
++        sum_of_weights = self._reduce(mask, weights, dim=dim, skipna=False)
+ 
+         # 0-weights are not valid
+         valid_weights = sum_of_weights != 0.0

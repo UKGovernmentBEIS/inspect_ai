@@ -1,0 +1,102 @@
+
+diff --git a/django/urls/base.py b/django/urls/base.py
+index 0e1c3d909c..04f1128070 100644
+--- a/django/urls/base.py
++++ b/django/urls/base.py
+@@ -164,17 +164,24 @@ def translate_url(url, lang_code):
+     Return the original URL if no translated version is found.
+     """
+     parsed = urlsplit(url)
++    path = parsed.path
+     try:
+-        match = resolve(parsed.path)
++        match = resolve(path)
+     except Resolver404:
+-        pass
++        # If the path couldn't be resolved, we want to add the language code
++        path = f'/{lang_code}/{path.lstrip("/")}'
+     else:
+         to_be_reversed = "%s:%s" % (match.namespace, match.url_name) if match.namespace else match.url_name
+         with override(lang_code):
+             try:
+-                url = reverse(to_be_reversed, args=match.args, kwargs=match.kwargs)
++                # Filter out kwargs that are not present in the reversed URL
++                filtered_kwargs = {k: v for k, v in match.kwargs.items() if f'{k}=' in url}
++                path = reverse(to_be_reversed, args=match.args, kwargs=filtered_kwargs)
+             except NoReverseMatch:
+                 pass
+-            else:
+-                url = urlunsplit((parsed.scheme, parsed.netloc, url, parsed.query, parsed.fragment))
+-    return url
++    
++    # Add the language code to the beginning of the path if it's not already there
++    if not path.startswith(f'/{lang_code}/'):
++        path = f'/{lang_code}/{path.lstrip("/")}'
++    
++    return urlunsplit((parsed.scheme, parsed.netloc, path, parsed.query, parsed.fragment))
+diff --git a/test_translate_url.py b/test_translate_url.py
+new file mode 100644
+index 0000000000..c5794af182
+--- /dev/null
++++ b/test_translate_url.py
+@@ -0,0 +1,60 @@
++import os
++os.environ.setdefault("DJANGO_SETTINGS_MODULE", "test_settings")
++
++from django.conf import settings
++settings.configure(
++    DEBUG=True,
++    USE_TZ=True,
++    ROOT_URLCONF=__name__,
++    MIDDLEWARE=[
++        'django.middleware.locale.LocaleMiddleware',
++    ],
++    LANGUAGE_CODE='en',
++    LANGUAGES=[('en', 'English'), ('fr', 'French')],
++    USE_I18N=True,
++    INSTALLED_APPS=[
++        'django.contrib.contenttypes',
++        'django.contrib.auth',
++    ],
++    DATABASES={
++        'default': {
++            'ENGINE': 'django.db.backends.sqlite3',
++            'NAME': ':memory:',
++        }
++    },
++)
++
++import django
++django.setup()
++
++from django.test import TestCase
++from django.urls import path
++from django.urls.base import translate_url
++
++def dummy_view(request):
++    pass
++
++urlpatterns = [
++    path('optional/<str:param>/', dummy_view, name='optional'),
++    path('required/<str:param>/', dummy_view, name='required'),
++]
++
++class TranslateURLTestCase(TestCase):
++    def test_translate_url_with_optional_param(self):
++        url = '/optional/'
++        translated_url = translate_url(url, 'fr')
++        self.assertEqual(translated_url, '/fr/optional/')
++
++    def test_translate_url_with_required_param(self):
++        url = '/required/value/'
++        translated_url = translate_url(url, 'fr')
++        self.assertEqual(translated_url, '/fr/required/value/')
++
++if __name__ == '__main__':
++    from django.test.runner import DiscoverRunner
++    test_runner = DiscoverRunner(verbosity=2)
++    failures = test_runner.run_tests([__name__])
++    if failures:
++        print("Tests failed")
++    else:
++        print("All tests passed")

@@ -1,0 +1,54 @@
+
+diff --git a/reproduce_gm_issue.py b/reproduce_gm_issue.py
+new file mode 100644
+index 000000000..75f0b7ca4
+--- /dev/null
++++ b/reproduce_gm_issue.py
+@@ -0,0 +1,22 @@
++from sklearn.mixture import GaussianMixture
++from sklearn.utils.testing import assert_array_equal
++import numpy as np
++
++np.random.seed(42)  # for reproducibility
++X = np.random.randn(1000, 5)
++
++print('Testing without n_init:')
++gm = GaussianMixture(n_components=5)
++c1 = gm.fit_predict(X)
++c2 = gm.predict(X)
++assert_array_equal(c1, c2)
++print('Test passed without n_init')
++
++print('\nTesting with n_init=5:')
++gm = GaussianMixture(n_components=5, n_init=5)
++c1 = gm.fit_predict(X)
++c2 = gm.predict(X)
++assert_array_equal(c1, c2)
++print('Test passed with n_init=5')
++
++print("\nScript completed successfully, no errors.")
+diff --git a/sklearn/mixture/base.py b/sklearn/mixture/base.py
+index bd34333c0..d5213ef11 100644
+--- a/sklearn/mixture/base.py
++++ b/sklearn/mixture/base.py
+@@ -257,11 +257,6 @@ class BaseMixture(DensityMixin, BaseEstimator, metaclass=ABCMeta):
+                 best_params = self._get_parameters()
+                 best_n_iter = n_iter
+ 
+-        # Always do a final e-step to guarantee that the labels returned by
+-        # fit_predict(X) are always consistent with fit(X).predict(X)
+-        # for any value of max_iter and tol (and any random_state).
+-        _, log_resp = self._e_step(X)
+-
+         if not self.converged_:
+             warnings.warn('Initialization %d did not converge. '
+                           'Try different init parameters, '
+@@ -273,7 +268,7 @@ class BaseMixture(DensityMixin, BaseEstimator, metaclass=ABCMeta):
+         self.n_iter_ = best_n_iter
+         self.lower_bound_ = max_lower_bound
+ 
+-        return log_resp.argmax(axis=1)
++        return self.predict(X)
+ 
+     def _e_step(self, X):
+         """E step.

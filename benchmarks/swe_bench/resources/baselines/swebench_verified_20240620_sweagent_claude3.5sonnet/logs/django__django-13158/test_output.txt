@@ -1,0 +1,580 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	migrations/
+	test_app.py
+	test_app/
+	test_queryset_none.py
+	test_settings.py
+
+nothing added to commit but untracked files present (use "git add" to track)
++ git show
+commit 7af8f4127397279d19ef7c7899e93018274e2f9b
+Author: Hasan Ramezani <hasan.r67@gmail.com>
+Date:   Tue Mar 10 22:22:23 2020 +0100
+
+    Refs #26445 -- Allowed using UserManager.create_user()/create_superuser() in migrations.
+    
+    Used app config to lookup user model in _create_user().
+    
+    Thanks Markus Holtermann for the review and initial patch.
+    Thanks Simon Charette for the implementation idea.
+
+diff --git a/django/contrib/auth/models.py b/django/contrib/auth/models.py
+index 84962b9d0e..5f092f0ae8 100644
+--- a/django/contrib/auth/models.py
++++ b/django/contrib/auth/models.py
+@@ -1,5 +1,7 @@
++from django.apps import apps
+ from django.contrib import auth
+ from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
++from django.contrib.auth.hashers import make_password
+ from django.contrib.contenttypes.models import ContentType
+ from django.core.exceptions import PermissionDenied
+ from django.core.mail import send_mail
+@@ -134,9 +136,13 @@ class UserManager(BaseUserManager):
+         if not username:
+             raise ValueError('The given username must be set')
+         email = self.normalize_email(email)
+-        username = self.model.normalize_username(username)
++        # Lookup the real model class from the global app registry so this
++        # manager method can be used in migrations. This is fine because
++        # managers are by definition working on the real model.
++        GlobalUserModel = apps.get_model(self.model._meta.app_label, self.model._meta.object_name)
++        username = GlobalUserModel.normalize_username(username)
+         user = self.model(username=username, email=email, **extra_fields)
+-        user.set_password(password)
++        user.password = make_password(password)
+         user.save(using=self._db)
+         return user
+ 
+diff --git a/tests/auth_tests/test_models.py b/tests/auth_tests/test_models.py
+index c60b66c993..2379f68b83 100644
+--- a/tests/auth_tests/test_models.py
++++ b/tests/auth_tests/test_models.py
+@@ -10,8 +10,12 @@ from django.contrib.auth.models import (
+ )
+ from django.contrib.contenttypes.models import ContentType
+ from django.core import mail
++from django.db import connection, migrations
++from django.db.migrations.state import ModelState, ProjectState
+ from django.db.models.signals import post_save
+-from django.test import SimpleTestCase, TestCase, override_settings
++from django.test import (
++    SimpleTestCase, TestCase, TransactionTestCase, override_settings,
++)
+ 
+ from .models import IntegerUsernameUser
+ from .models.with_custom_email_field import CustomEmailField
+@@ -101,7 +105,12 @@ class LoadDataWithNaturalKeysAndMultipleDatabasesTestCase(TestCase):
+         self.assertEqual(perm_other.content_type_id, other_objects[0].id)
+ 
+ 
+-class UserManagerTestCase(TestCase):
++class UserManagerTestCase(TransactionTestCase):
++    available_apps = [
++        'auth_tests',
++        'django.contrib.auth',
++        'django.contrib.contenttypes',
++    ]
+ 
+     def test_create_user(self):
+         email_lowercase = 'normal@normal.com'
+@@ -156,6 +165,30 @@ class UserManagerTestCase(TestCase):
+         for char in password:
+             self.assertIn(char, allowed_chars)
+ 
++    def test_runpython_manager_methods(self):
++        def forwards(apps, schema_editor):
++            UserModel = apps.get_model('auth', 'User')
++            user = UserModel.objects.create_user('user1', password='secure')
++            self.assertIsInstance(user, UserModel)
++
++        operation = migrations.RunPython(forwards, migrations.RunPython.noop)
++        project_state = ProjectState()
++        project_state.add_model(ModelState.from_model(User))
++        project_state.add_model(ModelState.from_model(Group))
++        project_state.add_model(ModelState.from_model(Permission))
++        project_state.add_model(ModelState.from_model(ContentType))
++        new_state = project_state.clone()
++        with connection.schema_editor() as editor:
++            operation.state_forwards('test_manager_methods', new_state)
++            operation.database_forwards(
++                'test_manager_methods',
++                editor,
++                project_state,
++                new_state,
++            )
++        user = User.objects.get(username='user1')
++        self.assertTrue(user.check_password('secure'))
++
+ 
+ class AbstractBaseUserTests(SimpleTestCase):
+ 
++ git diff 7af8f4127397279d19ef7c7899e93018274e2f9b
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: asgiref>=3.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (3.4.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (0.4.4)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref>=3.2->Django==3.2) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.2
+    Uninstalling Django-3.2:
+      Successfully uninstalled Django-3.2
+  Running setup.py develop for Django
+Successfully installed Django-3.2
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 7af8f4127397279d19ef7c7899e93018274e2f9b tests/queries/test_qs_combinators.py
+Updated 0 paths from a3e86b0e02
++ git apply -v -
+Checking patch tests/queries/test_qs_combinators.py...
+Applied patch tests/queries/test_qs_combinators.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 queries.test_qs_combinators
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+test_combining_multiple_models (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_count_difference (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_count_intersection (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_count_union (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_count_union_empty_result (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_difference_with_empty_qs (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_difference_with_values (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_intersection_with_empty_qs (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_intersection_with_values (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_limits (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_order_by_same_type (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_order_raises_on_non_selected_column (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_ordering (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_ordering_by_alias (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_ordering_by_f_expression (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_ordering_by_f_expression_and_alias (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_ordering_subqueries (queries.test_qs_combinators.QuerySetSetOperationTests) ... skipped "Database doesn't support feature(s): supports_slicing_ordering_in_compound"
+test_qs_with_subcompound_qs (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_simple_difference (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_simple_intersection (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_simple_union (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_union_distinct (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_union_none (queries.test_qs_combinators.QuerySetSetOperationTests) ... FAIL
+test_union_with_empty_qs (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_union_with_extra_and_values_list (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_union_with_two_annotated_values_list (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_union_with_values (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_union_with_values_list_and_order (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_union_with_values_list_on_annotated_and_unannotated (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_unsupported_intersection_raises_db_error (queries.test_qs_combinators.QuerySetSetOperationTests) ... skipped 'Database has feature(s) supports_select_intersection'
+test_unsupported_operations_on_combined_qs (queries.test_qs_combinators.QuerySetSetOperationTests) ... ok
+test_unsupported_ordering_slicing_raises_db_error (queries.test_qs_combinators.QuerySetSetOperationTests) ... Testing against Django installed in '/testbed/django'
+Importing application queries
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, queries, sessions, staticfiles
+  Apply all migrations: admin, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Creating table queries_dumbcategory
+    Creating table queries_namedcategory
+    Creating table queries_tag
+    Creating table queries_note
+    Creating table queries_annotation
+    Creating table queries_datetimepk
+    Creating table queries_extrainfo
+    Creating table queries_author
+    Creating table queries_item
+    Creating table queries_report
+    Creating table queries_reportcomment
+    Creating table queries_ranking
+    Creating table queries_cover
+    Creating table queries_number
+    Creating table queries_valid
+    Creating table queries_x
+    Creating table queries_y
+    Creating table queries_loopx
+    Creating table queries_loopy
+    Creating table queries_loopz
+    Creating table queries_managedmodel
+    Creating table queries_detail
+    Creating table queries_member
+    Creating table queries_child
+    Creating table queries_custompk
+    Creating table queries_related
+    Creating table queries_custompktag
+    Creating table queries_celebrity
+    Creating table queries_tvchef
+    Creating table queries_fan
+    Creating table queries_leafa
+    Creating table queries_leafb
+    Creating table queries_join
+    Creating table queries_reservedname
+    Creating table queries_sharedconnection
+    Creating table queries_pointera
+    Creating table queries_pointerb
+    Creating table queries_singleobject
+    Creating table queries_relatedobject
+    Creating table queries_plaything
+    Creating table queries_article
+    Creating table queries_food
+    Creating table queries_eaten
+    Creating table queries_node
+    Creating table queries_objecta
+    Creating table queries_childobjecta
+    Creating table queries_objectb
+    Creating table queries_objectc
+    Creating table queries_simplecategory
+    Creating table queries_specialcategory
+    Creating table queries_categoryitem
+    Creating table queries_mixedcasefieldcategoryitem
+    Creating table queries_mixedcasedbcolumncategoryitem
+    Creating table queries_onetoonecategory
+    Creating table queries_categoryrelationship
+    Creating table queries_commonmixedcaseforeignkeys
+    Creating table queries_nullablename
+    Creating table queries_modeld
+    Creating table queries_modelc
+    Creating table queries_modelb
+    Creating table queries_modela
+    Creating table queries_job
+    Creating table queries_jobresponsibilities
+    Creating table queries_responsibility
+    Creating table queries_fk1
+    Creating table queries_fk2
+    Creating table queries_fk3
+    Creating table queries_basea
+    Creating table queries_identifier
+    Creating table queries_program
+    Creating table queries_channel
+    Creating table queries_book
+    Creating table queries_chapter
+    Creating table queries_paragraph
+    Creating table queries_page
+    Creating table queries_myobject
+    Creating table queries_order
+    Creating table queries_orderitem
+    Creating table queries_baseuser
+    Creating table queries_task
+    Creating table queries_staff
+    Creating table queries_staffuser
+    Creating table queries_ticket21203parent
+    Creating table queries_ticket21203child
+    Creating table queries_person
+    Creating table queries_company
+    Creating table queries_employment
+    Creating table queries_school
+    Creating table queries_student
+    Creating table queries_classroom
+    Creating table queries_teacher
+    Creating table queries_ticket23605aparent
+    Creating table queries_ticket23605a
+    Creating table queries_ticket23605b
+    Creating table queries_ticket23605c
+    Creating table Individual
+    Creating table RelatedIndividual
+    Creating table queries_customdbcolumn
+    Creating table queries_returningmodel
+    Creating table queries_nonintegerpkreturningmodel
+    Creating table queries_jsonfieldnullable
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (1 silenced).
+ok
+
+======================================================================
+FAIL: test_union_none (queries.test_qs_combinators.QuerySetSetOperationTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/testbed/tests/queries/test_qs_combinators.py", line 58, in test_union_none
+    self.assertSequenceEqual(qs3.none(), [])
+AssertionError: Sequences differ: <QuerySet [<Number: 0>, <Number: 1>, <Number: 8>, <Number: 9>]> != []
+
+First sequence contains 4 additional elements.
+First extra element 0:
+<Number: 0>
+
+- <QuerySet [<Number: 0>, <Number: 1>, <Number: 8>, <Number: 9>]>
++ []
+
+----------------------------------------------------------------------
+Ran 32 tests in 0.180s
+
+FAILED (failures=1, skipped=2)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
++ git checkout 7af8f4127397279d19ef7c7899e93018274e2f9b tests/queries/test_qs_combinators.py
+Updated 1 path from a3e86b0e02

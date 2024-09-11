@@ -1,0 +1,104 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 000000000..0f7c3f6ca
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,83 @@
++import numpy as np
++
++class SimpleWCS:
++    def __init__(self, header):
++        self.header = header
++        self.naxis = header['WCSAXES']
++        self.pc = np.array([[header.get(f'PC{i+1}_{j+1}', 1 if i == j else 0) for j in range(self.naxis)] for i in range(self.naxis)])
++
++    def world_to_pixel(self, *world_coords):
++        world_coords = np.array(world_coords)
++        crval = np.array([self.header[f'CRVAL{i+1}'] for i in range(self.naxis)])
++        cdelt = np.array([self.header[f'CDELT{i+1}'] for i in range(self.naxis)])
++        crpix = np.array([self.header[f'CRPIX{i+1}'] for i in range(self.naxis)])
++        if hasattr(self, 'slice_axis'):
++            # For sliced WCS, pad the input to match the original dimensions
++            world_coords = np.pad(world_coords, (0, self.pc.shape[0] - len(world_coords)), 'constant')
++            crval = crval[:self.naxis]
++            cdelt = cdelt[:self.naxis]
++            crpix = crpix[:self.naxis]
++            pc = self.pc[:self.naxis, :self.naxis]
++        else:
++            pc = self.pc
++        pixel_coords = np.dot(pc, (world_coords - crval))
++        pixel_coords /= cdelt
++        pixel_coords += crpix - 1
++        return pixel_coords
++
++    def slice(self, axis):
++        new_header = self.header.copy()
++        new_header['WCSAXES'] -= 1
++        for key in list(new_header.keys()):
++            if key.endswith(str(self.naxis)):
++                del new_header[key]
++        sliced_wcs = SimpleWCS(new_header)
++        sliced_wcs.pc = self.pc  # Keep the full PC matrix
++        sliced_wcs.slice_axis = axis
++        sliced_wcs.naxis = self.naxis - 1
++        return sliced_wcs
++
++    def world_to_pixel(self, *world_coords):
++        world_coords = np.array(world_coords)
++        crval = np.array([self.header[f'CRVAL{i+1}'] for i in range(self.naxis)])
++        cdelt = np.array([self.header[f'CDELT{i+1}'] for i in range(self.naxis)])
++        crpix = np.array([self.header[f'CRPIX{i+1}'] for i in range(self.naxis)])
++        if hasattr(self, 'slice_axis'):
++            # For sliced WCS, pad the input to match the original dimensions
++            world_coords = np.pad(world_coords, (0, self.pc.shape[0] - len(world_coords)), 'constant')
++            world_coords[self.slice_axis] = self.header[f'CRVAL{self.slice_axis+1}']
++        pixel_coords = np.dot(self.pc, (world_coords - crval))
++        pixel_coords /= cdelt
++        pixel_coords += crpix - 1
++        if hasattr(self, 'slice_axis'):
++            pixel_coords = np.delete(pixel_coords, self.slice_axis)
++        return pixel_coords
++
++    def print_pc(self):
++        print("PC Matrix:")
++        print(self.pc)
++
++nx, ny, nz = 100, 25, 2
++wcs_header = {
++    'WCSAXES': 3,
++    'CRPIX1': (nx + 1)/2, 'CRPIX2': (ny + 1)/2, 'CRPIX3': 1.0,
++    'CDELT1': 5, 'CDELT2': 5, 'CDELT3': 0.055,
++    'CRVAL1': 0.0, 'CRVAL2': 0.0, 'CRVAL3': 1.05,
++    'PC1_1': 0.0, 'PC1_2': -1.0, 'PC1_3': 0.1,  # Added non-zero PC1_3
++    'PC2_1': 1.0, 'PC2_2': 0.0, 'PC2_3': -0.1,  # Added non-zero PC2_3
++    'PC3_1': 0.0, 'PC3_2': 0.0, 'PC3_3': 1.0
++}
++
++fits_wcs = SimpleWCS(wcs_header)
++
++print("Full WCS world_to_pixel:")
++print(fits_wcs.world_to_pixel(0, 0, 1.05))
++fits_wcs.print_pc()
++
++sliced_wcs = fits_wcs.slice(2)  # Slice along the wavelength axis
++
++print("\nSliced WCS world_to_pixel:")
++print(sliced_wcs.world_to_pixel(0, 0))
++sliced_wcs.print_pc()
++
++print("\nScript completed successfully, no errors.")
+diff --git a/setup_local.py b/setup_local.py
+new file mode 100644
+index 000000000..c51f50812
+--- /dev/null
++++ b/setup_local.py
+@@ -0,0 +1,8 @@
++from setuptools import setup
++from extension_helpers import get_extensions
++
++def get_custom_extensions():
++    extensions = get_extensions()
++    return [ext for ext in extensions if '_np_utils' not in ext.name]
++
++setup(ext_modules=get_custom_extensions())

@@ -1,0 +1,56 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..3e71921359
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,21 @@
++from sympy import geometry as ge
++import sympy
++
++point1 = ge.Point(0,0)
++point2 = ge.Point(1,1)
++
++print("Test 1:")
++try:
++    result = point1 + point2 * sympy.sympify(2.0)
++    print("Success:", result)
++except Exception as e:
++    print("Error:", str(e))
++
++print("\nTest 2:")
++try:
++    result = point1 + sympy.sympify(2.0) * point2
++    print("Success:", result)
++except Exception as e:
++    print("Error:", str(e))
++
++print("\nScript completed.")
+diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
+index 7c978c47be..e3aa7b9819 100644
+--- a/sympy/geometry/point.py
++++ b/sympy/geometry/point.py
+@@ -216,7 +216,22 @@ def __add__(self, other):
+         try:
+             s, o = Point._normalize_dimension(self, Point(other, evaluate=False))
+         except TypeError:
+-            raise GeometryError("Don't know how to add {} and a Point object".format(other))
++            from sympy import Mul
++            if isinstance(other, Mul):
++                scalar = 1
++                point = None
++                for arg in other.args:
++                    if isinstance(arg, Point):
++                        point = arg
++                    else:
++                        scalar *= arg
++                if point is not None:
++                    s = self.args
++                    o = [scalar * coord for coord in point.args]
++                else:
++                    raise GeometryError("Don't know how to add {} and a Point object".format(other))
++            else:
++                raise GeometryError("Don't know how to add {} and a Point object".format(other))
+ 
+         coords = [simplify(a + b) for a, b in zip(s, o)]
+         return Point(coords, evaluate=False)

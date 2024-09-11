@@ -1,0 +1,52 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..19a7b93321
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,22 @@
++import sympy as sp
++
++def test_point(method):
++    try:
++        result = method()
++        print(f"Success: {result}")
++    except Exception as e:
++        print(f"Error: {type(e).__name__}: {str(e)}")
++
++print("Testing with evaluate(False):")
++test_point(lambda: sp.S('Point2D(Integer(1),Integer(2))', evaluate=False))
++
++print("\nTesting with context manager:")
++test_point(lambda: exec("d={}\nwith sp.evaluate(False): d['result'] = sp.S('Point2D(Integer(1),Integer(2))')", globals()) or globals()['d']['result'])
++
++print("\nTesting without evaluate(False):")
++test_point(lambda: sp.S('Point2D(Integer(1),Integer(2))'))
++
++print("\nTesting with evaluate=False as argument:")
++test_point(lambda: sp.S('Point2D(Integer(1),Integer(2))', evaluate=False))
++
++print("\nScript completed.")
+diff --git a/sympy/geometry/point.py b/sympy/geometry/point.py
+index 73c20334d0..803c3e1cd1 100644
+--- a/sympy/geometry/point.py
++++ b/sympy/geometry/point.py
+@@ -152,8 +152,6 @@ def __new__(cls, *args, **kwargs):
+                         'warn' or 'ignore'.'''))
+         if any(coords[dim:]):
+             raise ValueError('Nonzero coordinates cannot be removed.')
+-        if any(a.is_number and im(a) for a in coords):
+-            raise ValueError('Imaginary coordinates are not permitted.')
+         if not all(isinstance(a, Expr) for a in coords):
+             raise TypeError('Coordinates must be valid SymPy expressions.')
+ 
+@@ -167,6 +165,9 @@ def __new__(cls, *args, **kwargs):
+                 f: simplify(nsimplify(f, rational=True))
+                  for f in coords.atoms(Float)})
+ 
++        # Check for non-real coordinates after evaluation
++        if any(not a.is_real for a in coords):
++            raise ValueError('Non-real coordinates are not permitted.')
+         # return 2D or 3D instances
+         if len(coords) == 2:
+             kwargs['_nocheck'] = True

@@ -1,0 +1,101 @@
+
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..8f21c8cbca
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,54 @@
++import os
++import django
++
++os.environ.setdefault("DJANGO_SETTINGS_MODULE", "test_settings")
++django.setup()
++
++from django.db import connection, transaction
++from django.test import TestCase
++from test_app.models import Product, Order
++
++def setup_test_database():
++    connection.close()
++    connection.connect()
++    with connection.schema_editor() as schema_editor:
++        schema_editor.create_model(Product)
++        schema_editor.create_model(Order)
++
++class BugReproductionTest(TestCase):
++    @classmethod
++    def setUpClass(cls):
++        super().setUpClass()
++        setup_test_database()
++
++    def test_bug_reproduction(self):
++        with transaction.atomic():
++            order = Order()
++            order.product = Product()
++            order.product.sku = "foo"
++            order.product.save()
++            order.save()
++            
++            print("Bug reproduction test:")
++            print(f"Order with empty product_id exists: {Order.objects.filter(product_id='').exists()}")
++            print(f"Order product_id: {order.product_id}")
++            print(f"Order product sku: {order.product.sku}")
++            print(f"Product exists: {Product.objects.filter(sku='foo').exists()}")
++            print(f"Order with correct product exists: {Order.objects.filter(product__sku='foo').exists()}")
++
++    def test_working_scenario(self):
++        with transaction.atomic():
++            order = Order()
++            order.product = Product(sku="foo")
++            order.product.save()
++            order.save()
++            
++            print("\nWorking scenario test:")
++            print(f"Order with correct product exists: {Order.objects.filter(product=order.product).exists()}")
++
++if __name__ == "__main__":
++    test_case = BugReproductionTest()
++    test_case.setUpClass()
++    test_case.test_bug_reproduction()
++    test_case.test_working_scenario()
++    print("\nScript completed successfully.")
+diff --git a/test_app/__init__.py b/test_app/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_app/models.py b/test_app/models.py
+new file mode 100644
+index 0000000000..8d71566700
+--- /dev/null
++++ b/test_app/models.py
+@@ -0,0 +1,12 @@
++from django.db import models
++
++class Product(models.Model):
++    sku = models.CharField(primary_key=True, max_length=50)
++
++class Order(models.Model):
++    product = models.ForeignKey(Product, on_delete=models.CASCADE)
++
++    def save(self, *args, **kwargs):
++        if self.product is not None:
++            self.product_id = self.product.sku
++        super().save(*args, **kwargs)
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..09209e4aef
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,13 @@
++SECRET_KEY = 'dummy'
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'django.contrib.auth',
++    'test_app',
++]
++USE_TZ = True

@@ -1,0 +1,876 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch master
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   CHANGES
+	modified:   sphinx/ext/autodoc/__init__.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	setup.py.orig
+	tests/test_ext_autodoc_docstring_signature.py
+	tox.ini.orig
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit 9988d5ce267bf0df4791770b469431b1fb00dcdd
+Author: Takeshi KOMIYA <i.tkomiya@gmail.com>
+Date:   Sat May 30 13:15:19 2020 +0900
+
+    Update CHANGES for PR #7746
+
+diff --git a/CHANGES b/CHANGES
+index 166d8fb8a..6c2761c53 100644
+--- a/CHANGES
++++ b/CHANGES
+@@ -4,6 +4,8 @@ Release 3.1.0 (in development)
+ Dependencies
+ ------------
+ 
++* #7746: mathjax: Update to 2.7.5
++
+ Incompatible changes
+ --------------------
+ 
++ git diff 9988d5ce267bf0df4791770b469431b1fb00dcdd
+diff --git a/CHANGES b/CHANGES
+index 6c2761c53..e17df69e9 100644
+--- a/CHANGES
++++ b/CHANGES
+@@ -34,6 +34,7 @@ Deprecated
+ Features added
+ --------------
+ 
++* autodoc: Add support for multiple signatures in docstrings
+ * LaTeX: Make the ``toplevel_sectioning`` setting optional in LaTeX theme
+ * LaTeX: Allow to override papersize and pointsize from LaTeX themes
+ * LaTeX: Add :confval:`latex_theme_options` to override theme options
+diff --git a/sphinx/ext/autodoc/__init__.py b/sphinx/ext/autodoc/__init__.py
+index f8e4be999..869cb873d 100644
+--- a/sphinx/ext/autodoc/__init__.py
++++ b/sphinx/ext/autodoc/__init__.py
+@@ -1037,39 +1037,53 @@ class DocstringSignatureMixin:
+     feature of reading the signature from the docstring.
+     """
+ 
+-    def _find_signature(self, encoding: str = None) -> Tuple[str, str]:
++    def _find_signature(self, encoding: str = None) -> List[Tuple[str, str]]:
++        """Find and parse function signatures from the first line of the docstring.
++
++        This method now supports multiple signatures in the docstring.
++
++        Args:
++            encoding (str, optional): Deprecated. The encoding of the docstring.
++
++        Returns:
++            List[Tuple[str, str]]: A list of tuples, where each tuple contains:
++                - args (str): The arguments of the function signature.
++                - retann (str): The return annotation of the function signature.
++
++        Each signature in the docstring should be on a separate line and follow the format:
++        `func_name(arg1, arg2, ...) -> return_type`
++        """
+         if encoding is not None:
+             warnings.warn("The 'encoding' argument to autodoc.%s._find_signature() is "
+                           "deprecated." % self.__class__.__name__,
+                           RemovedInSphinx40Warning, stacklevel=2)
+-        docstrings = self.get_doc()
++        docstrings = self.get_doc(None)
+         self._new_docstrings = docstrings[:]
+-        result = None
++        results = []
+         for i, doclines in enumerate(docstrings):
+-            # no lines in docstring, no match
+             if not doclines:
+                 continue
+-            # match first line of docstring against signature RE
+-            match = py_ext_sig_re.match(doclines[0])
+-            if not match:
+-                continue
+-            exmod, path, base, args, retann = match.groups()
+-            # the base name must match ours
+-            valid_names = [self.objpath[-1]]  # type: ignore
+-            if isinstance(self, ClassDocumenter):
+-                valid_names.append('__init__')
+-                if hasattr(self.object, '__mro__'):
+-                    valid_names.extend(cls.__name__ for cls in self.object.__mro__)
+-            if base not in valid_names:
+-                continue
+-            # re-prepare docstring to ignore more leading indentation
+-            tab_width = self.directive.state.document.settings.tab_width  # type: ignore
+-            self._new_docstrings[i] = prepare_docstring('\n'.join(doclines[1:]),
+-                                                        tabsize=tab_width)
+-            result = args, retann
+-            # don't look any further
+-            break
+-        return result
++            for j, line in enumerate(doclines):
++                if line.strip().startswith(':'):
++                    break
++                m = py_ext_sig_re.match(line.strip())
++                if m:
++                    groups = m.groups()
++                    if len(groups) == 5:
++                        _, _, name, args, retann = groups
++                        if args:
++                            args = args.strip()
++                        if retann:
++                            retann = retann.strip()
++                        else:
++                            retann = ''
++                        results.append((args, retann))
++            if results:
++                docstrings[i] = doclines[j + 1:]
++                tab_width = self.directive.state.document.settings.tab_width  # type: ignore
++                self._new_docstrings[i] = prepare_docstring('\n'.join(docstrings[i]),
++                                                            tabsize=tab_width)
++        return results
+ 
+     def get_doc(self, encoding: str = None, ignore: int = None) -> List[List[str]]:
+         if encoding is not None:
+@@ -1082,13 +1096,28 @@ class DocstringSignatureMixin:
+         return super().get_doc(None, ignore)  # type: ignore
+ 
+     def format_signature(self, **kwargs: Any) -> str:
++        """Format the signature found in the docstring.
++
++        This method supports multiple signatures found in the docstring.
++
++        Returns:
++            str: A string representation of all found signatures, joined by ' or '.
++        """
+         if self.args is None and self.env.config.autodoc_docstring_signature:  # type: ignore
+             # only act if a signature is not explicitly given already, and if
+             # the feature is enabled
+-            result = self._find_signature()
+-            if result is not None:
+-                self.args, self.retann = result
+-        return super().format_signature(**kwargs)  # type: ignore
++            results = self._find_signature()
++            if results:
++                signatures = []
++                for args, retann in results:
++                    sig = ''
++                    if args:
++                        sig += '(' + args + ')'
++                    if retann:
++                        sig += ' -> ' + retann
++                    signatures.append(sig)
++                return ' or '.join(signatures)
++        return super().format_signature(**kwargs)
+ 
+ 
+ class DocstringStripSignatureMixin(DocstringSignatureMixin):
+@@ -1100,12 +1129,15 @@ class DocstringStripSignatureMixin(DocstringSignatureMixin):
+         if self.args is None and self.env.config.autodoc_docstring_signature:  # type: ignore
+             # only act if a signature is not explicitly given already, and if
+             # the feature is enabled
+-            result = self._find_signature()
+-            if result is not None:
+-                # Discarding _args is a only difference with
+-                # DocstringSignatureMixin.format_signature.
+-                # Documenter.format_signature use self.args value to format.
+-                _args, self.retann = result
++            results = self._find_signature()
++            if results:
++                # We only keep the last return annotation, if any.
++                self.retann = results[-1][1] if results[-1][1] else None
++                # Remove all signatures from the docstring
++                self._new_docstrings = [
++                    [line for line in docstring if not py_ext_sig_re.match(line.strip())]
++                    for docstring in self._new_docstrings
++                ]
+         return super().format_signature(**kwargs)
+ 
+ 
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e '.[test]'
+Obtaining file:///testbed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: sphinxcontrib-applehelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (1.0.4)
+Requirement already satisfied: sphinxcontrib-devhelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (1.0.2)
+Requirement already satisfied: sphinxcontrib-jsmath in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (1.0.1)
+Requirement already satisfied: sphinxcontrib-htmlhelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (2.0.1)
+Requirement already satisfied: sphinxcontrib-serializinghtml in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (1.1.5)
+Requirement already satisfied: sphinxcontrib-qthelp in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (1.0.3)
+Requirement already satisfied: Jinja2>=2.3 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (2.11.3)
+Requirement already satisfied: Pygments>=2.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (2.18.0)
+Requirement already satisfied: docutils>=0.12 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (0.21.2)
+Requirement already satisfied: snowballstemmer>=1.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (2.2.0)
+Requirement already satisfied: babel>=1.3 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (2.15.0)
+Requirement already satisfied: alabaster<0.8,>=0.7 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (0.7.11)
+Requirement already satisfied: imagesize in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (1.4.1)
+Requirement already satisfied: requests>=2.5.0 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (2.32.3)
+Requirement already satisfied: setuptools in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (69.5.1)
+Requirement already satisfied: packaging in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (24.1)
+Requirement already satisfied: pytest in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (8.3.2)
+Requirement already satisfied: pytest-cov in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (5.0.0)
+Requirement already satisfied: html5lib in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (1.1)
+Requirement already satisfied: typed_ast in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (1.5.5)
+Requirement already satisfied: cython in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Sphinx==3.1.0.dev20240725) (3.0.10)
+Requirement already satisfied: MarkupSafe>=0.23 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from Jinja2>=2.3->Sphinx==3.1.0.dev20240725) (2.0.1)
+Requirement already satisfied: charset-normalizer<4,>=2 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.1.0.dev20240725) (3.3.2)
+Requirement already satisfied: idna<4,>=2.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.1.0.dev20240725) (3.7)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.1.0.dev20240725) (2.2.2)
+Requirement already satisfied: certifi>=2017.4.17 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from requests>=2.5.0->Sphinx==3.1.0.dev20240725) (2024.7.4)
+Requirement already satisfied: six>=1.9 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from html5lib->Sphinx==3.1.0.dev20240725) (1.16.0)
+Requirement already satisfied: webencodings in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from html5lib->Sphinx==3.1.0.dev20240725) (0.5.1)
+Requirement already satisfied: iniconfig in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.1.0.dev20240725) (2.0.0)
+Requirement already satisfied: pluggy<2,>=1.5 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.1.0.dev20240725) (1.5.0)
+Requirement already satisfied: exceptiongroup>=1.0.0rc8 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.1.0.dev20240725) (1.2.2)
+Requirement already satisfied: tomli>=1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from pytest->Sphinx==3.1.0.dev20240725) (2.0.1)
+Requirement already satisfied: coverage>=5.2.1 in /opt/miniconda3/envs/testbed/lib/python3.9/site-packages (from coverage[toml]>=5.2.1->pytest-cov->Sphinx==3.1.0.dev20240725) (7.6.0)
+Installing collected packages: Sphinx
+  Attempting uninstall: Sphinx
+    Found existing installation: Sphinx 3.1.0.dev20240725
+    Uninstalling Sphinx-3.1.0.dev20240725:
+      Successfully uninstalled Sphinx-3.1.0.dev20240725
+  Running setup.py develop for Sphinx
+Successfully installed Sphinx-3.1.0.dev20240725
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout 9988d5ce267bf0df4791770b469431b1fb00dcdd tests/roots/test-ext-autodoc/target/docstring_signature.py tests/test_ext_autodoc_configs.py
+Updated 0 paths from d57c5b72f
++ git apply -v -
+Checking patch tests/roots/test-ext-autodoc/target/docstring_signature.py...
+Checking patch tests/test_ext_autodoc_configs.py...
+Applied patch tests/roots/test-ext-autodoc/target/docstring_signature.py cleanly.
+Applied patch tests/test_ext_autodoc_configs.py cleanly.
++ tox --current-env -epy39 -v -- tests/roots/test-ext-autodoc/target/docstring_signature.py tests/test_ext_autodoc_configs.py
+py39: commands[0]> pytest --durations 25 tests/roots/test-ext-autodoc/target/docstring_signature.py tests/test_ext_autodoc_configs.py
+============================= test session starts ==============================
+platform linux -- Python 3.9.19, pytest-8.3.2, pluggy-1.5.0
+cachedir: .tox/py39/.pytest_cache
+libraries: Sphinx-3.1.0+/9988d5ce2, docutils-0.21.2
+base tempdir: /tmp/pytest-of-root/pytest-0
+rootdir: /testbed
+configfile: setup.cfg
+plugins: cov-5.0.0
+collected 14 items
+
+tests/test_ext_autodoc_configs.py ....F.FF......                         [100%]
+
+=================================== FAILURES ===================================
+_______________________ test_autodoc_docstring_signature _______________________
+
+app = <SphinxTestApp buildername='html'>
+
+    @pytest.mark.sphinx('html', testroot='ext-autodoc')
+    def test_autodoc_docstring_signature(app):
+        options = {"members": None}
+        actual = do_autodoc(app, 'class', 'target.DocstringSig', options)
+>       assert list(actual) == [
+            '',
+            '.. py:class:: DocstringSig()',
+            '   :module: target',
+            '',
+            '',
+            '   .. py:method:: DocstringSig.meth(FOO, BAR=1) -> BAZ',
+            '      :module: target',
+            '',
+            '      First line of docstring',
+            '',
+            '      rest of docstring',
+            '',
+            '',
+            '   .. py:method:: DocstringSig.meth2()',
+            '      :module: target',
+            '',
+            '      First line, no signature',
+            '      Second line followed by indentation::',
+            '',
+            '          indented line',
+            '',
+            '',
+            '   .. py:method:: DocstringSig.prop1',
+            '      :module: target',
+            '      :property:',
+            '',
+            '      First line of docstring',
+            '',
+            '',
+            '   .. py:method:: DocstringSig.prop2',
+            '      :module: target',
+            '      :property:',
+            '',
+            '      First line of docstring',
+            '      Second line of docstring',
+            '',
+        ]
+E       AssertionError: assert ['', '.. py:c... -> BAZ', ...] == ['', '.. py:c... -> BAZ', ...]
+E         
+E         At index 8 diff: '' != '      First line of docstring'
+E         Right contains 6 more items, first extra item: '      :module: target'
+E         Use -v to get more diff
+
+tests/test_ext_autodoc_configs.py:239: AssertionError
+--------------------------- Captured stdout teardown ---------------------------
+# testroot: root
+# builder: html
+# srcdir: /tmp/pytest-of-root/pytest-0/ext-autodoc
+# outdir: /tmp/pytest-of-root/pytest-0/ext-autodoc/_build/html
+# status: 
+[01mRunning Sphinx v3.1.0+/9988d5ce2[39;49;00m
+
+# warning: 
+[91mWARNING: while setting up extension sphinx.addnodes: node class 'meta' is already registered, its visitors will be overridden[39;49;00m
+
+_____________ test_autoclass_content_and_docstring_signature_init ______________
+
+app = <SphinxTestApp buildername='html'>
+
+    @pytest.mark.sphinx('html', testroot='ext-autodoc')
+    def test_autoclass_content_and_docstring_signature_init(app):
+        app.config.autoclass_content = 'init'
+        options = {"members": None,
+                   "undoc-members": None}
+        actual = do_autodoc(app, 'module', 'target.docstring_signature', options)
+>       assert list(actual) == [
+            '',
+            '.. py:module:: target.docstring_signature',
+            '',
+            '',
+            '.. py:class:: A(foo, bar)',
+            '   :module: target.docstring_signature',
+            '',
+            '',
+            '.. py:class:: B(foo, bar, baz)',
+            '   :module: target.docstring_signature',
+            '',
+            '',
+            '.. py:class:: C(foo, bar, baz)',
+            '   :module: target.docstring_signature',
+            '',
+            '',
+            '.. py:class:: D(foo, bar, baz)',
+            '   :module: target.docstring_signature',
+            '',
+            '',
+            '.. py:class:: E(foo: int, bar: int, baz: int) -> None',
+            '              E(foo: str, bar: str, baz: str) -> None',
+            '   :module: target.docstring_signature',
+            ''
+        ]
+E       AssertionError: assert ['', '.. py:m...gnature', ...] == ['', '.. py:m...gnature', ...]
+E         
+E         At index 20 diff: '.. py:class:: E(foo: int, bar: int, baz: int) -> None \\ or (foo: str, bar: str, baz: str) -> None' != '.. py:class:: E(foo: int, bar: int, baz: int) -> None'
+E         Right contains one more item: ''
+E         Use -v to get more diff
+
+tests/test_ext_autodoc_configs.py:363: AssertionError
+--------------------------- Captured stdout teardown ---------------------------
+# testroot: root
+# builder: html
+# srcdir: /tmp/pytest-of-root/pytest-0/ext-autodoc
+# outdir: /tmp/pytest-of-root/pytest-0/ext-autodoc/_build/html
+# status: 
+[01mRunning Sphinx v3.1.0+/9988d5ce2[39;49;00m
+
+# warning: 
+[91mWARNING: while setting up extension sphinx.addnodes: node class 'meta' is already registered, its visitors will be overridden[39;49;00m
+
+_____________ test_autoclass_content_and_docstring_signature_both ______________
+
+app = <SphinxTestApp buildername='html'>
+
+    @pytest.mark.sphinx('html', testroot='ext-autodoc')
+    def test_autoclass_content_and_docstring_signature_both(app):
+        app.config.autoclass_content = 'both'
+        options = {"members": None,
+                   "undoc-members": None}
+        actual = do_autodoc(app, 'module', 'target.docstring_signature', options)
+>       assert list(actual) == [
+            '',
+            '.. py:module:: target.docstring_signature',
+            '',
+            '',
+            '.. py:class:: A(foo, bar)',
+            '   :module: target.docstring_signature',
+            '',
+            '',
+            '.. py:class:: B(foo, bar)',
+            '   :module: target.docstring_signature',
+            '',
+            '   B(foo, bar, baz)',
+            '',
+            '',
+            '.. py:class:: C(foo, bar)',
+            '   :module: target.docstring_signature',
+            '',
+            '   C(foo, bar, baz)',
+            '',
+            '',
+            '.. py:class:: D(foo, bar, baz)',
+            '   :module: target.docstring_signature',
+            '',
+            '',
+            '.. py:class:: E(foo: int, bar: int, baz: int) -> None',
+            '              E(foo: str, bar: str, baz: str) -> None',
+            '   :module: target.docstring_signature',
+            '',
+        ]
+E       AssertionError: assert ['', '.. py:m...gnature', ...] == ['', '.. py:m...gnature', ...]
+E         
+E         At index 8 diff: '.. py:class:: B(foo, bar) or (foo, bar, baz)' != '.. py:class:: B(foo, bar)'
+E         Right contains 5 more items, first extra item: ''
+E         Use -v to get more diff
+
+tests/test_ext_autodoc_configs.py:397: AssertionError
+--------------------------- Captured stdout teardown ---------------------------
+# testroot: root
+# builder: html
+# srcdir: /tmp/pytest-of-root/pytest-0/ext-autodoc
+# outdir: /tmp/pytest-of-root/pytest-0/ext-autodoc/_build/html
+# status: 
+[01mRunning Sphinx v3.1.0+/9988d5ce2[39;49;00m
+
+# warning: 
+[91mWARNING: while setting up extension sphinx.addnodes: node class 'meta' is already registered, its visitors will be overridden[39;49;00m
+
+=============================== warnings summary ===============================
+sphinx/util/docutils.py:45
+  /testbed/sphinx/util/docutils.py:45: DeprecationWarning: distutils Version classes are deprecated. Use packaging.version instead.
+    __version_info__ = tuple(LooseVersion(docutils.__version__).version)
+
+sphinx/registry.py:22
+  /testbed/sphinx/registry.py:22: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+    from pkg_resources import iter_entry_points
+
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+../opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832
+  /opt/miniconda3/envs/testbed/lib/python3.9/site-packages/pkg_resources/__init__.py:2832: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('sphinxcontrib')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+sphinx/directives/patches.py:15
+  /testbed/sphinx/directives/patches.py:15: DeprecationWarning: The `docutils.parsers.rst.directive.html` module will be removed in Docutils 2.0. Since Docutils 0.18, the "Meta" node is defined in `docutils.parsers.rst.directives.misc`.
+    from docutils.parsers.rst.directives import images, html, tables
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/__init__.py:211: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse():  # type: Node
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/i18n.py:88: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.translatable):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/__init__.py:111: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for ref in self.document.traverse(nodes.substitution_reference):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/__init__.py:132: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.target):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/__init__.py:151: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.block_quote):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/__init__.py:176: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.Element):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/__init__.py:223: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.index):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/references.py:30: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.substitution_definition):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/__init__.py:190: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.section):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/__init__.py:280: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.doctest_block):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/domains/citation.py:117: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.citation):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/domains/citation.py:136: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.citation_reference):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/builders/latex/transforms.py:37: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(matcher):  # type: nodes.Element
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/__init__.py:292: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(matcher):  # type: Element
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/util/compat.py:44: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.index):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/domains/index.py:52: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in document.traverse(addnodes.index):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/domains/math.py:85: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    self.data['has_equations'][docname] = any(document.traverse(math_node))
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/environment/collectors/asset.py:47: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in doctree.traverse(nodes.image):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/environment/collectors/asset.py:124: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in doctree.traverse(addnodes.download_reference):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/environment/collectors/title.py:46: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in doctree.traverse(nodes.section):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/__init__.py:302: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.system_message):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/__init__.py:391: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.manpage):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/i18n.py:484: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for inline in self.document.traverse(matcher):  # type: nodes.inline
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/domains/cpp.py:6877: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(AliasNode):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/post_transforms/__init__.py:71: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.pending_xref):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/util/nodes.py:596: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in document.traverse(addnodes.only):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/post_transforms/images.py:35: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.image):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/post_transforms/__init__.py:215: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.desc_sig_element):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/builders/latex/transforms.py:595: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(nodes.title):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/post_transforms/code.py:44: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for node in self.document.traverse(addnodes.highlightlang):
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/post_transforms/code.py:99: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for lbnode in self.document.traverse(nodes.literal_block):  # type: nodes.literal_block
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/transforms/post_transforms/code.py:103: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for dbnode in self.document.traverse(nodes.doctest_block):  # type: nodes.doctest_block
+
+tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+  /testbed/sphinx/environment/__init__.py:541: PendingDeprecationWarning: nodes.Node.traverse() is obsoleted by Node.findall().
+    for toctreenode in doctree.traverse(addnodes.toctree):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================= slowest 25 durations =============================
+0.74s setup    tests/test_ext_autodoc_configs.py::test_autoclass_content_class
+0.15s call     tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+0.13s call     tests/test_ext_autodoc_configs.py::test_autodoc_default_options
+0.06s call     tests/test_ext_autodoc_configs.py::test_autodoc_default_options_with_values
+0.06s setup    tests/test_ext_autodoc_configs.py::test_autodoc_inherit_docstrings
+0.06s setup    tests/test_ext_autodoc_configs.py::test_autoclass_content_and_docstring_signature_init
+0.06s call     tests/test_ext_autodoc_configs.py::test_autodoc_typehints_none
+0.05s setup    tests/test_ext_autodoc_configs.py::test_autodoc_typehints_signature
+0.05s setup    tests/test_ext_autodoc_configs.py::test_autoclass_content_and_docstring_signature_class
+0.05s call     tests/test_ext_autodoc_configs.py::test_autodoc_docstring_signature
+0.05s setup    tests/test_ext_autodoc_configs.py::test_autoclass_content_both
+0.05s setup    tests/test_ext_autodoc_configs.py::test_autodoc_typehints_none
+0.05s setup    tests/test_ext_autodoc_configs.py::test_autoclass_content_and_docstring_signature_both
+0.05s setup    tests/test_ext_autodoc_configs.py::test_autoclass_content_init
+0.05s setup    tests/test_ext_autodoc_configs.py::test_autodoc_docstring_signature
+0.04s call     tests/test_ext_autodoc_configs.py::test_autodoc_typehints_signature
+0.04s setup    tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description
+0.04s setup    tests/test_ext_autodoc_configs.py::test_mocked_module_imports
+0.04s setup    tests/test_ext_autodoc_configs.py::test_autodoc_default_options_with_values
+0.04s call     tests/test_ext_autodoc_configs.py::test_autoclass_content_both
+0.03s call     tests/test_ext_autodoc_configs.py::test_autoclass_content_and_docstring_signature_class
+0.03s setup    tests/test_ext_autodoc_configs.py::test_autodoc_default_options
+0.03s call     tests/test_ext_autodoc_configs.py::test_autoclass_content_class
+0.03s call     tests/test_ext_autodoc_configs.py::test_autoclass_content_init
+0.03s call     tests/test_ext_autodoc_configs.py::test_mocked_module_imports
+=========================== short test summary info ============================
+FAILED tests/test_ext_autodoc_configs.py::test_autodoc_docstring_signature - ...
+FAILED tests/test_ext_autodoc_configs.py::test_autoclass_content_and_docstring_signature_init
+FAILED tests/test_ext_autodoc_configs.py::test_autoclass_content_and_docstring_signature_both
+================== 3 failed, 11 passed, 41 warnings in 2.96s ===================
+py39: exit 1 (4.47 seconds) /testbed> pytest --durations 25 tests/roots/test-ext-autodoc/target/docstring_signature.py tests/test_ext_autodoc_configs.py pid=108
+  py39: FAIL code 1 (4.53=setup[0.06]+cmd[4.47] seconds)
+  evaluation failed :( (4.76 seconds)
++ git checkout 9988d5ce267bf0df4791770b469431b1fb00dcdd tests/roots/test-ext-autodoc/target/docstring_signature.py tests/test_ext_autodoc_configs.py
+Updated 2 paths from d57c5b72f

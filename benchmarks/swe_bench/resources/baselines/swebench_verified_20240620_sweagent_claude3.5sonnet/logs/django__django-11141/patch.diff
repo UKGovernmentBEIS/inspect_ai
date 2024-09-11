@@ -1,0 +1,70 @@
+
+diff --git a/django/core/management/commands/showmigrations.py b/django/core/management/commands/showmigrations.py
+index 48bea1f3f0..75320cdad7 100644
+--- a/django/core/management/commands/showmigrations.py
++++ b/django/core/management/commands/showmigrations.py
+@@ -81,6 +81,9 @@ class Command(BaseCommand):
+         for app_name in app_names:
+             self.stdout.write(app_name, self.style.MIGRATE_LABEL)
+             shown = set()
++            if app_name not in loader.migrated_apps:
++                self.stdout.write(" (no migrations)", self.style.MIGRATE_LABEL)
++                continue
+             for node in graph.leaf_nodes(app_name):
+                 for plan_node in graph.forwards_plan(node):
+                     if plan_node not in shown and plan_node[0] == app_name:
+diff --git a/django/db/migrations/loader.py b/django/db/migrations/loader.py
+index 8c308621d2..2b2c5e33ac 100644
+--- a/django/db/migrations/loader.py
++++ b/django/db/migrations/loader.py
+@@ -84,23 +84,22 @@ class MigrationLoader:
+                     continue
+                 raise
+             else:
+-                # Empty directories are namespaces.
+-                # getattr() needed on PY36 and older (replace w/attribute access).
+-                if getattr(module, '__file__', None) is None:
+-                    self.unmigrated_apps.add(app_config.label)
+-                    continue
+                 # Module is not a package (e.g. migrations.py).
+                 if not hasattr(module, '__path__'):
+                     self.unmigrated_apps.add(app_config.label)
+                     continue
++                # Empty directories or directories without migration files are considered unmigrated
++                migration_names = {
++                    name for _, name, is_pkg in pkgutil.iter_modules(module.__path__)
++                    if not is_pkg and name[0] not in '_~'
++                }
++                if not migration_names:
++                    self.unmigrated_apps.add(app_config.label)
++                    continue
+                 # Force a reload if it's already loaded (tests need this)
+                 if was_loaded:
+                     reload(module)
+             self.migrated_apps.add(app_config.label)
+-            migration_names = {
+-                name for _, name, is_pkg in pkgutil.iter_modules(module.__path__)
+-                if not is_pkg and name[0] not in '_~'
+-            }
+             # Load migrations
+             for migration_name in migration_names:
+                 migration_path = '%s.%s' % (module_name, migration_name)
+diff --git a/tests/migrations/test_commands.py b/tests/migrations/test_commands.py
+index 64b5c9bfd0..b0647adc92 100644
+--- a/tests/migrations/test_commands.py
++++ b/tests/migrations/test_commands.py
+@@ -377,10 +377,12 @@ class MigrateTests(MigrationTestBase):
+ 
+     @override_settings(MIGRATION_MODULES={'migrations': 'migrations.test_migrations_empty'})
+     def test_showmigrations_no_migrations(self):
++        """
++        Tests that showmigrations behaves correctly for an app with no migrations.
++        """
+         out = io.StringIO()
+-        call_command('showmigrations', stdout=out, no_color=True)
++        call_command('showmigrations', 'migrations', stdout=out, no_color=True)
+         self.assertEqual('migrations\n (no migrations)\n', out.getvalue().lower())
+-
+     @override_settings(INSTALLED_APPS=['migrations.migrations_test_apps.unmigrated_app'])
+     def test_showmigrations_unmigrated_app(self):
+         out = io.StringIO()

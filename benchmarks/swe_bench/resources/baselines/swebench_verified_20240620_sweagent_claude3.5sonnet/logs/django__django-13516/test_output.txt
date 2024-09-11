@@ -1,0 +1,446 @@
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z '' ']'
++++ export CONDA_SHLVL=0
++++ CONDA_SHLVL=0
++++ '[' -n '' ']'
++++++ dirname /opt/miniconda3/bin/conda
+++++ dirname /opt/miniconda3/bin
++++ PATH=/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export PATH
++++ '[' -z '' ']'
++++ PS1=
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1=
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''1'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=1
++++ CONDA_SHLVL=1
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''2'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_1='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=2
+++ CONDA_SHLVL=2
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_1=/opt/miniconda3
+++ CONDA_PREFIX_1=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ cd /testbed
++ sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen
++ locale-gen
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+Generation complete.
++ export LANG=en_US.UTF-8
++ LANG=en_US.UTF-8
++ export LANGUAGE=en_US:en
++ LANGUAGE=en_US:en
++ export LC_ALL=en_US.UTF-8
++ LC_ALL=en_US.UTF-8
++ git config --global --add safe.directory /testbed
++ cd /testbed
++ git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   django/core/management/base.py
+	modified:   django/core/management/commands/migrate.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	test_migration_output.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
++ git show
+commit b7da588e883e12b8ac3bb8a486e654e30fc1c6c8
+Author: Tim Schilling <schillingt@better-simple.com>
+Date:   Thu Oct 8 14:44:34 2020 -0500
+
+    Fixed #32091 -- Fixed admin search bar width on filtered admin page.
+
+diff --git a/django/contrib/admin/static/admin/css/responsive.css b/django/contrib/admin/static/admin/css/responsive.css
+index 7ffa871fc8..b1acdc6feb 100644
+--- a/django/contrib/admin/static/admin/css/responsive.css
++++ b/django/contrib/admin/static/admin/css/responsive.css
+@@ -120,7 +120,8 @@ input[type="submit"], button {
+     }
+ 
+     #changelist-search .quiet {
+-        width: 100%;
++        width: 0;
++        flex: 1 0 auto;
+         margin: 5px 0 0 25px;
+     }
+ 
+diff --git a/docs/releases/3.1.3.txt b/docs/releases/3.1.3.txt
+index e2bb2d0df3..e1665c2ee5 100644
+--- a/docs/releases/3.1.3.txt
++++ b/docs/releases/3.1.3.txt
+@@ -12,6 +12,9 @@ Bugfixes
+ * Fixed a regression in Django 3.1.2 that caused the incorrect height of the
+   admin changelist search bar (:ticket:`32072`).
+ 
++* Fixed a regression in Django 3.1.2 that caused the incorrect width of the
++  admin changelist search bar on a filtered page (:ticket:`32091`).
++
+ * Fixed displaying Unicode characters in
+   :class:`forms.JSONField <django.forms.JSONField>` and read-only
+   :class:`models.JSONField <django.db.models.JSONField>` values in the admin
+diff --git a/tests/admin_views/tests.py b/tests/admin_views/tests.py
+index 94646f2034..6ab401bede 100644
+--- a/tests/admin_views/tests.py
++++ b/tests/admin_views/tests.py
+@@ -4931,6 +4931,17 @@ class SeleniumTests(AdminSeleniumTestCase):
+             ['Roboto', 'Lucida Grande', 'Verdana', 'Arial', 'sans-serif'],
+         )
+ 
++    def test_search_input_filtered_page(self):
++        Person.objects.create(name='Guido van Rossum', gender=1, alive=True)
++        Person.objects.create(name='Grace Hopper', gender=1, alive=False)
++        self.admin_login(username='super', password='secret', login_url=reverse('admin:index'))
++        person_url = reverse('admin:admin_views_person_changelist') + '?q=Gui'
++        self.selenium.get(self.live_server_url + person_url)
++        self.assertGreater(
++            self.selenium.find_element_by_id('searchbar').rect['width'],
++            50,
++        )
++
+ 
+ @override_settings(ROOT_URLCONF='admin_views.urls')
+ class ReadonlyTest(AdminFieldExtractionMixin, TestCase):
++ git diff b7da588e883e12b8ac3bb8a486e654e30fc1c6c8
+diff --git a/django/core/management/base.py b/django/core/management/base.py
+index e6cbf8c64f..14c0355dd8 100644
+--- a/django/core/management/base.py
++++ b/django/core/management/base.py
+@@ -150,6 +150,10 @@ class OutputWrapper(TextIOBase):
+         style_func = style_func or self.style_func
+         self._out.write(style_func(msg))
+ 
++    def flush(self):
++        if hasattr(self._out, 'flush'):
++            self._out.flush()
++
+ 
+ class BaseCommand:
+     """
+diff --git a/django/core/management/commands/migrate.py b/django/core/management/commands/migrate.py
+index a65500d76a..c4a317d2e0 100644
+--- a/django/core/management/commands/migrate.py
++++ b/django/core/management/commands/migrate.py
+@@ -302,6 +302,8 @@ class Command(BaseCommand):
+             elif action == "render_success":
+                 elapsed = " (%.3fs)" % (time.monotonic() - self.start) if compute_time else ""
+                 self.stdout.write(self.style.SUCCESS(" DONE" + elapsed))
++                self.stdout.flush()
++
+ 
+     def sync_apps(self, connection, app_labels):
+         """Run the old syncdb-style operation on a list of app_labels."""
++ source /opt/miniconda3/bin/activate
+++ _CONDA_ROOT=/opt/miniconda3
+++ . /opt/miniconda3/etc/profile.d/conda.sh
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ '[' -z x ']'
+++ conda activate
+++ local cmd=activate
+++ case "$cmd" in
+++ __conda_activate activate
+++ '[' -n '' ']'
+++ local ask_conda
++++ PS1='(testbed) '
++++ __conda_exe shell.posix activate
++++ /opt/miniconda3/bin/conda shell.posix activate
+++ ask_conda='PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ eval 'PS1='\''(base) '\''
+export PATH='\''/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3'\''
+export CONDA_SHLVL='\''3'\''
+export CONDA_DEFAULT_ENV='\''base'\''
+export CONDA_PROMPT_MODIFIER='\''(base) '\''
+export CONDA_PREFIX_2='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++++ PS1='(base) '
++++ export PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ PATH=/opt/miniconda3/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
++++ export CONDA_PREFIX=/opt/miniconda3
++++ CONDA_PREFIX=/opt/miniconda3
++++ export CONDA_SHLVL=3
++++ CONDA_SHLVL=3
++++ export CONDA_DEFAULT_ENV=base
++++ CONDA_DEFAULT_ENV=base
++++ export 'CONDA_PROMPT_MODIFIER=(base) '
++++ CONDA_PROMPT_MODIFIER='(base) '
++++ export CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ CONDA_PREFIX_2=/opt/miniconda3/envs/testbed
++++ export CONDA_EXE=/opt/miniconda3/bin/conda
++++ CONDA_EXE=/opt/miniconda3/bin/conda
++++ export _CE_M=
++++ _CE_M=
++++ export _CE_CONDA=
++++ _CE_CONDA=
++++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ __conda_hashr
+++ '[' -n '' ']'
+++ '[' -n '' ']'
+++ hash -r
++ conda activate testbed
++ local cmd=activate
++ case "$cmd" in
++ __conda_activate activate testbed
++ '[' -n '' ']'
++ local ask_conda
+++ PS1='(base) '
+++ __conda_exe shell.posix activate testbed
+++ /opt/miniconda3/bin/conda shell.posix activate testbed
++ ask_conda='PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
++ eval 'PS1='\''(testbed) '\''
+export PATH='\''/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'\''
+export CONDA_PREFIX='\''/opt/miniconda3/envs/testbed'\''
+export CONDA_SHLVL='\''4'\''
+export CONDA_DEFAULT_ENV='\''testbed'\''
+export CONDA_PROMPT_MODIFIER='\''(testbed) '\''
+export CONDA_PREFIX_3='\''/opt/miniconda3'\''
+export CONDA_EXE='\''/opt/miniconda3/bin/conda'\''
+export _CE_M='\'''\''
+export _CE_CONDA='\'''\''
+export CONDA_PYTHON_EXE='\''/opt/miniconda3/bin/python'\'''
+++ PS1='(testbed) '
+++ export PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ PATH=/opt/miniconda3/envs/testbed/bin:/opt/miniconda3/condabin:/opt/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+++ export CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ CONDA_PREFIX=/opt/miniconda3/envs/testbed
+++ export CONDA_SHLVL=4
+++ CONDA_SHLVL=4
+++ export CONDA_DEFAULT_ENV=testbed
+++ CONDA_DEFAULT_ENV=testbed
+++ export 'CONDA_PROMPT_MODIFIER=(testbed) '
+++ CONDA_PROMPT_MODIFIER='(testbed) '
+++ export CONDA_PREFIX_3=/opt/miniconda3
+++ CONDA_PREFIX_3=/opt/miniconda3
+++ export CONDA_EXE=/opt/miniconda3/bin/conda
+++ CONDA_EXE=/opt/miniconda3/bin/conda
+++ export _CE_M=
+++ _CE_M=
+++ export _CE_CONDA=
+++ _CE_CONDA=
+++ export CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
+++ CONDA_PYTHON_EXE=/opt/miniconda3/bin/python
++ __conda_hashr
++ '[' -n '' ']'
++ '[' -n '' ']'
++ hash -r
++ python -m pip install -e .
+Obtaining file:///testbed
+Requirement already satisfied: asgiref>=3.2.10 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (3.4.1)
+Requirement already satisfied: pytz in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (2024.1)
+Requirement already satisfied: sqlparse>=0.2.2 in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from Django==3.2) (0.4.4)
+Requirement already satisfied: typing-extensions in /opt/miniconda3/envs/testbed/lib/python3.6/site-packages (from asgiref>=3.2.10->Django==3.2) (4.1.1)
+Installing collected packages: Django
+  Attempting uninstall: Django
+    Found existing installation: Django 3.2
+    Uninstalling Django-3.2:
+      Successfully uninstalled Django-3.2
+  Running setup.py develop for Django
+Successfully installed Django-3.2
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
++ git checkout b7da588e883e12b8ac3bb8a486e654e30fc1c6c8 tests/user_commands/tests.py
+Updated 0 paths from 342a9c00d0
++ git apply -v -
+Checking patch tests/user_commands/management/commands/outputwrapper.py...
+Checking patch tests/user_commands/tests.py...
+Applied patch tests/user_commands/management/commands/outputwrapper.py cleanly.
+Applied patch tests/user_commands/tests.py cleanly.
++ ./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 user_commands.management.commands.outputwrapper user_commands.tests
+Testing against Django installed in '/testbed/django'
+Importing application user_commands
+Skipping setup of unused database(s): default, other.
+System check identified no issues (0 silenced).
+test_disallowed_abbreviated_options (user_commands.tests.CommandRunTests) ... ok
+test_script_prefix_set_in_commands (user_commands.tests.CommandRunTests) ... ok
+test_skip_checks (user_commands.tests.CommandRunTests) ... ok
+test_call_command_no_checks (user_commands.tests.CommandTests) ... ok
+test_call_command_option_parsing (user_commands.tests.CommandTests) ... ok
+test_call_command_option_parsing_non_string_arg (user_commands.tests.CommandTests) ... ok
+test_call_command_unrecognized_option (user_commands.tests.CommandTests) ... ok
+test_call_command_with_required_parameters_in_mixed_options (user_commands.tests.CommandTests) ... ok
+test_call_command_with_required_parameters_in_options (user_commands.tests.CommandTests) ... ok
+test_calling_a_command_with_no_app_labels_and_parameters_should_raise_a_command_error (user_commands.tests.CommandTests) ... ok
+test_calling_a_command_with_only_empty_parameter_should_ends_gracefully (user_commands.tests.CommandTests) ... ok
+test_calling_command_with_app_labels_and_parameters_should_be_ok (user_commands.tests.CommandTests) ... ok
+test_calling_command_with_parameters_and_app_labels_at_the_end_should_be_ok (user_commands.tests.CommandTests) ... ok
+test_check_migrations (user_commands.tests.CommandTests) ... ok
+test_command (user_commands.tests.CommandTests) ... ok
+test_command_add_arguments_after_common_arguments (user_commands.tests.CommandTests) ... ok
+test_command_style (user_commands.tests.CommandTests) ... ok
+test_create_parser_kwargs (user_commands.tests.CommandTests)
+BaseCommand.create_parser() passes kwargs to CommandParser. ... ok
+test_discover_commands_in_eggs (user_commands.tests.CommandTests) ... ok
+test_explode (user_commands.tests.CommandTests)
+An unknown command raises CommandError ... ok
+test_find_command_without_PATH (user_commands.tests.CommandTests) ... ok
+test_language_preserved (user_commands.tests.CommandTests) ... ok
+test_mutually_exclusive_group_required_const_options (user_commands.tests.CommandTests) ... ok
+test_mutually_exclusive_group_required_options (user_commands.tests.CommandTests) ... ok
+test_no_translations_deactivate_translations (user_commands.tests.CommandTests) ... ok
+test_output_transaction (user_commands.tests.CommandTests) ... ok
+test_outputwrapper_flush (user_commands.tests.CommandTests) ... ok
+test_required_const_options (user_commands.tests.CommandTests) ... ok
+test_requires_system_checks_empty (user_commands.tests.CommandTests) ... ok
+test_requires_system_checks_invalid (user_commands.tests.CommandTests) ... ok
+test_requires_system_checks_specific (user_commands.tests.CommandTests) ... ok
+test_subparser (user_commands.tests.CommandTests) ... ok
+test_subparser_dest_args (user_commands.tests.CommandTests) ... ok
+test_subparser_dest_required_args (user_commands.tests.CommandTests) ... ok
+test_subparser_invalid_option (user_commands.tests.CommandTests) ... ok
+test_system_exit (user_commands.tests.CommandTests)
+Exception raised in a command should raise CommandError with ... ok
+test_requires_system_checks_false (user_commands.tests.DeprecationTests) ... ok
+test_requires_system_checks_true (user_commands.tests.DeprecationTests) ... ok
+test_requires_system_checks_warning (user_commands.tests.DeprecationTests) ... ok
+test_get_random_secret_key (user_commands.tests.UtilsTests) ... ok
+test_is_ignored_path_false (user_commands.tests.UtilsTests) ... ok
+test_is_ignored_path_true (user_commands.tests.UtilsTests) ... ok
+test_no_existent_external_program (user_commands.tests.UtilsTests) ... ok
+test_normalize_path_patterns_truncates_wildcard_base (user_commands.tests.UtilsTests) ... ok
+
+----------------------------------------------------------------------
+Ran 44 tests in 1.437s
+
+OK
++ git checkout b7da588e883e12b8ac3bb8a486e654e30fc1c6c8 tests/user_commands/tests.py
+Updated 1 path from 342a9c00d0

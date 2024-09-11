@@ -1,0 +1,97 @@
+
+diff --git a/reproduce_issue.py b/reproduce_issue.py
+new file mode 100644
+index 0000000000..ac4f8d9299
+--- /dev/null
++++ b/reproduce_issue.py
+@@ -0,0 +1,28 @@
++from sympy import *
++from sympy.core.cache import clear_cache
++
++def test_case(real_symbols=False):
++    clear_cache()
++    if real_symbols:
++        x, y, z = symbols('x y z', real=True)
++    else:
++        x, y, z = symbols('x y z')
++    
++    expr = exp(sinh(Piecewise((x, y > x), (y, True)) / z))
++    
++    try:
++        result = expr.subs({1: 1.0})
++        print(f"{'Real' if real_symbols else 'Non-real'} symbols: Substitution successful")
++    except Exception as e:
++        print(f"{'Real' if real_symbols else 'Non-real'} symbols: Error - {type(e).__name__}: {str(e)}")
++
++print("Testing with non-real symbols:")
++test_case(False)
++
++print("\nTesting with real symbols:")
++test_case(True)
++
++print("\nTesting with real symbols again (without clearing cache):")
++test_case(True)
++
++print("\nScript completed successfully.")
+diff --git a/sympy/polys/polytools.py b/sympy/polys/polytools.py
+index bfec61de64..3d36201606 100644
+--- a/sympy/polys/polytools.py
++++ b/sympy/polys/polytools.py
+@@ -290,6 +290,9 @@ def _from_poly(cls, rep, opt):
+     @classmethod
+     def _from_expr(cls, rep, opt):
+         """Construct a polynomial from an expression. """
++        from sympy import Piecewise, preorder_traversal
++        if any(isinstance(arg, Piecewise) for arg in preorder_traversal(rep)):
++            raise PolynomialError("Cannot create Poly from Piecewise expression")
+         rep, opt = _dict_from_expr(rep, opt)
+         return cls._from_dict(rep, opt)
+ 
+@@ -4395,6 +4398,12 @@ def _parallel_poly_from_expr(exprs, opt):
+         raise PolificationFailed(opt, origs, exprs, True)
+ 
+     for k in opt.gens:
++        if isinstance(k, Piecewise):
++            # Attempt to evaluate the Piecewise function
++            try:
++                k = k.evaluate()
++            except:
++                raise PolynomialError("Cannot evaluate Piecewise generator")
+         if isinstance(k, Piecewise):
+             raise PolynomialError("Piecewise generators do not make sense")
+ 
+diff --git a/sympy/polys/tests/test_piecewise_poly.py b/sympy/polys/tests/test_piecewise_poly.py
+new file mode 100644
+index 0000000000..1a2d8d7100
+--- /dev/null
++++ b/sympy/polys/tests/test_piecewise_poly.py
+@@ -0,0 +1,29 @@
++import unittest
++from sympy import symbols, exp, sinh, Piecewise, PolynomialError
++from sympy.polys import Poly
++
++class TestPiecewisePoly(unittest.TestCase):
++    def test_piecewise_poly(self):
++        x, y, z = symbols('x y z', real=True)
++        
++        # Test case from the original issue
++        expr = exp(sinh(Piecewise((x, y > x), (y, True)) / z))
++        
++        try:
++            result = Poly(expr)
++            print(f"Poly(expr) result: {result}")
++        except PolynomialError as e:
++            print(f"PolynomialError: {str(e)}")
++        
++        # Test case where Piecewise can be evaluated
++        expr2 = Piecewise((x, True), (y, False))
++        self.assertEqual(Poly(expr2), Poly(x))
++        
++        # Test case where Piecewise cannot be evaluated
++        expr3 = Piecewise((x, y > 0), (y, True))
++        with self.assertRaises(PolynomialError) as context:
++            Poly(expr3)
++        self.assertEqual(str(context.exception), "Cannot create Poly from Piecewise expression")
++
++if __name__ == '__main__':
++    unittest.main()

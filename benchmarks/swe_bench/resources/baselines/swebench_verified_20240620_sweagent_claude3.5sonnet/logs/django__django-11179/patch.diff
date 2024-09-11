@@ -1,0 +1,37 @@
+
+diff --git a/django/db/models/deletion.py b/django/db/models/deletion.py
+index 92fe4affb9..a139c236b5 100644
+--- a/django/db/models/deletion.py
++++ b/django/db/models/deletion.py
+@@ -271,14 +271,15 @@ class Collector:
+         # number of objects deleted for each model label
+         deleted_counter = Counter()
+ 
++        # Optimize for the case with a single obj and no dependencies
+         # Optimize for the case with a single obj and no dependencies
+         if len(self.data) == 1 and len(instances) == 1:
+             instance = list(instances)[0]
+             if self.can_fast_delete(instance):
+                 with transaction.mark_for_rollback_on_error():
+                     count = sql.DeleteQuery(model).delete_batch([instance.pk], self.using)
++                    setattr(instance, model._meta.pk.attname, None)
+                 return count, {model._meta.label: count}
+-
+         with transaction.atomic(using=self.using, savepoint=False):
+             # send pre_delete signals
+             for model, obj in self.instances_with_model():
+diff --git a/tests/delete/tests.py b/tests/delete/tests.py
+index 55eeb226ea..723e20412d 100644
+--- a/tests/delete/tests.py
++++ b/tests/delete/tests.py
+@@ -522,3 +522,10 @@ class FastDeleteTests(TestCase):
+                 User.objects.filter(avatar__desc='missing').delete(),
+                 (0, {'delete.User': 0})
+             )
++    
++    def test_delete_no_dependencies_clears_pk(self):
++        m = M.objects.create()
++        pk = m.pk
++        m.delete()
++        self.assertIsNone(m.pk)
++        self.assertFalse(M.objects.filter(pk=pk).exists())
