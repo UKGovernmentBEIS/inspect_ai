@@ -137,7 +137,7 @@ def get_setup_script(repo: str, version: str, base_commit: str) -> str:
         {MAP_REPO_TO_INSTALL.get(repo,"")}
         {'\n'.join(MAP_REPO_VERSION_TO_SPECS[repo][version].get('pre_install',[]))}
         {MAP_REPO_VERSION_TO_SPECS[repo][version].get('install','')}
-    """)
+    """.strip())
 
     return setup_script
 
@@ -195,7 +195,7 @@ def get_eval_script(test_patch: str, repo: str, version: str, base_commit: str) 
         #Then we run all the tests in the repository.
         set +x
         {test_command} {" ".join(test_files)} || true
-    """)
+    """.strip())
 
     return eval_script
 

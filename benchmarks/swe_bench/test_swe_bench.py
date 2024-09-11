@@ -4,7 +4,8 @@ from pathlib import Path
 from build_images import build_images
 from datasets import load_dataset
 from swe_bench import swe_bench, swebench_baseline_scorer
-
+import tempfile
+from uuid import uuid1
 from inspect_ai import Task, eval
 from inspect_ai.log import EvalLog
 from inspect_ai.solver import Generate, Plan, TaskState, solver
@@ -12,8 +13,8 @@ from inspect_ai.util import sandbox
 
 RESOURCE_DIR = Path(__file__).parent / "resources"
 TIMEOUT_SECONDS = 2
-GOLDEN_PATCH_TEST_ID = "django__django-11095"
-SWEBENCH_BASELINE_NAME = "swebench_verified_20240620_sweagent_claude3.5sonnet"
+GOLDEN_PATCH_TEST_ID = "psf__requests-1921"
+SWEBENCH_BASELINE_NAME = "20240620_sweagent_claude3.5sonnet"
 SWEAGENT_BASELINE: str = str(RESOURCE_DIR / "baselines" / SWEBENCH_BASELINE_NAME)
 
 SLOW_TEST_DATASET: str = str(
@@ -26,6 +27,20 @@ if not Path(SLOW_TEST_DATASET).exists():
     raise FileNotFoundError(
         f"Test datasets have not been created. Please run the script at {(RESOURCE_DIR / "tests"/"create_test_repos.py").absolute()} to run the tests."
     )
+
+
+def get_dataset_single_instance(
+    instance_id: str,
+    dataset_name: str = "princeton-nlp/SWE-bench_Verified",
+    split: str = "test",
+) -> str:
+    full_benchmark = load_dataset(dataset_name)[split]
+    instance = full_benchmark.filter(lambda x: x["instance_id"] == instance_id)
+    dataset_location = f"/tmp/{uuid1()}/"
+    os.makedirs(dataset_location, exist_ok=True)
+    instance.to_parquet(dataset_location + "dataset.parquet")
+
+    return dataset_location
 
 
 def build_swebench_images(
@@ -64,34 +79,36 @@ def delete_readme_solver():
     return _delete_readme_solver
 
 
-def test_golden_patch_succeeds() -> None:
-    build_swebench_images()
+def test_correct_patch_succeeds() -> None:
+    dataset = get_dataset_single_instance(GOLDEN_PATCH_TEST_ID)
+    build_swebench_images(dataset,"train")
 
-    test_task = swe_bench(filter=lambda s: s.id == GOLDEN_PATCH_TEST_ID)
+    test_task = swe_bench(dataset,"train")
     golden_patch = test_task.dataset[0].metadata["patch"]
     test_task.plan = Plan([apply_patch_solver(golden_patch)])
 
-    result = eval(test_task, "mockllm/model", max_messages=4)[0]
+    result = eval(test_task, "mockllm/model", max_messages=4, debug_errors=True)[0]
 
     assert (
         result.results.scores[0].metrics["mean"].value == 1.0
     ), "SWE-bench should mark a correct application successfully."
 
 
-def test_incorrect_edit_fails() -> None:
-    build_swebench_images()
+def test_incorrect_patch_fails() -> None:
+    dataset = get_dataset_single_instance(GOLDEN_PATCH_TEST_ID)
+    build_swebench_images(dataset,"train")
 
-    test_task = swe_bench(filter=lambda s: s.id == GOLDEN_PATCH_TEST_ID)
+    test_task = swe_bench(dataset,"train")
     test_task.plan = Plan([delete_readme_solver()])
 
-    result = eval(test_task, "mockllm/model", max_messages=2)[0]
+    result = eval(test_task, "mockllm/model", max_messages=2, debug_errors=True)[0]
 
     assert (
         result.results.scores[0].metrics["mean"].value == 0.0
     ), "SWE-bench should mark an incorrect application as a failure."
 
 
-def test_same_results_for_swe_agent() -> None:
+def test_same_scores_for_swe_agent() -> None:
     # Very slow test
     # This test checks that we agree with the original swe-bench implementation patches outputted by swe-agent, with one instance from each of the repositories scraped in SWE-bench-verified.
 
@@ -150,3 +167,6 @@ def test_same_results_for_swe_agent() -> None:
             error_str += f"Result of evaluating {result.samples[0].id} did not agree with the swe_bench ground truth. Our score: '{score.value}'. swe-agent score: '{swe_agent_score.value}' Scorer results: {score.explanation}"
 
     assert error_str == "", error_str
+
+
+test_correct_patch_succeeds()
