@@ -42,7 +42,7 @@ def truthfulqa(target="mc1"):
         name="multiple_choice",
         sample_fields=record_to_sample,
         split="validation",
-        shuffle=True
+        shuffle=True,
     )
 
     # As per the reference (), mc1 only has a single true answer whereas there
