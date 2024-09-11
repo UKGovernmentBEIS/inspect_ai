@@ -12,19 +12,24 @@ dataset = load_dataset("princeton-nlp/SWE-bench_Verified")["test"]
 # 2) For each repository, contains an example where swe_agent + Claude 3.5 + Sonnet resolved the issue, and an example where it did not
 
 results_per_repo = {}
-logs_dir = Path(__file__).parent.parent / "baselines" / "swebench_verified_20240620_sweagent_claude3.5sonnet" / "logs"
+logs_dir = (
+    Path(__file__).parent.parent
+    / "baselines"
+    / "swebench_verified_20240620_sweagent_claude3.5sonnet"
+    / "logs"
+)
 results = []
 missing_results = []
 
 # Load results from the log directory
 for result in os.listdir(logs_dir):
-    results_path = os.path.join(logs_dir, result,"report.json")
-    if  os.path.exists(results_path):
+    results_path = os.path.join(logs_dir, result, "report.json")
+    if os.path.exists(results_path):
         with open(results_path, "r") as f:
             result_dict = json.load(f)
             result_name, results_value = next(iter(result_dict.items()))
-            output_dict = dict(instance_id=result_name,**results_value)
-            patch_path = os.path.join(logs_dir, result,"patch.diff")
+            output_dict = dict(instance_id=result_name, **results_value)
+            patch_path = os.path.join(logs_dir, result, "patch.diff")
             with open(patch_path, "r") as f:
                 output_dict["swe_agent_patch"] = f.read()
             results.append(output_dict)
@@ -49,11 +54,27 @@ instance_ids = results_per_repo["instance_id"].values
 resolved = results_per_repo["resolved"].values
 
 dataset = dataset.filter(lambda x: x["instance_id"] in instance_ids)
-dataset = dataset.map(lambda x: dict(x, resolved_by_swe_agent=resolved[instance_ids == x["instance_id"]][0]), num_proc=4)
+dataset = dataset.map(
+    lambda x: dict(
+        x, resolved_by_swe_agent=resolved[instance_ids == x["instance_id"]][0]
+    ),
+    num_proc=4,
+)
 # Add swe-agent-patch
-dataset = dataset.map(lambda x: dict(x, swe_agent_patch=results_per_repo[results_per_repo["instance_id"] == x["instance_id"]]["swe_agent_patch"].values[0]), num_proc=4)
+dataset = dataset.map(
+    lambda x: dict(
+        x,
+        swe_agent_patch=results_per_repo[
+            results_per_repo["instance_id"] == x["instance_id"]
+        ]["swe_agent_patch"].values[0],
+    ),
+    num_proc=4,
+)
 # Add resolved column
-dataset = dataset.map(lambda x: dict(x, resolved=resolved[instance_ids == x["instance_id"]][0]), num_proc=4)
+dataset = dataset.map(
+    lambda x: dict(x, resolved=resolved[instance_ids == x["instance_id"]][0]),
+    num_proc=4,
+)
 
 # This repo is bugged for testing, as the setup script edits files, breaking the patch from swe-agent.
 dataset = dataset.filter(lambda x: "sphinx" not in x["instance_id"])
