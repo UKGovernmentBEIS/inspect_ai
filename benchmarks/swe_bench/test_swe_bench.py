@@ -150,6 +150,3 @@ def test_same_results_for_swe_agent() -> None:
             error_str += f"Result of evaluating {result.samples[0].id} did not agree with the swe_bench ground truth. Our score: '{score.value}'. swe-agent score: '{swe_agent_score.value}' Scorer results: {score.explanation}"
 
     assert error_str == "", error_str
-
-
-test_same_results_for_swe_agent()  # TODO: IF THIS IS STILL LEFT IN PR ITS TRULY TERRIBLE AND YOU SHOULD SHOOT ME AADSFASDFASDFAS
