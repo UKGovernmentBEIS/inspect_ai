@@ -161,6 +161,9 @@ class FileSystem:
     def put_file(self, lpath: str, rpath: str) -> None:
         self.fs.put_file(lpath, rpath)
 
+    def get_file(self, rpath: str, lpath: str) -> None:
+        self.fs.get_file(rpath, lpath)
+
     def _file_info(self, info: dict[str, Any]) -> FileInfo:
         # name needs the protocol prepended
         file = info.copy()
