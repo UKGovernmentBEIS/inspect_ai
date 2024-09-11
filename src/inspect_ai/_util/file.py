@@ -127,7 +127,7 @@ class FileSystem:
     def rm(
         self, path: str, recursive: bool = False, maxdepth: int | None = None
     ) -> None:
-        self.fs.rm(path, recursive, maxdepth)
+        self.fs.rm(path, recursive=recursive, maxdepth=maxdepth)
 
     def mkdir(self, path: str, exist_ok: bool = False) -> None:
         self.fs.makedirs(path, exist_ok=exist_ok)

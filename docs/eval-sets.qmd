@@ -49,8 +49,12 @@ In the above examples tasks are ready from the filesystem. It is also possible t
 ``` python
 from inspect_ai import eval_set
 
-mmlu = Task(name="mmlu", dataset=csv_dataset("mmlu.csv"))
-maths = Task(name="maths", dataset=csv_dataset("maths.csv"))
+@task
+def create_task(dataset: str):
+  return Task(dataset=csv_dataset(dataset))
+
+mmlu = create_task("mmlu.csv")
+maths = create_task("maths.csv")
 
 eval_set(
    [mmlu, maths],
@@ -59,7 +63,14 @@ eval_set(
 )
 ```
 
-One important difference you'll notice in this example is that the `Task` instances are given an explicit `name`. This is a **requirement** for `eval_set()`, as task names are used to pair task instances with their log files. Further, all task names passed to `eval_set()` must be unique (this is validated and an error thrown if they are not). This isn't necessary for tasks bound from the filesystem since their name is automatically derived from the function that creates them.
+Notice that we create our tasks from a function decorated with `@task`. Doing this is a critical requirement because it enables Inspect to capture the arguments to `create_task()` and use that to distinguish the two tasks (in turn used to pair tasks to log files for retries).
+
+There are two fundamental requirements for dynamic tasks used with `eval_set()`:
+
+1) They are created using an `@task` function as described above.
+2) Their parameters use ordinary Python types (like `str`, `int`, `list`, etc.) as opposed to custom objects (which are hard to serialise consistently).
+
+Note that you can pass a `plan` to an `@task` function, so long as it was created by a function decorated with `@plan`.
 
 ### Options
 

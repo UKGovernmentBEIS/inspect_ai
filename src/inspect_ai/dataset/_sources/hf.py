@@ -12,7 +12,7 @@ from .._dataset import (
     MemoryDataset,
     RecordToSample,
 )
-from .._util import record_to_sample_fn
+from .._util import data_to_samples, record_to_sample_fn
 
 
 def hf_dataset(
@@ -45,7 +45,7 @@ def hf_dataset(
           fields in the data source to Sample objects. Pass `None` if the data is already
           stored in `Sample` form (i.e. has "input" and "target" columns.); Pass a
           `SampleFieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
-          handle mapping with a custom function.
+          handle mapping with a custom function that returns one or more samples.
         shuffle (bool): Randomly shuffle the dataset order.
         seed: (int | None): Seed used for random shuffle.
         limit (int | None): Limit the number of records to read.
@@ -92,7 +92,7 @@ def hf_dataset(
 
     # return the dataset
     return MemoryDataset(
-        samples=[data_to_sample(data) for data in dataset.to_list()],
+        samples=data_to_samples(dataset.to_list(), data_to_sample),
         name=Path(path).stem if Path(path).exists() else path,
         location=path,
     )

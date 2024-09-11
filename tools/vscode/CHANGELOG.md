@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.31
+
+- Don't restrict the availability of the `Open with Inspect View` command based upon the filename.
+
 ## 0.3.30
 
 - Further refinement to Inspect View behavior when a task is complete. We will now refresh the viewer without bringing it the foreground when it is already displaying and a task completes. This will ensure that focus is handled correctly in the editor. Use `cmd+shift+L` to bring the viewer to the foreground (or show it if it isn't showing).

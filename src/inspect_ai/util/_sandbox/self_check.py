@@ -17,6 +17,9 @@ async def check_test_fn(
 
 
 async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
+    # Note that these tests reuse the same sandbox environment. This means that
+    # if a test fails to clean up after itself, it may affect other tests.
+
     results = {}
 
     for fn in [
@@ -34,6 +37,8 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_write_file_without_permissions,
         test_exec_timeout,
         test_exec_permission_error,
+        test_exec_as_user,
+        test_exec_as_nonexistent_user,
         test_cwd_unspecified,
         test_cwd_custom,
         test_cwd_relative,
@@ -176,6 +181,40 @@ async def test_exec_permission_error(sandbox_env: SandboxEnvironment) -> None:
         await sandbox_env.exec(["/etc/passwd"])
 
 
+async def test_exec_as_user(sandbox_env: SandboxEnvironment) -> None:
+    username = "inspect-ai-test-exec-as-user"
+    try:
+        # Create a new user
+        add_user_result = await sandbox_env.exec(
+            ["adduser", "--disabled-password", username], user="root"
+        )
+        assert add_user_result.success, f"Failed to add user: {add_user_result.stderr}"
+
+        # Test exec as different users
+        root_result = await sandbox_env.exec(["whoami"], user="root")
+        assert (
+            root_result.stdout.strip() == "root"
+        ), f"Expected 'root', got '{root_result.stdout.strip()}'"
+        myuser_result = await sandbox_env.exec(["whoami"], user=username)
+        assert (
+            myuser_result.stdout.strip() == username
+        ), f"Expected '{username}', got '{myuser_result.stdout.strip()}'"
+    finally:
+        # Clean up
+        await sandbox_env.exec(["userdel", "-r", username], user="root")
+
+
+async def test_exec_as_nonexistent_user(sandbox_env: SandboxEnvironment) -> None:
+    result = await sandbox_env.exec(["whoami"], user="nonexistent")
+    assert not result.success, "Command should have failed for nonexistent user"
+    expected_error = (
+        "unable to find user nonexistent: no matching entries in passwd file"
+    )
+    assert (
+        expected_error in result.stdout
+    ), f"Error string '{expected_error}' not found in error output: '{result.stdout}'"
+
+
 async def test_cwd_unspecified(sandbox_env: SandboxEnvironment) -> None:
     file_name = "test_cwd_unspecified.file"
     await sandbox_env.write_file(file_name, "ls me plz")
@@ -186,7 +225,7 @@ async def test_cwd_unspecified(sandbox_env: SandboxEnvironment) -> None:
 
 async def test_cwd_custom(sandbox_env: SandboxEnvironment) -> None:
     current_dir_contents = (await sandbox_env.exec(["ls"], cwd="/usr/bin")).stdout
-    assert "man" in current_dir_contents
+    assert "env" in current_dir_contents
 
 
 async def test_cwd_relative(sandbox_env: SandboxEnvironment) -> None:

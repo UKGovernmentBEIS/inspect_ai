@@ -18,13 +18,8 @@ def prompt_template(template: str, **params: dict[str, Any]) -> Solver:
     `metadata` are also automatically included in the `params`.
 
     Args:
-      template (str | list[Message]):
-          The conversation template to use. A simple string or
-          a list of messages
-      **params (dict[str,Any]):
-          A mapping of the parameters to fill into the template
-          excluding the `{prompt}` parameter which is taken
-          from the input.
+      template: (str): Template for prompt.
+      **params (dict[str,Any]): Parameters to fill into the template.
 
     Returns:
       A solver that uses the specified prompt template.
@@ -42,20 +37,31 @@ def prompt_template(template: str, **params: dict[str, Any]) -> Solver:
 
 
 @solver
-def system_message(message: str) -> Solver:
+def system_message(template: str, **params: dict[str, Any]) -> Solver:
     """Solver which inserts a system message into the conversation.
+
+    System message template containing any number of optional `params`.
+    for substitution. All values contained in sample `metadata` are also
+    automatically included in the `params`.
 
     The new message will go after other system messages (if there
     are none it will be inserted at the beginning of the conversation).
 
     Args:
-       message (str): System message.
+      template (str): Template for system message.
+      **params (dict[str,Any]): Parameters to fill into the template.
+
+    Returns:
+      A solver that inserts the parameterised system message.
     """
     # read template
-    content = resource(message)
+    content = resource(template)
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        append_system_message(state.messages, ChatMessageSystem(content=content))
+        kwargs = state.metadata | params
+        append_system_message(
+            state.messages, ChatMessageSystem(content=content.format(**kwargs))
+        )
         return state
 
     return solve

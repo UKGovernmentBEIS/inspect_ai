@@ -17,5 +17,3 @@ Here is an example from the dataset:
 
 ## Evaluation
 For multiple choice questions the model is prompted to answer with a single letter answer, it is given the question, the image, and the choices and asked to answer. For free-form questions the model is given the question, the image, and told the format in which to give the answer and is asked to answer.
-
-N.B. It is expected that the images required for solving the questions are available in a subdirectory called `images` from which the file `mathvista.py` is being run. The images can be downloaded from [HuggingFace](https://huggingface.co/datasets/AI4Math/MathVista) where it is available in a zipped format `images.zip` - it must be unzipped before being used.

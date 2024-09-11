@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import datetime
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Callable, Iterator, Set
 
@@ -15,16 +16,19 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 from rich.progress import Progress as RProgress
+from rich.segment import Segment
 from rich.table import Table
 from rich.text import Text
 from typing_extensions import override
 
+from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.logger import http_rate_limit_count
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
 from inspect_ai._util.throttle import throttle
 from inspect_ai.log import EvalStats
 from inspect_ai.log._log import rich_traceback
+from inspect_ai.log._transcript import InputEvent, transcript
 from inspect_ai.util._concurrency import concurrency_status
 
 from ._display import (
@@ -172,7 +176,10 @@ class RichTaskScreen(TaskScreen):
     @override
     @contextlib.contextmanager
     def input_screen(
-        self, header: str | None = None, transient: bool = True
+        self,
+        header: str | None = None,
+        transient: bool = True,
+        width: int = CONSOLE_DISPLAY_WIDTH,
     ) -> Iterator[Console]:
         # clear live task status and transient status
         self.live.update("", refresh=True)
@@ -180,6 +187,13 @@ class RichTaskScreen(TaskScreen):
 
         # show cursor for input
         self.live.console.show_cursor(True)
+
+        # set width
+        old_width = self.live.console.width
+        self.live.console.width = min(old_width, width)
+
+        # record console activity for event
+        self.live.console.record = True
 
         try:
             # print header if requested
@@ -189,11 +203,22 @@ class RichTaskScreen(TaskScreen):
                 self.live.console.print("")
 
             # yield the console
-            yield self.live.console
+            with record_console_input():
+                yield self.live.console
+
+        finally:
+            # capture recording then yield input event
+            input = self.live.console.export_text(clear=False, styles=False)
+            input_ansi = self.live.console.export_text(clear=True, styles=True)
+            self.live.console.record = False
+            transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
 
             # print one blank line
             self.live.console.print("")
-        finally:
+
+            # reset width
+            self.live.console.width = old_width
+
             # disable cursor while not collecting input
             self.live.console.show_cursor(False)
 
@@ -331,7 +356,7 @@ def tasks_live_status(
     # rendering context
     theme = rich_theme()
     console = rich_console()
-    width = 100 if is_vscode_notebook(console) else None
+    width = CONSOLE_DISPLAY_WIDTH if is_vscode_notebook(console) else None
 
     # compute completed tasks
     completed = sum(1 for task in tasks if task.result is not None)
@@ -402,7 +427,7 @@ def task_panel(
     # rendering context
     theme = rich_theme()
     console = rich_console()
-    width = 100 if is_vscode_notebook(console) else None
+    width = CONSOLE_DISPLAY_WIDTH if is_vscode_notebook(console) else None
     jupyter = console.is_jupyter
 
     # setup table
@@ -675,3 +700,23 @@ def rich_progress() -> RProgress:
 
 _theme: Theme | None = None
 _display: RichDisplay | None = None
+
+
+@contextmanager
+def record_console_input() -> Iterator[None]:
+    # monkey patch .input method to record inputs
+    input_original = Console.input
+
+    def input_with_record(self: Console, *args: Any, **kwargs: Any) -> str:
+        result = input_original(self, *args, **kwargs)
+        if self.record:
+            with self._record_buffer_lock:
+                self._record_buffer.append(Segment(result))
+        return result
+
+    Console.input = input_with_record  # type: ignore
+
+    try:
+        yield
+    finally:
+        Console.input = input_original  # type: ignore

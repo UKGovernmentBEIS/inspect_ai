@@ -7,7 +7,7 @@
   "author": {
     "name": "UK AI Safety Institute"
   },
-  "version": "0.3.30",
+  "version": "0.3.31",
   "license": "MIT",
   "homepage": "https://inspect.ai-safety-institute.org.uk/",
   "repository": {
@@ -265,7 +265,7 @@
         {
           "command": "inspect.openInInspectView",
           "group": "navigation@100",
-          "when": "inspect_ai.enableOpenInView && resourceFilename =~ /^\\d{4}-\\d{2}-\\d{2}T\\d{2}[:-]\\d{2}[:-]\\d{2}.*\\.json/"
+          "when": "inspect_ai.enableOpenInView && resourceFilename =~ /^.*\\.json$/"
         }
       ],
       "view/item/context": [

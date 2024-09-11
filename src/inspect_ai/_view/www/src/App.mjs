@@ -27,6 +27,7 @@ import { ProgressBar } from "./components/ProgressBar.mjs";
 import { Sidebar } from "./sidebar/Sidebar.mjs";
 import { WorkSpace } from "./workspace/WorkSpace.mjs";
 import { FindBand } from "./components/FindBand.mjs";
+import { isVscode } from "./utils/Html.mjs";
 
 export function App({ api, pollForLogs = true }) {
   const [selected, setSelected] = useState(-1);
@@ -251,17 +252,13 @@ export function App({ api, pollForLogs = true }) {
     // Determine the capabilities
     // If this is vscode, check for the version meta
     // so we know it supports downloads
-    const bodyEl = document.querySelector("body");
-    const isVSCode = !!bodyEl.getAttributeNames().find((attr) => {
-      return attr.includes("data-vscode-");
-    });
     const extensionVersionEl = document.querySelector(
       'meta[name="inspect-extension:version"]',
     );
     const extensionVersion = extensionVersionEl
       ? extensionVersionEl.getAttribute("content")
       : undefined;
-    if (isVSCode) {
+    if (isVscode()) {
       if (!extensionVersion) {
         // VSCode hosts before the extension version was communicated don't support
         // downloading or web workers.

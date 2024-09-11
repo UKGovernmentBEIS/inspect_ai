@@ -252,11 +252,15 @@ export type Id3 = string;
 export type Function2 = string;
 export type Result = string | number | boolean | (ContentText | ContentImage)[];
 export type Timestamp5 = string;
-export type Event5 = "score";
+export type Event5 = "input";
+export type Input3 = string;
+export type InputAnsi = string;
 export type Timestamp6 = string;
-export type Event6 = "error";
+export type Event6 = "score";
 export type Timestamp7 = string;
-export type Event7 = "logger";
+export type Event7 = "error";
+export type Timestamp8 = string;
+export type Event8 = "logger";
 export type Name6 = string | null;
 export type Level =
   | "debug"
@@ -271,15 +275,15 @@ export type Created1 = number;
 export type Filename = string;
 export type Module = string;
 export type Lineno = number;
-export type Timestamp8 = string;
-export type Event8 = "info";
 export type Timestamp9 = string;
-export type Event9 = "step";
+export type Event9 = "info";
+export type Timestamp10 = string;
+export type Event10 = "step";
 export type Action = "begin" | "end";
 export type Type8 = string | null;
 export type Name7 = string;
-export type Timestamp10 = string;
-export type Event10 = "subtask";
+export type Timestamp11 = string;
+export type Event11 = "subtask";
 export type Name8 = string;
 export type Events2 = (
   | SampleInitEvent
@@ -287,6 +291,7 @@ export type Events2 = (
   | StoreEvent
   | ModelEvent
   | ToolEvent
+  | InputEvent
   | ScoreEvent
   | ErrorEvent
   | LoggerEvent
@@ -300,6 +305,7 @@ export type Events1 = (
   | StoreEvent
   | ModelEvent
   | ToolEvent
+  | InputEvent
   | ScoreEvent
   | ErrorEvent
   | LoggerEvent
@@ -313,6 +319,7 @@ export type Events = (
   | StoreEvent
   | ModelEvent
   | ToolEvent
+  | InputEvent
   | ScoreEvent
   | ErrorEvent
   | LoggerEvent
@@ -767,27 +774,36 @@ export interface Arguments1 {
   [k: string]: JsonValue;
 }
 /**
+ * Input screen interaction.
+ */
+export interface InputEvent {
+  timestamp: Timestamp5;
+  event: Event5;
+  input: Input3;
+  input_ansi: InputAnsi;
+}
+/**
  * Event with sample score.
  */
 export interface ScoreEvent {
-  timestamp: Timestamp5;
-  event: Event5;
+  timestamp: Timestamp6;
+  event: Event6;
   score: Score;
 }
 /**
  * Event with sample error.
  */
 export interface ErrorEvent {
-  timestamp: Timestamp6;
-  event: Event6;
+  timestamp: Timestamp7;
+  event: Event7;
   error: EvalError;
 }
 /**
  * Log message recorded with Python logger.
  */
 export interface LoggerEvent {
-  timestamp: Timestamp7;
-  event: Event7;
+  timestamp: Timestamp8;
+  event: Event8;
   message: LoggingMessage;
 }
 export interface LoggingMessage {
@@ -803,16 +819,16 @@ export interface LoggingMessage {
  * Event with custom info/data.
  */
 export interface InfoEvent {
-  timestamp: Timestamp8;
-  event: Event8;
+  timestamp: Timestamp9;
+  event: Event9;
   data: JsonValue;
 }
 /**
  * Step within current sample or subtask.
  */
 export interface StepEvent {
-  timestamp: Timestamp9;
-  event: Event9;
+  timestamp: Timestamp10;
+  event: Event10;
   action: Action;
   type: Type8;
   name: Name7;
@@ -821,14 +837,14 @@ export interface StepEvent {
  * Subtask spawned.
  */
 export interface SubtaskEvent {
-  timestamp: Timestamp10;
-  event: Event10;
+  timestamp: Timestamp11;
+  event: Event11;
   name: Name8;
-  input: Input3;
+  input: Input4;
   result: Result1;
   events: Events2;
 }
-export interface Input3 {}
+export interface Input4 {}
 export interface Result1 {
   [k: string]: unknown;
 }
