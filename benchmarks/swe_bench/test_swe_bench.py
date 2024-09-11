@@ -12,10 +12,7 @@ from inspect_ai.util import sandbox
 
 RESOURCE_DIR = Path(__file__).parent / "resources"
 TIMEOUT_SECONDS = 2
-GOLDEN_PATCH_TEST_ID = "sphinx-doc__sphinx-8475"
-SIMPLE_TEST_DATASET = str(
-    RESOURCE_DIR / "tests" / "swebench_one_sample.hf"
-)  # A dataset with a single swe-bench example
+GOLDEN_PATCH_TEST_ID = "django__django-11095"
 SWEBENCH_BASELINE_NAME = "swebench_verified_20240620_sweagent_claude3.5sonnet"
 SWEAGENT_BASELINE: str = str(RESOURCE_DIR / "baselines" / SWEBENCH_BASELINE_NAME)
 
@@ -31,9 +28,9 @@ if not Path(SLOW_TEST_DATASET).exists():
     )
 
 
-def build_test_image(
-    dataset_name: str = str(SIMPLE_TEST_DATASET),
-    split: str | None = "train",
+def build_swebench_images(
+    dataset_name: str = "princeton-nlp/SWE-bench_Verified",
+    split: str | None = "test",
     max_workers: int = 4,
 ) -> None:
     build_images(dataset_name=dataset_name, split=split, max_workers=max_workers)
@@ -68,7 +65,7 @@ def delete_readme_solver():
 
 
 def test_golden_patch_succeeds() -> None:
-    build_test_image()
+    build_swebench_images()
 
     test_task = swe_bench(filter=lambda s: s.id == GOLDEN_PATCH_TEST_ID)
     golden_patch = test_task.dataset[0].metadata["patch"]
@@ -82,7 +79,7 @@ def test_golden_patch_succeeds() -> None:
 
 
 def test_incorrect_edit_fails() -> None:
-    build_test_image()
+    build_swebench_images()
 
     test_task = swe_bench(filter=lambda s: s.id == GOLDEN_PATCH_TEST_ID)
     test_task.plan = Plan([delete_readme_solver()])
@@ -96,9 +93,9 @@ def test_incorrect_edit_fails() -> None:
 
 def test_same_results_for_swe_agent() -> None:
     # Very slow test
-    # This test checks that we agree with the original swe-bench implementation patches outputted by swe-agent, across all of the repositories in SWE-bench
+    # This test checks that we agree with the original swe-bench implementation patches outputted by swe-agent, with one instance from each of the repositories scraped in SWE-bench-verified.
 
-    build_test_image(dataset_name=SLOW_TEST_DATASET, split="train")
+    build_swebench_images(dataset_name=SLOW_TEST_DATASET, split="train")
 
     # We load the whole dataset
     test_task = swe_bench(dataset=SLOW_TEST_DATASET, split="train")
@@ -155,4 +152,4 @@ def test_same_results_for_swe_agent() -> None:
     assert error_str == "", error_str
 
 
-test_same_results_for_swe_agent()
+test_same_results_for_swe_agent()  # TODO: IF THIS IS STILL LEFT IN PR ITS TRULY TERRIBLE AND YOU SHOULD SHOOT ME AADSFASDFASDFAS

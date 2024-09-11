@@ -10,6 +10,7 @@ import re
 import shlex
 from pathlib import Path
 from typing import Callable
+from textwrap import dedent
 
 from docker import DockerClient
 from swebench.harness.constants import (
@@ -35,6 +36,7 @@ from inspect_ai.solver import (
 )
 from inspect_ai.tool import bash
 from inspect_ai.util import sandbox
+from inspect_ai.solver import basic_agent
 
 INPUT_PROMPT = "Please solve the following issue:\n\n{issue_text}"
 COMPOSE_FILE_DIR = Path(__file__).parent / "resources/compose_files/"
@@ -42,16 +44,13 @@ os.makedirs(COMPOSE_FILE_DIR, exist_ok=True)
 
 SAMPLE_TO_IMAGE_PATH = COMPOSE_FILE_DIR / "sample_to_image.json"
 
-DEFAULT_PLAN = Plan(
-    [
-        system_message("Please solve the task below."),
-        use_tools([bash()]),
-        generate(),
-    ],
-    name="simple_bash_plan",
+DEFAULT_PLAN = basic_agent(
+    init="Please solve the coding task below.",
+    tools=[bash(timeout=180)],
+    max_attempts=3,
 )
 
-DEFAULT_MAX_MESSAGES = 10
+DEFAULT_MAX_MESSAGES = 50
 
 
 @task
@@ -110,7 +109,7 @@ def swe_bench(
         )
 
     return Task(
-        name=f"{dataset}_{plan.name}",
+        name=f"{dataset}_{split}_{plan.name}",
         dataset=samples,
         plan=plan,
         scorer=swebench_scorer(),
@@ -251,7 +250,7 @@ def swebench_scorer() -> Scorer:
             value = 0.0
         else:
             test_output_parser = MAP_REPO_TO_PARSER[state.metadata["repo"]]
-            test_outputs = test_output_parser(eval_output.stdout)
+            test_outputs = test_output_parser(eval_output.stdout + eval_output.stderr)
 
             pass_to_pass_results = {}
             fail_to_pass_results = {}

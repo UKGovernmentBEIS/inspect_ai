@@ -39,11 +39,11 @@ from swe_bench import swe_bench, swe_bench_scorer, swebench_baseline_scorer
 
 # Select only the subset where the patch is more than 20 lines long
 swebench_verified_task_subset = swe_bench(dataset="princeton-nlp/SWE-bench_Verified", split="train",plan=simple_bash_plan, filter=lambda x: len(x["patch"].split("\n")) > 20)
-
+m
 # Report the Claude 3.5 Sonnet + SweAgent baseline, as well as the performance of the agent.
 swebench_verified_task_subset.scorer = [swebench_baseline_scorer("./resources/baselines/swebench_verified_20240620_sweagent_claude3.5sonnet",name="sweagent_baseline"), swebench_scorer()]
 
-eval(swebench_verified_task_subset, scorer=swebench_baseline_scorer)
+eval(swebench_verified_task_subset)
 ```
 
 This will lead to both numbers being reported in the final output:

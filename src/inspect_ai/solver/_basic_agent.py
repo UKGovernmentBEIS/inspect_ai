@@ -38,6 +38,7 @@ def basic_agent(
     *,
     init: Solver | list[Solver] | None = None,
     tools: list[Tool] = [],
+    agent_name: str = "basic_agent",
     max_attempts: int = 1,
     score_value: ValueToFloat | None = None,
     incorrect_message: str = DEFAULT_INCORRECT_MESSAGE,
@@ -67,6 +68,7 @@ def basic_agent(
          (defaults to system_message with basic ReAct prompt)
        tools (list[Tool]): Tools available for the agent.
        max_attempts (int): Maximum number of submissions to accept before terminating.
+       agent_name (str): Name passed to the Plan constructor (defaults to 'basic_agent')
        score_value (ValueToFloat): Function used to extract float from scores (defaults
          to standard value_to_float())
        incorrect_message (str): User message reply for an incorrect submission from
@@ -171,5 +173,6 @@ def basic_agent(
         + [
             use_tools(tools + [submit_tool]),
             basic_agent_loop(),
-        ]
+        ],
+        name=agent_name,
     )
