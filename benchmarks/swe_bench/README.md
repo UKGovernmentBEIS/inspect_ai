@@ -15,19 +15,25 @@ The ```swe_bench.py``` file contains the ```swe_bench``` function, which creates
 ```python
 from inspect_ai import eval
 from inspect_ai.solver import use_tools, generate, system_message
+from inspect_ai.solver import basic_agent
+from inspect_ai.tool import bash, python
+from swe_bench import swe_bench
+from inspect_ai.solver import system_message
 
-# Make a simple agent that only uses bash.
-simple_bash_plan =  [
-    system_message("Please solve the coding task."),
-    use_tools([bash()]),
-    generate(),
+# Create an agent that only uses bash, and an agent that only uses python.
+agents = [
+    basic_agent(
+        init=system_message("Please solve the coding task below. Once you are done, use your submit tool."),
+        tools=[tool],
+    )
+    for tool in [bash(), python()]
 ]
 
-# Create a Task object for the SWE-bench dataset, using the recent verified split (https://openai.com/index/introducing-swe-bench-verified/).
-swebench_verified_task = swe_bench(dataset="princeton-nlp/SWE-bench_Verified", split="train",plan=simple_bash_plan)
+# Create a swe-bench instance for each of those agents.
+tasks = [swe_bench(dataset="princeton-nlp/SWE-bench_Verified", split="test", plan=agent) for agent in agents]
 
-# Run the eval. NOTE: SWE-bench will take a while to run, and uses a lot of tokens. If things are too slow, you should increase the level of parallelism - see https://inspect.ai-safety-institute.org.uk/parallelism.html 
-eval(swebench_verified_task)
+# Compare how these two agents perform. NOTE: SWE-bench will take a while to run, and uses a lot of tokens. If things are too slow, you should increase the level of parallelism - see https://inspect.ai-safety-institute.org.uk/parallelism.html
+eval(tasks, model="openai/gpt-4o")
 ```
 
 ### Comparing to baselines
@@ -39,7 +45,8 @@ from swe_bench import swe_bench, swe_bench_scorer, swebench_baseline_scorer
 
 # Select only the subset where the patch is more than 20 lines long
 swebench_verified_task_subset = swe_bench(dataset="princeton-nlp/SWE-bench_Verified", split="train",plan=simple_bash_plan, filter=lambda x: len(x["patch"].split("\n")) > 20)
-m
+
+
 # Report the Claude 3.5 Sonnet + SweAgent baseline, as well as the performance of the agent.
 swebench_verified_task_subset.scorer = [swebench_baseline_scorer("./resources/baselines/swebench_verified_20240620_sweagent_claude3.5sonnet",name="sweagent_baseline"), swebench_scorer()]
 

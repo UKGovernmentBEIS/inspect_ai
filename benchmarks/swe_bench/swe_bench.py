@@ -45,9 +45,8 @@ os.makedirs(COMPOSE_FILE_DIR, exist_ok=True)
 SAMPLE_TO_IMAGE_PATH = COMPOSE_FILE_DIR / "sample_to_image.json"
 
 DEFAULT_PLAN = basic_agent(
-    init="Please solve the coding task below.",
+    init=system_message("Please solve the coding task below. Once you are done, use your submit tool."),
     tools=[bash(timeout=180)],
-    max_attempts=3,
 )
 
 DEFAULT_MAX_MESSAGES = 50

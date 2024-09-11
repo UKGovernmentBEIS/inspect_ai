@@ -147,7 +147,7 @@ def test_same_results_for_swe_agent() -> None:
         swe_agent_score = result.samples[0].scores["sweagent_baseline"]
 
         if score.value != swe_agent_score.value:
-            error_str += f"Result of evaluating {result.samples[0].id} did not agree with the swe_bench ground truth. Scorer output: {score.explanation}"
+            error_str += f"Result of evaluating {result.samples[0].id} did not agree with the swe_bench ground truth. Our score: '{score.value}'. swe-agent score: '{swe_agent_score.value}' Scorer results: {score.explanation}"
 
     assert error_str == "", error_str
 
