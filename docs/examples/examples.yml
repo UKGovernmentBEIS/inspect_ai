@@ -49,7 +49,7 @@
   contributors: ["jjallaire"]
 
 - title: "HellaSwag: Can a Machine Really Finish Your Sentence?"
-  path: benchmarks/hellawag.py
+  path: benchmarks/hellaswag.py
   arxiv: https://arxiv.org/abs/1905.07830
   cite: zellers2019hellaswagmachinereallyfinish
   group: Reasoning
@@ -179,6 +179,6 @@
   path: bookmarks/pubmedqa
   arxiv: https://arxiv.org/abs/1909.06146
   cite: jin2019pubmedqadatasetbiomedicalresearch
-  group: Knolwedge
+  group: Knowledge
   demonstrates: ["Multiple Choice"]
   contributors: ["MattFisher"]

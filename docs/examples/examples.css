@@ -2,3 +2,36 @@
 #refs {
     display: none;
 }
+
+ul.no-bullets {
+   list-style-type: none;
+   padding: 0;
+   margin: 0;
+}
+
+li.group {
+    font-size: 1.5em;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+li.example {
+    margin-bottom: 0.6em;
+}
+
+li.example a {
+    text-decoration: none;
+}
+
+div.card {
+    border-radius: 5px;
+}
+
+div.card-body {
+    padding: 0.5em;
+}
+
+.quarto-listing-filter {
+    margin-left: 0;
+    width: 300px;
+}

@@ -1,7 +1,45 @@
+```{=html}
+
+<% 
+function groupIcon(group) {
+  switch(group) {
+    case "Coding":
+      return "code";
+    case "Math":
+      return "calculator";
+    case "Reasoning":
+      return "boxes";
+    default:
+      return "book"
+  }
+}
+%>
+
+<ul class="list no-bullets">
+
+<% let group="" %> 
+
 <% for (let i = 0; i < items.length; i++){ %>
   <% item=items[i] %>
-- [<%= item.title %>](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/<%- item.path %>)\
-@<%= item['cite'] %> 
+  <% if (item["group"] !== group) { %>
+  <% group=item["group"] %>  
+<li class="group"><h3><%= item["group"] %></h3></li>
+  <% } %>  
+  <% item=items[i] %>
+<li class="example" <%= metadataAttrs(item) %>>
+  <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/<%- item.path %>">
+  <div class="card">
+  <div class="card-body">
+    <div class="card-title listing-title">
+      <i class="bi bi-<%= groupIcon(group) %>"></i> <%= item.title %>
+    </div>
+  </div>
+ 
+  </div>
+  </a>
+</li>
 <% } %>  
+</ul>
+```
 
   

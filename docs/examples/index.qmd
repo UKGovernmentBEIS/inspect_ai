@@ -1,9 +1,10 @@
 ---
-page-layout: full
+page-layout: article
 listing:
   id: examples
   template: examples.ejs
   contents: examples.yml
+  filter-ui: true
 bibliography: examples.bib
 css: examples.css
 aliases: 
