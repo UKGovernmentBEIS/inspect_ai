@@ -149,13 +149,6 @@ const ChatMessage = ({ id, message, toolMessages, indented }) => {
         />
       </${ExpandablePanel}>
       </div>
-      <${ExpandablePanel} collapse=${collapse}>
-        <${MessageContents}
-          key=${`${id}-contents`}
-          message=${message}
-          toolMessages=${toolMessages}
-        />
-      </${ExpandablePanel}>
     </div>
   `;
 };

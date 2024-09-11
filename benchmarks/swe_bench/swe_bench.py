@@ -3,6 +3,7 @@
 Carlos E. Jimenez, John Yang, Alexander Wettig, Shunyu Yao, Kexin Pei, Ofir Press, Karthik Narasimhan
 https://arxiv.org/abs/2310.06770
 """
+
 import json
 import os
 import re
@@ -46,7 +47,9 @@ os.makedirs(COMPOSE_FILE_DIR, exist_ok=True)
 SAMPLE_TO_IMAGE_PATH = COMPOSE_FILE_DIR / "sample_to_image.json"
 
 DEFAULT_PLAN = basic_agent(
-    init=system_message("Please solve the coding task below. Once you are done, use your submit tool."),
+    init=system_message(
+        "Please solve the coding task below. Once you are done, use your submit tool."
+    ),
     tools=[bash(timeout=180)],
 )
 
@@ -314,8 +317,8 @@ def swebench_baseline_scorer(path_to_baseline: str, name: str | None = None) -> 
 
     return _swebench_baseline_scorer()
 
-def get_baseline_results(path_to_baseline: str) -> dict[str,dict[str,str]]:
 
+def get_baseline_results(path_to_baseline: str) -> dict[str, dict[str, str]]:
     path_to_logs = os.path.join(path_to_baseline, "logs")
 
     results_per_instance_id = {}
@@ -334,13 +337,14 @@ def get_baseline_results(path_to_baseline: str) -> dict[str,dict[str,str]]:
                         "resolved": raw_results["resolved"],
                         "patch": f.read(),
                     }
-    
+
     return results_per_instance_id
-                
+
+
 def get_compose_file(environment_commit_id: Sample, instance_id: str) -> str:
     if not os.path.exists(SAMPLE_TO_IMAGE_PATH):
         raise ValueError(
-            "No sample to image mapping found. Please run  to build the images"
+            "No sample to image mapping found. Please run 'build_images.py --dataset_location DATASET_LOCATION --split SPLIT' to build the images"
         )
 
     sample_to_image = json.load(open(SAMPLE_TO_IMAGE_PATH))
@@ -370,7 +374,7 @@ def get_compose_file(environment_commit_id: Sample, instance_id: str) -> str:
 
     # If the image is found, we can now create the compose file.
     compose_file_path = COMPOSE_FILE_DIR / f"{environment_image_name}.yaml"
-    with compose_file_path.open(mode="w+") as f:
+    with compose_file_path.open(mode="w+") as f:u
         f.write(f"""services:
   default:
     image: {environment_image_name}

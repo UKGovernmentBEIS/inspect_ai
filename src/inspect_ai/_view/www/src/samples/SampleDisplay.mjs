@@ -134,7 +134,6 @@ export const SampleDisplay = ({ index, sample, sampleDescriptor, context }) => {
           id=${metdataTabId} 
           classes="sample-tab"
           title="Metadata" 
-          icon=${ApplicationIcons.metadata}
           onSelected=${onSelectedTab} 
           selected=${selectedTab === metdataTabId}>
          <div style=${{ paddingLeft: "0.8em", marginTop: "0.4em" }}> 

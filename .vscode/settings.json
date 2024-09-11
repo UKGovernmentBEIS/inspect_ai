@@ -21,6 +21,5 @@
   ],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
-  "quarto.render.renderOnSave": true,
-  "python.testing.cwd": "${worskpaceFolder}/benchmarks/"
+  "quarto.render.renderOnSave": true
 }

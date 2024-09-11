@@ -1,4 +1,3 @@
-
 import click
 
 from inspect_ai._util.dotenv import init_dotenv
