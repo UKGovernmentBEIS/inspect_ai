@@ -13,7 +13,7 @@ from inspect_ai.util import sandbox
 
 RESOURCE_DIR = Path(__file__).parent / "resources"
 TIMEOUT_SECONDS = 2
-GOLDEN_PATCH_TEST_ID = "psf__requests-1921"
+GOLDEN_PATCH_TEST_ID = "astropy__astropy-14309"
 SWEBENCH_BASELINE_NAME = "20240620_sweagent_claude3.5sonnet"
 SWEAGENT_BASELINE: str = str(RESOURCE_DIR / "baselines" / SWEBENCH_BASELINE_NAME)
 
@@ -26,6 +26,11 @@ MAX_CONCURRENCY = int(os.getenv("INSPECT_MAX_CONCURRENCY", 10))
 if not Path(SLOW_TEST_DATASET).exists():
     raise FileNotFoundError(
         f"Test datasets have not been created. Please run the script at {(RESOURCE_DIR / "tests"/"create_test_repos.py").absolute()} to run the tests."
+    )
+
+if not Path(SWEAGENT_BASELINE).exists():
+    raise FileNotFoundError(
+        f"Test baseline files have not been created. Please run the script at {(RESOURCE_DIR / 'baselines' / 'download_sweagent_baselines.sh').absolute()} to run the tests."
     )
 
 
@@ -81,9 +86,9 @@ def delete_readme_solver():
 
 def test_correct_patch_succeeds() -> None:
     dataset = get_dataset_single_instance(GOLDEN_PATCH_TEST_ID)
-    build_swebench_images(dataset,"train")
+    build_swebench_images(dataset, "train")
 
-    test_task = swe_bench(dataset,"train")
+    test_task = swe_bench(dataset, "train")
     golden_patch = test_task.dataset[0].metadata["patch"]
     test_task.plan = Plan([apply_patch_solver(golden_patch)])
 
@@ -96,9 +101,9 @@ def test_correct_patch_succeeds() -> None:
 
 def test_incorrect_patch_fails() -> None:
     dataset = get_dataset_single_instance(GOLDEN_PATCH_TEST_ID)
-    build_swebench_images(dataset,"train")
+    build_swebench_images(dataset, "train")
 
-    test_task = swe_bench(dataset,"train")
+    test_task = swe_bench(dataset, "train")
     test_task.plan = Plan([delete_readme_solver()])
 
     result = eval(test_task, "mockllm/model", max_messages=2, debug_errors=True)[0]
@@ -169,4 +174,4 @@ def test_same_scores_for_swe_agent() -> None:
     assert error_str == "", error_str
 
 
-test_correct_patch_succeeds()
+test_same_scores_for_swe_agent()

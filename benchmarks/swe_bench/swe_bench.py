@@ -11,7 +11,7 @@ import shlex
 from pathlib import Path
 from textwrap import dedent
 from typing import Callable
-
+import logging
 from docker import DockerClient
 from swebench.harness.constants import (
     APPLY_PATCH_FAIL,
@@ -51,6 +51,8 @@ DEFAULT_PLAN = basic_agent(
 
 DEFAULT_MAX_MESSAGES = 30
 
+# get python logger
+logger = logging.getLogger(__name__)
 
 @task
 def swe_bench(
@@ -84,6 +86,7 @@ def swe_bench(
                 "base_commit",
                 "patch",
                 "PASS_TO_PASS",
+                "FAIL_TO_PASS",
                 "test_patch",
                 "version",
                 "repo",
@@ -118,7 +121,8 @@ def swe_bench(
 
 def get_setup_script(repo: str, version: str, base_commit: str) -> str:
     """Create a list of bash commands to set up the repository for testing. These are ran at the start of the sample,  clone the repository, and do some extra repository-specific installation steps over and above what is in the environment images."""
-    setup_script = dedent(f"""
+    setup_script = dedent(
+        f"""
         #!/bin/bash
         set -euo pipefail -x
 
@@ -137,7 +141,8 @@ def get_setup_script(repo: str, version: str, base_commit: str) -> str:
         {MAP_REPO_TO_INSTALL.get(repo,"")}
         {'\n'.join(MAP_REPO_VERSION_TO_SPECS[repo][version].get('pre_install',[]))}
         {MAP_REPO_VERSION_TO_SPECS[repo][version].get('install','')}
-    """.strip())
+    """.strip()
+    )
 
     return setup_script
 
@@ -163,7 +168,8 @@ def get_eval_script(test_patch: str, repo: str, version: str, base_commit: str) 
     test_files = get_test_directives({"repo": repo, "test_patch": test_patch})  # type: ignore
 
     # Reset test files to the state they should be in before the patch.
-    eval_script = dedent(f"""
+    eval_script = dedent(
+        f"""
         #!/bin/bash
         set -uo pipefail -x
 
@@ -195,7 +201,8 @@ def get_eval_script(test_patch: str, repo: str, version: str, base_commit: str) 
         #Then we run all the tests in the repository.
         set +x
         {test_command} {" ".join(test_files)} || true
-    """.strip())
+    """.strip()
+    )
 
     return eval_script
 
@@ -261,8 +268,13 @@ def swebench_scorer() -> Scorer:
                 has_passed = "PASSED" == v
                 if k in state.metadata["PASS_TO_PASS"]:
                     pass_to_pass_results[k] = has_passed
-                else:
+                elif k in state.metadata["FAIL_TO_PASS"]:
                     fail_to_pass_results[k] = has_passed
+                else:
+                    logger.warning(
+                        f"Test {k} not found in PASS_TO_PASS or FAIL_TO_PASS"
+                    )
+                    continue
 
             # Sort both so the the false values are at the top
             pass_to_pass_results, fail_to_pass_results = (
