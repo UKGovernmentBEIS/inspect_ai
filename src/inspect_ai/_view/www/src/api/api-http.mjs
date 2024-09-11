@@ -1,6 +1,5 @@
 //@ts-check
 import { asyncJsonParse } from "../utils/Json.mjs";
-import { dirname } from "../utils/Path.mjs";
 import { download_file } from "./api-shared.mjs";
 
 /**
@@ -9,27 +8,16 @@ import { download_file } from "./api-shared.mjs";
  * to a webserver without inspect or the ability to enumerate log
  * files
  *
+ * @param { string } log_dir - The log directory for this API.
+ * @param { string } [log_file] - The log file for this API.
  * @returns { any } A Log Viewer API
  */
-export default function simpleHttpApi() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const fetchLogPath = urlParams.get("log_file");
-  const fetchLogDir = urlParams.get("log_dir");
-
-  if (!fetchLogPath && !fetchLogDir) {
-    // No additional log information, this API can't fulfill
-    // this request
-    return undefined;
-  }
-
-  const logDir = fetchLogDir ? fetchLogDir : dirname(fetchLogPath);
-  const resolvedLogDir = logDir ? logDir.replace(" ", "+") : undefined;
-  const resolveLogPath = fetchLogPath
-    ? fetchLogPath.replace(" ", "+")
-    : undefined;
+export default function simpleHttpApi(log_dir, log_file) {
+  const resolved_log_dir = log_dir.replace(" ", "+");
+  const resolved_log_path = log_file ? log_file.replace(" ", "+") : undefined;
   return simpleHttpAPI({
-    log_file: resolveLogPath,
-    log_dir: resolvedLogDir,
+    log_file: resolved_log_path,
+    log_dir: resolved_log_dir,
   });
 }
 

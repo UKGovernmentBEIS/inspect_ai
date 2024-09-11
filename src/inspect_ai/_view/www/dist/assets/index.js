@@ -21889,19 +21889,12 @@ const vscodeApi$1 = {
   download_file,
   open_log_file
 };
-function simpleHttpApi() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const fetchLogPath = urlParams.get("log_file");
-  const fetchLogDir = urlParams.get("log_dir");
-  if (!fetchLogPath && !fetchLogDir) {
-    return void 0;
-  }
-  const logDir = fetchLogDir ? fetchLogDir : dirname(fetchLogPath);
-  const resolvedLogDir = logDir ? logDir.replace(" ", "+") : void 0;
-  const resolveLogPath = fetchLogPath ? fetchLogPath.replace(" ", "+") : void 0;
+function simpleHttpApi(log_dir, log_file) {
+  const resolved_log_dir = log_dir.replace(" ", "+");
+  const resolved_log_path = log_file ? log_file.replace(" ", "+") : void 0;
   return simpleHttpAPI({
-    log_file: resolveLogPath,
-    log_dir: resolvedLogDir
+    log_file: resolved_log_path,
+    log_dir: resolved_log_dir
   });
 }
 function simpleHttpAPI(logInfo) {
@@ -21943,6 +21936,10 @@ function simpleHttpAPI(logInfo) {
         return {
           files: [result]
         };
+      } else {
+        throw new Error(
+          `Failed to load a manifest files using the directory: ${log_dir}. Please be sure you have deployed a manifest file (logs.json).`
+        );
       }
     },
     eval_log: async (file) => {
@@ -21954,7 +21951,7 @@ function simpleHttpAPI(logInfo) {
       const headers = await fetchLogHeaders(log_dir);
       if (headers) {
         return Object.values(headers.parsed);
-      } else {
+      } else if (log_file) {
         let evalLog = cache.get();
         if (!evalLog) {
           const response = await fetchLogFile(log_file);
@@ -21962,6 +21959,10 @@ function simpleHttpAPI(logInfo) {
           evalLog = response.parsed;
         }
         return [evalLog];
+      } else {
+        throw new Error(
+          `Failed to load a manifest files using the directory: ${log_dir}. Please be sure you have deployed a manifest file (logs.json).`
+        );
       }
     },
     download_file: download_file$1,
@@ -22045,7 +22046,28 @@ const log_file_cache = (log_file) => {
     }
   };
 };
-const api = window.acquireVsCodeApi ? vscodeApi$1 : simpleHttpApi() || browserApi;
+const resolveApi = () => {
+  if (window.acquireVsCodeApi) {
+    return vscodeApi$1;
+  } else {
+    const scriptEl = document.getElementById("log_dir_context");
+    if (scriptEl) {
+      const data = JSON.parse(scriptEl.textContent);
+      if (data.log_dir || data.log_file) {
+        const log_dir2 = data.log_dir || dirname(data.log_file);
+        return simpleHttpApi(log_dir2, data.log_file);
+      }
+    }
+    const urlParams = new URLSearchParams(window.location.search);
+    const log_file = urlParams.get("log_file");
+    const log_dir = urlParams.get("log_dir");
+    if (log_file || log_dir) {
+      return simpleHttpApi(log_dir, log_file);
+    }
+    return browserApi;
+  }
+};
+const api = resolveApi();
 const DownloadButton = ({ logFile, label, fileName, fileContents }) => {
   return m$1`<button
     class="btn btn-outline-primary"
