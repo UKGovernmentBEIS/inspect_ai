@@ -9,8 +9,8 @@ import os
 import re
 import shlex
 from pathlib import Path
-from typing import Callable
 from textwrap import dedent
+from typing import Callable
 
 from docker import DockerClient
 from swebench.harness.constants import (
@@ -30,15 +30,11 @@ from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, std
 from inspect_ai.solver import (
     Plan,
     TaskState,
-    generate,
+    basic_agent,
     system_message,
-    use_tools,
 )
 from inspect_ai.tool import bash
 from inspect_ai.util import sandbox
-from inspect_ai.solver import basic_agent
-
-from textwrap import dedent
 
 INPUT_PROMPT = "Please solve the following issue:\n\n{issue_text}"
 COMPOSE_FILE_DIR = Path(__file__).parent / "resources/compose_files/"
@@ -122,7 +118,6 @@ def swe_bench(
 
 def get_setup_script(repo: str, version: str, base_commit: str) -> str:
     """Create a list of bash commands to set up the repository for testing. These are ran at the start of the sample,  clone the repository, and do some extra repository-specific installation steps over and above what is in the environment images."""
-
     setup_script = dedent(f"""
         #!/bin/bash
         set -euo pipefail -x
@@ -374,7 +369,7 @@ def get_compose_file(environment_commit_id: Sample, instance_id: str) -> str:
 
     # If the image is found, we can now create the compose file.
     compose_file_path = COMPOSE_FILE_DIR / f"{environment_image_name}.yaml"
-    with compose_file_path.open(mode="w+") as f:u
+    with compose_file_path.open(mode="w+") as f:
         f.write(f"""services:
   default:
     image: {environment_image_name}
