@@ -13,7 +13,7 @@ from .environment import SandboxEnvironment
 
 T = TypeVar('T', bound=SandboxEnvironment)
 
-def sandboxenv(name: str) -> Callable[[Type[T]], Type[T]]:
+def sandboxenv(name: str) -> Callable[..., Type[T]]:
     r"""Decorator for registering sandbox environments.
 
     Args:
