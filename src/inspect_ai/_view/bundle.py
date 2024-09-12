@@ -16,6 +16,12 @@ from inspect_ai.log._file import (
     write_log_dir_manifest,
 )
 
+# move to log
+# INSPECT_VIEW_BUNDLE_OUT_DIR
+# fully replace output directory
+# add norobots file
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,7 +29,7 @@ WWW_DIR = os.path.abspath((Path(__file__).parent / "www" / "dist").as_posix())
 
 
 # TODO: Test S3
-def bundle(
+def bundle_log_dir(
     log_dir: str | None = None,
     output_dir: str | None = None,
     overwrite: bool = False,
