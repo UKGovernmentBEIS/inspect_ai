@@ -43,7 +43,7 @@ We'll start by importing the functions we need from Inspect and defining a syste
 
 ```{python}
 from inspect_ai import Task, eval, task
-from inspect_ai.dataset import example_dataset
+from inspect_ai.dataset import csv_dataset
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import generate, system_message
 
@@ -63,7 +63,7 @@ Discerning whether the correct security guidance was provided by the model might
 @task
 def security_guide():
     return Task(
-        dataset=example_dataset("security_guide"),
+        dataset=csv_dataset("security_guide.csv"),
         plan=[system_message(SYSTEM_MESSAGE), generate()],
         scorer=model_graded_fact(),
     )
@@ -283,25 +283,11 @@ The [MATH dataset](https://arxiv.org/abs/2103.03874) includes 12,500 challenging
 
 We'll start by importing the functions we need from Inspect and defining a prompt that asks the model to reason step by step and respond with its answer on a line at the end. It also nudges the model not to enclose its answer in `\boxed`, a LaTeX command for displaying equations that models often use in math output.
 
-::: content-hidden
-```{python}
-"""
-Measuring Mathematical Problem Solving With the MATH Dataset
-
-Dan Hendrycks, Collin Burns, Saurav Kadavath, Akul Arora,
-Steven Basart, Eric Tang, Dawn Song, Jacob Steinhardt
-https://arxiv.org/abs/2103.03874
-
-Based on: https://github.com/openai/simple-evals/blob/main/math_eval.py
-"""
-```
-:::
-
 ```{python}
 import re
 
 from inspect_ai import Task, task
-from inspect_ai.dataset import FieldSpec, csv_dataset
+from inspect_ai.dataset import FieldSpec, hf_dataset
 from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.scorer import (
     CORRECT,
@@ -313,7 +299,11 @@ from inspect_ai.scorer import (
     stderr,
     scorer,
 )
-from inspect_ai.solver import TaskState, generate, prompt_template
+from inspect_ai.solver import (
+    TaskState, 
+    generate, 
+    prompt_template
+)
 
 # setup for problem + instructions for providing answer
 PROMPT_TEMPLATE = """
@@ -336,13 +326,15 @@ Here is the basic setup for our eval. We `shuffle` the dataset so that when we u
 @task
 def math(shuffle=True):
     return Task(
-        dataset=csv_dataset(
-            csv_file="datasets/math_test.csv",
-            sample_fields=FieldSpec(
-                input="Question", 
-                target="Answer"
+        dataset=hf_dataset(
+            "hendrycks/competition_math",
+            split="test",
+            sample_fields=sample_fields=FieldSpec(
+                input="problem", 
+                target="solution"
             ),
-            shuffle=shuffle,
+            shuffle=True,
+            trust=True,
         ),
         plan=[
             prompt_template(PROMPT_TEMPLATE),
