@@ -2,13 +2,44 @@ import os
 import tempfile
 
 from inspect_ai import Task, eval
-from inspect_ai._view.bundle import bundle
+from inspect_ai._util.file import filesystem
 from inspect_ai.dataset import Sample
+from inspect_ai.log._bundle import bundle_log_dir
 from inspect_ai.scorer import match
 
 
+def test_s3_bundle(mock_s3) -> None:
+    # run an eval to generate a log file to this directory
+    log_dir = "s3://test-bucket/logs"
+    output_dir = "s3://test-bucket/view"
+    output_fs = filesystem(output_dir)
+
+    eval(
+        tasks=[
+            Task(dataset=[Sample(input="Say Hello", target="Hello")], scorer=match())
+            for i in range(0, 2)
+        ],
+        model="mockllm/model",
+        log_dir=log_dir,
+    )
+
+    # bundle to the output dir
+    bundle_log_dir(log_dir, output_dir)
+
+    # ensure files are what we expect
+    expected = [
+        "index.html",
+        "assets",
+        "assets/index.js",
+        "assets/index.css",
+        "logs",
+        "logs/logs.json",
+    ]
+    for exp in expected:
+        assert output_fs.exists(os.path.join(output_dir, exp))
+
+
 def test_bundle() -> None:
-    # run eval with a solver that fails 20% of the time
     with tempfile.TemporaryDirectory() as working_dir:
         # run an eval to generate a log file to this directory
         log_dir = os.path.join(working_dir, "logs")
@@ -26,7 +57,7 @@ def test_bundle() -> None:
         )
 
         # bundle to the output dir
-        bundle(log_dir, output_dir)
+        bundle_log_dir(log_dir, output_dir)
 
         # ensure files are what we expect
         expected = [

@@ -7,28 +7,19 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
-from inspect_ai._display import display
-from inspect_ai._display._display import Progress
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import filesystem
-from inspect_ai.log._file import (
-    log_files_from_ls,
-    write_log_dir_manifest,
-)
 
-# move to log
+from ._file import log_files_from_ls, write_log_dir_manifest
+
 # INSPECT_VIEW_BUNDLE_OUT_DIR
-# fully replace output directory
-# add norobots file
-
 
 logger = logging.getLogger(__name__)
 
 
-WWW_DIR = os.path.abspath((Path(__file__).parent / "www" / "dist").as_posix())
+DIST_DIR = os.path.join(Path(__file__).parent, "..", "_view", "www", "dist")
 
 
-# TODO: Test S3
 def bundle_log_dir(
     log_dir: str | None = None,
     output_dir: str | None = None,
@@ -59,42 +50,45 @@ def bundle_log_dir(
     # ensure output_dir doesn't exist
     if filesystem(output_dir, fs_options).exists(output_dir) and not overwrite:
         raise PrerequisiteError(
-            f"The output directory {output_dir} already exists. Choose another output directory or use `overwrite` to overwrite the directory and contents"
+            f"The output directory '{output_dir}' already exists. Choose another output directory or use 'overwrite' to overwrite the directory and contents"
         )
 
+    from inspect_ai._display import display
+
     display().print(f"Bundling log directory: {log_dir}")
-    with display().progress(total=100) as p:
+    with display().progress(total=500) as p:
         # Work in a temporary working directory
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as working_dir:
             # copy dist to output_dir
             display().print("\u2022 Adding viewer")
-            copy_dir_contents(WWW_DIR, working_dir)
-            p.update(5)
+            copy_dir_contents(DIST_DIR, working_dir)
+            p.update(25)
 
             # create a logs dir
             display().print("\u2022 Copying logs")
             log_dir_name = "logs"
             view_logs_dir = os.path.join(working_dir, log_dir_name)
             os.makedirs(view_logs_dir)
-            p.update(5)
+            p.update(25)
 
             # Copy the logs to the log dir
-            copy_log_files(log_dir, view_logs_dir, p, fs_options)
+            copy_log_files(log_dir, view_logs_dir, p.update, fs_options)
 
             # Always regenerate the manifest
             display().print("\u2022 Updating manifest")
             write_log_dir_manifest(view_logs_dir)
-            p.update(5)
+            p.update(25)
 
             # update the index html to embed the log_dir
             inject_configuration(
                 os.path.join(working_dir, "index.html"), log_dir=log_dir_name
             )
-            p.update(5)
+            write_robots_txt(working_dir)
+            p.update(25)
 
             # Now move the contents of the working directory to the output directory
             display().print("\u2022 Copying to output directory")
-            move_output(working_dir, output_dir, p, fs_options)
+            move_output(working_dir, output_dir, p.update, fs_options)
             p.complete()
     display().print(f"Bundle Directory: {output_dir}")
 
@@ -133,8 +127,25 @@ def inject_configuration(html_file: str, log_dir: str) -> None:
         file.write(content)
 
 
+def write_robots_txt(dir: str) -> None:
+    # Full path to the robots.txt file
+    file_path = os.path.join(dir, "robots.txt")
+
+    # Content for the robots.txt file
+    content = """User-agent: *
+Disallow: /
+"""
+
+    # Write the content to the file
+    with open(file_path, "w") as f:
+        f.write(content)
+
+
 def copy_log_files(
-    log_dir: str, target_dir: str, p: Progress, fs_options: dict[str, Any] = {}
+    log_dir: str,
+    target_dir: str,
+    p: Callable[[int], None],
+    fs_options: dict[str, Any] = {},
 ) -> None:
     log_fs = filesystem(log_dir, fs_options)
     if log_fs.exists(log_dir):
@@ -143,7 +154,7 @@ def copy_log_files(
         )
 
         base_log_dir = log_fs.info(log_dir).name
-        with progress_adapter(p, 40, len(eval_logs)) as tick:
+        with progress_adapter(p, 200, len(eval_logs)) as tick:
             for eval_log in eval_logs:
                 relative_path = os.path.relpath(eval_log.name, base_log_dir)
                 log_fs.get_file(eval_log.name, os.path.join(target_dir, relative_path))
@@ -154,22 +165,44 @@ def copy_log_files(
 
 
 def move_output(
-    from_dir: str, to_dir: str, p: Progress, fs_options: dict[str, Any] = {}
+    from_dir: str,
+    to_dir: str,
+    p: Callable[[int], None],
+    fs_options: dict[str, Any] = {},
 ) -> None:
     output_fs = filesystem(to_dir, fs_options)
-    for root, _dirs, files in os.walk(from_dir):
-        # The relative path of the file to move
-        relative_dir = os.path.relpath(root, from_dir)
 
-        # make sure the directory exists
-        dir_path = os.path.join(to_dir, relative_dir)
-        if not output_fs.exists(dir_path):
-            output_fs.mkdir(dir_path)
+    # remove any existing target directory
+    if output_fs.exists(to_dir):
+        output_fs.rm(to_dir, recursive=True)
 
-        # Copy the files
-        with progress_adapter(p, 40, len(files)) as tick:
+    # Now copy the files
+    dir_contents = list(os.walk(from_dir))
+
+    # count the title files to copy
+    total_count = 0
+    for root, dirs, files in dir_contents:
+        total_count += len(dirs) + len(files)
+
+    with progress_adapter(p, 200, total_count) as tick:
+        for root, _dirs, files in dir_contents:
+            # The relative path of the file to move
+            relative_dir = os.path.relpath(root, from_dir)
+
+            # make sure the directory exists
+            dir_path = os.path.join(to_dir, relative_dir)
+            if not output_fs.exists(dir_path):
+                output_fs.mkdir(dir_path)
+            tick()
+
+            # Copy the files
             for working_file in files:
-                target_path = os.path.join(relative_dir, working_file)
+                target_path = (
+                    os.path.join(relative_dir, working_file)
+                    if relative_dir != "."
+                    else working_file
+                )
+
                 src = os.path.join(root, working_file)
                 dest = os.path.join(to_dir, target_path)
                 output_fs.put_file(src, dest)
@@ -178,7 +211,7 @@ def move_output(
 
 @contextmanager
 def progress_adapter(
-    p: Progress, units: int, total_ticks: int
+    p: Callable[[int], None], units: int, total_ticks: int
 ) -> Iterator[Callable[[], None]]:
     # Allocate 'units' ticks to represent the progress in
     # in 'total_ticks', adjusting the size of the increments based
@@ -189,6 +222,12 @@ def progress_adapter(
     def tick() -> None:
         nonlocal ticks
         ticks = ticks + increment
-        p.update(math.floor(ticks))
+        tick_value = math.floor(ticks)
+        if tick_value >= 1:
+            # increment the count
+            p(tick_value)
+
+            # hang on to 'leftover' ticks to accumulate with the next increment
+            ticks = ticks - tick_value
 
     yield tick

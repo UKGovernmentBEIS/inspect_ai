@@ -2,8 +2,8 @@ import click
 from typing_extensions import Unpack
 
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
-from inspect_ai._view.bundle import bundle_log_dir
 from inspect_ai._view.view import view
+from inspect_ai.log._bundle import bundle_log_dir
 
 from .common import CommonOptions, common_options, resolve_common_options
 

@@ -1,5 +1,6 @@
 from inspect_ai._util.error import EvalError
 
+from ._bundle import bundle_log_dir
 from ._file import (
     EvalLogInfo,
     list_eval_logs,
@@ -49,4 +50,5 @@ __all__ = [
     "write_eval_log",
     "write_log_dir_manifest",
     "retryable_eval_logs",
+    "bundle_log_dir",
 ]
