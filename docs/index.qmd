@@ -170,8 +170,6 @@ Next, review these articles which cover basic workflow, more sophisticated examp
 
 -   [VS Code](#sec-vscode) provides documentation on using the Inspect VS Code Extension to run, tune, debug, and visualise evaluations.
 
-
-
 These sections provide a more in depth treatment of the various components used in evals. Read them as required as you learn to build evaluations.
 
 -   [Solvers](#sec-solvers) are the heart of Inspect, and encompass prompt engineering and various other elicitation strategies (the `plan` in the example above). Here we cover using the built-in solvers and creating your own more sophisticated ones.
