@@ -1,12 +1,25 @@
-from typing import Any
+from typing import Any, cast
 
 from inspect_ai import Task, eval, score
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import Metric, Score, Value, accuracy, includes, match, metric
+from inspect_ai.scorer import (
+    Metric,
+    Score,
+    Scorer,
+    Value,
+    accuracy,
+    includes,
+    match,
+    mean,
+    metric,
+    scorer,
+    std,
+)
 from inspect_ai.scorer._metric import MetricType, metric_create
-from inspect_ai.scorer._metrics import std
+from inspect_ai.scorer._target import Target
+from inspect_ai.solver._task_state import TaskState
 
 # declare some metrics using the various forms supported (function,
 # function returning Metric, class deriving from Metric) as well
@@ -149,6 +162,52 @@ def test_alternative_metrics() -> None:
 
     # eval log w/ different scorer (that still uses accuracy)
     log = score(log, scorers=[includes()])
+    check_log(log)
+
+
+@metric
+def complex_metric() -> Metric:
+    def metric(scores: list[Score]) -> int | float:
+        total = 0.0
+        for complex_score in scores:
+            if isinstance(complex_score.value, dict):
+                total = (
+                    total
+                    + cast(int, complex_score.value["one"])
+                    + cast(int, complex_score.value["two"])
+                    + cast(int, complex_score.value["three"])
+                )
+        return total
+
+    return metric
+
+
+@scorer(
+    metrics=[
+        {"one": [mean()], "two": [mean(), std()], "three": [mean(), std()]},
+        complex_metric(),
+    ]
+)
+def complex_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value={"one": 1, "two": 2, "three": 3})
+
+    return score
+
+
+def test_complex_metrics() -> None:
+    def check_log(log):
+        assert len(log.results.scores) == 4
+        assert log.results.scores[0].name == "complex_scorer"
+        assert log.results.scores[0].metrics["complex_metric"].value == 6
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        scorer=complex_scorer(),
+    )
+
+    # normal eval
+    log = eval(tasks=task, model="mockllm/model")[0]
     check_log(log)
 
 
