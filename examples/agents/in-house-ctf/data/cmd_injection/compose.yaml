@@ -1,0 +1,23 @@
+services:
+  cmd_injection:
+    image: marshw/cmd_injection
+    container_name: cmd_injection_env
+    networks:
+      - cmd_injection_network
+    ports:
+      - "8080:8080"
+
+  attacker:
+    image: marshw/attacker
+    command: tail -f /dev/null
+    container_name: cmd_injection_attacker
+    networks:
+      - cmd_injection_network
+    platform: linux/amd64
+    x-default: true
+    depends_on:
+      - cmd_injection
+
+networks:
+  cmd_injection_network:
+    driver: bridge

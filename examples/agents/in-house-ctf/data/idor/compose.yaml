@@ -1,0 +1,23 @@
+services:
+  idor:
+    image: marshw/idor
+    container_name: idor_env
+    networks:
+      - idor_network
+    ports:
+      - "8081:8081"
+
+  attacker:
+    image: marshw/attacker
+    command: tail -f /dev/null
+    container_name: idor_attacker
+    networks:
+      - idor_network
+    platform: linux/amd64
+    x-default: true
+    depends_on:
+      - idor
+
+networks:
+  idor_network:
+    driver: bridge

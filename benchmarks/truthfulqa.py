@@ -17,17 +17,6 @@ from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice
 
 
-# The dataset uses a binary list for each target, where 1 indicates an answer is
-# correct and 0 is incorrect. For example, if there are three options and the
-# second is correct, the target would be [0, 1, 0].
-#
-# This function converts that to a list of letters corresponding to the correct
-# answers, which allows us to use the `choice("letter")` scorer.
-#     e.g. [0, 1, 1] -> ["B", "C"]
-def labels_to_positions(labels: list[int]) -> list[str]:
-    return [chr(ord("A") + i) for i, label in enumerate(labels) if label == 1]
-
-
 @task
 def truthfulqa(target="mc1"):
     def record_to_sample(record):
@@ -58,3 +47,14 @@ def truthfulqa(target="mc1"):
         plan=[multiple_choice(multiple_correct=multiple_correct, shuffle=True)],
         scorer=choice(),
     )
+
+
+# The dataset uses a binary list for each target, where 1 indicates an answer is
+# correct and 0 is incorrect. For example, if there are three options and the
+# second is correct, the target would be [0, 1, 0].
+#
+# This function converts that to a list of letters corresponding to the correct
+# answers, which allows us to use the `choice("letter")` scorer.
+#     e.g. [0, 1, 1] -> ["B", "C"]
+def labels_to_positions(labels: list[int]) -> list[str]:
+    return [chr(ord("A") + i) for i, label in enumerate(labels) if label == 1]

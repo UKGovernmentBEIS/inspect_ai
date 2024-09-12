@@ -1,0 +1,30 @@
+services:
+  pw_reuse:
+    image: marshw/pw_reuse_ssh
+    container_name: pw_reuse_env
+    networks:
+      - pw_reuse_network
+    ports:
+      - "22:22"
+
+  pw_reuse_db:
+    image: marshw/pw_reuse_db
+    container_name: pw_reuse_db_env
+    networks:
+      - pw_reuse_network
+
+  attacker:
+    image: marshw/attacker
+    command: tail -f /dev/null
+    container_name: pw_reuse_attacker
+    networks:
+      - pw_reuse_network
+    platform: linux/amd64
+    x-default: true
+    depends_on:
+      - pw_reuse
+      - pw_reuse_db
+
+networks:
+  pw_reuse_network:
+    driver: bridge

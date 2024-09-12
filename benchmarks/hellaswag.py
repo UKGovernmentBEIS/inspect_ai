@@ -15,15 +15,6 @@ Choose the most plausible continuation for the story.
 """
 
 
-def record_to_sample(record):
-    return Sample(
-        input=record["ctx"],
-        target=chr(ord("A") + int(record["label"])),
-        choices=record["endings"],
-        metadata=dict(source_id=record["source_id"]),
-    )
-
-
 @task
 def hellaswag():
     # dataset
@@ -40,4 +31,13 @@ def hellaswag():
         dataset=dataset,
         plan=[system_message(SYSTEM_MESSAGE), multiple_choice()],
         scorer=choice(),
+    )
+
+
+def record_to_sample(record):
+    return Sample(
+        input=record["ctx"],
+        target=chr(ord("A") + int(record["label"])),
+        choices=record["endings"],
+        metadata=dict(source_id=record["source_id"]),
     )
