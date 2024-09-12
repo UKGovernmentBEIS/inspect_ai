@@ -14,7 +14,6 @@ from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice
 
-
 TEMPLATE = r"""
 The entire content of your response should be of the following format: 'ANSWER:
 $LETTER' (without quotes) where LETTER is one of {letters}.
