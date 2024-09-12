@@ -20,18 +20,18 @@ The evaluation then measures accuracy across prompt-level and instruction-level 
 
 ### Strict Accuracy
 For a given response and a single instruction, this is simply 
-$$
+```math
 \text{is\_followed}(\text{resp}, \text{inst}) = \begin{cases} 
 \text{True,} & \text{if instruction is followed.} \\
 \text{False,} & \text{otherwise.}
 \end{cases}
-$$
+```
 
 ### Loose Accuracy
 In this case, we define it using
-$$
+```math
 \text{is\_followed}_{\text{loose}}(\text{resp}, \text{inst}) = \text{Any}\left(\text{is\_followed}(\text{transform}_t(\text{resp}), \text{inst}) \text{ for } t = 1, 2, \ldots\right)
-$$
+```
 
 Here, there are a few transformations defined for the input response:
 

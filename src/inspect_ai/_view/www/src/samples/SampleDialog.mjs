@@ -16,13 +16,15 @@ export const SampleDialog = (props) => {
     sampleDescriptor,
     nextSample,
     prevSample,
+    sampleDialogVisible,
+    hideSample,
     context,
   } = props;
 
   // If there is no sample, just show an empty panel
   // This should never happen
   if (!sample) {
-    return html`<${LargeModal} id=${id} title="No Sample"><${EmptyPanel}>No Sample Selected</${EmptyPanel}></${LargeModal}>`;
+    return html`<${LargeModal} visible=${sampleDialogVisible} onHide=${hideSample} id=${id} title="No Sample"><${EmptyPanel}>No Sample Selected</${EmptyPanel}></${LargeModal}>`;
   }
 
   const tools = useMemo(() => {
@@ -59,6 +61,9 @@ export const SampleDialog = (props) => {
             prevSample();
           }
           break;
+        case "Escape":
+          hideSample();
+          break;
       }
     },
     [prevSample, nextSample],
@@ -71,12 +76,15 @@ export const SampleDialog = (props) => {
       detail=${title}
       detailTools=${tools}
       onkeyup=${handleKeyUp}   
+      visible=${sampleDialogVisible}
+      onHide=${hideSample}
     >
     <${SampleDisplay}
       index=${index}
       id=${id}
       sample=${sample}
       sampleDescriptor=${sampleDescriptor}
+      visible=${sampleDialogVisible}
       context=${context}/>
     </${LargeModal}>`;
 };
