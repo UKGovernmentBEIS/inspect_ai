@@ -1,4 +1,3 @@
-import { Modal } from "bootstrap";
 import { html } from "htm/preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 
@@ -27,6 +26,7 @@ export const SamplesTab = (props) => {
 
   const sampleListRef = useRef(/** @type {HTMLElement|null} */ (null));
   const sampleDialogRef = useRef(/** @type {HTMLElement|null} */ (null));
+  const [sampleDialogVisible, setSampleDialogVisible] = useState(false);
 
   // Re-filter the samples
   useEffect(() => {
@@ -50,36 +50,19 @@ export const SamplesTab = (props) => {
 
   // Shows the sample dialog
   const showSample = useCallback(() => {
-    const dialogEl = sampleDialogRef.current;
-    if (dialogEl) {
-      const modal = new Modal(dialogEl.base);
-      modal.show();
-    }
-  }, [sampleDialogRef]);
+    setSampleDialogVisible(true);
+    setTimeout(() => {
+      sampleDialogRef.current.base.focus();
+    }, 0);
+  }, [setSampleDialogVisible, sampleDialogRef]);
 
   const hideSample = useCallback(() => {
-    const dialogEl = sampleDialogRef.current;
-    if (dialogEl && dialogEl.base) {
-      const modal = Modal.getInstance(dialogEl.base);
-      if (modal) {
-        modal.hide();
-      }
+    setSampleDialogVisible(false);
+    const listEl = sampleListRef.current;
+    if (listEl && listEl.base) {
+      listEl.base.focus();
     }
-  }, [sampleDialogRef]);
-
-  // When the sample dialog is dismissed, move the focus to the
-  // to the list itself
-  useEffect(() => {
-    const dialogEl = sampleDialogRef.current;
-    if (dialogEl) {
-      dialogEl.base.addEventListener("hidden.bs.modal", () => {
-        const listEl = sampleListRef.current;
-        if (listEl) {
-          listEl.base.focus();
-        }
-      });
-    }
-  }, [sampleDialogRef, sampleListRef]);
+  }, [setSampleDialogVisible]);
 
   useEffect(() => {
     // Sort the samples
@@ -191,6 +174,8 @@ export const SamplesTab = (props) => {
       sampleDescriptor=${sampleDescriptor}
       nextSample=${nextSample}
       prevSample=${previousSample}
+      sampleDialogVisible=${sampleDialogVisible}
+      hideSample=${hideSample}
       context=${context}
     />
   `);
