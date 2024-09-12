@@ -339,6 +339,15 @@ The above example will produce two scores, `a_count` and `e_count`, each of whic
 
 ### Scorer with Complex Metrics 
 
+
+::: {.callout-note appearance="simple"}
+Note that the feature described in this section is available only in the development version of Inspect. You can install the development version with:
+
+``` bash
+pip install git+https://github.com/ukgovernmentbeis/inspect_ai
+```
+:::
+
 Sometime, it is useful for a scorer to compute multiple values (returning a dictionary as the score value) and to have metrics computed both for each key in the score dictionary, but also for the dictionary as a whole. For example:
 
 
