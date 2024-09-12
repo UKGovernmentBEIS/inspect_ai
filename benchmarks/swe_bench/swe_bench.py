@@ -23,6 +23,9 @@ from swebench.harness.constants import (
 )
 from swebench.harness.log_parsers import MAP_REPO_TO_PARSER
 from swebench.harness.utils import get_test_directives
+from logging import getLogger
+
+getLogger().handlers = []  # Swe-bench adds a global logger, which we disable.
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import FieldSpec, Sample, hf_dataset
@@ -128,8 +131,7 @@ def swe_bench(
 def get_setup_script(repo: str, version: str, base_commit: str) -> str:
     """Create a list of bash commands to set up the repository for testing. These are ran at the start of the sample,  clone the repository, and do some extra repository-specific installation steps over and above what is in the environment images."""
     setup_script = dedent(
-        f"""
-        #!/bin/bash
+        f"""#!/bin/bash
         set -euo pipefail -x
 
         # We clone the repository and set the permissions so the non-root user can run tests
@@ -147,7 +149,7 @@ def get_setup_script(repo: str, version: str, base_commit: str) -> str:
         {MAP_REPO_TO_INSTALL.get(repo,"")}
         {'\n'.join(MAP_REPO_VERSION_TO_SPECS[repo][version].get('pre_install',[]))}
         {MAP_REPO_VERSION_TO_SPECS[repo][version].get('install','')}
-    """.strip()
+    """
     )
 
     return setup_script
@@ -167,6 +169,15 @@ def get_eval_script(test_patch: str, repo: str, version: str, base_commit: str) 
         "eval_commands", []
     )
 
+    repo_specific_install_command = MAP_REPO_VERSION_TO_SPECS[repo][version].get(
+        "install", ""
+    )
+
+    if (
+        repo == "scikit-learn/scikit-learn"
+    ):  # Scikit-learn gets upset with the install
+        repo_specific_install_command = ""
+
     # Find all the files which have been modified by the test patch
     test_patch_files = re.findall(r"--- a/(.*)", test_patch)
 
@@ -175,8 +186,7 @@ def get_eval_script(test_patch: str, repo: str, version: str, base_commit: str) 
 
     # Reset test files to the state they should be in before the patch.
     eval_script = dedent(
-        f"""
-        #!/bin/bash
+        f"""#!/bin/bash
         set -uo pipefail -x
 
         #We switch to the repository directory and activate the environment needed to run the tests
@@ -196,18 +206,24 @@ def get_eval_script(test_patch: str, repo: str, version: str, base_commit: str) 
         conda activate {conda_env}
         set -x
 
+        #We then re-run any repo-specific install commands (these should have happened in environment setup, but we do it again to be sure.)
+        {repo_specific_install_command}
+
         #First we reset all of the files which out test patch touches
         git checkout {base_commit} {' '.join(test_patch_files)}
 
         #Then we apply the test patch given to us by SWE-bench, setting up the test we need to run
-        echo {shlex.quote(test_patch)} > /tmp/test_patch.diff
+        # echo {shlex.quote(test_patch)} > /tmp/test_patch.diff
         git apply --check /tmp/test_patch.diff
         git apply /tmp/test_patch.diff
 
         #Then we run all the tests in the repository.
         set +x
         {test_command} {" ".join(test_files)} || true
-    """.strip()
+
+        #and we reset the tests back to the base commit
+        git checkout {base_commit} {' '.join(test_patch_files)}
+    """
     )
 
     return eval_script
@@ -258,6 +274,7 @@ def swebench_scorer() -> Scorer:
                 TESTS_ERROR,
                 TESTS_TIMEOUT,
                 "Failed to reset task environment",
+                "ERROR",
             ]
         }
 
@@ -268,8 +285,8 @@ def swebench_scorer() -> Scorer:
             test_output_parser = MAP_REPO_TO_PARSER[state.metadata["repo"]]
             test_outputs = test_output_parser(eval_output.stdout + eval_output.stderr)
 
-            pass_to_pass_results = {}
-            fail_to_pass_results = {}
+            pass_to_pass_results = {k: "FAILED" for k in state.metadata["PASS_TO_PASS"]}
+            fail_to_pass_results = {v: "PASSED" for v in state.metadata["FAIL_TO_PASS"]}
             for k, v in test_outputs.items():
                 if k in state.metadata["PASS_TO_PASS"]:
                     pass_to_pass_results[k] = v
@@ -281,19 +298,23 @@ def swebench_scorer() -> Scorer:
                     )
                     continue
 
-            passed_all_tests =  all(["PASSED" == v for v in pass_to_pass_results.values()]) and all( ["PASSED" == v for v in
-                fail_to_pass_results.values()])
-            value = 1.0 if passed_all_tests else 0.0 
+            passed_all_tests = all(
+                ["PASSED" == v for v in pass_to_pass_results.values()]
+        ) and all(["PASSED" == v for v in fail_to_pass_results.values()])
+            value = 1.0 if passed_all_tests else 0.0
 
             # Sort both so the the false values are at the top
             pass_to_pass_results, fail_to_pass_results = (
-                dict(sorted(pass_to_pass_results.items(), key=lambda x: x[1] == "PASSED")),
-                dict(sorted(fail_to_pass_results.items(), key=lambda x: x[1] == "PASSED")),
+                dict(
+                    sorted(pass_to_pass_results.items(), key=lambda x: x[1] == "PASSED")
+                ),
+                dict(
+                    sorted(fail_to_pass_results.items(), key=lambda x: x[1] == "PASSED")
+                ),
             )
 
             # Create an explanation of the results
             explanation = f"PASS_TO_PASS:\n\n{json.dumps(pass_to_pass_results,indent=2)}\n\nFAIL_TO_PASS:\n\n{json.dumps(fail_to_pass_results,indent=2)}\n\n"
-
 
         return Score(
             value=value,

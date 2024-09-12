@@ -21,7 +21,7 @@ SLOW_TEST_DATASET: str = str(
     RESOURCE_DIR / "tests" / "all_repos_swe_agent_50_percent.hf"
 )  # A dataset with one instance from each of the repositories scraped in SWE-bench-verified, and also a column indicating whether it was resolved by swe-agent.
 
-MAX_CONCURRENCY = int(os.getenv("INSPECT_MAX_CONCURRENCY", 10))
+MAX_CONCURRENCY = int(os.getenv("INSPECT_MAX_CONCURRENCY", 4))
 
 if not Path(SLOW_TEST_DATASET).exists():
     raise FileNotFoundError(
@@ -172,5 +172,6 @@ def test_same_scores_for_swe_agent() -> None:
             error_str += f"Result of evaluating {result.samples[0].id} did not agree with the swe_bench ground truth. Our score: '{score.value}'. swe-agent score: '{swe_agent_score.value}' Scorer results: {score.explanation}"
 
     assert error_str == "", error_str
+
 
 test_same_scores_for_swe_agent()
