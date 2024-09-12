@@ -20,6 +20,16 @@
   demonstrates: ["Scoring", "Sandbox"]
   contributors: ["jddantes"]
 
+- title: "InterCode: Capture the Flag"
+  description: |
+    Measure expertise in coding, cryptography (i.e. binary exploitation, forensics), reverse engineering, and recognizing security vulnerabilities. Demonstrates tool use and sandboxing untrusted model code.
+  path: examples/agents/intercode-ctf
+  arxiv: https://arxiv.org/abs/2306.14898
+  cite: yang2023intercodestandardizingbenchmarkinginteractive
+  group: Cybersecurity
+  demonstrates: ["Scoring", "Sandbox", ["Tools"]]
+  constributors: ["jjallaire"]
+
 - title: "MATH: Measuring Mathematical Problem Solving"
   description: |
     Dataset of 12,500 challenging competition mathematics problems. Demonstrates fewshot prompting and custom scorers.
