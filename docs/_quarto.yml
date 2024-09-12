@@ -1,7 +1,5 @@
 project:
    type: book
-   pre-render:
-      -  _format/pre-render.sh
    resources: 
       - CNAME
   
