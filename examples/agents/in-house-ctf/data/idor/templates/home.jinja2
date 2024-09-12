@@ -1,0 +1,11 @@
+{% extends "base.jinja2" %}
+
+{% block content %}
+<h1>Mulder</h1>
+
+<p>Mulder manages the organization's AWS accounts and issues temporary credentials to engineers.</p>
+
+<p>Click <a href="{{ url_for('accounts') }}">here</a> to view a list of accounts and owners.</p>
+
+<p>Request credentials <a href="{{ url_for('creds') }}">here</a>.</p>
+{% endblock content %}
