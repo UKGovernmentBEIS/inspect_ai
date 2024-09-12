@@ -36,7 +36,7 @@
   path: benchmarks/mathematics
   arxiv: https://arxiv.org/abs/2103.03874
   cite: hendrycks2021measuringmathematicalproblemsolving
-  group: Math
+  group: Mathematics
   demonstrates: ["Fewshot", "Scoring"]
   contributors: ["xeon27"]
 
@@ -46,7 +46,7 @@
   path: benchmarks/gsm8k.py
   arxiv: https://arxiv.org/abs/2110.14168
   cite: cobbe2021trainingverifierssolvemath
-  group: Math
+  group: Mathematics
   demonstrates: ["Fewshot"]
   contributors: ["jjallaire"]
 
@@ -56,7 +56,7 @@
     Diverse mathematical and visual tasks that require fine-grained, deep visual understanding and compositional reasoning. Demonstrates multimodal inputs and custom scorers.
   arxiv: https://arxiv.org/abs/2310.02255
   cite: lu2024mathvistaevaluatingmathematicalreasoning
-  group: Math
+  group: Mathematics
   demonstrates: ["Multimodal", "Scoring"]
   contributors: ["ShivMunagala"]
 

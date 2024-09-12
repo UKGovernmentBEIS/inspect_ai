@@ -15,7 +15,7 @@ aliases:
 <ul>
 <li><a href="#coding" id="toc-coding">Coding</a></li>
 <li><a href="#cybersecurity" id="toc-coding">Cybersecurity</a></li>
-<li><a href="#math" id="toc-math">Math</a></li>
+<li><a href="#math" id="toc-math">Mathematics</a></li>
 <li><a href="#reasoning" id="toc-reasoning">Reasoning</a></li>
 <li><a href="#knowledge" id="toc-knowledge">Knowledge</a></li>
 </ul>
