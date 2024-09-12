@@ -23,7 +23,7 @@ function groupIcon(group) {
   <% item=items[i] %>
   <% if (item["group"] !== group) { %>
   <% group=item["group"] %>  
-<li class="group"><h3><%= item["group"] %></h3></li>
+<li class="group"><h2 href="#<%= item['group'].toLowerCase() %>"><%= item["group"] %></h2></li>
   <% } %>  
   <% item=items[i] %>
 <li class="example" <%= metadataAttrs(item) %>>

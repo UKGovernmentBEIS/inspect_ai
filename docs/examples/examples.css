@@ -3,6 +3,21 @@
     display: none;
 }
 
+.listing-actions-group {
+    display: block;
+}
+
+.quarto-listing-filter {
+    margin-left: 0;
+    margin-bottom: 0;
+    width: 300px;
+}
+
+h2 {
+    margin-top: 0.7em;
+    margin-bottom: 0.6em;
+}
+
 h3 {
    margin-top: 0;
 }
@@ -38,7 +53,3 @@ div.example-info {
     flex-grow: 1;
 }
 
-.quarto-listing-filter {
-    margin-left: 0;
-    width: 300px;
-}
