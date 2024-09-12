@@ -16,15 +16,15 @@ book:
    twitter-card:
       title: "Inspect"
       description: "Open-source framework for large language model evaluations"
-      image: images/inspect.png
+      image: /images/inspect.png
       card-style: summary_large_image
    open-graph: 
       title: "Inspect"
       description: "Open-source framework for large language model evaluations"
-      image: images/inspect.png
+      image: /images/inspect.png
    sidebar:
       header: >
-         [![](images/aisi-logo.png){fig-alt="UK AI Safety Institute Website"}](https://www.gov.uk/government/organisations/ai-safety-institute)
+         [![](/images/aisi-logo.png){fig-alt="UK AI Safety Institute Website"}](https://www.gov.uk/government/organisations/ai-safety-institute)
 
    page-footer: 
       left: 
@@ -52,11 +52,12 @@ book:
       - "index.qmd"     
       - part: "Basics"
         chapters:
+           - tutorial.qmd
            - workflow.qmd
+           - examples/index.qmd
            - log-viewer.qmd
            - text: "VS Code"
              href: vscode.qmd
-           - examples.qmd
 
       - part: "Components"
         chapters: 

@@ -22,15 +22,6 @@ Question: {prompt}
 """
 
 
-def record_to_sample(record):
-    if record["answer"]:
-        target = "Yes"
-    else:
-        target = "No"
-
-    return Sample(input=record["question"], target=target)
-
-
 @task
 def boolq():
     dataset = hf_dataset(
@@ -45,3 +36,12 @@ def boolq():
         plan=[prompt_template(template=TEMPLATE), generate()],
         scorer=pattern(r"(Yes|No).?\Z"),
     )
+
+
+def record_to_sample(record):
+    if record["answer"]:
+        target = "Yes"
+    else:
+        target = "No"
+
+    return Sample(input=record["question"], target=target)

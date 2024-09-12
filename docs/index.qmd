@@ -158,15 +158,17 @@ This example demonstrates evals being run from the terminal with the `inspect ev
 
 ## Learning More
 
-To get started with Inspect, we highly recommend you read at least these sections for a high level overview of the system:
+The best way to get familar with Inspect's core features is the [Tutorial](#sec-tutorial), which includes several annotated examples.
+
+Next, review these articles which cover basic workflow, more sophisticated examples, and additional useful tooling:
 
 -   [Workflow](#sec-workflow) covers the mechanics of running evaluations, including how to create evals in both scripts and notebooks, specifying configuration and options, how to parameterise tasks for different scenarios, and how to work with eval log files.
+
+-   [Examples](#sec-examples) demonstrates a variety of evaluation types and techniques by implementing some popular LLM benchmarks and papers.
 
 -   [Log Viewer](#sec-log-viewer) goes into more depth on how to use Inspect View to develop and debug evaluations, including how to provide additional log metadata and how to integrate it with Python's standard logging module.
 
 -   [VS Code](#sec-vscode) provides documentation on using the Inspect VS Code Extension to run, tune, debug, and visualise evaluations.
-
--   [Examples](#sec-examples) includes several complete examples with commentary on the use of various features (as with the above example, they are fairly simplistic for the purposes of illustration). You can also find implementations of a few popular [LLM benchmarks](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks) in the Inspect repository.
 
 These sections provide a more in depth treatment of the various components used in evals. Read them as required as you learn to build evaluations.
 

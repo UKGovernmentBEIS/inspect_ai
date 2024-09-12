@@ -14,15 +14,6 @@ from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice
 
-
-def record_to_sample(record):
-    return Sample(
-        input=record["goal"],
-        target="A" if record["label"] == 0 else "B",
-        choices=[record["sol1"], record["sol2"]],
-    )
-
-
 TEMPLATE = r"""
 The entire content of your response should be of the following format: 'ANSWER:
 $LETTER' (without quotes) where LETTER is one of {letters}.
@@ -52,4 +43,12 @@ def piqa():
         dataset=dataset,
         plan=[multiple_choice(template=TEMPLATE)],
         scorer=choice(),
+    )
+
+
+def record_to_sample(record):
+    return Sample(
+        input=record["goal"],
+        target="A" if record["label"] == 0 else "B",
+        choices=[record["sol1"], record["sol2"]],
     )
