@@ -39,7 +39,7 @@ swebench_task.dataset = swebench_task.dataset[:5]
 eval(swebench_task, model="openai/gpt-4o")
 ```
 
-NOTE: SWE-bench will take a while to run, and uses a lot of tokens. If things are too slow, you should increase the level of parallelism - see https://inspect.ai-safety-institute.org.uk/parallelism.html. Note that running too many docker containers on your machine can also cause issues, most notably with running out of open ports - we don't recommend running more than 32 containers at any one time.
+NOTE: SWE-bench will take a while to run, and uses a lot of tokens. If things are too slow, you should increase the level of parallelism - see https://inspect.ai-safety-institute.org.uk/parallelism.html. Note that running too many docker containers on your machine can also cause issues, most notably with a 'ALL PREDEFINED ADDRESS POOLS HAVE BEEN FULLY SUBNETTED' error - we don't recommend running more than 32 containers at any one time.
 
 ### Comparing to baselines
 Submissions to [the official SWE-bench leaderboard](https://www.swebench.com/) often come with a set of trajectories and per-swebench-instance results. This means that you can compare the performance of your agent not just on the full dataset, but also on subsets of that dataset. This is often useful when trying to run smaller, cheaper experiments. To make this comparison easy, we provide a scorer that will calculate the average performance of an existing baseline on that set of trajectories:

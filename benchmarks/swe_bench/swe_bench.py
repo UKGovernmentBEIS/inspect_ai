@@ -271,31 +271,29 @@ def swebench_scorer() -> Scorer:
             pass_to_pass_results = {}
             fail_to_pass_results = {}
             for k, v in test_outputs.items():
-                has_passed = "PASSED" == v
                 if k in state.metadata["PASS_TO_PASS"]:
-                    pass_to_pass_results[k] = has_passed
+                    pass_to_pass_results[k] = v
                 elif k in state.metadata["FAIL_TO_PASS"]:
-                    fail_to_pass_results[k] = has_passed
+                    fail_to_pass_results[k] = v
                 else:
                     logger.warning(
                         f"Test {k} not found in PASS_TO_PASS or FAIL_TO_PASS"
                     )
                     continue
 
+            passed_all_tests =  all(["PASSED" == v for v in pass_to_pass_results.values()]) and all( ["PASSED" == v for v in
+                fail_to_pass_results.values()])
+            value = 1.0 if passed_all_tests else 0.0 
+
             # Sort both so the the false values are at the top
             pass_to_pass_results, fail_to_pass_results = (
-                dict(sorted(pass_to_pass_results.items(), key=lambda x: x[1])),
-                dict(sorted(fail_to_pass_results.items(), key=lambda x: x[1])),
+                dict(sorted(pass_to_pass_results.items(), key=lambda x: x[1] == "PASSED")),
+                dict(sorted(fail_to_pass_results.items(), key=lambda x: x[1] == "PASSED")),
             )
 
+            # Create an explanation of the results
             explanation = f"PASS_TO_PASS:\n\n{json.dumps(pass_to_pass_results,indent=2)}\n\nFAIL_TO_PASS:\n\n{json.dumps(fail_to_pass_results,indent=2)}\n\n"
 
-            if all(pass_to_pass_results.values()) and all(
-                fail_to_pass_results.values()
-            ):
-                value = 1.0
-            else:
-                value = 0.0
 
         return Score(
             value=value,
