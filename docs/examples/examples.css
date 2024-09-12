@@ -21,14 +21,20 @@ li.example {
 
 li.example a {
     text-decoration: none;
+    color: black;
 }
 
-div.card {
-    border-radius: 5px;
+div.example-card {
+    display: flex;
 }
 
-div.card-body {
-    padding: 0.5em;
+div.example-icon {
+    width: 25px;
+    flex-shrink: 0;
+}
+
+div.example-info {
+    flex-grow: 1;
 }
 
 .quarto-listing-filter {
