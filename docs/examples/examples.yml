@@ -62,7 +62,7 @@
 
 - title: "ARC: AI2 Reasoning Challenge"
   description: Dataset of natural, grade-school science multiple-choice questions (authored for human tests).
-  path: benchmarks/arc.py
+  path: benchmarks/arc/arc.py
   arxiv: https://arxiv.org/abs/1803.05457
   cite: clark2018thinksolvedquestionanswering
   group: Reasoning
@@ -92,7 +92,7 @@
 - title: "BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions"
   description: |
     Reading comprehension dataset that queries for complex, non-factoid information, and require difficult entailment-like inference to solve.
-  path: benchmarks/boolq.py
+  path: benchmarks/boolq/boolq.py
   arxiv: https://arxiv.org/abs/1905.10044
   cite: clark2019boolqexploringsurprisingdifficulty
   group: Reasoning
@@ -191,7 +191,7 @@
 - title: "GPQA: A Graduate-Level Google-Proof Q&A Benchmark"
   description: |
     Challenging dataset of 448 multiple-choice questions written by domain experts in biology, physics, and chemistry (experts at PhD level in the corresponding domains reach 65% accuracy).
-  path: benchmarks/gpqa.py
+  path: benchmarks/gpqa/gpqa.py
   arxiv: https://arxiv.org/abs/2311.12022
   cite: rein2023gpqagraduatelevelgoogleproofqa
   group: Knowledge
