@@ -1,11 +1,11 @@
 import os
 from pathlib import Path
+from uuid import uuid1
 
 from build_images import build_images
 from datasets import load_dataset
 from swe_bench import swe_bench, swebench_baseline_scorer
-import tempfile
-from uuid import uuid1
+
 from inspect_ai import Task, eval
 from inspect_ai.log import EvalLog
 from inspect_ai.solver import Generate, Plan, TaskState, solver

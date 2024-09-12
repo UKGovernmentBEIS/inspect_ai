@@ -5,13 +5,15 @@ https://arxiv.org/abs/2310.06770
 """
 
 import json
+import logging
 import os
 import re
 import shlex
+from logging import getLogger
 from pathlib import Path
 from textwrap import dedent
 from typing import Callable
-import logging
+
 from docker import DockerClient
 from swebench.harness.constants import (
     APPLY_PATCH_FAIL,
@@ -23,7 +25,6 @@ from swebench.harness.constants import (
 )
 from swebench.harness.log_parsers import MAP_REPO_TO_PARSER
 from swebench.harness.utils import get_test_directives
-from logging import getLogger
 
 getLogger().handlers = []  # Swe-bench adds a global logger, which we disable.
 
