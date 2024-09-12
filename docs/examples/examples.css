@@ -3,6 +3,10 @@
     display: none;
 }
 
+h3 {
+   margin-top: 0;
+}
+
 ul.no-bullets {
    list-style-type: none;
    padding: 0;
@@ -10,8 +14,6 @@ ul.no-bullets {
 }
 
 li.group {
-    font-size: 1.5em;
-    padding-top: 10px;
     padding-bottom: 10px;
 }
 
@@ -21,7 +23,6 @@ li.example {
 
 li.example a {
     text-decoration: none;
-    color: black;
 }
 
 div.example-card {
@@ -29,7 +30,7 @@ div.example-card {
 }
 
 div.example-icon {
-    width: 25px;
+    width: 30px;
     flex-shrink: 0;
 }
 

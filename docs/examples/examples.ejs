@@ -27,13 +27,16 @@ function groupIcon(group) {
   <% } %>  
   <% item=items[i] %>
 <li class="example" <%= metadataAttrs(item) %>>
-  <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/<%- item.path %>">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-<%= groupIcon(group) %>"></i>
       </div>
       <div class="example-info">
-        <div class="listing-title fs-5"><%= item["title"] %></div>
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/<%- item.path %>">
+            <%= item["title"] %>
+          </a>
+        </div>
         <div class="listing-description text-secondary text-small"><%= item["description"] %></div>
       </div>
     </div>

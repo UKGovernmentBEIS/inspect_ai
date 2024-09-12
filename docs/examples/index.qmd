@@ -4,20 +4,21 @@ listing:
   id: examples
   template: examples.ejs
   contents: examples.yml
-  filter-ui: true
 bibliography: examples.bib
 css: examples.css
 aliases: 
   - /examples.html
+
 ---
+
 
 # Examples {#sec-examples}
 
+The examples below demonstrate a variety of evaluation types and techniques. If you have just begun learning Inspect, you might benefit from reviewing the [Tutorial] examples before exploring these.
 
 ::: {#examples}
 :::
 
 ::: {#refs}
 :::
-
 
