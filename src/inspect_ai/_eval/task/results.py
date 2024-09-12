@@ -75,6 +75,12 @@ def eval_results(
                 simple_scores = cast(list[Score], reduced_scores)
                 targets = metrics if metrics is not None else scorer_metrics(scorer)
                 if isinstance(targets, list):
+                    ## split the metrics into the simple metrics and any dictionary
+                    ## metrics, to be processed independently
+                    simple_metrics, dict_metrics = split_metrics(
+                        cast(list[Metric | dict[str, list[Metric]]], targets)
+                    )
+
                     # If there is a simple list of metrics
                     # just compute the metrics for this scorer
                     result_scores.extend(
@@ -83,10 +89,21 @@ def eval_results(
                             scorer=scorer,
                             metadata=metadata,
                             scores=simple_scores,
-                            metrics=targets,
+                            metrics=simple_metrics,
                             reducer_name=reducer_display_nm,
                         )
                     )
+                    for dict_metric in dict_metrics:
+                        result_scores.extend(
+                            scorers_from_metric_dict(
+                                scorer_name=scorer_name,
+                                scorer=scorer,
+                                metadata=metadata,
+                                scores=simple_scores,
+                                metrics=dict_metric,
+                                reducer_name=reducer_display_nm,
+                            )
+                        )
                 else:
                     # If there is a dictionary of metrics, apply
                     # the metrics to the values within the scores
@@ -119,6 +136,21 @@ def resolve_reducer(
         return ([mean_score()], False)
     else:
         return (reducers if isinstance(reducers, list) else [reducers], True)
+
+
+def split_metrics(
+    metrics: list[Metric | dict[str, list[Metric]]],
+) -> tuple[list[Metric], list[dict[str, list[Metric]]]]:
+    metric_list: list[Metric] = []
+    dict_list: list[dict[str, list[Metric]]] = []
+
+    for metric in metrics:
+        if isinstance(metric, Metric):
+            metric_list.append(metric)
+        elif isinstance(metric, dict):
+            dict_list.append(metric)
+
+    return metric_list, dict_list
 
 
 def scorer_for_metrics(

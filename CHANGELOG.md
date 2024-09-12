@@ -14,6 +14,7 @@
 - Properly support metrics that return a dict or list of values
 - Improved display of prerequisite errors when running `eval()` from a script or notebook.
 - Fix `eval_set()` issue with cleaning up failed logs on S3.
+- Add support for computing metrics for both individual keys within a dictionary but also for the dictionary as a whole
 - Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/squad), [AGIEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/agieval), [IFEval](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/benchmarks/ifeval/), [PubMedQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/pubmedqa), and [MBPP](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mbpp) benchmarks.
 
 
