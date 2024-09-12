@@ -30,10 +30,13 @@ agents = [
 ]
 
 # Create a swe-bench instance for each of those agents.
-tasks = [swe_bench(dataset="princeton-nlp/SWE-bench_Verified", split="test", plan=agent) for agent in agents]
+swebench_task = [swe_bench(dataset="princeton-nlp/SWE-bench_Verified", split="test", plan=agent) for agent in agents]
+
+# For the demonstration, we will select only the first 5 tasks.
+swebench_task.dataset = swebench_task.dataset[:5]
 
 # Compare how these two agents perform. 
-eval(tasks, model="openai/gpt-4o")
+eval(swebench_task, model="openai/gpt-4o")
 ```
 
 NOTE: SWE-bench will take a while to run, and uses a lot of tokens. If things are too slow, you should increase the level of parallelism - see https://inspect.ai-safety-institute.org.uk/parallelism.html. Note that running too many docker containers on your machine can also cause issues, most notably with running out of open ports - we don't recommend running more than 32 containers at any one time.

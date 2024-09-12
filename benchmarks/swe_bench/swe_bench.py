@@ -96,6 +96,11 @@ def swe_bench(
         ),
     )
 
+    for sample in samples:
+        # Turn the saved strings into dictonary objects
+        sample.metadata["PASS_TO_PASS"] = json.loads(sample.metadata["PASS_TO_PASS"])
+        sample.metadata["FAIL_TO_PASS"] = json.loads(sample.metadata["FAIL_TO_PASS"])
+
     if filter:
         samples = samples.filter(filter)
 
