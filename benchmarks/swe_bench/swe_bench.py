@@ -26,9 +26,7 @@ from swebench.harness.constants import (
 from swebench.harness.log_parsers import MAP_REPO_TO_PARSER
 from swebench.harness.utils import get_test_directives
 
-getLogger().handlers = []  # Swe-bench adds a global logger, which we disable.
-
-from inspect_ai import Task, task
+from inspect_ai import Task, task  # noqa: E402
 from inspect_ai.dataset import FieldSpec, Sample, hf_dataset
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, std
 from inspect_ai.solver import (
@@ -39,6 +37,8 @@ from inspect_ai.solver import (
 )
 from inspect_ai.tool import bash
 from inspect_ai.util import sandbox
+
+getLogger().handlers = []  # Swe-bench adds a global logger, which we disable.
 
 INPUT_PROMPT = "Please solve the following issue:\n\n{issue_text}"
 COMPOSE_FILE_DIR = Path(__file__).parent / "resources/compose_files/"

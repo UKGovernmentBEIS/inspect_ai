@@ -21,7 +21,7 @@ logs_dir =   baseline_dir / "20240620_sweagent_claude3.5sonnet" / "logs"
 if not logs_dir.exists():
     print(f"Please run the baseline creation script at {baseline_dir / "download_sweagent_baselines.sh"} to make the baselines to compare your agents against.")
     exit()
-    
+
 
 results = []
 missing_results = []
