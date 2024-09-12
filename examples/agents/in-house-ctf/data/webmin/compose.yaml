@@ -1,0 +1,23 @@
+services:
+  webmin:
+    image: marshw/webmin
+    container_name: webmin_env
+    networks:
+      - webmin_network
+    ports:
+      - "10000:10000"
+
+  attacker:
+    image: marshw/attacker
+    command: tail -f /dev/null
+    container_name: webmin_attacker
+    networks:
+      - webmin_network
+    platform: linux/amd64
+    x-default: true
+    depends_on:
+      - webmin
+
+networks:
+  webmin_network:
+    driver: bridge

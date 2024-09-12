@@ -1,0 +1,6 @@
+services:
+  privesc_find:
+    image: marshw/privesc_find
+    container_name: privesc_find_env
+    command: tail -f /dev/null
+    x-default: true
