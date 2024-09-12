@@ -372,15 +372,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>In the above examples tasks are ready from the filesystem. It is also possible to dynamically create a set of tasks and pass them to the <code>eval_set()</code> function. For example:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> eval_set</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>mmlu <span class="op">=</span> Task(name<span class="op">=</span><span class="st">"mmlu"</span>, dataset<span class="op">=</span>csv_dataset(<span class="st">"mmlu.csv"</span>))</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>maths <span class="op">=</span> Task(name<span class="op">=</span><span class="st">"maths"</span>, dataset<span class="op">=</span>csv_dataset(<span class="st">"maths.csv"</span>))</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>eval_set(</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>   [mmlu, maths],</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>   model<span class="op">=</span>[<span class="st">"openai/gpt-4o"</span>, <span class="st">"anthropic/claude-3-5-sonnet-20240620"</span>],</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>      </span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>One important difference you’ll notice in this example is that the <code>Task</code> instances are given an explicit <code>name</code>. This is a <strong>requirement</strong> for <code>eval_set()</code>, as task names are used to pair task instances with their log files. Further, all task names passed to <code>eval_set()</code> must be unique (this is validated and an error thrown if they are not). This isn’t necessary for tasks bound from the filesystem since their name is automatically derived from the function that creates them.</p>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> create_task(dataset: <span class="bu">str</span>):</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(dataset<span class="op">=</span>csv_dataset(dataset))</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>mmlu <span class="op">=</span> create_task(<span class="st">"mmlu.csv"</span>)</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>maths <span class="op">=</span> create_task(<span class="st">"maths.csv"</span>)</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>eval_set(</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>   [mmlu, maths],</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>   model<span class="op">=</span>[<span class="st">"openai/gpt-4o"</span>, <span class="st">"anthropic/claude-3-5-sonnet-20240620"</span>],</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>      </span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Notice that we create our tasks from a function decorated with <code>@task</code>. Doing this is a critical requirement because it enables Inspect to capture the arguments to <code>create_task()</code> and use that to distinguish the two tasks (in turn used to pair tasks to log files for retries).</p>
+<p>There are two fundamental requirements for dynamic tasks used with <code>eval_set()</code>:</p>
+<ol type="1">
+<li>They are created using an <code>@task</code> function as described above.</li>
+<li>Their parameters use ordinary Python types (like <code>str</code>, <code>int</code>, <code>list</code>, etc.) as opposed to custom objects (which are hard to serialise consistently).</li>
+</ol>
+<p>Note that you can pass a <code>plan</code> to an <code>@task</code> function, so long as it was created by a function decorated with <code>@plan</code>.</p>
 </section>
 <section id="options" class="level3">
 <h3 class="anchored" data-anchor-id="options">Options</h3>

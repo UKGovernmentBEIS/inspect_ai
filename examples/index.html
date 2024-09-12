@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>VS Code Extension – Inspect</title>
+<title>Examples – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -20,30 +20,48 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
-</style>
+/* CSS for citations */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+}
+.hanging-indent div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}</style>
 
 
-<script src="site_libs/quarto-nav/quarto-nav.js"></script>
-<script src="site_libs/quarto-nav/headroom.min.js"></script>
-<script src="site_libs/clipboard/clipboard.min.js"></script>
-<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
-<script src="site_libs/quarto-search/fuse.min.js"></script>
-<script src="site_libs/quarto-search/quarto-search.js"></script>
-<meta name="quarto:offset" content="./">
-<link href="./examples.html" rel="next">
-<link href="./log-viewer.html" rel="prev">
-<script src="site_libs/quarto-html/quarto.js"></script>
-<script src="site_libs/quarto-html/popper.min.js"></script>
-<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
-<script src="site_libs/quarto-html/anchor.min.js"></script>
-<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
-<script src="site_libs/bootstrap/bootstrap.min.js"></script>
-<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
-<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
-<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
-<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../log-viewer.html" rel="next">
+<link href="../workflow.html" rel="prev">
+<script src="../site_libs/quarto-listing/list.min.js"></script>
+<script src="../site_libs/quarto-listing/quarto-listing.js"></script>
+<script src="../site_libs/quarto-html/quarto.js"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "sidebar",
   "copy-button": false,
@@ -71,17 +89,76 @@ ul.task-list li input[type="checkbox"] {
     "search-label": "Search"
   }
 }</script>
+<script>
 
+  window.document.addEventListener("DOMContentLoaded", function (_event) {
+    const listingTargetEl = window.document.querySelector('#listing-examples .list');
+    if (!listingTargetEl) {
+      // No listing discovered, do not attach.
+      return; 
+    }
 
+    const options = {
+      valueNames: ['listing-title','listing-description','listing-arxiv','listing-cite','listing-group','listing-demonstrates','listing-contributors','listing-constributors',{ data: ['index'] },{ data: ['categories'] }],
+      
+      searchColumns: ["listing-title","listing-description","listing-arxiv","listing-cite","listing-group","listing-demonstrates","listing-contributors","listing-constributors"],
+    };
+
+    window['quarto-listings'] = window['quarto-listings'] || {};
+    window['quarto-listings']['listing-examples'] = new List('listing-examples', options);
+
+    if (window['quarto-listing-loaded']) {
+      window['quarto-listing-loaded']();
+    }
+  });
+
+  window.addEventListener('hashchange',() => {
+    if (window['quarto-listing-loaded']) {
+      window['quarto-listing-loaded']();
+    }
+  })
+  </script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="examples.css">
 <meta property="og:title" content="Inspect">
 <meta property="og:description" content="Open-source framework for large language model evaluations">
-<meta property="og:image" content="https://inspect.ai-safety-institute.org.uk/images/inspect.png">
+<meta property="og:image" content="https://inspect.ai-safety-institute.org.uk//images/inspect.png">
 <meta property="og:site_name" content="Inspect">
 <meta property="og:image:height" content="1258">
 <meta property="og:image:width" content="2400">
 <meta name="twitter:title" content="Inspect">
 <meta name="twitter:description" content="Open-source framework for large language model evaluations">
-<meta name="twitter:image" content="https://inspect.ai-safety-institute.org.uk/images/inspect.png">
+<meta name="twitter:image" content="https://inspect.ai-safety-institute.org.uk//images/inspect.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image-height" content="1258">
 <meta name="twitter:image-width" content="2400">
@@ -96,7 +173,7 @@ ul.task-list li input[type="checkbox"] {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./workflow.html">Basics</a></li><li class="breadcrumb-item"><a href="./vscode.html"><span class="chapter-title">VS Code</span></a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../tutorial.html">Basics</a></li><li class="breadcrumb-item"><a href="../examples/index.html"><span class="chapter-title">Examples</span></a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -109,11 +186,11 @@ ul.task-list li input[type="checkbox"] {
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
 <!-- sidebar -->
   <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto"><div class="quarto-sidebar-header"><div class="sidebar-header-item">
-<p><a href="https://www.gov.uk/government/organisations/ai-safety-institute"><img src="images/aisi-logo.png" class="img-fluid" alt="UK AI Safety Institute Website"></a></p>
+<p><a href="https://www.gov.uk/government/organisations/ai-safety-institute"><img src="../images/aisi-logo.png" class="img-fluid" alt="UK AI Safety Institute Website"></a></p>
 </div></div>
     <div class="pt-lg-2 mt-2 text-left sidebar-header">
     <div class="sidebar-title mb-0 py-0">
-      <a href="./">Inspect</a> 
+      <a href="../">Inspect</a> 
         <div class="sidebar-tools-main">
     <a href="https://github.com/UKGovernmentBEIS/inspect_ai" title="Source Code" class="quarto-navigation-tool px-1" aria-label="Source Code"><i class="bi bi-github"></i></a>
 </div>
@@ -128,7 +205,7 @@ ul.task-list li input[type="checkbox"] {
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./index.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Welcome</span></a>
+  <a href="../index.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Welcome</span></a>
   </div>
 </li>
         <li class="sidebar-item sidebar-item-section">
@@ -142,22 +219,27 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./workflow.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Workflow</span></a>
+  <a href="../tutorial.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Tutorial</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./log-viewer.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Log Viewer</span></a>
+  <a href="../workflow.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Workflow</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./vscode.html" class="sidebar-item-text sidebar-link active"><span class="chapter-title">VS Code</span></a>
+  <a href="../examples/index.html" class="sidebar-item-text sidebar-link active"><span class="chapter-title">Examples</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./examples.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Examples</span></a>
+  <a href="../log-viewer.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Log Viewer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../vscode.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">VS Code</span></a>
   </div>
 </li>
       </ul>
@@ -173,32 +255,32 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./solvers.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Solvers</span></a>
+  <a href="../solvers.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Solvers</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./tools.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Tools</span></a>
+  <a href="../tools.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Tools</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./agents.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Agents</span></a>
+  <a href="../agents.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Agents</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./scorers.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Scorers</span></a>
+  <a href="../scorers.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Scorers</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./datasets.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Datasets</span></a>
+  <a href="../datasets.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Datasets</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./models.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Models</span></a>
+  <a href="../models.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Models</span></a>
   </div>
 </li>
       </ul>
@@ -214,42 +296,42 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./eval-sets.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Sets</span></a>
+  <a href="../eval-sets.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Sets</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./errors-and-limits.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Errors &amp; Limits</span></a>
+  <a href="../errors-and-limits.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Errors &amp; Limits</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./caching.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Caching</span></a>
+  <a href="../caching.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Caching</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./parallelism.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Parallelism</span></a>
+  <a href="../parallelism.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Parallelism</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./agents-api.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Agents API</span></a>
+  <a href="../agents-api.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Agents API</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./interactivity.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Interactivity</span></a>
+  <a href="../interactivity.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Interactivity</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./eval-logs.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Logs</span></a>
+  <a href="../eval-logs.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Logs</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./extensions.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Extensions</span></a>
+  <a href="../extensions.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Extensions</span></a>
   </div>
 </li>
       </ul>
@@ -261,23 +343,31 @@ ul.task-list li input[type="checkbox"] {
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
         <nav id="TOC" role="doc-toc" class="toc-active">
-    <h2 id="toc-title">Table of contents</h2>
-   
-  <ul>
-  <li><a href="#installation" id="toc-installation" class="nav-link active" data-scroll-target="#installation">Installation</a></li>
-  <li><a href="#running-tasks" id="toc-running-tasks" class="nav-link" data-scroll-target="#running-tasks">Running Tasks</a></li>
-  <li><a href="#debugging-tasks" id="toc-debugging-tasks" class="nav-link" data-scroll-target="#debugging-tasks">Debugging Tasks</a></li>
-  <li><a href="#activity-bar" id="toc-activity-bar" class="nav-link" data-scroll-target="#activity-bar">Activity Bar</a></li>
-  <li><a href="#troubleshooting" id="toc-troubleshooting" class="nav-link" data-scroll-target="#troubleshooting">Troubleshooting</a></li>
-  </ul>
+<ul>
+<li>
+<a href="#coding" id="toc-coding" class="nav-link active" data-scroll-target="#coding">Coding</a>
+</li>
+<li>
+<a href="#cybersecurity" id="toc-coding" class="nav-link" data-scroll-target="#cybersecurity">Cybersecurity</a>
+</li>
+<li>
+<a href="#mathematics" id="toc-mathematics" class="nav-link" data-scroll-target="#mathematics">Mathematics</a>
+</li>
+<li>
+<a href="#reasoning" id="toc-reasoning" class="nav-link" data-scroll-target="#reasoning">Reasoning</a>
+</li>
+<li>
+<a href="#knowledge" id="toc-knowledge" class="nav-link" data-scroll-target="#knowledge">Knowledge</a>
+</li>
+</ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./workflow.html">Basics</a></li><li class="breadcrumb-item"><a href="./vscode.html"><span class="chapter-title">VS Code</span></a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../tutorial.html">Basics</a></li><li class="breadcrumb-item"><a href="../examples/index.html"><span class="chapter-title">Examples</span></a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title"><span id="sec-vscode" class="quarto-section-identifier"><span class="chapter-title">VS Code Extension</span></span></h1>
+<h1 class="title"><span id="sec-examples" class="quarto-section-identifier"><span class="chapter-title">Examples</span></span></h1>
 </div>
 
 
@@ -294,91 +384,543 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
-<p>The Inspect VS Code Extension provides a variety of tools, including:</p>
-<ul>
-<li>An integrated viewer for evaluation log files</li>
-<li>Commands and key-bindings for running tasks</li>
-<li>Commands and key-bindings for debugging tasks</li>
-<li>A configuration panel that edits config in workspace <code>.env</code> files</li>
-<li>A task panel for setting task CLI options and task arguments</li>
-<li>A panel for browsing all tasks contained in the workspace</li>
+
+<p>The examples below demonstrate a variety of evaluation types and techniques. If you have just begun learning Inspect, you might benefit from reviewing the <a href="../tutorial.html">Tutorial</a> examples before exploring these.</p>
+<div id="listing-examples" class="quarto-listing quarto-listing-container-custom">
+
+<ul class="list no-bullets">
+
+ 
+
+  
+  
+    
+<li class="group"><h2 href="#coding" class="anchored">Coding</h2></li>
+    
+  
+<li class="example" data-index="0">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-code"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/humaneval">
+            HumanEval: Evaluating Large Language Models Trained on Code
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Evaluating correctness for synthesizing Python programs from docstrings. Demonstrates custom scorers and sandboxing untrusted model code.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="1">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-code"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mbpp">
+            MBPP: Mostly Basic Python Problems
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Measuring the ability of these models to synthesize short Python programs from natural language descriptions. Demonstrates custom scorers and sandboxing untrusted model code.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+  
+    
+<li class="group"><h2 href="#cybersecurity" class="anchored">Cybersecurity</h2></li>
+    
+  
+<li class="example" data-index="2">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-shield-lock"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/agents/intercode-ctf">
+            InterCode: Capture the Flag
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Measure expertise in coding, cryptography (i.e. binary exploitation, forensics), reverse engineering, and recognizing security vulnerabilities. Demonstrates tool use and sandboxing untrusted model code.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+  
+    
+<li class="group"><h2 href="#mathematics" class="anchored">Mathematics</h2></li>
+    
+  
+<li class="example" data-index="3">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-calculator"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mathematics">
+            MATH: Measuring Mathematical Problem Solving
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Dataset of 12,500 challenging competition mathematics problems. Demonstrates fewshot prompting and custom scorers.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="4">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-calculator"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/gsm8k.py">
+            GSM8K: Training Verifiers to Solve Math Word Problems
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Dataset of 8.5K high quality linguistically diverse grade school math word problems. Demostrates fewshot prompting.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="5">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-calculator"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mathvista">
+            MathVista: Evaluating Mathematical Reasoning in Visual Contexts
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Diverse mathematical and visual tasks that require fine-grained, deep visual understanding and compositional reasoning. Demonstrates multimodal inputs and custom scorers.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+  
+    
+<li class="group"><h2 href="#reasoning" class="anchored">Reasoning</h2></li>
+    
+  
+<li class="example" data-index="6">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/arc/arc.py">
+            ARC: AI2 Reasoning Challenge
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Dataset of natural, grade-school science multiple-choice questions (authored for human tests).</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="7">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/hellaswag.py">
+            HellaSwag: Can a Machine Really Finish Your Sentence?
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Evaluting commonsense natural language inference: given an event description such as "A woman sits at a piano," a machine must select the most likely followup.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="8">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/piqa.py">
+            PIQA: Reasoning about Physical Commonsense in Natural Language
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Measure physical commonsense reasoning (e.g. "To apply eyeshadow without a brush, should I use a cotton swab or a toothpick?")
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="9">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/boolq/boolq.py">
+            BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Reading comprehension dataset that queries for complex, non-factoid information, and require difficult entailment-like inference to solve.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="10">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/drop">
+            DROP: A Reading Comprehension Benchmark Requiring Discrete Reasoning Over Paragraphs
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Evaluates reading comprehension where models must resolve references in a question, perhaps to multiple input positions, and perform discrete operations over them (such as addition, counting, or sorting).
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="11">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/winogrande">
+            WINOGRANDE: An Adversarial Winograd Schema Challenge at Scale
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Set of 273 expert-crafted pronoun resolution problems originally designed to be unsolvable for statistical models that rely on selectional preferences or word associations.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="12">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/race-h">
+            RACE-H: A benchmark for testing reading comprehension and reasoning abilities of neural models
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Reading comprehension tasks collected from the English exams for middle and high school Chinese students in the age range between 12 to 18.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="13">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mmmu">
+            MMMU: A Massive Multi-discipline Multimodal Understanding and Reasoning Benchmark
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Multimodal questions from college exams, quizzes, and textbooks, covering six core disciplinestasks, demanding college-level subject knowledge and deliberate reasoning. Demonstrates multimodel inputs.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="14">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/squad">
+            SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Set of 100,000+ questions posed by crowdworkers on a set of Wikipedia articles, where the answer to each question is a segment of text from the corresponding reading passage.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="15">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/ifeval">
+            IFEval: Instruction-Following Evaluation for Large Language Models
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Evaluates the ability to follow a set of "verifiable instructions" such as "write in more than 400 words" and "mention the keyword of AI at least 3 times. Demonstrates custom scoring.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="16">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/agieval">
+            AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Questions from human-centric standardized exams, such as college entrance exams, law school admission tests, math competitions, and lawyer qualification tests. Demonstrates custom scoring.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+  
+    
+<li class="group"><h2 href="#knowledge" class="anchored">Knowledge</h2></li>
+    
+  
+<li class="example" data-index="17">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mmlu.py">
+            MMLU: Measuring Massive Multitask Language Understanding
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Evaluate models on 57 tasks including elementary mathematics, US history, computer science, law, and more.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="18">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mmlu_pro">
+            MMLU-Pro: A More Robust and Challenging Multi-Task Language Understanding Benchmark
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">An enhanced dataset designed to extend the mostly knowledge-driven MMLU benchmark by integrating more challenging, reasoning-focused questions and expanding the choice set from four to ten options.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="19">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/gpqa/gpqa.py">
+            GPQA: A Graduate-Level Google-Proof Q&amp;A Benchmark
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Challenging dataset of 448 multiple-choice questions written by domain experts in biology, physics, and chemistry (experts at PhD level in the corresponding domains reach 65% accuracy).
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="20">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/commonsense_qa">
+            CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Measure question answering with commonsense prior knowledge.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="21">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/truthfulqa.py\">
+            TruthfulQA: Measuring How Models Mimic Human Falsehoods
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Measure whether a language model is truthful in generating answers to questions using questions that some humans would answer falsely due to a false belief or misconception.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="22">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/xstest">
+            XSTest: A benchmark for identifying exaggerated safety behaviours in LLM's
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Dataset with 250 safe prompts across ten prompt types that well-calibrated models should not refuse, and 200 unsafe prompts as contrasts that models, for most applications, should refuse.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="23">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title fs-5">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/bookmarks/pubmedqa">
+            PubMedQA: A Dataset for Biomedical Research Question Answering
+          </a>
+        </div>
+        <div class="listing-description text-secondary text-small">Novel biomedical question answering (QA) dataset collected from PubMed abstracts.
+</div>
+      </div>
+    </div>
+  
+</li>
+  
 </ul>
-<section id="installation" class="level2">
-<h2 class="anchored" data-anchor-id="installation">Installation</h2>
-<p>To install, search for <strong>“Inspect AI”</strong> in the extensions marketplace panel within VS Code.</p>
-<p><img src="images/inspect-vscode-install.png" class="border img-fluid" style="width:90.0%" alt="The VS Code Extension Marketplace panel is active with the search string 'Inspect AI'. The Inspect extension is selected and an overview of it appears at right."></p>
-<p>The Inspect extension will automatically bind to the Python interpreter associated with the current workspace, so you should be sure that the <code>inspect-ai</code> package is installed within that environment. Use the <a href="https://code.visualstudio.com/docs/python/environments#_working-with-python-interpreters"><strong>Python: Select Interpreter</strong></a> command to associate a version of Python with your workspace.</p>
-</section>
-<section id="running-tasks" class="level2">
-<h2 class="anchored" data-anchor-id="running-tasks">Running Tasks</h2>
-<div>
+<div class="listing-no-matching d-none">
+No matching items
+</div>
+</div>
+<div id="refs" role="list" style="display: none">
 
 </div>
-<div class="quarto-layout-panel" data-layout="[55,45]">
-<div class="quarto-layout-row">
-<div class="inner quarto-layout-cell" style="flex-basis: 55.0%;justify-content: flex-start;">
-<p>There are many ways to run evaluation tasks within VS Code, including:</p>
-<ol type="1">
-<li>Calling <code>inspect eval</code> in the terminal</li>
-<li>Calling <code>eval()</code> directly in a notebook or script</li>
-<li>Using the <strong>Run Task</strong> button in the editor</li>
-<li>Using the <kbd>Cmd+Shift+U</kbd> keyboard shortcut (which will run the task currently selected in the active editor).</li>
-</ol>
-</div>
-<div class="quarto-layout-cell" style="flex-basis: 45.0%;justify-content: center;">
-<p><a href="images/inspect-vscode-run-task.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-vscode-run-task.png" class="border img-fluid" alt="Two eval tasks (arc-easy and arc-challenge) in an editor, with Run Task and Debug Task buttons above them."></a></p>
-</div>
-</div>
-</div>
-<p>No matter how you run a task, when the task is complete the eval log will automatically display to the right of the active editor:</p>
-<p><a href="images/inspect-vscode-logview.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-vscode-logview.png" class="border img-fluid" alt="Inspect running inside Visual Studio Code. The editor shows the ARC evaluation and the log viewer at right shows results from the evaluation."></a></p>
-<p>If you’d rather have the log viewer display in its own window (e.g.&nbsp;to move it to a different monitor) you can drag the <strong>Inspect View</strong> tab out of VS Code and move it to wherever is most convenient.</p>
-<p>If you prefer not to have logs shown automatically, there is a setting which can disable this behaviour (search settings for “inspect log”). In that case, you can still view eval logs by clicking on the link at the bottom of the eval results:</p>
-<p><img src="images/eval-log.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display."></p>
-<p>See the article on the <a href="log-viewer.html">Log Viewer</a> for additional details on using it to explore eval results.</p>
-</section>
-<section id="debugging-tasks" class="level2">
-<h2 class="anchored" data-anchor-id="debugging-tasks">Debugging Tasks</h2>
-<div>
-
-</div>
-<div class="quarto-layout-panel" data-layout="[55,45]">
-<div class="quarto-layout-row">
-<div class="inner quarto-layout-cell" style="flex-basis: 55.0%;justify-content: flex-start;">
-<div style="margin-bottom: 15px;">
-<p>There are two ways to debug tasks within VS Code:</p>
-</div>
-<ol type="1">
-<li><p>Using the <strong>Debug Task</strong> button in the editor</p></li>
-<li><p>Using the <kbd>Cmd+Shift+T</kbd> keyboard shortcut (which will debug the task currently selected in the active editor).</p></li>
-</ol>
-</div>
-<div class="quarto-layout-cell" style="flex-basis: 45.0%;justify-content: center;">
-<p><a href="images/inspect-vscode-run-task.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3"><img src="images/inspect-vscode-run-task.png" class="border img-fluid" alt="Two eval tasks (arc-easy and arc-challenge) in an editor, with Run Task and Debug Task buttons above them."></a></p>
-</div>
-</div>
-</div>
-<p>Note that when debugging a task, the Inspect extension will automatically limit the eval to a single sample (<code>--limit 1</code> on the command line). If you prefer to debug with many samples, there is a setting that can disable the default behavior (search settings for “inspect debug”).</p>
-</section>
-<section id="activity-bar" class="level2">
-<h2 class="anchored" data-anchor-id="activity-bar">Activity Bar</h2>
-<p>The Inspect Activity Bar provides an interface for tuning both global configuration and task CLI arguments. Access the Activity Bar by clicking the Inspect icon on the left side of the VS Code workspace:</p>
-<p><a href="images/inspect-vscode-config.png" class="lightbox" data-gallery="quarto-lightbox-gallery-4"><img src="images/inspect-vscode-config.png" class="border img-fluid" alt="Inspect Activity Bar with user interface for tuning global configuration and task CLI arguments."></a></p>
-<p>The activity bar has three panels:</p>
-<ul>
-<li><p><strong>Configuration</strong> edits global configuration by reading and writing values from the workspace <code>.env</code> config file (see the documentation on <a href="./workflow.html#configuration">Configuration</a> for more details on <code>.env</code> files).</p></li>
-<li><p><strong>Task</strong> provides a way to tweak the CLI arguments passed to <code>inspect eval</code> when it is run from the user interface.</p></li>
-<li><p><strong>Tasks</strong> (not shown above) lists all tasks in the current workspace, and can be used to both navigate among tasks as well as run and debug tasks directly.</p></li>
-</ul>
-</section>
-<section id="troubleshooting" class="level2">
-<h2 class="anchored" data-anchor-id="troubleshooting">Troubleshooting</h2>
-<p>If the Inspect extension is not loading into the workspace, you should investigate what version of Python it is discovering as well as whether the <code>inspect-ai</code> package is detected within that Python environment. Use the <strong>Output</strong> panel (at the bottom of VS Code in the same panel as the Terminal) and select the <strong>Inspect</strong> output channel using the picker on the right side of the panel:</p>
-<p><a href="images/inspect-vscode-output-channel.png" class="lightbox" data-gallery="quarto-lightbox-gallery-5"><img src="images/inspect-vscode-output-channel.png" class="border img-fluid" alt="Inspect output channel, showing the versions of Python and Inspect discovered by the extension."></a></p>
-<p>Note that the Inspect extension will automatically bind to the Python interpreter associated with the current workspace, so you should be sure that the <code>inspect-ai</code> package is installed within that environment. Use the <a href="https://code.visualstudio.com/docs/python/environments#_working-with-python-interpreters"><strong>Python: Select Interpreter</strong></a> command to associate a version of Python with your workspace.</p>
 
 
-</section>
+
 
 </main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
@@ -844,13 +1386,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./log-viewer.html" class="pagination-link" aria-label="Log Viewer">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-title">Log Viewer</span></span>
+      <a href="../workflow.html" class="pagination-link" aria-label="Workflow">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-title">Workflow</span></span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./examples.html" class="pagination-link" aria-label="Examples">
-        <span class="nav-page-text"><span class="chapter-title">Examples</span></span> <i class="bi bi-arrow-right-short"></i>
+      <a href="../log-viewer.html" class="pagination-link" aria-label="Log Viewer">
+        <span class="nav-page-text"><span class="chapter-title">Log Viewer</span></span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -908,38 +1450,6 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","selector":".lightbox","loop":false,"openEffect":"zoom","descPosition":"bottom"});
-(function() {
-  let previousOnload = window.onload;
-  window.onload = () => {
-    if (previousOnload) {
-      previousOnload();
-    }
-    lightboxQuarto.on('slide_before_load', (data) => {
-      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-      const href = trigger.getAttribute('href');
-      if (href !== null) {
-        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
-        if (imgEl !== null) {
-          const srcAttr = imgEl.getAttribute("src");
-          if (srcAttr && srcAttr.startsWith("data:")) {
-            slideConfig.href = srcAttr;
-          }
-        }
-      } 
-    });
-  
-    lightboxQuarto.on('slide_after_load', (data) => {
-      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-      if (window.Quarto?.typesetMath) {
-        window.Quarto.typesetMath(slideNode);
-      }
-    });
-  
-  };
-  
-})();
-          </script>
 
 
 
