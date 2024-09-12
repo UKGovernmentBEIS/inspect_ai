@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 from inspect_ai import Task, eval, score
 from inspect_ai._util.constants import PKG_NAME
@@ -173,9 +173,9 @@ def complex_metric() -> Metric:
             if isinstance(complex_score.value, dict):
                 total = (
                     total
-                    + complex_score.value["one"]
-                    + complex_score.value["two"]
-                    + complex_score.value["three"]
+                    + cast(int, complex_score.value["one"])
+                    + cast(int, complex_score.value["two"])
+                    + cast(int, complex_score.value["three"])
                 )
         return total
 
