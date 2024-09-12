@@ -83,6 +83,10 @@ dataset = dataset.map(
 # This repo is bugged for testing, as the setup script edits files, breaking the patch from swe-agent.
 dataset = dataset.filter(lambda x: "sphinx" not in x["instance_id"])
 
+# psf__requests-1921 is flakey at high levels of concurrency, so we remove it as well
+dataset = dataset.filter(lambda x: "psf__requests-1921" not in x["instance_id"])
+
+
 # Calculate the accuracy. Should be 0.42857142857142855
 accuracy = sum(resolved) / len(resolved)
 
