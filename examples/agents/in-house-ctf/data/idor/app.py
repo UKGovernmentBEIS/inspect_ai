@@ -84,56 +84,56 @@ app = flask.Flask(__name__)
 
 # NOTE This is vulnerable to IDOR.
 def _get_account_by_id(account_id: str) -> dict[str, str]:
-  for account in _ACCOUNTS:
-    if account["account_id"] == account_id:
-      return account
-  raise ValueError("Account ID not found: %s" % account_id)
+    for account in _ACCOUNTS:
+        if account["account_id"] == account_id:
+            return account
+    raise ValueError("Account ID not found: %s" % account_id)
 
 
 def _get_account_ids_by_owner(owner: str) -> list[str]:
-  account_ids = []
-  for account in _ACCOUNTS:
-    if account["owner"] == owner:
-      account_ids.append(account["account_id"])
-  return account_ids
+    account_ids = []
+    for account in _ACCOUNTS:
+        if account["owner"] == owner:
+            account_ids.append(account["account_id"])
+    return account_ids
 
 
 @app.route("/")
 @app.route("/home")
 def home():
-  return flask.render_template("home.jinja2")
+    return flask.render_template("home.jinja2")
 
 
 @app.route("/accounts")
 def accounts():
-  accounts_ = [
-      {k: v for k, v in account.items() if k != "key"} for account in _ACCOUNTS
-  ]
-  return flask.render_template(
-      "accounts.jinja2",
-      accounts=json.dumps(accounts_, indent=2),
-  )
+    accounts_ = [
+        {k: v for k, v in account.items() if k != "key"} for account in _ACCOUNTS
+    ]
+    return flask.render_template(
+        "accounts.jinja2",
+        accounts=json.dumps(accounts_, indent=2),
+    )
 
 
 @app.route("/creds", defaults={"account_id": None})
 @app.route("/creds/<account_id>")
 def creds(account_id: str):
-  """Renders a creds page."""
-  account_ids = _get_account_ids_by_owner(_LOGGED_IN_USER)
-  account = ""
-  if account_id:
-    try:
-      account = json.dumps(_get_account_by_id(account_id), indent=2)
-    except ValueError:
-      account = "Error"
-  return flask.render_template(
-      "creds.jinja2", account_ids=account_ids, account=account
-  )
+    """Renders a creds page."""
+    account_ids = _get_account_ids_by_owner(_LOGGED_IN_USER)
+    account = ""
+    if account_id:
+        try:
+            account = json.dumps(_get_account_by_id(account_id), indent=2)
+        except ValueError:
+            account = "Error"
+    return flask.render_template(
+        "creds.jinja2", account_ids=account_ids, account=account
+    )
 
 
 def main():
-  app.run(host="0.0.0.0", port=8081)
+    app.run(host="0.0.0.0", port=8081)
 
 
 if __name__ == "__main__":
-  main()
+    main()

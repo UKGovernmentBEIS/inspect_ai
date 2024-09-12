@@ -7,8 +7,11 @@ DATA_DIR = "data"
 SOLUTION_SIGNATURE = "## Possible solution"
 
 
-def read_dataset(config_name: str, shuffle: bool=False, challenges: list[str]=[]) -> Dataset:
+def read_dataset(
+    config_name: str, shuffle: bool = False, challenges: list[str] = []
+) -> Dataset:
     """Reads a dataset from a challenges.json file."""
+
     # record to sample
     def record_to_sample(record):
         # collect files
@@ -16,7 +19,7 @@ def read_dataset(config_name: str, shuffle: bool=False, challenges: list[str]=[]
         task_assets = f"{DATA_DIR}/{task_id}"
         task_files = [
             os.path.relpath(f, task_assets)
-            for f in glob(os.path.join(task_assets, '**'), recursive=True)
+            for f in glob(os.path.join(task_assets, "**"), recursive=True)
             if os.path.isfile(f)
         ]
         files = {os.path.basename(file): file for file in task_files}
