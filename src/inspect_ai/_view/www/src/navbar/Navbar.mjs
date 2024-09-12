@@ -18,6 +18,7 @@ export const Navbar = ({ file, logs, log, offcanvas }) => {
   const results = log?.results;
   const samples = log?.samples;
   const status = log?.status;
+  const created = log?.eval?.created;
 
   let statusPanel;
   if (status === "success") {
@@ -73,6 +74,7 @@ export const Navbar = ({ file, logs, log, offcanvas }) => {
               }}
             >
               <div
+                id="task-title"
                 style=${{
                   fontWeight: 600,
                   marginRight: "0.3rem",
@@ -84,6 +86,7 @@ export const Navbar = ({ file, logs, log, offcanvas }) => {
                 ${task}
               </div>
               <div
+                id="task-model"
                 style=${{
                   fontSize: FontSize.base,
                   paddingTop: "0.4rem",
@@ -117,6 +120,8 @@ export const Navbar = ({ file, logs, log, offcanvas }) => {
             </div>
           </div>
         </div>
+
+        <div id="task-created" style=${{ display: "none" }}>${created}</div>
 
         <div
           class="navbar-text"
