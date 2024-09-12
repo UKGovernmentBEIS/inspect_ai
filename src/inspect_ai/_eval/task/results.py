@@ -77,7 +77,9 @@ def eval_results(
                 if isinstance(targets, list):
                     ## split the metrics into the simple metrics and any dictionary
                     ## metrics, to be processed independently
-                    simple_metrics, dict_metrics = split_metrics(targets)
+                    simple_metrics, dict_metrics = split_metrics(
+                        cast(list[Metric | dict[str, list[Metric]]], targets)
+                    )
 
                     # If there is a simple list of metrics
                     # just compute the metrics for this scorer
