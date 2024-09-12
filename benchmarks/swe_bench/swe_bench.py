@@ -173,9 +173,7 @@ def get_eval_script(test_patch: str, repo: str, version: str, base_commit: str) 
         "install", ""
     )
 
-    if (
-        repo == "scikit-learn/scikit-learn"
-    ):  # Scikit-learn gets upset with the install
+    if repo == "scikit-learn/scikit-learn":  # Scikit-learn gets upset with the install
         repo_specific_install_command = ""
 
     # Find all the files which have been modified by the test patch
@@ -213,7 +211,7 @@ def get_eval_script(test_patch: str, repo: str, version: str, base_commit: str) 
         git checkout {base_commit} {' '.join(test_patch_files)}
 
         #Then we apply the test patch given to us by SWE-bench, setting up the test we need to run
-        # echo {shlex.quote(test_patch)} > /tmp/test_patch.diff
+        echo {shlex.quote(test_patch)} > /tmp/test_patch.diff
         git apply --check /tmp/test_patch.diff
         git apply /tmp/test_patch.diff
 
@@ -300,7 +298,7 @@ def swebench_scorer() -> Scorer:
 
             passed_all_tests = all(
                 ["PASSED" == v for v in pass_to_pass_results.values()]
-        ) and all(["PASSED" == v for v in fail_to_pass_results.values()])
+            ) and all(["PASSED" == v for v in fail_to_pass_results.values()])
             value = 1.0 if passed_all_tests else 0.0
 
             # Sort both so the the false values are at the top
