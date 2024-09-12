@@ -18,7 +18,6 @@ from inspect_ai.scorer import (
     std,
 )
 from inspect_ai.scorer._metric import MetricType, metric_create
-from inspect_ai.scorer._metrics import std
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver._task_state import TaskState
 
