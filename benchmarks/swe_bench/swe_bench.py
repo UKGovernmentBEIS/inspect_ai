@@ -272,7 +272,6 @@ def swebench_scorer() -> Scorer:
                 TESTS_ERROR,
                 TESTS_TIMEOUT,
                 "Failed to reset task environment",
-                "ERROR",
             ]
         }
 
