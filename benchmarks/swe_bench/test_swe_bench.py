@@ -13,7 +13,7 @@ from inspect_ai.util import sandbox
 
 RESOURCE_DIR = Path(__file__).parent / "resources"
 TIMEOUT_SECONDS = 2
-GOLDEN_PATCH_TEST_ID = "astropy__astropy-14309"
+GOLDEN_PATCH_TEST_ID = "matplotlib__matplotlib-24149"
 SWEBENCH_BASELINE_NAME = "20240620_sweagent_claude3.5sonnet"
 SWEAGENT_BASELINE: str = str(RESOURCE_DIR / "baselines" / SWEBENCH_BASELINE_NAME)
 
@@ -174,4 +174,4 @@ def test_same_scores_for_swe_agent() -> None:
     assert error_str == "", error_str
 
 
-test_same_scores_for_swe_agent()
+test_correct_patch_succeeds()
