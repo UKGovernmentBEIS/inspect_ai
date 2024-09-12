@@ -2,11 +2,19 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/index.html</loc>
-    <lastmod>2024-09-12T19:30:37.252Z</lastmod>
+    <lastmod>2024-09-12T21:25:51.769Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/tutorial.html</loc>
+    <lastmod>2024-09-12T21:25:51.769Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/workflow.html</loc>
     <lastmod>2024-09-06T20:10:53.799Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/examples/index.html</loc>
+    <lastmod>2024-09-12T21:25:51.769Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/log-viewer.html</loc>
@@ -15,10 +23,6 @@
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/vscode.html</loc>
     <lastmod>2024-09-06T20:10:53.799Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.ai-safety-institute.org.uk/examples.html</loc>
-    <lastmod>2024-09-12T19:31:10.300Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/solvers.html</loc>
@@ -30,11 +34,11 @@
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/agents.html</loc>
-    <lastmod>2024-09-10T01:17:41.821Z</lastmod>
+    <lastmod>2024-09-12T20:16:11.293Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/scorers.html</loc>
-    <lastmod>2024-09-12T19:30:02.988Z</lastmod>
+    <lastmod>2024-09-12T19:35:33.234Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/datasets.html</loc>
