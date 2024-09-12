@@ -42,24 +42,31 @@ export const InlineSampleDisplay = ({
   </div>`;
 };
 
-export const SampleDisplay = ({ index, sample, sampleDescriptor, context }) => {
+export const SampleDisplay = ({
+  sample,
+  sampleDescriptor,
+  visible,
+  context,
+}) => {
   // Tab ids
-  const baseId = `sample-${index}`;
+  const baseId = `sample-dialog`;
   const msgTabId = `${baseId}-messages`;
   const transcriptTabId = `${baseId}-transcript`;
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
   const errorTabId = `${baseId}-error`;
 
-  // Upon sample update
+  // Upon new dialog
   useEffect(() => {
-    // reset tabs when sample changes
-    if (sample.transcript && sample.transcript.events.length > 0) {
-      setSelectedTab(transcriptTabId);
-    } else {
-      setSelectedTab(msgTabId);
+    // reset tabs when the dialog loads
+    if (!visible) {
+      const defaultTab =
+        sample.transcript && sample.transcript.events.length
+          ? transcriptTabId
+          : msgTabId;
+      setSelectedTab(defaultTab);
     }
-  }, [sample]);
+  }, [visible]);
 
   // Tab selection
   const [selectedTab, setSelectedTab] = useState(undefined);
