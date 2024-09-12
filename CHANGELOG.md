@@ -6,6 +6,7 @@
 - [score()](https://inspect.ai-safety-institute.org.uk/solvers.html#sec-scoring-in-solvers) function for accessing scoring logic from within solvers.
 - `system_message()` now supports custom parameters and interpolation of `metadata` values from `Sample`.
 - `generate()` solver now accepts arbitrary generation config params.
+- `bash()` and `python()` tools now have a `user` parameter for choosing an alternate user to run code as.
 - Input event for recording screen input in sample transcripts.
 - Record to sample function for CSV and JSON dataset readers can now return multiple samples.
 - Added `debug_errors` option to `eval()` to raise task errors (rather than logging them) so they can be debugged.
