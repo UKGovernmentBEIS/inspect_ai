@@ -7,7 +7,7 @@ DATA_DIR = "data"
 SOLUTION_SIGNATURE = "## Possible solution"
 
 
-def read_dataset(config_name: str, shuffle: bool=False, excluded: list[str]=[]) -> Dataset:
+def read_dataset(config_name: str, shuffle: bool=False, challenges: list[str]=[]) -> Dataset:
     """Reads a dataset from a challenges.json file."""
     # record to sample
     def record_to_sample(record):
@@ -42,8 +42,13 @@ def read_dataset(config_name: str, shuffle: bool=False, excluded: list[str]=[]) 
             sandbox=("docker", f"{task_assets}/compose.yaml"),
         )
 
-    return json_dataset(
+    dataset = json_dataset(
         json_file=f"{DATA_DIR}/{config_name}.json",
         sample_fields=record_to_sample,
         shuffle=shuffle,
-    ).filter(lambda x: x.id not in excluded)
+    )
+
+    # challenges is empty by default, return all challenges
+    if challenges:
+        return dataset.filter(lambda x: x.id in challenges)
+    return dataset

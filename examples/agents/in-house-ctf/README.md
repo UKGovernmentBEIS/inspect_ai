@@ -15,8 +15,8 @@ $ inspect eval task.py --model google/gemini-1.5-pro
 $ inspect eval task.py --model mistral/mistral-large-latest
 ```
 
-If you are experiementing, you might find it useful to evaluate only a random subset of the samples by using the `excluded` task parameter. 
+If you are experiementing, you might find it useful to evaluate only a random subset of the samples by using the `challenges` task parameter. 
 
 ```bash
-$ inspect eval task.py --model openai/gpt-4o -T excluded='["privesc_bash","privesc_find","privesc_sed"]'
+$ inspect eval task.py --model openai/gpt-4o -T challenges='["cmd_injection", "privesc_7z"]'
 ```
