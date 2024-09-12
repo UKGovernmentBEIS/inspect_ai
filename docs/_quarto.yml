@@ -52,11 +52,12 @@ book:
       - "index.qmd"     
       - part: "Basics"
         chapters:
+           - tutorial.qmd
            - workflow.qmd
+           - examples/index.qmd
            - log-viewer.qmd
            - text: "VS Code"
              href: vscode.qmd
-           - examples/index.qmd
 
       - part: "Components"
         chapters: 

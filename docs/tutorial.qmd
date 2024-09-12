@@ -1,0 +1,211 @@
+---
+execute: 
+   enabled: false
+---
+
+# Tutorial {#sec-tutorial}
+
+## Overview
+
+Below we'll walk step-by-step through several basic examples of Inspect evaluations:
+
+| Example                               | Demonstrates                                                           |
+|-----------------------------|-------------------------------------------|
+| [Security Guide](#sec-security-guide) | Custom system prompt; Model grading of output.                         |
+| [HellaSwag](#sec-hellaswag)           | Mapping external data formats into Inspect; Multiple choice questions. |
+| [Theory of Mind](#sec-theory-of-mind) | Chain of thought prompt; Self critique; Model grading of output.       |
+: {tbl-colwidths="\[30,70\]"}
+
+These examples are simple for the purposes of illustration. However, Inspect is designed for the creation of considerably more complicated evaluations. See [Solvers](#sec-solvers), [Tools](#sec-tools), [Agents](#sec-agents), and [Scorers](#sec-scorers) to learn more. 
+
+See also the complete list of available [Examples](#sec-examples) for demonstrations of more advanced features.
+
+
+::: {.callout-note appearance="simple"}
+Note that in these examples we won't show a `--model` command line argument when we call `inspect eval` (the presumption being that it has been already established via the `INSPECT_EVAL_MODEL` environment variable).
+:::
+
+## Security Guide {#sec-security-guide}
+
+The security guide example contains 16 question-answer pairs taken from the security guide dataset published in the [OpenAI Evals](https://github.com/openai/evals) repository. This eval tests how well models are doing at providing cybersecurity guidance. Here are some examples from the dataset:
+
+| input                                                                        | target                                                    |
+|-----------------------------------------|-------------------------------|
+| What attributes should I set on cookies for strong security?                 | secure samesite and httponly                              |
+| How should I store passwords securely for an authentication system database? | strong hashing algorithms with salt like Argon2 or bcrypt |
+
+### Setup {.unlisted}
+
+We'll start by importing the functions we need from Inspect and defining a system message that orients the model to its role as a computer security expert.
+
+```{python}
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import example_dataset
+from inspect_ai.scorer import model_graded_fact
+from inspect_ai.solver import generate, system_message
+
+SYSTEM_MESSAGE = """
+You are a computer security expert and you are tasked with
+providing concise response to the following questions.
+Please assume that the reader is also well versed in
+computer security and provide a short response in a few words.
+"""
+```
+
+### Eval {.unlisted}
+
+Discerning whether the correct security guidance was provided by the model might provide difficult using only text matching algorithms. Here we use a model to read the response and assess the quality of the answer.
+
+```{python}
+@task
+def security_guide():
+    return Task(
+        dataset=example_dataset("security_guide"),
+        plan=[system_message(SYSTEM_MESSAGE), generate()],
+        scorer=model_graded_fact(),
+    )
+```
+
+Note that we are using a `model_graded_fact()` scorer. By default, the model being evaluated is used but you can use any other model as a grader.
+
+Now we run the evaluation:
+
+```bash
+inspect eval security_guide.py
+```
+
+
+
+
+## HellaSwag {#sec-hellaswag}
+
+[HellaSwag](https://rowanzellers.com/hellaswag/) is a dataset designed to test commonsense natural language inference (NLI) about physical situations. It includes samples that are adversarially constructed to violate common sense about the physical world, so can be a challenge for some language models.
+
+For example, here is one of the questions in the dataset along with its set of possible answer (the correct answer is C):
+
+> In home pet groomers demonstrate how to groom a pet. the person
+>
+> A) puts a setting engage on the pets tongue and leash.
+> B) starts at their butt rise, combing out the hair with a brush from a red.
+> C) is demonstrating how the dog's hair is trimmed with electric shears at their grooming salon. 
+> D) installs and interacts with a sleeping pet before moving away.
+
+### Setup {.unlisted}
+
+We'll start by importing the functions we need from Inspect, defining a  system message, and writing a function to convert dataset records to samples (we need to do this to convert the index-based label in the dataset to a letter).
+
+::: {.content-hidden}
+```{python}
+"""
+HellaSwag: Can a Machine Really Finish Your Sentence?
+
+Rowan Zellers, Ari Holtzman, Yonatan Bisk, Ali Farhadi, Yejin Choi
+https://arxiv.org/abs/1905.07830
+"""
+```
+:::
+
+```{python}
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import Sample, hf_dataset
+from inspect_ai.scorer import answer
+from inspect_ai.solver import multiple_choice, system_message
+
+SYSTEM_MESSAGE = """
+Choose the most plausible continuation for the story.
+"""
+
+def record_to_sample(record):
+    return Sample(
+        input=record["ctx"],
+        target=chr(ord("A") + int(record["label"])),
+        choices=record["endings"],
+        metadata=dict(
+            source_id=record["source_id"]
+        )
+    )
+```
+
+Note that even though we don't use it for the evaluation, we save the `source_id` as metadata as a way to reference samples in the underlying dataset.
+
+### Eval {.unlisted}
+
+We'll load the dataset from [HuggingFace](https://huggingface.co/datasets/Rowan/hellaswag) using the `hf_dataset()` function. We'll draw data from the validation split, and use the `record_to_sample()` function to parse the records (we'll also pass `trust=True` to indicate that we are okay with Hugging Face executing the dataset loading code provided by hellaswag):
+
+```{python}
+@task
+def hellaswag():
+   
+    # dataset
+    dataset = hf_dataset(
+        path="hellaswag",
+        split="validation",
+        sample_fields=record_to_sample,
+        trust=True,
+        shuffle=True
+    )
+
+    # define task
+    return Task(
+        dataset=dataset,
+        plan=[
+          system_message(SYSTEM_MESSAGE),
+          multiple_choice()
+        ],
+        scorer=answer("letter"),
+    )
+```
+
+We use the `multiple_choice()` solver and as you may have noted we don't call `generate()` directly here! This is because `multiple_choice()` calls `generate()` internally (it does this so that it can randomly shuffle the order of choices and then map the model output back to the underlying dataset index).
+
+Now we run the evaluation, limiting the samples read to 50 for development purposes:
+
+```bash
+inspect eval hellaswag.py --limit 50
+```
+
+
+
+## Theory of Mind {#sec-theory-of-mind}
+
+The theory of mind example contains 100 question-answer pairs taken from the [ToMi](https://github.com/facebookresearch/ToMi) dataset. These are instances of the [Sally-Anne](https://en.wikipedia.org/wiki/Sally%E2%80%93Anne_test) test, which assesses the ability of a person to infer false beliefs in others. Here are some samples from the dataset:
+
+| input                                                                                                                                                                                                                                   | target  |
+|---------------------------------------------------------|---------------|
+| Jackson entered the hall. Chloe entered the hall. The boots is in the bathtub. Jackson exited the hall. Jackson entered the dining_room. Chloe moved the boots to the pantry. Where was the boots at the beginning?                     | bathtub |
+| Hannah entered the patio. Noah entered the patio. The sweater is in the bucket. Noah exited the patio. Ethan entered the study. Ethan exited the study. Hannah moved the sweater to the pantry. Where will Hannah look for the sweater? | pantry  |
+
+### Eval {.unlisted}
+
+This example demonstrates adding parameters to a `@task` function to create dynamic variants of an evaluation. Here we use a `critique` parameter to determine whether a `self_critique()` solver is able to improve on the model's baseline answer.
+
+```{python}
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import example_dataset
+from inspect_ai.scorer import model_graded_fact
+from inspect_ai.solver import (
+    chain_of_thought, generate, self_critique
+)
+
+@task
+def theory_of_mind(critique = False):
+    
+    # use self_critique if requested
+    plan = [chain_of_thought(), generate()]
+    if critique:
+        plan.append(self_critique())
+
+    return Task(
+        dataset=example_dataset("theory_of_mind"),
+        plan=plan,
+        scorer=model_graded_fact(),
+    )
+```
+
+Now, let's run the evaluation and opt-in to self critique using a task arg:
+
+```bash
+inspect eval theory_of_mind.py -T critique=true
+```
+
+

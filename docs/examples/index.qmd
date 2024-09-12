@@ -8,7 +8,6 @@ bibliography: examples.bib
 css: examples.css
 aliases: 
   - /examples.html
-
 ---
 
 <nav id="TOC" role="doc-toc">
@@ -22,10 +21,9 @@ aliases:
 </nav>
 
 
-
 # Examples {#sec-examples}
 
-The examples below demonstrate a variety of evaluation types and techniques. If you have just begun learning Inspect, you might benefit from reviewing the [Tutorial] examples before exploring these.
+The examples below demonstrate a variety of evaluation types and techniques. If you have just begun learning Inspect, you might benefit from reviewing the [Tutorial](#sec-tutorial) examples before exploring these.
 
 ::: {#examples}
 :::
