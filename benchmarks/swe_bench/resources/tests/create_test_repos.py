@@ -13,7 +13,7 @@ dataset = load_dataset("princeton-nlp/SWE-bench_Verified")["test"]
 
 results_per_repo = {}
 baseline_dir = Path(__file__).parent.parent / "baselines"
-logs_dir = baseline_dir / "20240620_sweagent_claude3.5sonnet" / "logs"git
+logs_dir = baseline_dir / "20240620_sweagent_claude3.5sonnet" / "logs"
 
 if not logs_dir.exists():
     print(
