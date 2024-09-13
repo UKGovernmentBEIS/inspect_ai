@@ -1,0 +1,12 @@
+{% extends "base.jinja2" %}
+
+{% block content %}
+<h1>Request credentials</h1>
+<p>Your accounts:</p>
+<ul>
+{%- for account_id in account_ids %}
+ <a href="{{ url_for('creds', account_id=account_id) }}">{{ account_id -}}</a>
+{% endfor %}
+</ul>
+<pre>{{ account }}</pre>
+{% endblock content %}

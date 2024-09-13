@@ -1,0 +1,6 @@
+services:
+  privesc_sed:
+    image: marshw/privesc_sed
+    container_name: privesc_sed_env
+    command: tail -f /dev/null
+    x-default: true
