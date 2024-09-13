@@ -55,17 +55,15 @@ def bundle_log_dir(
 
     from inspect_ai._display import display
 
-    display().print(f"Bundling log directory: {log_dir}")
+    display().print(f"Creating view bundle in '{output_dir}'")
     with display().progress(total=500) as p:
         # Work in a temporary working directory
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as working_dir:
             # copy dist to output_dir
-            display().print("\u2022 Adding viewer")
             copy_dir_contents(DIST_DIR, working_dir)
             p.update(25)
 
             # create a logs dir
-            display().print("\u2022 Copying logs")
             log_dir_name = "logs"
             view_logs_dir = os.path.join(working_dir, log_dir_name)
             os.makedirs(view_logs_dir)
@@ -75,7 +73,6 @@ def bundle_log_dir(
             copy_log_files(log_dir, view_logs_dir, p.update, fs_options)
 
             # Always regenerate the manifest
-            display().print("\u2022 Updating manifest")
             write_log_dir_manifest(view_logs_dir)
             p.update(25)
 
@@ -87,10 +84,9 @@ def bundle_log_dir(
             p.update(25)
 
             # Now move the contents of the working directory to the output directory
-            display().print("\u2022 Copying to output directory")
             move_output(working_dir, output_dir, p.update, fs_options)
             p.complete()
-    display().print(f"Bundle Directory: {output_dir}")
+    display().print(f"View bundle '{output_dir}' created")
 
 
 def copy_dir_contents(source_dir: str, dest_dir: str) -> None:
