@@ -10,9 +10,14 @@ from inspect_ai.scorer import match
 
 def test_s3_bundle(mock_s3) -> None:
     # run an eval to generate a log file to this directory
-    log_dir = "s3://test-bucket/logs"
-    output_dir = "s3://test-bucket/view"
-    output_fs = filesystem(output_dir)
+    s3_fs = filesystem("s3://test-bucket/")
+
+    # ensure log directory exists
+    s3_fs.mkdir("test_s3_bundle/logs")
+
+    # target directories
+    log_dir = "s3://test-bucket/test_s3_bundle/logs"
+    output_dir = "s3://test-bucket/test_s3_bundle/view"
 
     eval(
         tasks=[
@@ -35,8 +40,9 @@ def test_s3_bundle(mock_s3) -> None:
         "logs",
         "logs/logs.json",
     ]
+
     for exp in expected:
-        assert output_fs.exists(os.path.join(output_dir, exp))
+        assert s3_fs.exists(os.path.join(output_dir, exp))
 
 
 def test_bundle() -> None:
