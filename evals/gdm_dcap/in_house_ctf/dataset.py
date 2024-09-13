@@ -7,7 +7,7 @@ DATA_DIR = "data"
 SOLUTION_SIGNATURE = "## Possible solution"
 
 
-def read_dataset(challenges: list[str] | None = None) -> Dataset:
+def read_dataset(challenges: str | list[str] | None = None) -> Dataset:
     """Reads a dataset from a challenges.json file."""
 
     # record to sample
@@ -57,6 +57,10 @@ def read_dataset(challenges: list[str] | None = None) -> Dataset:
 
     # filter if requested
     if challenges:
-        return dataset.filter(lambda x: x.id in challenges)
-    else:
-        return dataset
+        challenges = challenges if isinstance(challenges, list) else [challenges]
+        dataset = dataset.filter(lambda x: x.id in challenges)
+        if len(dataset) == 0:
+            challenge_names = ", ".join(challenges)
+            raise ValueError(f"No challenges matched the filter '{challenge_names}'")
+
+    return dataset

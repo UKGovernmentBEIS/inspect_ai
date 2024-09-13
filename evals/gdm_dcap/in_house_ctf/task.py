@@ -27,7 +27,7 @@ from inspect_ai.util import sandbox
 
 @task
 def in_house_ctf(
-    challenges: list[str] | None = None,
+    challenges: str | list[str] | None = None,
     max_attempts: int = 1,
     max_messages: int = 30,
 ) -> Task:
