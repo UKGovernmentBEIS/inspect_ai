@@ -202,7 +202,7 @@ Deploy this folder to a static webserver to publish an interactive copy of the l
 
 - You may provide a default output directory for bundling the viewer in your `.env` file by setting the `INSPECT_VIEW_BUNDLE_OUTPUT_DIR` variable. 
 
-- You may specify an S3 url as the target for bundled views. See the [Amazon S3](evallogs.qmd#sec-amazon-s3) section for additional information on configuring S3.
+- You may specify an S3 url as the target for bundled views. See the [Amazon S3](eval-logs.qmd#sec-amazon-s3) section for additional information on configuring S3.
 
 - You can use the `bundle_log_dir()` function in Python directly to bundle the viewer and logs into an output directory.
 
