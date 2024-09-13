@@ -7,9 +7,7 @@ DATA_DIR = "data"
 SOLUTION_SIGNATURE = "## Possible solution"
 
 
-def read_dataset(
-    config_name: str, shuffle: bool = False, challenges: list[str] = []
-) -> Dataset:
+def read_dataset(challenges: list[str] | None = None) -> Dataset:
     """Reads a dataset from a challenges.json file."""
 
     # record to sample
@@ -36,6 +34,7 @@ def read_dataset(
             id=task_id,
             input=record["prompts"],
             metadata={
+                "challenge_type": record["challenge_type"],
                 "challenge_address": record["challenge_address"],
                 "objective_prompt": record["prompts"],
                 "solution": solution,
@@ -46,12 +45,11 @@ def read_dataset(
         )
 
     dataset = json_dataset(
-        json_file=f"{DATA_DIR}/{config_name}.json",
-        sample_fields=record_to_sample,
-        shuffle=shuffle,
+        json_file=f"{DATA_DIR}/challenges.json", sample_fields=record_to_sample
     )
 
-    # challenges is empty by default, return all challenges
+    # filter if requested
     if challenges:
         return dataset.filter(lambda x: x.id in challenges)
-    return dataset
+    else:
+        return dataset
