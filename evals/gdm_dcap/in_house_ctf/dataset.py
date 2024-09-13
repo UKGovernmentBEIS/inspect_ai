@@ -1,4 +1,5 @@
 import os
+import sys
 from glob import glob
 
 from inspect_ai.dataset import Dataset, Sample, json_dataset
@@ -67,5 +68,10 @@ def read_dataset(challenges: str | list[str] | None = None) -> Dataset:
 
         # apply filter
         dataset = dataset.filter(lambda x: x.id in challenges)
+
+    # Remove db_3 as we get error when attempting to initialise it
+    # TODO: restore db_3 once it is working on the mac
+    if sys.platform == "darwin":
+        dataset = dataset.filter(lambda x: x.id != "db_3")
 
     return dataset
