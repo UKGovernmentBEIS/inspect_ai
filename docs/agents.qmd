@@ -79,7 +79,7 @@ def ctf():
 4.  Limit the total messages that can be used for each CTF sample.
 5.  Specify that Docker should be used as the sandbox environment.
 
-The full source code for this example can be found in the Inspect GitHub repository at [intercode-ctf](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/gdm_dcap/intercode-ctf).
+The full source code for this example can be found in the Inspect GitHub repository at [intercode_ctf](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/gdm_dcap/intercode_ctf).
 
 ### Options
 

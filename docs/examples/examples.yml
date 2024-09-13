@@ -34,7 +34,7 @@
 - title: "InterCode: Capture the Flag"
   description: |
     Measure expertise in coding, cryptography (i.e. binary exploitation, forensics), reverse engineering, and recognizing security vulnerabilities. Demonstrates tool use and sandboxing untrusted model code.
-  path: evals/gdm_dcap/intercode-ctf
+  path: evals/gdm_dcap/intercode_ctf
   arxiv: https://arxiv.org/abs/2306.14898
   cite: yang2023intercodestandardizingbenchmarkinginteractive
   group: Cybersecurity
@@ -44,7 +44,7 @@
 - title: "GDM Dangerous Capabilities: Capture the Flag"
   description: |
     CTF challenges covering web app vulnerabilities, off-the-shelf exploits, databases, Linux privilege escalation, password cracking and spraying. Demonstrates tool use and sandboxing untrusted model code.
-  path: evals/gdm_dcap/in-house-ctf
+  path: evals/gdm_dcap/in_house_ctf
   arxiv: https://arxiv.org/abs/2403.13793
   cite: phuong2024evaluatingfrontiermodelsdangerous
   group: Cybersecurity
