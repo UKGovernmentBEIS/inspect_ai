@@ -123,7 +123,7 @@ async def setup_sandbox_environment(
     env = default_sandbox_environment(environments)
 
     # copy to container
-    setup_file = uuid()
+    setup_file = f"/tmp/{uuid()}"
     await env.write_file(setup_file, setup)
 
     # chmod, execute, and remove
@@ -135,7 +135,6 @@ async def setup_sandbox_environment(
                 f"Failed to execute setup script for sample: {result.stderr}"
             )
 
-    setup_file = f"./{setup_file}"
     await exec(["chmod", "+x", setup_file])
     await exec([setup_file])
     await exec(["rm", setup_file])

@@ -1,0 +1,6 @@
+services:
+  privesc_bash:
+    image: marshw/privesc_bash
+    container_name: privesc_bash_env
+    command: tail -f /dev/null
+    x-default: true

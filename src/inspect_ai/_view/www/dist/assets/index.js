@@ -14947,7 +14947,17 @@ const sort = (sort2, samples, sampleDescriptor) => {
   };
 };
 const LargeModal = (props) => {
-  const { id, title, detail, detailTools, footer, onkeyup, children } = props;
+  const {
+    id,
+    title,
+    detail,
+    detailTools,
+    footer,
+    onkeyup,
+    visible,
+    onHide,
+    children
+  } = props;
   const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
   const headerEls = [];
   headerEls.push(
@@ -14990,7 +15000,9 @@ const LargeModal = (props) => {
   headerEls.push(m$1`<button
       type="button"
       class="btn btn-close-large-dialog"
-      data-bs-dismiss="modal"
+      onclick=${() => {
+    onHide();
+  }}
       aria-label="Close"
       style=${{
     borderWidth: "0px",
@@ -15009,7 +15021,11 @@ const LargeModal = (props) => {
     tabindex="0"
     role="dialog"
     onkeyup=${onkeyup}
-    style=${{ borderRadius: "var(--bs-border-radius)" }}
+    style=${{
+    borderRadius: "var(--bs-border-radius)",
+    display: visible ? "block" : "none"
+  }}
+    tabindex=${visible ? 0 : void 0}
   >
     <div
       class="modal-dialog modal-dialog-scrollable"
@@ -18778,20 +18794,24 @@ const InlineSampleDisplay = ({
     />
   </div>`;
 };
-const SampleDisplay = ({ index, sample, sampleDescriptor, context }) => {
-  const baseId = `sample-${index}`;
+const SampleDisplay = ({
+  sample,
+  sampleDescriptor,
+  visible,
+  context
+}) => {
+  const baseId = `sample-dialog`;
   const msgTabId = `${baseId}-messages`;
   const transcriptTabId = `${baseId}-transcript`;
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
   const errorTabId = `${baseId}-error`;
   y(() => {
-    if (sample.transcript && sample.transcript.events.length > 0) {
-      setSelectedTab(transcriptTabId);
-    } else {
-      setSelectedTab(msgTabId);
+    if (!visible) {
+      const defaultTab = sample.transcript && sample.transcript.events.length ? transcriptTabId : msgTabId;
+      setSelectedTab(defaultTab);
     }
-  }, [sample]);
+  }, [visible]);
   const [selectedTab, setSelectedTab] = h(void 0);
   const onSelectedTab = (e2) => {
     const id = e2.currentTarget.id;
@@ -19089,10 +19109,12 @@ const SampleDialog = (props) => {
     sampleDescriptor,
     nextSample,
     prevSample,
+    sampleDialogVisible,
+    hideSample,
     context
   } = props;
   if (!sample) {
-    return m$1`<${LargeModal} id=${id} title="No Sample"><${EmptyPanel}>No Sample Selected</${EmptyPanel}></${LargeModal}>`;
+    return m$1`<${LargeModal} visible=${sampleDialogVisible} onHide=${hideSample} id=${id} title="No Sample"><${EmptyPanel}>No Sample Selected</${EmptyPanel}></${LargeModal}>`;
   }
   const tools = T(() => {
     const nextTool = {
@@ -19125,6 +19147,9 @@ const SampleDialog = (props) => {
             prevSample();
           }
           break;
+        case "Escape":
+          hideSample();
+          break;
       }
     },
     [prevSample, nextSample]
@@ -19135,12 +19160,15 @@ const SampleDialog = (props) => {
       detail=${title}
       detailTools=${tools}
       onkeyup=${handleKeyUp}   
+      visible=${sampleDialogVisible}
+      onHide=${hideSample}
     >
     <${SampleDisplay}
       index=${index}
       id=${id}
       sample=${sample}
       sampleDescriptor=${sampleDescriptor}
+      visible=${sampleDialogVisible}
       context=${context}/>
     </${LargeModal}>`;
 };
@@ -19549,6 +19577,7 @@ const SamplesTab = (props) => {
     /** @type {HTMLElement|null} */
     null
   );
+  const [sampleDialogVisible, setSampleDialogVisible] = h(false);
   y(() => {
     setFilteredSamples(
       (samples || []).filter((sample) => {
@@ -19566,32 +19595,18 @@ const SamplesTab = (props) => {
     );
   }, [samples, filter, sort$1, epoch]);
   const showSample = q(() => {
-    const dialogEl = sampleDialogRef.current;
-    if (dialogEl) {
-      const modal = new Modal(dialogEl.base);
-      modal.show();
-    }
-  }, [sampleDialogRef]);
+    setSampleDialogVisible(true);
+    setTimeout(() => {
+      sampleDialogRef.current.base.focus();
+    }, 0);
+  }, [setSampleDialogVisible, sampleDialogRef]);
   const hideSample = q(() => {
-    const dialogEl = sampleDialogRef.current;
-    if (dialogEl && dialogEl.base) {
-      const modal = Modal.getInstance(dialogEl.base);
-      if (modal) {
-        modal.hide();
-      }
+    setSampleDialogVisible(false);
+    const listEl = sampleListRef.current;
+    if (listEl && listEl.base) {
+      listEl.base.focus();
     }
-  }, [sampleDialogRef]);
-  y(() => {
-    const dialogEl = sampleDialogRef.current;
-    if (dialogEl) {
-      dialogEl.base.addEventListener("hidden.bs.modal", () => {
-        const listEl = sampleListRef.current;
-        if (listEl) {
-          listEl.base.focus();
-        }
-      });
-    }
-  }, [sampleDialogRef, sampleListRef]);
+  }, [setSampleDialogVisible]);
   y(() => {
     const { sorted, order: order2 } = sort(sort$1, filteredSamples, sampleDescriptor);
     const sampleProcessor = getSampleProcessor(
@@ -19686,6 +19701,8 @@ const SamplesTab = (props) => {
       sampleDescriptor=${sampleDescriptor}
       nextSample=${nextSample}
       prevSample=${previousSample}
+      sampleDialogVisible=${sampleDialogVisible}
+      hideSample=${hideSample}
       context=${context}
     />
   `);
