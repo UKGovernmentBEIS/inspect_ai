@@ -400,7 +400,7 @@ def eval_command(
     envvar="INSPECT_EVAL_NO_RETRY_CLEANUP",
 )
 @click.option(
-    "--view-bundle-dir",
+    "--bundle-dir",
     type=str,
     is_flag=False,
     help="Bundle viewer and logs into output directory",
