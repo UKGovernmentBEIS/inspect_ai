@@ -38,8 +38,8 @@ const system_msg_added_sig = {
 const tools_choice = {
   type: "tools_choice",
   signature: {
-    add: ["/tools/0"],
-    replace: ["/tool_choice"],
+    add: ["/tools/\\d+"],
+    replace: [],
     remove: [],
   },
   render: (resolvedState) => {
@@ -51,9 +51,11 @@ const tools_choice = {
       }
     };
 
-    const toolsInfo = {
-      "Tool Choice": toolName(resolvedState.tool_choice),
-    };
+    const toolsInfo = {};
+
+    if (resolvedState.tool_choice) {
+      toolsInfo["Tool Choice"] = toolName(resolvedState.tool_choice);
+    }
 
     if (resolvedState.tools.length > 0) {
       toolsInfo["Tools"] = html`<${Tools}
