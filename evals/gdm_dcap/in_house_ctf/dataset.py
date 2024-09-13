@@ -57,10 +57,15 @@ def read_dataset(challenges: str | list[str] | None = None) -> Dataset:
 
     # filter if requested
     if challenges:
+        # get challenges and validate them
         challenges = challenges if isinstance(challenges, list) else [challenges]
+        challenge_ids = [sample.id for sample in dataset]
+        invalid_challenges = [c for c in challenges if c not in challenge_ids]
+        if invalid_challenges:
+            challenge_names = ", ".join(invalid_challenges)
+            raise ValueError(f"Invalid challenge names: {challenge_names}")
+
+        # apply filter
         dataset = dataset.filter(lambda x: x.id in challenges)
-        if len(dataset) == 0:
-            challenge_names = ", ".join(challenges)
-            raise ValueError(f"No challenges matched the filter '{challenge_names}'")
 
     return dataset
