@@ -101,7 +101,7 @@ def swe_bench(
     )
 
     for sample in samples:
-        # Turn the saved strings into dictonary objects
+        # Turn the saved strings into list objects
         sample.metadata["PASS_TO_PASS"] = json.loads(sample.metadata["PASS_TO_PASS"])
         sample.metadata["FAIL_TO_PASS"] = json.loads(sample.metadata["FAIL_TO_PASS"])
 
@@ -249,7 +249,13 @@ def swebench_scorer() -> Scorer:
                 CREATE_MODEL_PATCH.format(base_commit=state.metadata["base_commit"]),
             ]
         )
-        agent_patch = await sandbox().exec(["bash", "-c", GET_AGENT_PATCH])
+
+        try:
+            agent_patch = await sandbox().exec(["bash", "-c", GET_AGENT_PATCH])
+        except UnicodeDecodeError:
+            agent_patch = (
+                "Agent patch could not be decoded due to having a binary input."
+            )
 
         # Run the evaluation script
         eval_script = get_eval_script(
@@ -290,11 +296,6 @@ def swebench_scorer() -> Scorer:
                     pass_to_pass_results[k] = v
                 elif k in state.metadata["FAIL_TO_PASS"]:
                     fail_to_pass_results[k] = v
-                else:
-                    logger.warning(
-                        f"Test {k} not found in PASS_TO_PASS or FAIL_TO_PASS"
-                    )
-                    continue
 
             passed_all_tests = all(
                 ["PASSED" == v for v in pass_to_pass_results.values()]
