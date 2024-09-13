@@ -17738,7 +17738,7 @@ const ToolEventView = ({ id, event, style, stateManager, depth }) => {
   const title = `Tool: ${event.function}`;
   return m$1`
   <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
-    <div name="Summary">
+    <div name="Summary" style=${{ width: "100%", margin: "1em 0" }}>
     ${event.result ? m$1`
           <${ExpandablePanel} collapse=${true} border=${true} lines=10>
           <${ToolOutput}
