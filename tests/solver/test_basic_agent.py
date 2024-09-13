@@ -1,9 +1,10 @@
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
+from inspect_ai.log import EvalLog
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import includes
-from inspect_ai.solver import basic_agent, system_message
-from inspect_ai.tool import tool
+from inspect_ai.solver import Solver, basic_agent, solver, system_message
+from inspect_ai.tool import Tool, tool
 
 
 @tool
@@ -37,7 +38,7 @@ AGENT_SUBMIT_TOOL_NAME = "agent_submit"
 AGENT_SUBMIT_TOOL_DESCRIPTION = "Submit an answer."
 
 
-def test_basic_agent_custom_text():
+def run_basic_agent(tools: list[Tool] | Solver) -> EvalLog:
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
         plan=basic_agent(
@@ -60,7 +61,25 @@ def test_basic_agent_custom_text():
         ],
     )
 
-    log = eval(task, model=model)[0]
+    return eval(task, model=model)[0]
+
+
+def test_basic_agent_solver():
+    @solver
+    def addition_tool() -> Solver:
+        async def solve(state, generate):
+            state.tools = [addition()]
+            return state
+
+        return solve
+
+    log = run_basic_agent(addition_tool())
+    assert log.status == "success"
+    assert log.results.scores[0].metrics["accuracy"].value == 1
+
+
+def test_basic_agent_custom_text():
+    log = run_basic_agent([addition()])
     assert log.status == "success"
     assert log.samples[0].messages[0].content == AGENT_SYSTEM_MESSAGE
     tool_event = next(
