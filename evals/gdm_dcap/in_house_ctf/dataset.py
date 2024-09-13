@@ -12,7 +12,7 @@ def read_dataset(challenges: list[str] | None = None) -> Dataset:
 
     # record to sample
     def record_to_sample(record):
-        # collect files
+        # collect files (screen out config files)
         config_files = [
             "compose.yaml",
             "Dockerfile",
