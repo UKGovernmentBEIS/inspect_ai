@@ -15583,8 +15583,8 @@ const system_msg_added_sig = {
 const tools_choice = {
   type: "tools_choice",
   signature: {
-    add: ["/tools/0"],
-    replace: ["/tool_choice"],
+    add: ["/tools/\\d+"],
+    replace: [],
     remove: []
   },
   render: (resolvedState) => {
@@ -15595,9 +15595,10 @@ const tools_choice = {
         return toolChoice;
       }
     };
-    const toolsInfo = {
-      "Tool Choice": toolName(resolvedState.tool_choice)
-    };
+    const toolsInfo = {};
+    if (resolvedState.tool_choice) {
+      toolsInfo["Tool Choice"] = toolName(resolvedState.tool_choice);
+    }
     if (resolvedState.tools.length > 0) {
       toolsInfo["Tools"] = m$1`<${Tools}
         toolDefinitions=${resolvedState.tools}
@@ -17105,19 +17106,34 @@ const StateEventView = ({ id, event, style, stateManager }) => {
   </${EventPanel}>`;
 };
 const generatePreview = (changes, resolvedState) => {
+  const results = [];
   for (const changeType of RenderableChangeTypes) {
     const requiredMatchCount = changeType.signature.remove.length + changeType.signature.replace.length + changeType.signature.add.length;
     let matchingOps = 0;
     for (const change of changes) {
-      if (changeType.signature.remove.includes(change.path) || changeType.signature.replace.includes(change.path) || changeType.signature.add.includes(change.path)) {
+      const actions = ["remove", "add", "replace"];
+      let matchCount = 0;
+      actions.forEach((action) => {
+        if (changeType.signature[action].length === 0) {
+          matchCount++;
+        } else {
+          const matches = changeType.signature[action].find((sig) => {
+            return change.path.match(sig);
+          });
+          if (matches) {
+            matchCount++;
+          }
+        }
+      });
+      if (matchCount === actions.length) {
         matchingOps++;
       }
       if (matchingOps === requiredMatchCount) {
-        return changeType.render(resolvedState);
+        results.push(changeType.render(resolvedState));
       }
     }
   }
-  return void 0;
+  return results.length > 0 ? results : void 0;
 };
 const summarizeChanges = (changes) => {
   const changeMap = {
@@ -17738,7 +17754,7 @@ const ToolEventView = ({ id, event, style, stateManager, depth }) => {
   const title = `Tool: ${event.function}`;
   return m$1`
   <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
-    <div name="Summary">
+    <div name="Summary" style=${{ width: "100%", margin: "1em 0" }}>
     ${event.result ? m$1`
           <${ExpandablePanel} collapse=${true} border=${true} lines=10>
           <${ToolOutput}

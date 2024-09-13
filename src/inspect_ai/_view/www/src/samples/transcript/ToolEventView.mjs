@@ -32,7 +32,7 @@ export const ToolEventView = ({ id, event, style, stateManager, depth }) => {
 
   return html`
   <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
-    <div name="Summary">
+    <div name="Summary" style=${{ width: "100%", margin: "1em 0" }}>
     ${
       event.result
         ? html`
