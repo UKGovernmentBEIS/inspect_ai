@@ -69,7 +69,7 @@ def eval_set(
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
-    view_bundle_dir: str | None = None,
+    bundle_dir: str | None = None,
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[bool, list[EvalLog]]:
@@ -127,7 +127,7 @@ def eval_set(
             even if specified as a filename or URL (defaults to False)
         log_buffer: (int | None): Number of samples to buffer before writing log file
             (defaults to 10 for local filesystems and 100 for remote filesystems)
-        view_bundle_dir: (str | None): If specified, the log viewer and logs generated
+        bundle_dir: (str | None): If specified, the log viewer and logs generated
             by this eval set will be bundled into this directory.
         score (bool): Score output (defaults to True)
         **kwargs (GenerateConfigArgs): Model generation options.
@@ -173,8 +173,8 @@ def eval_set(
             raise KeyboardInterrupt
 
         # if specified, bundle the output directory
-        if view_bundle_dir:
-            bundle_log_dir(log_dir=log_dir, output_dir=view_bundle_dir)
+        if bundle_dir:
+            bundle_log_dir(log_dir=log_dir, output_dir=bundle_dir)
 
         # return results
         return results

@@ -43,11 +43,12 @@ def bundle_log_dir(
     log_dir = log_dir if log_dir else os.getenv("INSPECT_LOG_DIR", "./logs")
 
     # resolve the output directory
-    output_dir = (
-        output_dir if output_dir else os.getenv("INSPECT_BUNDLE_DIR", "./bundle")
-    )
+    output_dir = output_dir if output_dir else os.getenv("INSPECT_BUNDLE_DIR", "")
 
     # ensure output_dir doesn't exist
+    if output_dir == "":
+        raise PrerequisiteError("You must provide an 'output_dir'")
+
     if filesystem(output_dir, fs_options).exists(output_dir) and not overwrite:
         raise PrerequisiteError(
             f"The output directory '{output_dir}' already exists. Choose another output directory or use 'overwrite' to overwrite the directory and contents"

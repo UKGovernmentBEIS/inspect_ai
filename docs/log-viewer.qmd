@@ -171,7 +171,7 @@ pip install git+https://github.com/ukgovernmentbeis/inspect_ai
 ```
 :::
 
-You can use the command `inspect view bundle` (or the `inspect_view_bundle()` function from Python) to create a self contained directory with the log viewer and a set of logs for display. This directory can then be deployed as static HTML to any static web server (GitHub Pages, S3 buckets, etc...) to provide an interactive copy of the viewer. For example, to bundle the `logs` directory to a directory named `output`:
+You can use the command `inspect view bundle` (or the `bundle_log_dir()` function from Python) to create a self contained directory with the log viewer and a set of logs for display. This directory can then be deployed as static HTML to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide an interactive copy of the viewer. For example, to bundle the `logs` directory to a directory named `output`:
 
 `inspect view bundle --log_dir logs --output_dir output`
 
@@ -204,7 +204,7 @@ Deploy this folder to a static webserver to publish an interactive copy of the l
 
 - You may specify an S3 url as the target for bundled views. See the [Amazon S3](evallogs.qmd#sec-amazon-s3) section for additional information on configuring S3.
 
-- You an use the `bundle_log_dir` function in Python directly to bundle the viewer and logs into an output directory.
+- You can use the `bundle_log_dir()` function in Python directly to bundle the viewer and logs into an output directory.
 
 - The bundled viewer will show the first log file by default. You may link to the viewer to show a specific log file by including the url parameter `log_file=<log_file>`.
 

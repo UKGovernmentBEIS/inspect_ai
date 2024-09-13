@@ -453,7 +453,7 @@ def eval_set_command(
     log_images: bool | None,
     log_buffer: int | None,
     no_score: bool | None,
-    view_bundle_dir: str | None,
+    bundle_dir: str | None,
     **kwargs: Unpack[CommonOptions],
 ) -> int:
     """Evaluate a set of tasks."""
@@ -493,7 +493,7 @@ def eval_set_command(
         retry_wait=retry_wait,
         retry_connections=retry_connections,
         retry_cleanup=not no_retry_cleanup,
-        view_bundle_dir=view_bundle_dir,
+        bundle_dir=bundle_dir,
         **config,
     )
 
@@ -530,7 +530,7 @@ def eval_exec(
     retry_wait: int | None = None,
     retry_connections: float | None = None,
     retry_cleanup: bool | None = None,
-    view_bundle_dir: str | None = None,
+    bundle_dir: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
     # parse params and model args
@@ -583,7 +583,7 @@ def eval_exec(
             log_images=log_images,
             log_buffer=log_buffer,
             score=score,
-            view_bundle_dir=view_bundle_dir,
+            bundle_dir=bundle_dir,
         )
         | kwargs
     )
