@@ -7673,6 +7673,13 @@ const filename = (path) => {
     return path;
   }
 };
+const dirname = (path) => {
+  const pathparts = path.split("/");
+  if (pathparts.length > 1) {
+    pathparts.pop();
+  }
+  return pathparts.join("/");
+};
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -22013,50 +22020,18 @@ const vscodeApi$1 = {
   download_file,
   open_log_file
 };
-function singleFileHttpApi() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const fetchLogPath = urlParams.get("log_file");
-  if (fetchLogPath) {
-    const resolvedLogPath = fetchLogPath.replace(" ", "+");
-    const api2 = httpApiForFile(resolvedLogPath);
-    return api2;
-  }
+function simpleHttpApi(log_dir, log_file) {
+  const resolved_log_dir = log_dir.replace(" ", "+");
+  const resolved_log_path = log_file ? log_file.replace(" ", "+") : void 0;
+  return simpleHttpAPI({
+    log_file: resolved_log_path,
+    log_dir: resolved_log_dir
+  });
 }
-function httpApiForFile(logFile) {
-  const getContents = async () => {
-    {
-      const response = await fetch(`${logFile}`, { method: "GET" });
-      if (response.ok) {
-        const text = await response.text();
-        const log = await asyncJsonParse(text);
-        if (log.version === 1) {
-          if (log.results) {
-            log.results.scores = [];
-            log.results.scorer.scorer = log.results.scorer.name;
-            log.results.scores.push(log.results.scorer);
-            delete log.results.scorer;
-            log.results.scores[0].metrics = log.results.metrics;
-            delete log.results.metrics;
-            const scorerName = log.results.scores[0].name;
-            log.samples.forEach((sample) => {
-              sample.scores = { [scorerName]: sample.score };
-              delete sample.score;
-            });
-          }
-        }
-        return {
-          parsed: log,
-          raw: text
-        };
-      } else if (response.status !== 200) {
-        const message = await response.text() || response.statusText;
-        const error = new Error(`Error: ${response.status}: ${message})`);
-        throw error;
-      } else {
-        throw new Error(`${response.status} - ${response.statusText} `);
-      }
-    }
-  };
+function simpleHttpAPI(logInfo) {
+  const log_file = logInfo.log_file;
+  const log_dir = logInfo.log_dir;
+  const cache = log_file_cache(log_file);
   async function open_log_file2() {
   }
   return {
@@ -22064,30 +22039,166 @@ function httpApiForFile(logFile) {
       return Promise.resolve([]);
     },
     eval_logs: async () => {
-      const contents = await getContents();
-      const files = [
-        {
-          name: logFile,
-          task: contents.parsed.eval.task,
-          task_id: contents.parsed.eval.task_id
+      const headers = await fetchLogHeaders(log_dir);
+      if (headers) {
+        const logRecord = headers.parsed;
+        const logs = Object.keys(logRecord).map((key2) => {
+          return {
+            name: joinURI(log_dir, key2),
+            task: logRecord[key2].eval.task,
+            task_id: logRecord[key2].eval.task_id
+          };
+        });
+        return Promise.resolve({
+          files: logs
+        });
+      } else if (log_file) {
+        let evalLog = cache.get();
+        if (!evalLog) {
+          const response = await fetchLogFile(log_file);
+          cache.set(response.parsed);
+          evalLog = response.parsed;
         }
-      ];
-      return Promise.resolve({
-        files
-      });
+        const result = {
+          name: log_file,
+          task: evalLog.eval.task,
+          task_id: evalLog.eval.task_id
+        };
+        return {
+          files: [result]
+        };
+      } else {
+        throw new Error(
+          `Failed to load a manifest files using the directory: ${log_dir}. Please be sure you have deployed a manifest file (logs.json).`
+        );
+      }
     },
-    eval_log: async () => {
-      return await getContents();
+    eval_log: async (file) => {
+      const response = await fetchLogFile(file);
+      cache.set(response.parsed);
+      return response;
     },
     eval_log_headers: async () => {
-      const contents = await getContents();
-      return Promise.resolve([contents.parsed]);
+      const headers = await fetchLogHeaders(log_dir);
+      if (headers) {
+        return Object.values(headers.parsed);
+      } else if (log_file) {
+        let evalLog = cache.get();
+        if (!evalLog) {
+          const response = await fetchLogFile(log_file);
+          cache.set(response.parsed);
+          evalLog = response.parsed;
+        }
+        return [evalLog];
+      } else {
+        throw new Error(
+          `Failed to load a manifest files using the directory: ${log_dir}. Please be sure you have deployed a manifest file (logs.json).`
+        );
+      }
     },
     download_file: download_file$1,
     open_log_file: open_log_file2
   };
 }
-const api = window.acquireVsCodeApi ? vscodeApi$1 : singleFileHttpApi() || browserApi;
+async function fetchFile(url, parse3, handleError) {
+  const response = await fetch(`${url}`, { method: "GET" });
+  if (response.ok) {
+    const text = await response.text();
+    return {
+      parsed: await parse3(text),
+      raw: text
+    };
+  } else if (response.status !== 200) {
+    if (handleError && handleError(response)) {
+      return void 0;
+    }
+    const message = await response.text() || response.statusText;
+    const error = new Error(`${response.status}: ${message})`);
+    throw error;
+  } else {
+    throw new Error(`${response.status} - ${response.statusText} `);
+  }
+}
+const fetchLogFile = async (file) => {
+  return fetchFile(file, async (text) => {
+    const log = await asyncJsonParse(text);
+    if (log.version === 1) {
+      if (log.results) {
+        log.results.scores = [];
+        log.results.scorer.scorer = log.results.scorer.name;
+        log.results.scores.push(log.results.scorer);
+        delete log.results.scorer;
+        log.results.scores[0].metrics = log.results.metrics;
+        delete log.results.metrics;
+        const scorerName = log.results.scores[0].name;
+        log.samples.forEach((sample) => {
+          sample.scores = { [scorerName]: sample.score };
+          delete sample.score;
+        });
+      }
+    }
+    return log;
+  });
+};
+const fetchLogHeaders = async (log_dir) => {
+  const logs = await fetchFile(
+    log_dir + "/logs.json",
+    async (text) => {
+      return await asyncJsonParse(text);
+    },
+    (response) => {
+      if (response.status === 404) {
+        return true;
+      }
+    }
+  );
+  return logs;
+};
+function joinURI(...segments) {
+  return segments.map((segment) => segment.replace(/(^\/+|\/+$)/g, "")).join("/");
+}
+const log_file_cache = (log_file) => {
+  if (!log_file) {
+    return {
+      set: () => {
+      },
+      get: () => {
+        return void 0;
+      }
+    };
+  }
+  let cache_file;
+  return {
+    set: (log_file2) => {
+      cache_file = log_file2;
+    },
+    get: () => {
+      return cache_file;
+    }
+  };
+};
+const resolveApi = () => {
+  if (window.acquireVsCodeApi) {
+    return vscodeApi$1;
+  } else {
+    const scriptEl = document.getElementById("log_dir_context");
+    if (scriptEl) {
+      const data = JSON.parse(scriptEl.textContent);
+      if (data.log_dir || data.log_file) {
+        const log_dir2 = data.log_dir || dirname(data.log_file);
+        return simpleHttpApi(log_dir2, data.log_file);
+      }
+    }
+    const urlParams = new URLSearchParams(window.location.search);
+    const log_file = urlParams.get("log_file");
+    const log_dir = urlParams.get("log_dir");
+    if (log_file || log_dir) {
+      return simpleHttpApi(log_dir, log_file);
+    }
+    return browserApi;
+  }
+};
+const api = resolveApi();
 const DownloadButton = ({ logFile, label, fileName, fileContents }) => {
   return m$1`<button
     class="btn btn-outline-primary"
@@ -22873,9 +22984,18 @@ function App({ api: api2, pollForLogs = true }) {
     } else {
       const result = await load();
       setLogs(result);
-    }
-    if (selected === -1 && !embeddedState) {
-      setSelected(0);
+      const log_file = urlParams.get("log_file");
+      if (log_file) {
+        const index = result.files.findIndex((val) => {
+          return log_file.endsWith(val.name);
+        });
+        console.log({ result, log_file, index });
+        if (index > -1) {
+          setSelected(index);
+        }
+      } else if (selected === -1) {
+        setSelected(0);
+      }
     }
     new ClipboardJS(".clipboard-button,.copy-button");
     if (pollForLogs) {

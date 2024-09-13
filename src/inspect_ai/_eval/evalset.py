@@ -19,6 +19,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem
 from inspect_ai._util.registry import is_registry_object
 from inspect_ai.log import EvalLog
+from inspect_ai.log._bundle import bundle_log_dir
 from inspect_ai.log._file import (
     EvalLogInfo,
     list_eval_logs,
@@ -68,6 +69,7 @@ def eval_set(
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
+    bundle_dir: str | None = None,
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[bool, list[EvalLog]]:
@@ -125,6 +127,8 @@ def eval_set(
             even if specified as a filename or URL (defaults to False)
         log_buffer: (int | None): Number of samples to buffer before writing log file
             (defaults to 10 for local filesystems and 100 for remote filesystems)
+        bundle_dir: (str | None): If specified, the log viewer and logs generated
+            by this eval set will be bundled into this directory.
         score (bool): Score output (defaults to True)
         **kwargs (GenerateConfigArgs): Model generation options.
 
@@ -167,6 +171,10 @@ def eval_set(
         # check for cancelled
         if evals_cancelled(results):
             raise KeyboardInterrupt
+
+        # if specified, bundle the output directory
+        if bundle_dir:
+            bundle_log_dir(log_dir=log_dir, output_dir=bundle_dir)
 
         # return results
         return results

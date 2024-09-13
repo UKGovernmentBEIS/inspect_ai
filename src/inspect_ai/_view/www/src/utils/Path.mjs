@@ -15,3 +15,21 @@ export const filename = (path) => {
     return path;
   }
 };
+
+/**
+ * Extracts the directory name from a given path.
+ *
+ * @param {string} path - The full path of the file.
+ * @returns {string} - The directory name, or an empty string if no directory is found.
+ */
+export const dirname = (path) => {
+  const pathparts = path.split("/");
+
+  // If the path ends with a filename (or no slashes), remove the last part (filename)
+  if (pathparts.length > 1) {
+    pathparts.pop();
+  }
+
+  // Join the remaining parts to form the directory path
+  return pathparts.join("/");
+};

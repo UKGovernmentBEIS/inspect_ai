@@ -399,6 +399,12 @@ def eval_command(
     help="Do not cleanup failed log files after retries",
     envvar="INSPECT_EVAL_NO_RETRY_CLEANUP",
 )
+@click.option(
+    "--bundle-dir",
+    type=str,
+    is_flag=False,
+    help="Bundle viewer and logs into output directory",
+)
 @eval_options
 @click.pass_context
 def eval_set_command(
@@ -447,6 +453,7 @@ def eval_set_command(
     log_images: bool | None,
     log_buffer: int | None,
     no_score: bool | None,
+    bundle_dir: str | None,
     **kwargs: Unpack[CommonOptions],
 ) -> int:
     """Evaluate a set of tasks."""
@@ -486,6 +493,7 @@ def eval_set_command(
         retry_wait=retry_wait,
         retry_connections=retry_connections,
         retry_cleanup=not no_retry_cleanup,
+        bundle_dir=bundle_dir,
         **config,
     )
 
@@ -522,6 +530,7 @@ def eval_exec(
     retry_wait: int | None = None,
     retry_connections: float | None = None,
     retry_cleanup: bool | None = None,
+    bundle_dir: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
     # parse params and model args
@@ -574,6 +583,7 @@ def eval_exec(
             log_images=log_images,
             log_buffer=log_buffer,
             score=score,
+            bundle_dir=bundle_dir,
         )
         | kwargs
     )
