@@ -4,7 +4,7 @@ This directory contains Inspect eval implementations for a variety of papers and
 
 | Benchmark                                                                                       | Reference                            |                                                  Code | Dataset      |
 |-----------------------------|--------------|--------------:|--------------|
-| MMLU: Measuring Massive Multitask Language Understanding                                        | <https://arxiv.org/abs/2009.03300>   |                                    [mmlu.py](mmlu.py) | Download     |
+| MMLU: Measuring Massive Multitask Language Understanding                                        | <https://arxiv.org/abs/2009.03300>   |                                    [mmlu.py](mmlu/mmlu.py) | Download     |
 | MMLU-Pro: A More Robust and Challenging Multi-Task Language Understanding Benchmark             | <https://arxiv.org/abs/2406.01574>   |                   [mmlu_pro.py](mmlu_pro/mmlu_pro.py) | HuggingFace  |
 | MATH: Measuring Mathematical Problem Solving With the MATH Dataset                              | <https://arxiv.org/abs/2103.03874>   |          [mathematics.py](mathematics/mathematics.py) | Download     |
 | GPQA: A Graduate-Level Google-Proof Q&A Benchmark                                               | <https://arxiv.org/abs/2311.12022>   |                                    [gpqa.py](gpqa/gpqa.py) | Download     |
