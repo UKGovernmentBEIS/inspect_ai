@@ -4,6 +4,7 @@ listing:
   id: examples
   template: examples.ejs
   contents: examples.yml
+  page-size: 100
 bibliography: examples.bib
 css: examples.css
 aliases: 
