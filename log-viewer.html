@@ -497,7 +497,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h4 class="anchored" data-anchor-id="other-notes">Other Notes</h4>
 <ul>
 <li><p>You may provide a default output directory for bundling the viewer in your <code>.env</code> file by setting the <code>INSPECT_VIEW_BUNDLE_OUTPUT_DIR</code> variable.</p></li>
-<li><p>You may specify an S3 url as the target for bundled views. See the <a href="evallogs.qmd#sec-amazon-s3">Amazon S3</a> section for additional information on configuring S3.</p></li>
+<li><p>You may specify an S3 url as the target for bundled views. See the <a href="./eval-logs.html#sec-amazon-s3">Amazon S3</a> section for additional information on configuring S3.</p></li>
 <li><p>You can use the <code>bundle_log_dir()</code> function in Python directly to bundle the viewer and logs into an output directory.</p></li>
 <li><p>The bundled viewer will show the first log file by default. You may link to the viewer to show a specific log file by including the url parameter <code>log_file=&lt;log_file&gt;</code>.</p></li>
 <li><p>The bundled output directory includes a <code>robots.txt</code> file to prevent indexing of the folder. If you deploy this folder outside of the root of your website, we recommend that you update your root <code>robots.txt</code> file to exclude this folder from being indexed.</p></li>
@@ -1035,7 +1035,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","selector":".lightbox","loop":false,"descPosition":"bottom","openEffect":"zoom"});
+<script>var lightboxQuarto = GLightbox({"selector":".lightbox","descPosition":"bottom","loop":false,"openEffect":"zoom","closeEffect":"zoom"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {
