@@ -13,6 +13,12 @@ def read_dataset(challenges: list[str] | None = None) -> Dataset:
     # record to sample
     def record_to_sample(record):
         # collect files
+        config_files = [
+            "compose.yaml",
+            "Dockerfile",
+            "README.md",
+            "requirements.txt",
+        ]
         task_id = record["challenge_name"]
         task_assets = f"{DATA_DIR}/{task_id}"
         task_files = [
@@ -20,7 +26,8 @@ def read_dataset(challenges: list[str] | None = None) -> Dataset:
             for f in glob(os.path.join(task_assets, "**"), recursive=True)
             if os.path.isfile(f)
         ]
-        files = {os.path.basename(file): file for file in task_files}
+        task_files = [file for file in task_files if file not in config_files]
+        files = {file: file for file in task_files}
 
         # read solution
         with open(f"{task_assets}/README.md") as f:
