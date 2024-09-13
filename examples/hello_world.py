@@ -5,6 +5,7 @@ from inspect_ai.solver import generate
 
 # This is the simplest possible Inspect eval, useful for testing your configuration / network / platform etc.
 
+
 @task
 def hello_world():
     return Task(
