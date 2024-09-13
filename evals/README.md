@@ -1,6 +1,6 @@
-## Benchmarks
+## Evals
 
-This directory contains evals for several benchmarks. Datasets for evals are not embedded in the repository but are rather downloaded either directly from their source URL or via Hugging Face datasets. To use Hugging Face datasets please install the datasets package with `pip install datasets`.
+This directory contains Inspect eval implementations for a variety of papers and benchmarks. Datasets for evals are not embedded in the repository but are rather downloaded either directly from their source URL or via Hugging Face datasets. To use Hugging Face datasets please install the datasets package with `pip install datasets`.
 
 | Benchmark                                                                                       | Reference                            |                                                  Code | Dataset      |
 |-----------------------------|--------------|--------------:|--------------|

@@ -8,10 +8,10 @@ https://arxiv.org/pdf/2108.07732
 Based on: https://github.com/google-research/google-research/tree/master/mbpp
 
 # Run the eval on the sanitized test split
-inspect eval benchmarks/mbpp/mbpp.py
+inspect eval mbpp.py
 
 # Specify temperature
-inspect eval benchmarks/mbpp/mbpp.py -T temperature=0.0
+inspect eval mbpp.py -T temperature=0.0
 """
 
 import re

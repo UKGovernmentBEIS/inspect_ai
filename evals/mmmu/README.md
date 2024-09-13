@@ -12,7 +12,7 @@ B) decorative rhythm and repetition
 C) a higher roof to make up for the short columns
 D) the entrance of light and air into the hall
 ```
-![alt text](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/benchmarks/mmmu/image.jpg?raw=true)
+![alt text](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/evals/mmmu/image.jpg?raw=true)
 
 The model is required to choose the correct answer from the given options and attached image. In this case, the correct answer is A) barrel-vaulted roofing.
 
