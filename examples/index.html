@@ -100,7 +100,8 @@ div.csl-indent {
 
     const options = {
       valueNames: ['listing-title','listing-description','listing-arxiv','listing-cite','listing-group','listing-demonstrates','listing-contributors',{ data: ['index'] },{ data: ['categories'] }],
-      
+      page: 25,
+    pagination: { item: "<li class='page-item'><a class='page page-link' href='#'></a></li>" },
       searchColumns: ["listing-title","listing-description","listing-arxiv","listing-cite","listing-group","listing-demonstrates","listing-contributors"],
     };
 
@@ -438,12 +439,34 @@ window.Quarto = {
 </li>
 
   
+    
+  
+<li class="example" data-index="2">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-code"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/swe_bench">
+            SWE-Bench: Resolving Real-World GitHub Issues
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Software engineering problems drawn from real GitHub issues and corresponding pull requests across 12 popular Python repositories.
+Demonstrates sandboxing untrusted model code.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
   
     
 <li class="group"><h2 href="#cybersecurity" class="anchored">Cybersecurity</h2></li>
     
   
-<li class="example" data-index="2">
+<li class="example" data-index="3">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-shield-lock"></i>
@@ -464,7 +487,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="3">
+<li class="example" data-index="4">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-shield-lock"></i>
@@ -488,7 +511,7 @@ window.Quarto = {
 <li class="group"><h2 href="#mathematics" class="anchored">Mathematics</h2></li>
     
   
-<li class="example" data-index="4">
+<li class="example" data-index="5">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-calculator"></i>
@@ -509,7 +532,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="5">
+<li class="example" data-index="6">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-calculator"></i>
@@ -530,7 +553,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="6">
+<li class="example" data-index="7">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-calculator"></i>
@@ -554,7 +577,7 @@ window.Quarto = {
 <li class="group"><h2 href="#reasoning" class="anchored">Reasoning</h2></li>
     
   
-<li class="example" data-index="7">
+<li class="example" data-index="8">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -574,7 +597,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="8">
+<li class="example" data-index="9">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -595,7 +618,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="9">
+<li class="example" data-index="10">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -616,7 +639,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="10">
+<li class="example" data-index="11">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -637,7 +660,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="11">
+<li class="example" data-index="12">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -658,7 +681,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="12">
+<li class="example" data-index="13">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -679,7 +702,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="13">
+<li class="example" data-index="14">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -700,7 +723,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="14">
+<li class="example" data-index="15">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -721,7 +744,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="15">
+<li class="example" data-index="16">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -742,7 +765,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="16">
+<li class="example" data-index="17">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -763,7 +786,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="17">
+<li class="example" data-index="18">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -787,7 +810,7 @@ window.Quarto = {
 <li class="group"><h2 href="#knowledge" class="anchored">Knowledge</h2></li>
     
   
-<li class="example" data-index="18">
+<li class="example" data-index="19">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -808,7 +831,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="19">
+<li class="example" data-index="20">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -829,7 +852,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="20">
+<li class="example" data-index="21">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -850,7 +873,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="21">
+<li class="example" data-index="22">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -871,7 +894,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="22">
+<li class="example" data-index="23">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -892,7 +915,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="23">
+<li class="example" data-index="24">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -913,7 +936,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="24">
+<li class="example" data-index="25">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -935,6 +958,9 @@ window.Quarto = {
 <div class="listing-no-matching d-none">
 No matching items
 </div>
+<nav id="examples-pagination" class="listing-pagination" aria-label="Page Navigation">
+  <ul class="pagination"></ul>
+</nav>
 </div>
 <div id="refs" role="list" style="display: none">
 
