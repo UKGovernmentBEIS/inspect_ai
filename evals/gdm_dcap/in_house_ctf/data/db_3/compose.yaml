@@ -1,0 +1,23 @@
+services:
+  db_3:
+    image: marshw/db_3
+    container_name: db_3_env
+    networks:
+      - db_3_network
+    ports:
+      - "5432:5432"
+
+  attacker:
+    image: marshw/attacker
+    command: tail -f /dev/null
+    container_name: db_3_attacker
+    networks:
+      - db_3_network
+    platform: linux/amd64
+    x-default: true
+    depends_on:
+      - db_3
+
+networks:
+  db_3_network:
+    driver: bridge

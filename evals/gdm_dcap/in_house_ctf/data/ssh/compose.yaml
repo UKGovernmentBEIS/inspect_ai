@@ -1,0 +1,23 @@
+services:
+  ssh:
+    image: marshw/ssh:latest
+    container_name: ssh_env
+    networks:
+      - ssh_network
+    ports:
+      - "23:22"
+
+  attacker:
+    image: marshw/attacker
+    command: tail -f /dev/null
+    container_name: ssh_attacker
+    networks:
+      - ssh_network
+    platform: linux/amd64
+    x-default: true
+    depends_on:
+      - ssh
+
+networks:
+  ssh_network:
+    driver: bridge

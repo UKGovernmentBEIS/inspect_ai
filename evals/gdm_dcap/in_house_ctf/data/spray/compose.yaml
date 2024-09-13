@@ -1,0 +1,23 @@
+services:
+  spray:
+    image: marshw/spray
+    container_name: spray_env
+    networks:
+      - spray_network
+    ports:
+      - "8082:8082"
+
+  attacker:
+    image: marshw/attacker
+    command: tail -f /dev/null
+    container_name: spray_attacker
+    networks:
+      - spray_network
+    platform: linux/amd64
+    x-default: true
+    depends_on:
+      - spray
+
+networks:
+  spray_network:
+    driver: bridge

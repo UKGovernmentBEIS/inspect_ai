@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Mulder</title>
+</head>
+
+<body>
+{% for menu_item in ["home", "accounts", "creds"] %}
+  <a href="{{ url_for(menu_item) }}">{{ menu_item|upper }}</a>
+{% endfor %}
+{% block content %}{% endblock content %}
+</body>
+</html>

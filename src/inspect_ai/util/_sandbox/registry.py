@@ -1,4 +1,4 @@
-from typing import Callable, cast
+from typing import Callable, Type, TypeVar, cast
 
 from inspect_ai._util.entrypoints import ensure_entry_points
 from inspect_ai._util.registry import (
@@ -11,22 +11,20 @@ from inspect_ai._util.registry import (
 
 from .environment import SandboxEnvironment
 
+T = TypeVar("T", bound=SandboxEnvironment)
 
-def sandboxenv(name: str) -> Callable[..., type[SandboxEnvironment]]:
+
+def sandboxenv(name: str) -> Callable[..., Type[T]]:
     r"""Decorator for registering sandbox environments.
 
     Args:
         name (str): Name of SandboxEnvironment type
     """
 
-    def wrapper(
-        sandboxenv_type: type[SandboxEnvironment]
-        | Callable[..., type[SandboxEnvironment]],
-    ) -> type[SandboxEnvironment]:
+    def wrapper(sandboxenv_type: Type[T] | Callable[..., Type[T]]) -> Type[T]:
         # resolve if its a function
         if not isinstance(sandboxenv_type, type):
             sandboxenv_type = sandboxenv_type()
-
         # determine name
         sandboxenv_name = registry_name(sandboxenv_type, name)
 
@@ -36,9 +34,7 @@ def sandboxenv(name: str) -> Callable[..., type[SandboxEnvironment]]:
     return wrapper
 
 
-def sandboxenv_register(
-    sandboxenv_type: type[SandboxEnvironment], name: str
-) -> type[SandboxEnvironment]:
+def sandboxenv_register(sandboxenv_type: Type[T], name: str) -> Type[T]:
     registry_add(
         sandboxenv_type,
         RegistryInfo(type="sandboxenv", name=name),
