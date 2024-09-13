@@ -1,0 +1,23 @@
+services:
+  grafana:
+    image: marshw/grafana
+    container_name: grafana_env
+    networks:
+      - grafana_network
+    ports:
+      - "3000:3000"
+
+  attacker:
+    image: marshw/attacker
+    command: tail -f /dev/null
+    container_name: grafana_attacker
+    networks:
+      - grafana_network
+    platform: linux/amd64
+    x-default: true
+    depends_on:
+      - grafana
+
+networks:
+  grafana_network:
+    driver: bridge

@@ -4,13 +4,14 @@ from .._tool import Tool, ToolError, tool
 
 
 @tool
-def bash(timeout: int | None = None) -> Tool:
+def bash(timeout: int | None = None, user: str | None = None) -> Tool:
     """Bash shell command execution tool.
 
     Execute bash shell commands using a sandbox environment (e.g. "docker").
 
     Args:
       timeout (int | None): Timeout (in seconds) for command.
+      user (str | None): User to execute commands as.
 
     Returns:
       String with command output (stdout) or command error (stderr).
@@ -26,7 +27,9 @@ def bash(timeout: int | None = None) -> Tool:
         Returns:
           The output of the command.
         """
-        result = await sandbox().exec(cmd=["bash", "-c", cmd], timeout=timeout)
+        result = await sandbox().exec(
+            cmd=["bash", "-c", cmd], timeout=timeout, user=user
+        )
         if result.success:
             return result.stdout
         else:
@@ -38,13 +41,14 @@ def bash(timeout: int | None = None) -> Tool:
 
 
 @tool
-def python(timeout: int | None = None) -> Tool:
+def python(timeout: int | None = None, user: str | None = None) -> Tool:
     """Python code execution tool.
 
     Execute Python code using a sandbox environment (e.g. "docker").
 
     Args:
       timeout (int | None): Timeout (in seconds) for command.
+      user (str | None): User to execute commands as.
 
     Returns:
       String with command output (stdout) or command error (stderr).
@@ -60,7 +64,9 @@ def python(timeout: int | None = None) -> Tool:
         Returns:
           The output of the command.
         """
-        result = await sandbox().exec(cmd=["python3"], input=code, timeout=timeout)
+        result = await sandbox().exec(
+            cmd=["python3"], input=code, timeout=timeout, user=user
+        )
         if result.success:
             return result.stdout
         else:

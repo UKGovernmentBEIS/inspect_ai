@@ -337,6 +337,59 @@ task = Task(
 
 The above example will produce two scores, `a_count` and `e_count`, each of which will have metrics for `mean` and `stderr`.
 
+### Scorer with Complex Metrics 
+
+
+::: {.callout-note appearance="simple"}
+Note that the feature described in this section is available only in the development version of Inspect. You can install the development version with:
+
+``` bash
+pip install git+https://github.com/ukgovernmentbeis/inspect_ai
+```
+:::
+
+Sometime, it is useful for a scorer to compute multiple values (returning a dictionary as the score value) and to have metrics computed both for each key in the score dictionary, but also for the dictionary as a whole. For example:
+
+
+``` python
+@scorer(
+    metrics=[{  # <1>
+        "a_count": [mean(), stderr()],  # <1>
+        "e_count": [mean(), stderr()]   # <1>
+    }, total_count()] # <1>
+)
+def letter_count():
+    async def score(state: TaskState, target: Target):
+        answer = state.output.completion
+        a_count = answer.count("a")
+        e_count = answer.count("e")
+        return Score(  # <2>
+            value={"a_count": a_count, "e_count": e_count},  # <2>
+            answer=answer  # <2>
+        ) # <2>
+
+    return score
+
+@metric
+def total_count() -> Metric:
+    def metric(scores: list[Score]) -> int | float:
+        total = 0.0
+        for score in scores:
+            total = score.value["a_count"] # <3>
+                + score.value["e_count"]   # <3>
+        return total
+    return metric
+
+task = Task(
+    dataset=[Sample(input="Tell me a story."],
+    scorer=letter_count()
+)
+```
+1.  The metrics for this scorer are a list, one element is a dictionary—this defines metrics to be applied to scores (by name), the other element is a Metric which will receive the entire score dictionary.
+2.  The score value itself is a dictionary—the keys corresponding to the keys defined in the metrics on the `@scorer` decorator.
+3.  The `total_count` metric will compute a metric based upon the entire score dictionary (since it isn't being mapped onto the dictionary by key) 
+
+
 ### Reducing Multiple Scores
 
 It's possible to use multiple scorers in parallel, then reduce their output into a final overall score. This is done using the `multi_scorer()` function. For example, this is roughly how the built in model graders use multiple models for grading:

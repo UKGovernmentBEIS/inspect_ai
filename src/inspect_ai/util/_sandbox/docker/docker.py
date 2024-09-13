@@ -279,8 +279,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         local_tmpfile.close()  # this will also delete the file
 
         if not hasattr(self, "_docker_user"):
-            uid = (await self.exec(["id", "--user"])).stdout.strip()
-            gid = (await self.exec(["id", "--group"])).stdout.strip()
+            uid = (await self.exec(["id", "-u"])).stdout.strip()
+            gid = (await self.exec(["id", "-g"])).stdout.strip()
             self._docker_user = (uid, gid)
 
         await compose_command(
@@ -296,17 +296,17 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             project=self._project,
         )
 
-        res_cp = await self.exec(
-            ["cp", "--no-target-directory", "--", container_tmpfile, file]
-        )
-
-        await self.exec(["rm", container_tmpfile])
+        res_cp = await self.exec(["cp", "-T", "--", container_tmpfile, file])
 
         if res_cp.returncode != 0:
             if "Permission denied" in res_cp.stderr:
-                error_string = f"Permission was denied. Failed to copy temporary file. Error details: {res_cp.stderr};"
+                ls_result = await self.exec(["ls", "-la", "."])
+                error_string = f"Permission was denied. Failed to copy temporary file. Error details: {res_cp.stderr}; ls -la: {ls_result.stdout}; {self._docker_user=}"
                 raise PermissionError(error_string)
-            elif "cannot overwrite directory" in res_cp.stderr:
+            elif (
+                "cannot overwrite directory" in res_cp.stderr
+                or "is a directory" in res_cp.stderr
+            ):
                 raise IsADirectoryError(
                     f"Failed to write file: {file} because it is a directory already"
                 )
@@ -314,6 +314,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 raise RuntimeError(
                     f"failed to copy temporary file during write_file: {res_cp}"
                 )
+
+        await self.exec(["rm", container_tmpfile])
 
     @overload
     async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
@@ -376,7 +378,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 async def container_working_dir(
     service: str, project: ComposeProject, default: str = "/"
 ) -> str:
-    result = await compose_exec([service, "bash", "-c", "pwd"], project)
+    result = await compose_exec([service, "sh", "-c", "pwd"], project)
     if result.success:
         return result.stdout.strip()
     else:

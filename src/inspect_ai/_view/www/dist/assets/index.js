@@ -8357,12 +8357,13 @@ const TabPanel = ({
   selected,
   style,
   scrollable,
+  classes,
   children
 }) => {
   const tabContentsId = computeTabContentsId(id, index);
   return m$1`<div
     id="${tabContentsId}"
-    class="tab-pane show ${selected ? "active" : ""}"
+    class="tab-pane show${selected ? " active" : ""}${classes ? ` ${classes}` : ""}"
     style=${{
     flex: "1",
     overflowY: scrollable === void 0 || scrollable ? "auto" : "hidden",
@@ -14953,7 +14954,17 @@ const sort = (sort2, samples, sampleDescriptor) => {
   };
 };
 const LargeModal = (props) => {
-  const { id, title, detail, detailTools, footer, onkeyup, children } = props;
+  const {
+    id,
+    title,
+    detail,
+    detailTools,
+    footer,
+    onkeyup,
+    visible,
+    onHide,
+    children
+  } = props;
   const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
   const headerEls = [];
   headerEls.push(
@@ -14996,7 +15007,9 @@ const LargeModal = (props) => {
   headerEls.push(m$1`<button
       type="button"
       class="btn btn-close-large-dialog"
-      data-bs-dismiss="modal"
+      onclick=${() => {
+    onHide();
+  }}
       aria-label="Close"
       style=${{
     borderWidth: "0px",
@@ -15015,7 +15028,11 @@ const LargeModal = (props) => {
     tabindex="0"
     role="dialog"
     onkeyup=${onkeyup}
-    style=${{ borderRadius: "var(--bs-border-radius)" }}
+    style=${{
+    borderRadius: "var(--bs-border-radius)",
+    display: visible ? "block" : "none"
+  }}
+    tabindex=${visible ? 0 : void 0}
   >
     <div
       class="modal-dialog modal-dialog-scrollable"
@@ -15056,6 +15073,15 @@ const TitleTool = ({ label, icon, enabled, onclick }) => {
   >
     <i class="${icon}" />
   </button>`;
+};
+function escapeSelector(id) {
+  return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
+}
+const isVscode = () => {
+  const bodyEl = document.querySelector("body");
+  return !!bodyEl.getAttributeNames().find((attr) => {
+    return attr.includes("data-vscode-");
+  });
 };
 const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
   const scores = scorer ? sampleDescriptor.scorer(sample, scorer).scores() : sampleDescriptor.selectedScorer(sample).scores();
@@ -15208,6 +15234,7 @@ const SampleScoreView = ({
 };
 const EventPanel = ({
   id,
+  classes,
   title,
   text,
   icon,
@@ -15327,6 +15354,7 @@ const EventPanel = ({
     borderRadius: "var(--bs-border-radius)",
     ...style
   }}
+    class=${classes || void 0}
   >
     ${titleEl}
     <div
@@ -17129,7 +17157,8 @@ const StepEventView = ({ event, children, style, stateManager }) => {
   const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
   const text = summarize(children);
   return m$1`<${EventPanel}
-    id=${`$step-${event.name}`}
+    id=${`step-${event.name}`}
+    classes="transcript-step"
     title="${title}"
     icon=${descriptor.icon}
     style=${{ ...descriptor.style, ...style }}
@@ -18720,6 +18749,39 @@ const FlatSampleError = ({ style }) => {
     </div>
   </div>`;
 };
+const printHtml = (html, css) => {
+  const printWindow = window.open("", "", "height=600,width=800");
+  printWindow.document.write("<html><head><title>Print</title>");
+  printWindow.document.write(`
+          <link rel="stylesheet" crossorigin="" href="./assets/index.css">
+          <style>
+            @media print {
+              ${css}
+            }
+          </style>
+        `);
+  printWindow.document.write("</head><body>");
+  printWindow.document.write(html);
+  printWindow.document.write("</body></html>");
+  printWindow.document.close();
+  printWindow.onload = function() {
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+};
+const printHeadingHtml = () => {
+  const task = document.getElementById("task-title").innerText;
+  const model = document.getElementById("task-model").innerText;
+  const time = document.getElementById("task-created").innerText;
+  const headingHtml = `
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 0.5em; margin-bottom: 2em; justify-content: space-between; border-bottom: solid 1px silver;">
+<div style="font-weight: 600">${task}</div>
+<div style="text-align: center;">${model}</div>
+<div style="text-align: right;">${time}</div>
+</div>`;
+  return headingHtml;
+};
 const InlineSampleDisplay = ({
   index,
   id,
@@ -18740,34 +18802,32 @@ const InlineSampleDisplay = ({
   </div>`;
 };
 const SampleDisplay = ({
-  index,
-  id,
   sample,
   sampleDescriptor,
+  visible,
   context
 }) => {
-  const baseId = `sample-${index}`;
+  const baseId = `sample-dialog`;
   const msgTabId = `${baseId}-messages`;
   const transcriptTabId = `${baseId}-transcript`;
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
   const errorTabId = `${baseId}-error`;
   y(() => {
-    if (sample.transcript && sample.transcript.events.length > 0) {
-      setSelectedTab(transcriptTabId);
-    } else {
-      setSelectedTab(msgTabId);
+    if (!visible) {
+      const defaultTab = sample.transcript && sample.transcript.events.length ? transcriptTabId : msgTabId;
+      setSelectedTab(defaultTab);
     }
-  }, [sample]);
+  }, [visible]);
   const [selectedTab, setSelectedTab] = h(void 0);
   const onSelectedTab = (e2) => {
-    const id2 = e2.currentTarget.id;
-    setSelectedTab(id2);
+    const id = e2.currentTarget.id;
+    setSelectedTab(id);
     return false;
   };
   const tabs = [
     m$1`
-    <${TabPanel} id=${msgTabId} title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === msgTabId}>
+    <${TabPanel} id=${msgTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === msgTabId}>
       <${ChatView} 
         key=${`${baseId}-chat`} 
         id=${`${baseId}-chat`} 
@@ -18779,14 +18839,14 @@ const SampleDisplay = ({
   ];
   if (sample.transcript && sample.transcript.events.length > 0) {
     tabs.unshift(m$1`
-      <${TabPanel} id=${transcriptTabId} title="Transcript" onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId || selectedTab === void 0} scrollable=${false}>
-        <${SampleTranscript} id=${`${baseId}-transcript`} evalEvents=${sample.transcript}/>
+      <${TabPanel} id=${transcriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId || selectedTab === void 0} scrollable=${false}>
+        <${SampleTranscript} id=${`${baseId}-transcript-display`} evalEvents=${sample.transcript}/>
       </${TabPanel}>`);
   }
   const scorerNames = Object.keys(sample.scores);
   if (scorerNames.length === 1) {
     tabs.push(m$1`
-      <${TabPanel} id=${scoringTabId} title="Scoring" onSelected=${onSelectedTab} selected=${selectedTab === scoringTabId}>
+      <${TabPanel} id=${scoringTabId} classes="sample-tab" title="Scoring" onSelected=${onSelectedTab} selected=${selectedTab === scoringTabId}>
         <${SampleScoreView}
           sample=${sample}
           context=${context}
@@ -18799,7 +18859,7 @@ const SampleDisplay = ({
     for (const scorer of Object.keys(sample.scores)) {
       const tabId = `score-${scorer}`;
       tabs.push(m$1`
-        <${TabPanel} id="${tabId}" title="${scorer}" onSelected=${onSelectedTab} selected=${selectedTab === tabId}>
+        <${TabPanel} id="${tabId}" classes="sample-tab" title="${scorer}" onSelected=${onSelectedTab} selected=${selectedTab === tabId}>
           <${SampleScoreView}
             sample=${sample}
             context=${context}
@@ -18816,6 +18876,7 @@ const SampleDisplay = ({
       m$1`
       <${TabPanel} 
           id=${metdataTabId} 
+          classes="sample-tab"
           title="Metadata" 
           onSelected=${onSelectedTab} 
           selected=${selectedTab === metdataTabId}>
@@ -18830,6 +18891,7 @@ const SampleDisplay = ({
       m$1`
       <${TabPanel} 
           id=${errorTabId} 
+          classes="sample-tab"
           title="Error" 
           onSelected=${onSelectedTab} 
           selected=${selectedTab === errorTabId}>
@@ -18839,17 +18901,84 @@ const SampleDisplay = ({
       </${TabPanel}>`
     );
   }
+  const tabsetId = `task-sample-details-tab-${sample.id}`;
+  const targetId = `${tabsetId}-content`;
+  const printSample = () => {
+    const targetTabEl = document.querySelector(
+      `#${escapeSelector(targetId)} .sample-tab.tab-pane.show.active`
+    );
+    if (targetTabEl) {
+      const targetEl = targetTabEl.firstElementChild;
+      if (targetEl) {
+        const headingId = `sample-heading-${sample.id}`;
+        const headingEl = document.getElementById(headingId);
+        const headingHtml = printHeadingHtml();
+        const css = `
+        html { font-size: 9pt }
+        /* Allow content to break anywhere without any forced page breaks */
+        * {
+          break-inside: auto;  /* Let elements break anywhere */
+          page-break-inside: auto;  /* Legacy support */
+          break-before: auto;
+          page-break-before: auto;
+          break-after: auto;
+          page-break-after: auto;
+        }
+        /* Specifically disable all page breaks for divs */
+        div {
+          break-inside: auto;
+          page-break-inside: auto;
+        }
+        body > .transcript-step {
+          break-inside: avoid;
+        }
+        body{
+          -webkit-print-color-adjust:exact !important;
+          print-color-adjust:exact !important;
+        }
+        /* Allow preformatted text and code blocks to break across pages */
+        pre, code {
+            white-space: pre-wrap; /* Wrap long lines instead of keeping them on one line */
+            overflow-wrap: break-word; /* Ensure long words are broken to fit within the page */
+            break-inside: auto; /* Allow page breaks inside the element */
+            page-break-inside: auto; /* Older equivalent */
+        }
+
+        /* Additional control for long lines within code/preformatted blocks */
+        pre {
+            word-wrap: break-word; /* Break long words if needed */
+        }    
+            
+        `;
+        printHtml(
+          [headingHtml, headingEl.outerHTML, targetEl.innerHTML].join("\n"),
+          css
+        );
+      }
+    }
+  };
+  const tools = [];
+  if (!isVscode()) {
+    tools.push(
+      m$1`<${ToolButton}
+        name=${m$1`Print`}
+        icon="${ApplicationIcons.copy}"
+        onclick="${printSample}"
+      />`
+    );
+  }
   return m$1`<${SampleSummary}
     id=${sample.id}
     sample=${sample}
     sampleDescriptor=${sampleDescriptor}/>
 
-  <${TabSet} id="task-sample-details-tab-${id}" styles=${{
+  <${TabSet} id=${tabsetId} styles=${{
     tabs: {
       fontSize: FontSize.base
     },
     tabBody: {}
-  }}>
+  }}
+    tools=${tools}>
     ${tabs}
   </${TabSet}>`;
 };
@@ -18938,7 +19067,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   });
   return m$1`
     <div
-      id=${`sample-${id}`}
+      id=${`sample-heading-${id}`}
       style=${{
     display: "grid",
     gridTemplateColumns: `${columns.map((col) => {
@@ -18987,10 +19116,12 @@ const SampleDialog = (props) => {
     sampleDescriptor,
     nextSample,
     prevSample,
+    sampleDialogVisible,
+    hideSample,
     context
   } = props;
   if (!sample) {
-    return m$1`<${LargeModal} id=${id} title="No Sample"><${EmptyPanel}>No Sample Selected</${EmptyPanel}></${LargeModal}>`;
+    return m$1`<${LargeModal} visible=${sampleDialogVisible} onHide=${hideSample} id=${id} title="No Sample"><${EmptyPanel}>No Sample Selected</${EmptyPanel}></${LargeModal}>`;
   }
   const tools = T(() => {
     const nextTool = {
@@ -19023,6 +19154,9 @@ const SampleDialog = (props) => {
             prevSample();
           }
           break;
+        case "Escape":
+          hideSample();
+          break;
       }
     },
     [prevSample, nextSample]
@@ -19033,12 +19167,15 @@ const SampleDialog = (props) => {
       detail=${title}
       detailTools=${tools}
       onkeyup=${handleKeyUp}   
+      visible=${sampleDialogVisible}
+      onHide=${hideSample}
     >
     <${SampleDisplay}
       index=${index}
       id=${id}
       sample=${sample}
       sampleDescriptor=${sampleDescriptor}
+      visible=${sampleDialogVisible}
       context=${context}/>
     </${LargeModal}>`;
 };
@@ -19447,6 +19584,7 @@ const SamplesTab = (props) => {
     /** @type {HTMLElement|null} */
     null
   );
+  const [sampleDialogVisible, setSampleDialogVisible] = h(false);
   y(() => {
     setFilteredSamples(
       (samples || []).filter((sample) => {
@@ -19464,32 +19602,18 @@ const SamplesTab = (props) => {
     );
   }, [samples, filter, sort$1, epoch]);
   const showSample = q(() => {
-    const dialogEl = sampleDialogRef.current;
-    if (dialogEl) {
-      const modal = new Modal(dialogEl.base);
-      modal.show();
-    }
-  }, [sampleDialogRef]);
+    setSampleDialogVisible(true);
+    setTimeout(() => {
+      sampleDialogRef.current.base.focus();
+    }, 0);
+  }, [setSampleDialogVisible, sampleDialogRef]);
   const hideSample = q(() => {
-    const dialogEl = sampleDialogRef.current;
-    if (dialogEl && dialogEl.base) {
-      const modal = Modal.getInstance(dialogEl.base);
-      if (modal) {
-        modal.hide();
-      }
+    setSampleDialogVisible(false);
+    const listEl = sampleListRef.current;
+    if (listEl && listEl.base) {
+      listEl.base.focus();
     }
-  }, [sampleDialogRef]);
-  y(() => {
-    const dialogEl = sampleDialogRef.current;
-    if (dialogEl) {
-      dialogEl.base.addEventListener("hidden.bs.modal", () => {
-        const listEl = sampleListRef.current;
-        if (listEl) {
-          listEl.base.focus();
-        }
-      });
-    }
-  }, [sampleDialogRef, sampleListRef]);
+  }, [setSampleDialogVisible]);
   y(() => {
     const { sorted, order: order2 } = sort(sort$1, filteredSamples, sampleDescriptor);
     const sampleProcessor = getSampleProcessor(
@@ -19584,6 +19708,8 @@ const SamplesTab = (props) => {
       sampleDescriptor=${sampleDescriptor}
       nextSample=${nextSample}
       prevSample=${previousSample}
+      sampleDialogVisible=${sampleDialogVisible}
+      hideSample=${hideSample}
       context=${context}
     />
   `);
@@ -20246,7 +20372,7 @@ const ParamSummary = ({ params }) => {
   }
 };
 const Navbar = ({ file, logs, log, offcanvas }) => {
-  var _a, _b;
+  var _a, _b, _c;
   const toggleOffCanClass = offcanvas ? "" : " d-md-none";
   const logFileName = file ? filename(file) : "";
   const task = (_a = log == null ? void 0 : log.eval) == null ? void 0 : _a.task;
@@ -20254,6 +20380,7 @@ const Navbar = ({ file, logs, log, offcanvas }) => {
   const results = log == null ? void 0 : log.results;
   const samples = log == null ? void 0 : log.samples;
   const status = log == null ? void 0 : log.status;
+  const created = (_c = log == null ? void 0 : log.eval) == null ? void 0 : _c.created;
   let statusPanel;
   if (status === "success") {
     statusPanel = m$1`<${ResultsPanel} results="${results}" />`;
@@ -20302,6 +20429,7 @@ const Navbar = ({ file, logs, log, offcanvas }) => {
   }}
             >
               <div
+                id="task-title"
                 style=${{
     fontWeight: 600,
     marginRight: "0.3rem",
@@ -20313,6 +20441,7 @@ const Navbar = ({ file, logs, log, offcanvas }) => {
                 ${task}
               </div>
               <div
+                id="task-model"
                 style=${{
     fontSize: FontSize.base,
     paddingTop: "0.4rem",
@@ -20346,6 +20475,8 @@ const Navbar = ({ file, logs, log, offcanvas }) => {
             </div>
           </div>
         </div>
+
+        <div id="task-created" style=${{ display: "none" }}>${created}</div>
 
         <div
           class="navbar-text"
@@ -22828,15 +22959,11 @@ function App({ api: api2, pollForLogs = true }) {
   }, [onMessage]);
   y(async () => {
     const urlParams = new URLSearchParams(window.location.search);
-    const bodyEl = document.querySelector("body");
-    const isVSCode = !!bodyEl.getAttributeNames().find((attr) => {
-      return attr.includes("data-vscode-");
-    });
     const extensionVersionEl = document.querySelector(
       'meta[name="inspect-extension:version"]'
     );
     const extensionVersion = extensionVersionEl ? extensionVersionEl.getAttribute("content") : void 0;
-    if (isVSCode) {
+    if (isVscode()) {
       if (!extensionVersion) {
         setCapabilities({ downloadFiles: false, webWorkers: false });
       }

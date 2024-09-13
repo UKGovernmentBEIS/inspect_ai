@@ -49,6 +49,7 @@ from .._model_output import (
     ModelOutput,
     ModelUsage,
 )
+from .openai_o1 import generate_o1
 from .util import as_stop_reason, model_base_url, parse_tool_call
 from .util.constants import BASE_64_DATA_REMOVED_FROM_LOG
 
@@ -139,6 +140,15 @@ class OpenAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+        # short-circuit to call o1- model
+        if self.model_name.startswith("o1-"):
+            return await generate_o1(
+                client=self.client,
+                input=input,
+                tools=tools,
+                **self.completion_params(config, False),
+            )
+
         # unlike text models, vision models require a max_tokens (and set it to a very low
         # default, see https://community.openai.com/t/gpt-4-vision-preview-finish-details/475911/10)
         OPENAI_IMAGE_DEFAULT_TOKENS = 4096
