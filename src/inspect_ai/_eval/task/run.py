@@ -359,6 +359,7 @@ async def task_run_sample(
                         value=score.value,
                         answer=score.answer,
                         explanation=score.explanation,
+                        metadata=score.metadata,
                         sample_id=previous_sample.id,
                     )
                     for key, score in previous_sample.scores.items()

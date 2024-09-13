@@ -284,7 +284,14 @@ def reduce_scores(
         if sample_score.sample_id is not None:
             grouped_scores[str(sample_score.sample_id)].append(sample_score)
 
-    # reduce the scores
+    # count epochs to be reduced
+    epochs = len(next(iter(grouped_scores.values()), []))
+
+    # if only one epoch, no need to reduce, also avoids losing score attributes
+    if epochs == 1:
+        return scores, epochs
+
+    # more than one epoch, need to reduce the scores
     reduced_scores: list[SampleScore] = []
     for scores in grouped_scores.values():
         reduced = reducer(cast(list[Score], scores))
@@ -292,13 +299,12 @@ def reduce_scores(
             SampleScore(
                 sample_id=scores[0].sample_id,
                 value=reduced.value,
+                answer=reduced.answer,
                 explanation=reduced.explanation,
                 metadata=reduced.metadata,
             )
         )
 
-    # count epochs reduced
-    epochs = len(next(iter(grouped_scores.values()), []))
     return reduced_scores, epochs
 
 
