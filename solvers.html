@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.57">
+<meta name="generator" content="quarto-1.5.32">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Solvers – Inspect</title>
+<title>Inspect – Solvers</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -459,7 +459,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="example" class="level3">
 <h3 class="anchored" data-anchor-id="example">Example</h3>
 <p>Below is a full example of reading a dataset for use with <code>multiple choice()</code> and using it in an evaluation task. The underlying data in <code>mmlu.csv</code> has the following form:</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 50%">
 <col style="width: 10%">
@@ -529,7 +529,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="options" class="level3">
 <h3 class="anchored" data-anchor-id="options">Options</h3>
 <p>The following options are available for further customisation of the multiple choice solver:</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 35%">
 <col style="width: 65%">
@@ -579,7 +579,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="task-states-1" class="level3">
 <h3 class="anchored" data-anchor-id="task-states-1">Task States</h3>
 <p>Before presenting the examples we’ll take a more in-depth look at the <code>TaskState</code> class. Task states consist of both lower level data members (e.g.&nbsp;<code>messages</code>, <code>output</code>) as well as a number of convenience properties. The core members of <code>TaskState</code> that are <em>modified</em> by solvers are <code>messages</code> / <code>user_prompt</code> and <code>output</code>:</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 20%">
 <col style="width: 25%">
@@ -621,7 +621,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 <p>There are two additional fields that solvers might modify (but they are typically for more advanced use cases):</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 20%">
 <col style="width: 25%">
@@ -648,7 +648,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>Sometimes its import to have access to the <em>original</em> prompt input for the task (as other solvers may have re-written or even removed it entirely). This is available using the <code>input</code> and <code>input_text</code> properties:</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 20%">
 <col style="width: 25%">
@@ -675,7 +675,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>There are several other fields used to provide contextual data from either the task sample or evaluation:</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 20%">
 <col style="width: 25%">
@@ -712,7 +712,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>Finally, task states also include available tools as well as guidance for the model on which tools to use (if you haven’t yet encountered the concept of tool use in language models, don’t worry about understanding these fields, the <a href="./tools.html">Tools</a> article provides a more in-depth treatment):</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 20%">
 <col style="width: 25%">

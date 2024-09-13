@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.57">
+<meta name="generator" content="quarto-1.5.32">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Agents – Inspect</title>
+<title>Inspect – Agents</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -442,7 +442,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="options" class="level3">
 <h3 class="anchored" data-anchor-id="options">Options</h3>
 <p>There are several options available for customising the behaviour of the basic agent:</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 23%">
 <col style="width: 20%">
@@ -825,11 +825,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a>        ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that <code>write_file()</code> automatically creates parent directories as required if they don’t exist.</p>
 <p>For each method there is a documented set of errors that are raised: these are <em>expected</em> errors and can either be caught by tools or allowed to propagate in which case they will be reported to the model for potential recovery. In addition, <em>unexpected</em> errors may occur (e.g.&nbsp;a networking error connecting to a remote container): these errors are not reported to the model and fail the <code>Sample</code> with an error state.</p>
+<p>The sandbox is also available to custom <a href="#sec-sandbox-access">scorers</a>.</p>
 </section>
 <section id="environment-binding" class="level3">
 <h3 class="anchored" data-anchor-id="environment-binding">Environment Binding</h3>
 <p>There are two sandbox environments built in to Inspect:</p>
-<table class="caption-top table">
+<table class="table">
 <thead>
 <tr class="header">
 <th>Environment Type</th>
@@ -847,7 +848,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
-<p>Sandbox environments can be bound at the <code>Sample</code>, <code>Task</code>, or <code>eval()</code> level. Binding precedence goes from <code>eval()</code>, to <code>Task</code> to <code>Sample</code>, however sandbox config files defined on the <code>Sample</code> always take precedence when the sandbox type for the <code>Sample</code> is the same as the enclosing <code>Task</code> or <code>eval()</code>.</p>
+<p>Sandbox environment definitions can be bound at the <code>Sample</code>, <code>Task</code>, or <code>eval()</code> level. Binding precedence goes from <code>eval()</code>, to <code>Task</code> to <code>Sample</code>, however sandbox config files defined on the <code>Sample</code> always take precedence when the sandbox type for the <code>Sample</code> is the same as the enclosing <code>Task</code> or <code>eval()</code>.</p>
 <p>Here is a <code>Task</code> that defines a <code>sandbox</code> and corresponding sandbox config file:</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>Task(</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    dataset<span class="op">=</span>dataset,</span>
@@ -866,7 +867,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The <code>Sample</code> class includes <code>sandbox</code>, <code>files</code> and <code>setup</code> fields that are used to specify per-sample sandbox config, file assets, and setup logic.</p>
 <section id="sec-per-sample-sandbox" class="level4">
 <h4 class="anchored" data-anchor-id="sec-per-sample-sandbox">Sandbox</h4>
-<p>You can either define a default <code>sandbox</code> for an entire <code>Task</code> as illustrated abvove, or alternatively define a per-sample <code>sandbox</code>. For example, you might want to do this if each sample has its own Dockerfile and/or custom compose configuration file.</p>
+<p>You can either define a default <code>sandbox</code> for an entire <code>Task</code> as illustrated abvove, or alternatively define a per-sample <code>sandbox</code>. For example, you might want to do this if each sample has its own Dockerfile and/or custom compose configuration file. (Note, each sample gets its own sandbox <em>instance</em>, even if the sandbox is defined at Task level. So samples do not interfere with each other’s sandboxes.)</p>
 <p>The <code>sandbox</code> can be specified as a string (e.g.&nbsp;<code>"docker</code>“) or a list of sandbox type and config file (e.g.&nbsp;<code>["docker", "compose.yaml"]</code>).</p>
 </section>
 <section id="files" class="level4">
@@ -888,7 +889,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Before using Docker sandbox environments, please be sure to install <a href="https://docs.docker.com/engine/install/">Docker Engine</a> (version 24.0.7 or greater).</p>
 <p>You can use the Docker sandbox enviornment without any special configuration, however most commonly you’ll provide explicit configuration via either a <code>Dockerfile</code> or a <a href="https://docs.docker.com/compose/compose-file/">Docker Compose</a> configuration file (<code>compose.yaml</code>).</p>
 <p>Here is how Docker sandbox environments are created based on the presence of <code>Dockerfile</code> and/or <code>compose.yml</code> in the task directory:</p>
-<table class="caption-top table">
+<table class="table">
 <thead>
 <tr class="header">
 <th>Config Files</th>

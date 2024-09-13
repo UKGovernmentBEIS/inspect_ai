@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.57">
+<meta name="generator" content="quarto-1.5.32">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Datasets – Inspect</title>
+<title>Inspect – Datasets</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -347,7 +347,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="dataset-samples">Dataset Samples</h2>
 <p>The core data type underlying the use of datasets with Inspect is the <code>Sample</code>, which consists of a required <code>input</code> field and several other optional fields:</p>
 <p><strong>Class</strong> <code>inspect_ai.dataset.Sample</code></p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 20%">
 <col style="width: 40%">
@@ -404,7 +404,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>So a CSV dataset with the following structure:</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 56%">
 <col style="width: 43%">
@@ -512,7 +512,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="chat-messages">Chat Messages</h2>
 <p>The most important data structure within <code>Sample</code> is the <code>ChatMessage</code>. Note that often datasets will contain a simple string as their input (which is then internally converted to a <code>ChatMessageUser</code>). However, it is possible to include a full message history as the input via <code>ChatMessage</code>. Another useful application of <code>ChatMessage</code> is providing multi-modal input (e.g.&nbsp;images).</p>
 <p><strong>Class</strong> <code>inspect_ai.model.ChatMessage</code></p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 10%">
 <col style="width: 35%">
