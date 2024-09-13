@@ -173,11 +173,11 @@ pip install git+https://github.com/ukgovernmentbeis/inspect_ai
 
 You can use the command `inspect view bundle` (or the `bundle_log_dir()` function from Python) to create a self contained directory with the log viewer and a set of logs for display. This directory can then be deployed as static HTML to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide an interactive copy of the viewer. For example, to bundle the `logs` directory to a directory named `output`:
 
-`inspect view bundle --log_dir logs --output_dir output`
+`inspect view bundle --log-dir logs --output-dir output`
 
 or to bundle the default log folder, overwriting an existing output directory:
 
-`inspect view bundle --output_dir output --overwrite`
+`inspect view bundle --output-dir output --overwrite`
 
 Bundling the viewer and logs will produce an output directory with the following structure:
 
