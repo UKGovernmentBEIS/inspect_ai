@@ -404,9 +404,9 @@ multi_scorer(
 Use of `multi_scorer()` requires both a list of scorers as well as a *reducer* which determines how a list of scores will be turned into a single score. In this case we use the "mode" reducer which returns the score that appeared most frequently in the answers.
 
 
-### Sandbox access
+### Sandbox Access
 
-If your Solver is an [agent](agents) with tool use, you might want to inspect the contents of the tool sandbox to score the task.
+If your Solver is an [Agent](#sec-agents) with tool use, you might want to inspect the contents of the tool sandbox to score the task.
 
 The contents of the sandbox for the Sample are available to the scorer; simply call `await sandbox().read_file()` (or `.exec()`).
 
