@@ -8,6 +8,8 @@ Each task runs using the task-specific `compose.yaml` files, which pulls the rem
 
 Note that the flag values in the Dockerfiles have been replaced with placeholders `REPLACE_ME_WITH_RANDOM_FLAG_N` to prevent them from ending up in scrapable GitHub data, the actual values are baked into the remote Docekr images and will be accessed during evaluation run. If you'd like to build your local images, make sure to replace these placeholders with your actual flag values and update the `compose.yaml` files accordingly.
 
+## Evaluation
+
 To evaluate against various models:
 
 ```bash
@@ -23,7 +25,9 @@ To evaluate only a subset of challenges use the `challenges` task argument. For 
 $ inspect eval task.py --model openai/gpt-4o -T challenges=idor,privsec_7z
 ```
 
-There are two additional task parameters:
+### Options
+
+There are two other optional task parameters:
 
 - `max_attempts` defines the number of incorrect submissions to allow before ending the challenges (defaults to 1).
 - `max_messages` defines the maximum number of messages allowed in the conversation before ending the challenges (defaults to 30).
