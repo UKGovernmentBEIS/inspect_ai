@@ -9,14 +9,17 @@ from .common import CommonOptions, common_options, resolve_common_options
 
 
 # Define the base command group
-@click.group("view")
-def view_command() -> None:
-    """View command group."""
-    pass
-
-
-@view_command.group(invoke_without_command=True)
+@click.group(name="view", invoke_without_command=True)
 @click.pass_context
+def view_command(ctx: click.Context) -> None:
+    """View command group."""
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(start)
+    else:
+        pass
+
+
+@view_command.command("start")
 @click.option(
     "--recursive",
     type=bool,
