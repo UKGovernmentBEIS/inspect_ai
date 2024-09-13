@@ -64,7 +64,7 @@
 - title: "GSM8K: Training Verifiers to Solve Math Word Problems"
   description: |
     Dataset of 8.5K high quality linguistically diverse grade school math word problems. Demostrates fewshot prompting.
-  path: evals/gsm8k.py
+  path: evals/gsm8k
   arxiv: https://arxiv.org/abs/2110.14168
   cite: cobbe2021trainingverifierssolvemath
   group: Mathematics
@@ -103,7 +103,7 @@
 - title: "PIQA: Reasoning about Physical Commonsense in Natural Language"
   description: |
     Measure physical commonsense reasoning (e.g. "To apply eyeshadow without a brush, should I use a cotton swab or a toothpick?")
-  path: evals/piqa.py
+  path: evals/piqa
   arxiv: https://arxiv.org/abs/1911.11641
   cite: bisk2019piqareasoningphysicalcommonsense
   group: Reasoning
@@ -192,7 +192,7 @@
 - title: "MMLU: Measuring Massive Multitask Language Understanding"
   description: |
     Evaluate models on 57 tasks including elementary mathematics, US history, computer science, law, and more.
-  path: evals/mmlu.py
+  path: evals/mmlu
   arxiv: https://arxiv.org/abs/2009.03300
   cite: hendrycks2021measuringmassivemultitasklanguage
   group: Knowledge
@@ -232,7 +232,7 @@
 - title: "TruthfulQA: Measuring How Models Mimic Human Falsehoods"
   description: |
     Measure whether a language model is truthful in generating answers to questions using questions that some humans would answer falsely due to a false belief or misconception.
-  path: evals/truthfulqa.py\
+  path: evals/truthfulqa
   arxiv: https://arxiv.org/abs/2109.07958v2
   cite: lin2022truthfulqameasuringmodelsmimic
   group: Knowledge
