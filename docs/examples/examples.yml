@@ -20,6 +20,17 @@
   demonstrates: ["Scoring", "Sandbox"]
   contributors: ["jddantes"]
 
+- title: "SWE-Bench: Resolving Real-World GitHub Issues"
+  description: |
+    Software engineering problems drawn from real GitHub issues and corresponding pull requests across 12 popular Python repositories.
+    Demonstrates sandboxing untrusted model code.
+  path: benchmarks/swe_bench
+  arxiv: https://arxiv.org/abs/2310.06770
+  cite: jimenez2024swebenchlanguagemodelsresolve
+  group: Coding
+  demonstrates: ["Scoring", "Sandbox", "Tools"]
+  contributors: ["max-kaufmann"]
+
 - title: "InterCode: Capture the Flag"
   description: |
     Measure expertise in coding, cryptography (i.e. binary exploitation, forensics), reverse engineering, and recognizing security vulnerabilities. Demonstrates tool use and sandboxing untrusted model code.
