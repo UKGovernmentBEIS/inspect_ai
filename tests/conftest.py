@@ -15,8 +15,6 @@ try:
 except subprocess.CalledProcessError:
     pass
 
-import pytest
-
 
 def pytest_addoption(parser):
     parser.addoption(
