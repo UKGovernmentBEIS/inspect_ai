@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.32">
+<meta name="generator" content="quarto-1.5.57">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect – Log Viewer</title>
+<title>Log Viewer – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -321,7 +321,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#sec-external-file" id="toc-sec-external-file" class="nav-link" data-scroll-target="#sec-external-file">External File</a></li>
   </ul></li>
   <li><a href="#task-information" id="toc-task-information" class="nav-link" data-scroll-target="#task-information">Task Information</a></li>
-  <li><a href="#viewer-embedding" id="toc-viewer-embedding" class="nav-link" data-scroll-target="#viewer-embedding">Viewer Embedding</a></li>
+  <li><a href="#publishing" id="toc-publishing" class="nav-link" data-scroll-target="#publishing">Publishing</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -449,17 +449,62 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The <strong>Info</strong> panel of the log viewer provides additional meta-information about evaluation tasks, including dataset, plan, and scorer details, git revision, and model token usage:</p>
 <p><a href="images/inspect-view-info.png" class="lightbox" data-gallery="quarto-lightbox-gallery-11"><img src="images/inspect-view-info.png" class="border img-fluid" alt="The Info panel of the Inspect log viewer, displaying various details about the evaluation including dataset, plan, and scorer details, git revision, and model token usage."></a></p>
 </section>
-<section id="viewer-embedding" class="level2">
-<h2 class="anchored" data-anchor-id="viewer-embedding">Viewer Embedding</h2>
-<p>The log viewer can be published to a static web server and linked to or embedded in another page (for example, in an iframe). To embed the viewer:</p>
-<ol type="1">
-<li><p>Copy the contents of the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/_view/www/dist"><code>www/dist</code></a> directory (<code>src/inspect_ai/_view/www/dist</code>) to the folder you will be publishing.</p></li>
-<li><p>Create a <code>logs</code> sub-directory within the folder into which you placed the contents of the <code>www</code> directory. Place any logs you’d like to display within this <code>logs</code> folder.</p></li>
-<li><p>Link to the viewer with the query parameter <code>log_file</code> and the path to a log file. For example:</p>
-<p><code>https://&lt;deployment url&gt;/?log_file=logs/2024-07-18T09-00-04-04-00_bash_QuRMsu7hRUWrJjxe8xePLa.json</code></p></li>
-</ol>
+<section id="publishing" class="level2">
+<h2 class="anchored" data-anchor-id="publishing">Publishing</h2>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>Note that the <code>inspect view bundle</code> feature described below is available only in the development version of Inspect. You can install the development version with:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/ukgovernmentbeis/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
+</div>
+<p>You can use the command <code>inspect view bundle</code> (or the <code>bundle_log_dir()</code> function from Python) to create a self contained directory with the log viewer and a set of logs for display. This directory can then be deployed as static HTML to any static web server (<a href="https://docs.github.com/en/pages">GitHub Pages</a>, <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html">S3 buckets</a>, or <a href="https://docs.netlify.com/get-started/">Netlify</a>, for example) to provide an interactive copy of the viewer. For example, to bundle the <code>logs</code> directory to a directory named <code>output</code>:</p>
+<p><code>inspect view bundle --log-dir logs --output-dir output</code></p>
+<p>or to bundle the default log folder, overwriting an existing output directory:</p>
+<p><code>inspect view bundle --output-dir output --overwrite</code></p>
+<p>Bundling the viewer and logs will produce an output directory with the following structure:</p>
+<div class="sourceCode" id="annotated-cell-10"><pre class="sourceCode bash code-annotation-code code-with-copy code-annotated"><code class="sourceCode bash"><span id="annotated-cell-10-1"><a href="#annotated-cell-10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">output</span></span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-10" data-target-annotation="1">1</button><span id="annotated-cell-10-2" class="code-annotation-target"><a href="#annotated-cell-10-2" aria-hidden="true" tabindex="-1"></a> <span class="ex">└──</span> index.html</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-10" data-target-annotation="2">2</button><span id="annotated-cell-10-3" class="code-annotation-target"><a href="#annotated-cell-10-3" aria-hidden="true" tabindex="-1"></a> <span class="ex">└──</span> robots.txt</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-10" data-target-annotation="3">3</button><span id="annotated-cell-10-4" class="code-annotation-target"><a href="#annotated-cell-10-4" aria-hidden="true" tabindex="-1"></a> <span class="ex">└──</span> assets</span>
+<span id="annotated-cell-10-5"><a href="#annotated-cell-10-5" aria-hidden="true" tabindex="-1"></a>     <span class="ex">└──</span>  ..</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-10" data-target-annotation="4">4</button><span id="annotated-cell-10-6" class="code-annotation-target"><a href="#annotated-cell-10-6" aria-hidden="true" tabindex="-1"></a> <span class="ex">└──</span> logs</span>
+<span id="annotated-cell-10-7"><a href="#annotated-cell-10-7" aria-hidden="true" tabindex="-1"></a>     <span class="ex">└──</span>  ..</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl class="code-annotation-container-hidden code-annotation-container-grid">
+<dt data-target-cell="annotated-cell-10" data-target-annotation="1">1</dt>
+<dd>
+<span data-code-cell="annotated-cell-10" data-code-lines="2" data-code-annotation="1">The root viewer HTML</span>
+</dd>
+<dt data-target-cell="annotated-cell-10" data-target-annotation="2">2</dt>
+<dd>
+<span data-code-cell="annotated-cell-10" data-code-lines="3" data-code-annotation="2">Excludes this site from being indexed</span>
+</dd>
+<dt data-target-cell="annotated-cell-10" data-target-annotation="3">3</dt>
+<dd>
+<span data-code-cell="annotated-cell-10" data-code-lines="4" data-code-annotation="3">Supporting assets for the viewer</span>
+</dd>
+<dt data-target-cell="annotated-cell-10" data-target-annotation="4">4</dt>
+<dd>
+<span data-code-cell="annotated-cell-10" data-code-lines="6" data-code-annotation="4">The logs to be displayed</span>
+</dd>
+</dl>
+<p>Deploy this folder to a static webserver to publish an interactive copy of the log viewer.</p>
+<section id="other-notes" class="level4">
+<h4 class="anchored" data-anchor-id="other-notes">Other Notes</h4>
+<ul>
+<li><p>You may provide a default output directory for bundling the viewer in your <code>.env</code> file by setting the <code>INSPECT_VIEW_BUNDLE_OUTPUT_DIR</code> variable.</p></li>
+<li><p>You may specify an S3 url as the target for bundled views. See the <a href="evallogs.qmd#sec-amazon-s3">Amazon S3</a> section for additional information on configuring S3.</p></li>
+<li><p>You can use the <code>bundle_log_dir()</code> function in Python directly to bundle the viewer and logs into an output directory.</p></li>
+<li><p>The bundled viewer will show the first log file by default. You may link to the viewer to show a specific log file by including the url parameter <code>log_file=&lt;log_file&gt;</code>.</p></li>
+<li><p>The bundled output directory includes a <code>robots.txt</code> file to prevent indexing of the folder. If you deploy this folder outside of the root of your website, we recommend that you update your root <code>robots.txt</code> file to exclude this folder from being indexed.</p></li>
+</ul>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->
@@ -990,30 +1035,37 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"loop":false,"closeEffect":"zoom","descPosition":"bottom","openEffect":"zoom","selector":".lightbox"});
-window.onload = () => {
-  lightboxQuarto.on('slide_before_load', (data) => {
-    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-    const href = trigger.getAttribute('href');
-    if (href !== null) {
-      const imgEl = window.document.querySelector(`a[href="${href}"] img`);
-      if (imgEl !== null) {
-        const srcAttr = imgEl.getAttribute("src");
-        if (srcAttr && srcAttr.startsWith("data:")) {
-          slideConfig.href = srcAttr;
-        }
-      }
-    } 
-  });
-
-  lightboxQuarto.on('slide_after_load', (data) => {
-    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-    if (window.Quarto?.typesetMath) {
-      window.Quarto.typesetMath(slideNode);
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","selector":".lightbox","loop":false,"descPosition":"bottom","openEffect":"zoom"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
     }
-  });
-
-};
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
           </script>
 
 
