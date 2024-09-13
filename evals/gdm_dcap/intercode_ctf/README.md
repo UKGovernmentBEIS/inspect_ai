@@ -15,7 +15,18 @@ $ inspect eval task.py --model google/gemini-1.5-pro
 $ inspect eval task.py --model mistral/mistral-large-latest
 ```
 
-If you are experiementing, you might find it useful to evaluate only a random subset of the samples:
+There are two task parameters that define limits on the evaluation:
+
+- `max_attempts` defines the number of incorrect submissions to allow before ending the challenges (defaults to 3).
+- `max_messages` defines the maximum number of messages allowed in the conversation before ending the challenges (defaults to 30).
+
+For example:
+
+```bash
+$ inspect eval task.py --model openai/gpt-4o -T max_attempts=3 -T max_messages=50
+```
+
+If you are experimenting, you might find it useful to evaluate only a random subset of the samples using the `shuffle` parameter and `--limit`:
 
 ```bash
 $ inspect eval task.py --model openai/gpt-4-turbo -T shuffle=true --limit 10
