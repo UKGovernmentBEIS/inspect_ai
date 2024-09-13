@@ -404,6 +404,60 @@ multi_scorer(
 Use of `multi_scorer()` requires both a list of scorers as well as a *reducer* which determines how a list of scores will be turned into a single score. In this case we use the "mode" reducer which returns the score that appeared most frequently in the answers.
 
 
+### Sandbox access
+
+If your Solver is an [agent](agents) with tool use, you might want to inspect the contents of the tool sandbox to score the task.
+
+The contents of the sandbox for the Sample are available to the scorer; simply call `await sandbox().read_file()` (or `.exec()`).
+
+For example:
+
+
+```python
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import Score, Target, accuracy, scorer
+from inspect_ai.solver import Plan, TaskState, generate, use_tools
+from inspect_ai.tool import bash
+from inspect_ai.util import sandbox
+
+
+@scorer(metrics=[accuracy()])
+def check_file_exists():
+    async def score(state: TaskState, target: Target):
+        try:
+            _ = await sandbox().read_file(target.text)
+            exists = True
+        except FileNotFoundError:
+            exists = False
+        return Score(value=1 if exists else 0)
+
+    return score
+
+
+@task
+def challenge() -> Task:
+    return Task(
+        dataset=[
+            Sample(
+                input="Create a file called hello-world.txt",
+                target="hello-world.txt",
+            )
+        ],
+        plan=Plan(
+            [
+                use_tools([bash()]),
+                generate(),
+            ]
+        ),
+        sandbox="local",
+        scorer=check_file_exists(),
+    )
+
+```
+
+
+
 ## Scoring Metrics
 
 Each scorer provides one or more built-in metrics (typically `accuracy` and `stderr`) corresponding to the most typically useful metrics for that scorer.
