@@ -1,4 +1,5 @@
 import re
+from functools import wraps
 from logging import getLogger
 from typing import (
     Any,
@@ -16,7 +17,6 @@ from inspect_ai._util.registry import (
     registry_name,
     registry_tag,
 )
-from functools import wraps
 
 from . import Content
 
