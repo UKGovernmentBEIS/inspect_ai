@@ -16,6 +16,7 @@ from inspect_ai._util.registry import (
     registry_name,
     registry_tag,
 )
+from functools import wraps
 
 from . import Content
 
@@ -131,6 +132,7 @@ def tool(
         )
 
         # wrap instantiations of scorer so they carry registry info and metrics
+        @wraps(tool_type)
         def tool_wrapper(*args: Any, **kwargs: Any) -> Tool:
             tool = tool_type(*args, **kwargs)
             registry_tag(
