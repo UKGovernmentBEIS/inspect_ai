@@ -79,7 +79,7 @@ def ctf():
 4.  Limit the total messages that can be used for each CTF sample.
 5.  Specify that Docker should be used as the sandbox environment.
 
-The full source code for this example can be found in the Inspect GitHub repository at [examples/agents/intercode-ctf](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/agents/intercode-ctf).
+The full source code for this example can be found in the Inspect GitHub repository at [intercode-ctf](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/gdm_dcap/intercode-ctf).
 
 ### Options
 
@@ -207,7 +207,7 @@ class InspectChatModel(BaseChatModel):
 ```
 
 ::: {.callout-note appearance="simple"}
-Note that the the `inspect_langchain` module imported here is not a built in feature of Inspect. Rather, you can find its [source code](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/agents/langchain/inspect_langchain.py) as part of the example. You can use this to create your own LangChain agents or as the basis for creating similar integrations with other agent frameworks.
+Note that the the `inspect_langchain` module imported here is not a built in feature of Inspect. Rather, you can find its [source code](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/langchain/inspect_langchain.py) as part of the example. You can use this to create your own LangChain agents or as the basis for creating similar integrations with other agent frameworks.
 :::
 
 Now here's the `wikipedia_search()` solver (imports again excluded for brevity):
@@ -272,7 +272,7 @@ def wikipedia() -> Task:
     )
 ```
 
-The full source code for this example can be found in the Inspect GitHub repo at [examples/agents/langchain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/agents/langchain).
+The full source code for this example can be found in the Inspect GitHub repo at [examples/langchain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/langchain).
 
 ## Sandboxing {#sec-sandbox-environments}
 
