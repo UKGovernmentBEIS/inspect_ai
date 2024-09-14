@@ -22,7 +22,7 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI, simple_input_messages
+from .._model import ModelAPI
 from .._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -193,9 +193,11 @@ class HuggingFaceAPI(ModelAPI):
         """Effectively the batch size."""
         return 32
 
+    @override
+    def collapse_user_messages(self) -> bool:
+        return True
+
     def hf_chat(self, messages: list[ChatMessage], tools: list[ToolInfo]) -> str:
-        # handle system message and consecutive user messages
-        messages = simple_input_messages(messages)
         # convert to hf format
         hf_messages = chat_api_input(messages, tools)
         # apply chat template

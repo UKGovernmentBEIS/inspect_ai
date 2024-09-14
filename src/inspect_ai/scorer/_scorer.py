@@ -88,7 +88,7 @@ def scorer_create(name: str, **kwargs: Any) -> Scorer:
 
 
 def scorer(
-    metrics: list[Metric] | dict[str, list[Metric]],
+    metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]],
     name: str | None = None,
     **metadata: Any,
 ) -> Callable[[Callable[..., Scorer]], Callable[..., Scorer]]:
@@ -147,12 +147,14 @@ def scorer(
     return wrapper
 
 
-def scorer_metrics(scorer: Scorer) -> list[Metric] | dict[str, list[Metric]]:
+def scorer_metrics(
+    scorer: Scorer,
+) -> list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]]:
     metrics_raw = registry_info(scorer).metadata[SCORER_METRICS]
     if isinstance(metrics_raw, dict):
         return cast(dict[str, list[Metric]], metrics_raw)
     else:
-        return cast(list[Metric], metrics_raw)
+        return cast(list[Metric | dict[str, list[Metric]]], metrics_raw)
 
 
 def unique_scorer_name(scorer: Scorer, already_used_names: list[str]) -> str:

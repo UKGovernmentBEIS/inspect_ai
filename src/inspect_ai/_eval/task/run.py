@@ -90,6 +90,7 @@ class TaskRunOptions:
     config: EvalConfig = field(default_factory=EvalConfig)
     plan: Plan | Solver | list[Solver] | None = field(default=None)
     score: bool = field(default=True)
+    debug_errors: bool = field(default=False)
     sample_source: EvalSampleSource | None = field(default=None)
     sample_semaphore: asyncio.Semaphore | None = field(default=None)
     kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
@@ -282,19 +283,24 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 td.complete(TaskCancelled(logger.samples_completed, stats))
 
             except BaseException as ex:
-                # get exception info
-                type, value, traceback = sys.exc_info()
-                type = type if type else BaseException
-                value = value if value else ex
+                if options.debug_errors:
+                    raise
+                else:
+                    # get exception info
+                    type, value, traceback = sys.exc_info()
+                    type = type if type else BaseException
+                    value = value if value else ex
 
-                # build eval error
-                error = eval_error(ex, type, value, traceback)
+                    # build eval error
+                    error = eval_error(ex, type, value, traceback)
 
-                # collect eval data
-                collect_eval_data(stats, logger)
+                    # collect eval data
+                    collect_eval_data(stats, logger)
 
-                # display it
-                td.complete(TaskError(logger.samples_completed, type, value, traceback))
+                    # display it
+                    td.complete(
+                        TaskError(logger.samples_completed, type, value, traceback)
+                    )
 
         # log as appropriate
         if cancelled:

@@ -27,6 +27,7 @@ import { ProgressBar } from "./components/ProgressBar.mjs";
 import { Sidebar } from "./sidebar/Sidebar.mjs";
 import { WorkSpace } from "./workspace/WorkSpace.mjs";
 import { FindBand } from "./components/FindBand.mjs";
+import { isVscode } from "./utils/Html.mjs";
 
 export function App({ api, pollForLogs = true }) {
   const [selected, setSelected] = useState(-1);
@@ -251,17 +252,13 @@ export function App({ api, pollForLogs = true }) {
     // Determine the capabilities
     // If this is vscode, check for the version meta
     // so we know it supports downloads
-    const bodyEl = document.querySelector("body");
-    const isVSCode = !!bodyEl.getAttributeNames().find((attr) => {
-      return attr.includes("data-vscode-");
-    });
     const extensionVersionEl = document.querySelector(
       'meta[name="inspect-extension:version"]',
     );
     const extensionVersion = extensionVersionEl
       ? extensionVersionEl.getAttribute("content")
       : undefined;
-    if (isVSCode) {
+    if (isVscode()) {
       if (!extensionVersion) {
         // VSCode hosts before the extension version was communicated don't support
         // downloading or web workers.
@@ -296,12 +293,22 @@ export function App({ api, pollForLogs = true }) {
       // initial fetch of logs
       const result = await load();
       setLogs(result);
-    }
 
-    // Select the first log if there wasn't some
-    // message embedded within the view html itself
-    if (selected === -1 && !embeddedState) {
-      setSelected(0);
+      // If a log file was passed, select it
+      const log_file = urlParams.get("log_file");
+      if (log_file) {
+        const index = result.files.findIndex((val) => {
+          return log_file.endsWith(val.name);
+        });
+        console.log({ result, log_file, index });
+        if (index > -1) {
+          setSelected(index);
+        }
+      } else if (selected === -1) {
+        // Select the first log if there wasn't some
+        // message embedded within the view html itself
+        setSelected(0);
+      }
     }
 
     new ClipboardJS(".clipboard-button,.copy-button");

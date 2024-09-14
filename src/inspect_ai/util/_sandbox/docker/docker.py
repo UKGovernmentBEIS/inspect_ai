@@ -109,39 +109,43 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             name=task_project_name(task_name), config=config, env=env
         )
 
-        # enumerate the services that will be created
-        services = await compose_services(project)
+        try:
+            # enumerate the services that will be created
+            services = await compose_services(project)
 
-        # start the services
-        await compose_up(project)
+            # start the services
+            await compose_up(project)
 
-        # note that the project is running
-        project_startup(project)
+            # note that the project is running
+            project_startup(project)
 
-        # check to ensure that the services are running
-        await compose_check_running(list(services.keys()), project=project)
+            # check to ensure that the services are running
+            await compose_check_running(list(services.keys()), project=project)
 
-        # create sandbox environments
-        environments: dict[str, SandboxEnvironment] = {}
-        for service, service_info in services.items():
-            # update the project w/ the working directory
-            working_dir = await container_working_dir(service, project)
+            # create sandbox environments
+            environments: dict[str, SandboxEnvironment] = {}
+            for service, service_info in services.items():
+                # update the project w/ the working directory
+                working_dir = await container_working_dir(service, project)
 
-            # create the docker sandbox environemnt
-            docker_env = DockerSandboxEnvironment(service, project, working_dir)
+                # create the docker sandbox environemnt
+                docker_env = DockerSandboxEnvironment(service, project, working_dir)
 
-            # save reference to environment (mark as default if requested)
-            is_default = service_info.get("x-default", False) is True
-            key = "default" if is_default else service
-            environments[key] = docker_env
+                # save reference to environment (mark as default if requested)
+                is_default = service_info.get("x-default", False) is True
+                key = "default" if is_default else service
+                environments[key] = docker_env
 
-        # confirm that we have a 'default' environemnt
-        if environments.get("default", None) is None:
-            raise RuntimeError(
-                "No 'default' service found in Docker compose file. "
-                + "You should either name a service 'default' or add "
-                + "'x-default: true' to one of your service definitions."
-            )
+            # confirm that we have a 'default' environemnt
+            if environments.get("default", None) is None:
+                raise RuntimeError(
+                    "No 'default' service found in Docker compose file. "
+                    + "You should either name a service 'default' or add "
+                    + "'x-default: true' to one of your service definitions."
+                )
+        except BaseException as ex:
+            await project_cleanup(project, True)
+            raise ex
 
         return environments
 
@@ -279,8 +283,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         local_tmpfile.close()  # this will also delete the file
 
         if not hasattr(self, "_docker_user"):
-            uid = (await self.exec(["id", "--user"])).stdout.strip()
-            gid = (await self.exec(["id", "--group"])).stdout.strip()
+            uid = (await self.exec(["id", "-u"])).stdout.strip()
+            gid = (await self.exec(["id", "-g"])).stdout.strip()
             self._docker_user = (uid, gid)
 
         await compose_command(
@@ -296,17 +300,17 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             project=self._project,
         )
 
-        res_cp = await self.exec(
-            ["cp", "--no-target-directory", "--", container_tmpfile, file]
-        )
-
-        await self.exec(["rm", container_tmpfile])
+        res_cp = await self.exec(["cp", "-T", "--", container_tmpfile, file])
 
         if res_cp.returncode != 0:
             if "Permission denied" in res_cp.stderr:
-                error_string = f"Permission was denied. Failed to copy temporary file. Error details: {res_cp.stderr};"
+                ls_result = await self.exec(["ls", "-la", "."])
+                error_string = f"Permission was denied. Failed to copy temporary file. Error details: {res_cp.stderr}; ls -la: {ls_result.stdout}; {self._docker_user=}"
                 raise PermissionError(error_string)
-            elif "cannot overwrite directory" in res_cp.stderr:
+            elif (
+                "cannot overwrite directory" in res_cp.stderr
+                or "is a directory" in res_cp.stderr
+            ):
                 raise IsADirectoryError(
                     f"Failed to write file: {file} because it is a directory already"
                 )
@@ -314,6 +318,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 raise RuntimeError(
                     f"failed to copy temporary file during write_file: {res_cp}"
                 )
+
+        await self.exec(["rm", container_tmpfile])
 
     @overload
     async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
@@ -376,7 +382,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 async def container_working_dir(
     service: str, project: ComposeProject, default: str = "/"
 ) -> str:
-    result = await compose_exec([service, "bash", "-c", "pwd"], project)
+    result = await compose_exec([service, "sh", "-c", "pwd"], project)
     if result.success:
         return result.stdout.strip()
     else:

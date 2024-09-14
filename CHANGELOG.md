@@ -1,13 +1,26 @@
 # Changelog
 
-## Unreleased
+## v0.3.28 (14 September 2024)
 
 - [basic_agent()](https://inspect.ai-safety-institute.org.uk/agents.html#sec-basic-agent) that provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck.
 - [score()](https://inspect.ai-safety-institute.org.uk/solvers.html#sec-scoring-in-solvers) function for accessing scoring logic from within solvers.
+- Ability to [publish](https://inspect.ai-safety-institute.org.uk/log-viewer.html#publishing) a static standalone Inspect View website for a log directory.
 - `system_message()` now supports custom parameters and interpolation of `metadata` values from `Sample`.
+- `generate()` solver now accepts arbitrary generation config params.
+- `use_tools()` now accepts a variadic list of `Tool` in addition to literal `list[Tool]`.
+- `bash()` and `python()` tools now have a `user` parameter for choosing an alternate user to run code as.
+- `bash()` and `python()` tools now always return stderr and stdout no matter the exit status.
+- Support for OpenAI o1-preview and o1-mini models.
+- Input event for recording screen input in sample transcripts.
+- Record to sample function for CSV and JSON dataset readers can now return multiple samples.
+- Added `debug_errors` option to `eval()` to raise task errors (rather than logging them) so they can be debugged.
 - Properly support metrics that return a dict or list of values
 - Improved display of prerequisite errors when running `eval()` from a script or notebook.
-- Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/squad), [AGIEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/agieval), and [IFEval](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/benchmarks/ifeval/) benchmarks.
+- Fix `eval_set()` issue with cleaning up failed logs on S3.
+- Cleanup Docker containers that fail during sample init.
+- Add support for computing metrics for both individual keys within a dictionary but also for the dictionary as a whole
+- Fix for Vertex tool calling (don't pass 'additionalProperties').
+- Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/squad), [AGIEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/agieval), [IFEval](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/evals/ifeval/), [PubMedQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/pubmedqa), and [MBPP](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/mbpp) benchmarks.
 
 
 ## v0.3.27 (6 September 2024)
@@ -16,7 +29,7 @@
 - Correct rounding behavior for `f1()` and `exact()` scorers.
 - Correct normalized text comparison for `exact()` scorer.
 - Improved appearance and navigation for sample transcript view.
-- Added [MathVista](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mathvista) benchmark.
+- Added [MathVista](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/mathvista) benchmark.
 
 ## v0.3.26 (6 September 2024)
 
@@ -37,7 +50,7 @@
 - Remove `chdir` option from `@tasks` (tasks now always chdir during execution).
 - Do not process `.env` files in task directories (all required vars should be specified in the global `.env`).
 - Only enable `strict` mode for OpenAI tool calls when all function parameters are required.
-- Added [MMMU](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mmmu), [CommonsenseQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/commonsense_qa), [MMLU-Pro](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/mmlu_pro), and [XSTest](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/xstest) benchmarks.
+- Added [MMMU](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/mmmu), [CommonsenseQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/commonsense_qa), [MMLU-Pro](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/mmlu_pro), and [XSTest](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/xstest) benchmarks.
 
 
 ## v0.3.25 (25 August 2024)
@@ -49,7 +62,7 @@
 - [fail_on_error](https://inspect.ai-safety-institute.org.uk/errors-and-limits.html#failure-threshold) option to tolerate some threshold of sample failures without failing the evaluation.
 - Specify `init` value in default Docker compose file so that exit signals are handled correctly (substantially improves container shutdown performance).
 - Add `function` field to `ChatMessageTool` to indicate the name of the function called.
-- Added [RACE](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/race-h/) benchmark.
+- Added [RACE](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/race-h/) benchmark.
 
 ## v0.3.24 (18 August 2024)
 
@@ -68,7 +81,7 @@
 - Eliminate Bedrock dependency on anthropic package (unless using an Anthropic model).
 - Improved resolution of AWS region for Bedrock (respecting already defined AWS_REGION and AWS_DEFAULT_REGION)
 - Fix bug in match scorer whereby numeric values with periods aren't correctly recognized.
-- Added [HumanEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/humaneval), [WinoGrande](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/winogrande) and [Drop](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/benchmarks/drop) benchmarks.
+- Added [HumanEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/humaneval), [WinoGrande](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/winogrande) and [Drop](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/drop) benchmarks.
 
 ## v0.3.22 (07 August 2024)
 

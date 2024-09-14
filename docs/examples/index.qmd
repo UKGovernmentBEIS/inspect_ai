@@ -1,0 +1,34 @@
+---
+page-layout: article
+listing:
+  id: examples
+  template: examples.ejs
+  contents: examples.yml
+  page-size: 100
+bibliography: examples.bib
+css: examples.css
+aliases: 
+  - /examples.html
+---
+
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#coding" id="toc-coding">Coding</a></li>
+<li><a href="#cybersecurity" id="toc-coding">Cybersecurity</a></li>
+<li><a href="#mathematics" id="toc-mathematics">Mathematics</a></li>
+<li><a href="#reasoning" id="toc-reasoning">Reasoning</a></li>
+<li><a href="#knowledge" id="toc-knowledge">Knowledge</a></li>
+</ul>
+</nav>
+
+
+# Examples {#sec-examples}
+
+The examples below demonstrate a variety of evaluation types and techniques. If you have just begun learning Inspect, you might benefit from reviewing the [Tutorial](#sec-tutorial) examples before exploring these.
+
+::: {#examples}
+:::
+
+::: {#refs}
+:::
+

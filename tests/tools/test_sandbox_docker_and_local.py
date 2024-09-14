@@ -18,7 +18,9 @@ async def test_self_check_local(request) -> None:
         task_name=task_name, config=None, metadata={}
     )
 
-    return await check_results_of_self_check(task_name, envs_dict)
+    known_failures = ["test_exec_as_user", "test_exec_as_nonexistent_user"]
+
+    return await check_results_of_self_check(task_name, envs_dict, known_failures)
 
 
 @skip_if_no_docker
@@ -37,6 +39,27 @@ async def test_self_check_docker_custom_nonroot(request) -> None:
     )
 
     return await check_results_of_self_check(task_name, envs_dict)
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+async def test_self_check_docker_custom_nonroot_alpine(request) -> None:
+    task_name = f"{__name__}_{request.node.name}_docker_nonroot_alpine"
+
+    # Alpine has busybox which is has a bunch of stuff "missing" if you are used to GNU.
+    config_file = str(Path(__file__) / ".." / "test_sandbox_compose_alpine.yaml")
+
+    await DockerSandboxEnvironment.task_init(task_name=task_name, config=config_file)
+    envs_dict = await DockerSandboxEnvironment.sample_init(
+        task_name=task_name, config=config_file, metadata={}
+    )
+
+    return await check_results_of_self_check(
+        # alpine busybox is happy to overwrite a readonly file with cp
+        task_name,
+        envs_dict,
+        ["test_write_file_without_permissions"],
+    )
 
 
 @skip_if_no_docker

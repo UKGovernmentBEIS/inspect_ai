@@ -7585,21 +7585,6 @@ const arrayToString = (val) => {
   val = Array.isArray(val) ? val : [val];
   return val.join(", ");
 };
-const shorteners = [/^.*(\[.+\])$/m];
-const shortenCompletion = (completion) => {
-  if (!completion) {
-    return completion;
-  }
-  let shortened = void 0;
-  for (const shortenPattern of shorteners) {
-    const shortMatch = completion.match(shortenPattern);
-    if (shortMatch && shortMatch[1]) {
-      shortened = shortMatch[1];
-      break;
-    }
-  }
-  return shortened || completion;
-};
 const inputString = (input) => {
   if (typeof input === "string") {
     return input;
@@ -7688,6 +7673,13 @@ const filename = (path) => {
     return path;
   }
 };
+const dirname = (path) => {
+  const pathparts = path.split("/");
+  if (pathparts.length > 1) {
+    pathparts.pop();
+  }
+  return pathparts.join("/");
+};
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -7766,6 +7758,7 @@ const ApplicationIcons = {
   "expand-all": "bi bi-arrows-expand",
   "expand-down": "bi bi-chevron-down",
   info: "bi bi-info-circle",
+  input: "bi bi-terminal",
   inspect: "bi bi-gear",
   json: "bi bi-filetype-json",
   logging: {
@@ -8364,12 +8357,13 @@ const TabPanel = ({
   selected,
   style,
   scrollable,
+  classes,
   children
 }) => {
   const tabContentsId = computeTabContentsId(id, index);
   return m$1`<div
     id="${tabContentsId}"
-    class="tab-pane show ${selected ? "active" : ""}"
+    class="tab-pane show${selected ? " active" : ""}${classes ? ` ${classes}` : ""}"
     style=${{
     flex: "1",
     overflowY: scrollable === void 0 || scrollable ? "auto" : "hidden",
@@ -13564,7 +13558,7 @@ const messageRenderers = {
   },
   tool: {
     render: (content) => {
-      return m$1`<${ToolOutput} output=${content.text} />`;
+      return m$1`<${ToolOutput} output=${content.text.trim()} />`;
     }
   }
 };
@@ -14960,7 +14954,17 @@ const sort = (sort2, samples, sampleDescriptor) => {
   };
 };
 const LargeModal = (props) => {
-  const { id, title, detail, detailTools, footer, onkeyup, children } = props;
+  const {
+    id,
+    title,
+    detail,
+    detailTools,
+    footer,
+    onkeyup,
+    visible,
+    onHide,
+    children
+  } = props;
   const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
   const headerEls = [];
   headerEls.push(
@@ -15003,7 +15007,9 @@ const LargeModal = (props) => {
   headerEls.push(m$1`<button
       type="button"
       class="btn btn-close-large-dialog"
-      data-bs-dismiss="modal"
+      onclick=${() => {
+    onHide();
+  }}
       aria-label="Close"
       style=${{
     borderWidth: "0px",
@@ -15022,7 +15028,11 @@ const LargeModal = (props) => {
     tabindex="0"
     role="dialog"
     onkeyup=${onkeyup}
-    style=${{ borderRadius: "var(--bs-border-radius)" }}
+    style=${{
+    borderRadius: "var(--bs-border-radius)",
+    display: visible ? "block" : "none"
+  }}
+    tabindex=${visible ? 0 : void 0}
   >
     <div
       class="modal-dialog modal-dialog-scrollable"
@@ -15063,6 +15073,15 @@ const TitleTool = ({ label, icon, enabled, onclick }) => {
   >
     <i class="${icon}" />
   </button>`;
+};
+function escapeSelector(id) {
+  return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
+}
+const isVscode = () => {
+  const bodyEl = document.querySelector("body");
+  return !!bodyEl.getAttributeNames().find((attr) => {
+    return attr.includes("data-vscode-");
+  });
 };
 const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
   const scores = scorer ? sampleDescriptor.scorer(sample, scorer).scores() : sampleDescriptor.selectedScorer(sample).scores();
@@ -15176,7 +15195,7 @@ const SampleScoreView = ({
             <td style=${{ paddingTop: "0", paddingLeft: "0" }}>
               <${MarkdownDiv}
                 class="no-last-para-padding"
-                markdown=${shortenCompletion(answer)}
+                markdown=${answer}
                 style=${{ paddingLeft: "0" }}
               />
             </td>
@@ -15215,6 +15234,7 @@ const SampleScoreView = ({
 };
 const EventPanel = ({
   id,
+  classes,
   title,
   text,
   icon,
@@ -15334,6 +15354,7 @@ const EventPanel = ({
     borderRadius: "var(--bs-border-radius)",
     ...style
   }}
+    class=${classes || void 0}
   >
     ${titleEl}
     <div
@@ -15540,7 +15561,7 @@ const SampleInitEventView = ({ id, event, style, stateManager }) => {
         </${EventSection}>
       </div>
     </div>
-    ${event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? m$1`<${MetaDataGrid} name="Metadata" style=${{ margin: "1em 0" }} entries=${event.sample.metadata} />` : ""}
+    ${event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? m$1`<${MetaDataGrid} name="Metadata" style=${{ margin: "0.5em 0" }} entries=${event.sample.metadata} />` : ""}
 
   </${EventPanel}>`;
 };
@@ -15562,8 +15583,8 @@ const system_msg_added_sig = {
 const tools_choice = {
   type: "tools_choice",
   signature: {
-    add: ["/tools/0"],
-    replace: ["/tool_choice"],
+    add: ["/tools/\\d+"],
+    replace: [],
     remove: []
   },
   render: (resolvedState) => {
@@ -15574,9 +15595,10 @@ const tools_choice = {
         return toolChoice;
       }
     };
-    const toolsInfo = {
-      "Tool Choice": toolName(resolvedState.tool_choice)
-    };
+    const toolsInfo = {};
+    if (resolvedState.tool_choice) {
+      toolsInfo["Tool Choice"] = toolName(resolvedState.tool_choice);
+    }
     if (resolvedState.tools.length > 0) {
       toolsInfo["Tools"] = m$1`<${Tools}
         toolDefinitions=${resolvedState.tools}
@@ -17084,19 +17106,24 @@ const StateEventView = ({ id, event, style, stateManager }) => {
   </${EventPanel}>`;
 };
 const generatePreview = (changes, resolvedState) => {
+  const results = [];
   for (const changeType of RenderableChangeTypes) {
     const requiredMatchCount = changeType.signature.remove.length + changeType.signature.replace.length + changeType.signature.add.length;
     let matchingOps = 0;
     for (const change of changes) {
-      if (changeType.signature.remove.includes(change.path) || changeType.signature.replace.includes(change.path) || changeType.signature.add.includes(change.path)) {
-        matchingOps++;
-      }
-      if (matchingOps === requiredMatchCount) {
-        return changeType.render(resolvedState);
+      if (changeType.signature[change.op].length > 0) {
+        changeType.signature[change.op].forEach((signature) => {
+          if (change.path.match(signature)) {
+            matchingOps++;
+          }
+        });
       }
     }
+    if (matchingOps === requiredMatchCount) {
+      results.push(changeType.render(resolvedState));
+    }
   }
-  return void 0;
+  return results.length > 0 ? results : void 0;
 };
 const summarizeChanges = (changes) => {
   const changeMap = {
@@ -17136,7 +17163,8 @@ const StepEventView = ({ event, children, style, stateManager }) => {
   const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
   const text = summarize(children);
   return m$1`<${EventPanel}
-    id=${`$step-${event.name}`}
+    id=${`step-${event.name}`}
+    classes="transcript-step"
     title="${title}"
     icon=${descriptor.icon}
     style=${{ ...descriptor.style, ...style }}
@@ -17261,7 +17289,7 @@ const SubtaskSummary = ({ input, result }) => {
     display: "grid",
     gridTemplateColumns: "minmax(0, 1fr) max-content minmax(0, 1fr)",
     columnGap: "1em",
-    margin: "1em 0"
+    margin: "0.5em 0"
   }}
   >
     <div style=${{ ...TextStyle.label }}>Input</div>
@@ -17491,7 +17519,7 @@ const ModelEventView = ({ id, event, style }) => {
   return m$1`
   <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model} style=${style}>
   
-    <div name="Completion" style=${{ margin: "1em 0" }}>
+    <div name="Completion" style=${{ margin: "0.5em 0" }}>
     <${ChatView}
       id="${id}-model-output"
       messages=${[...outputMessages || []]}
@@ -17499,7 +17527,7 @@ const ModelEventView = ({ id, event, style }) => {
       />
     </div>
 
-    <div name="All" style=${{ margin: "1em 0" }}>
+    <div name="All" style=${{ margin: "0.5em 0" }}>
 
       <div style=${{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: "1em" }}>
       <${EventSection} title="Configuration" style=${tableSectionStyle}>
@@ -17525,7 +17553,7 @@ const ModelEventView = ({ id, event, style }) => {
 
     </div>
 
-    ${event.call ? m$1`<${APIView} name="API" call=${event.call} style=${{ margin: "1em 0", width: "100%" }} />` : ""}
+    ${event.call ? m$1`<${APIView} name="API" call=${event.call} style=${{ margin: "0.5em 0", width: "100%" }} />` : ""}
    
   </${EventPanel}>`;
 };
@@ -17675,7 +17703,7 @@ const JSONPanel = ({ data, style }) => {
 const InfoEventView = ({ id, event, style }) => {
   return m$1`
   <${EventPanel} id=${id} title="Info" icon=${ApplicationIcons.info} style=${style}>
-    <${JSONPanel} data=${event.data} style=${{ margin: "1em 0" }}/>
+    <${JSONPanel} data=${event.data} style=${{ margin: "0.5em 0" }}/>
   </${EventPanel}>`;
 };
 const ScoreEventView = ({ id, event, style }) => {
@@ -17684,11 +17712,11 @@ const ScoreEventView = ({ id, event, style }) => {
   
     <div
       name="Explanation"
-      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "1em 0" }}
+      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "0.5em 0" }}
     >
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Answer</div>
-      <div>${event.score.answer}</div>
+      <div><${MarkdownDiv} markdown=${event.score.answer}/></div>
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Explanation</div>
       <div><${MarkdownDiv} markdown=${event.score.explanation}/></div>
@@ -17701,7 +17729,7 @@ const ScoreEventView = ({ id, event, style }) => {
             <${MetaDataGrid}
               entries=${event.score.metadata}
               compact=${true}
-              style=${{ margin: "1em 0" }}
+              style=${{ margin: "0.5em 0" }}
             />
           </div>` : void 0}
 
@@ -17709,30 +17737,26 @@ const ScoreEventView = ({ id, event, style }) => {
   </${EventPanel}>`;
 };
 const ToolEventView = ({ id, event, style, stateManager, depth }) => {
+  var _a;
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
     event.arguments
   );
   const title = `Tool: ${event.function}`;
+  const output = event.result || ((_a = event.error) == null ? void 0 : _a.message);
   return m$1`
   <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
-    <div name="Summary">
-    ${event.result ? m$1`
+    <div name="Summary" style=${{ width: "100%", margin: "0.5em 0" }}>
+        ${!output ? "(No output)" : m$1`
           <${ExpandablePanel} collapse=${true} border=${true} lines=10>
-          <${ToolOutput}
-            output=${event.result}
-            style=${{ margin: "1em 0" }}
-          />
-          </${ExpandablePanel}>
-          ` : event.error ? m$1`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>
-              ${event.error.type}: ${event.error.message}
-            </div>` : m$1`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>
-              No output
-            </div>`}
+            <${ToolOutput}
+              output=${output}
+            />
+          </${ExpandablePanel}>`}
     </div>
     
   
-  <div name="Transcript" style=${{ margin: "1em 0" }}>
+  <div name="Transcript" style=${{ margin: "0.5em 0" }}>
     <${ToolCallView}
       functionCall=${functionCall}
       input=${input}
@@ -17754,13 +17778,19 @@ const ToolEventView = ({ id, event, style, stateManager, depth }) => {
 const ErrorEventView = ({ id, event, style }) => {
   return m$1`
   <${EventPanel} id=${id} title="Error" icon=${ApplicationIcons.error} style=${style}>
-    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "1em 0" }}/>
+    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "0.5em 0" }}/>
+  </${EventPanel}>`;
+};
+const InputEventView = ({ id, event, style }) => {
+  return m$1`
+  <${EventPanel} id=${id} title="Input" icon=${ApplicationIcons.input} style=${style}>
+    <${ANSIDisplay} output=${event.input_ansi} style=${{ fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)", ...style }}/>
   </${EventPanel}>`;
 };
 class EventNode {
   /**
    * Create an EventNode.
-   * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").ErrorEvent } event - This event.
+   * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").InputEvent | import("../../types/log").ErrorEvent } event - This event.
    * @param {number} depth - the depth of this item
    */
   constructor(event, depth) {
@@ -18430,11 +18460,17 @@ const initStateManager = () => {
     applyChanges: (changes) => {
       state = applyPatch(
         structuredClone(state),
-        structuredClone(changes),
+        structuredClone(changes).map(ensureValidChange),
         true
       ).newDocument;
     }
   };
+};
+const ensureValidChange = (change) => {
+  if (change.op === "add" && !change.value) {
+    change.value = null;
+  }
+  return change;
 };
 const TranscriptView = ({ id, events, stateManager, depth = 0 }) => {
   const resolvedEvents = fixupEventStream(events);
@@ -18562,11 +18598,16 @@ const RenderedEventNode = ({ id, node, style, stateManager }) => {
         style=${style}
         depth=${node.depth}
       />`;
+    case "input":
+      return m$1`<${InputEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
     case "error":
       return m$1`<${ErrorEventView}
         id=${id}
         event=${node.event}
-        stateManager=${stateManager}
         style=${style}
       />`;
     default:
@@ -18710,6 +18751,39 @@ const FlatSampleError = ({ style }) => {
     </div>
   </div>`;
 };
+const printHtml = (html, css) => {
+  const printWindow = window.open("", "", "height=600,width=800");
+  printWindow.document.write("<html><head><title>Print</title>");
+  printWindow.document.write(`
+          <link rel="stylesheet" crossorigin="" href="./assets/index.css">
+          <style>
+            @media print {
+              ${css}
+            }
+          </style>
+        `);
+  printWindow.document.write("</head><body>");
+  printWindow.document.write(html);
+  printWindow.document.write("</body></html>");
+  printWindow.document.close();
+  printWindow.onload = function() {
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+};
+const printHeadingHtml = () => {
+  const task = document.getElementById("task-title").innerText;
+  const model = document.getElementById("task-model").innerText;
+  const time = document.getElementById("task-created").innerText;
+  const headingHtml = `
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 0.5em; margin-bottom: 2em; justify-content: space-between; border-bottom: solid 1px silver;">
+<div style="font-weight: 600">${task}</div>
+<div style="text-align: center;">${model}</div>
+<div style="text-align: right;">${time}</div>
+</div>`;
+  return headingHtml;
+};
 const InlineSampleDisplay = ({
   index,
   id,
@@ -18730,34 +18804,36 @@ const InlineSampleDisplay = ({
   </div>`;
 };
 const SampleDisplay = ({
-  index,
-  id,
   sample,
   sampleDescriptor,
+  visible,
   context
 }) => {
-  const baseId = `sample-${index}`;
+  const baseId = `sample-dialog`;
   const msgTabId = `${baseId}-messages`;
   const transcriptTabId = `${baseId}-transcript`;
   const scoringTabId = `${baseId}-scoring`;
   const metdataTabId = `${baseId}-metadata`;
   const errorTabId = `${baseId}-error`;
   y(() => {
-    if (sample.transcript && sample.transcript.events.length > 0) {
-      setSelectedTab(transcriptTabId);
+    if (!visible) {
+      setSelectedTab(void 0);
     } else {
-      setSelectedTab(msgTabId);
+      if (selectedTab === void 0) {
+        const defaultTab = sample.transcript && sample.transcript.events.length > 0 ? transcriptTabId : msgTabId;
+        setSelectedTab(defaultTab);
+      }
     }
-  }, [sample]);
+  }, [visible]);
   const [selectedTab, setSelectedTab] = h(void 0);
   const onSelectedTab = (e2) => {
-    const id2 = e2.currentTarget.id;
-    setSelectedTab(id2);
+    const id = e2.currentTarget.id;
+    setSelectedTab(id);
     return false;
   };
   const tabs = [
     m$1`
-    <${TabPanel} id=${msgTabId} title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === msgTabId}>
+    <${TabPanel} id=${msgTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === msgTabId}>
       <${ChatView} 
         key=${`${baseId}-chat`} 
         id=${`${baseId}-chat`} 
@@ -18769,14 +18845,14 @@ const SampleDisplay = ({
   ];
   if (sample.transcript && sample.transcript.events.length > 0) {
     tabs.unshift(m$1`
-      <${TabPanel} id=${transcriptTabId} title="Transcript" onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId || selectedTab === void 0} scrollable=${false}>
-        <${SampleTranscript} id=${`${baseId}-transcript`} evalEvents=${sample.transcript}/>
+      <${TabPanel} id=${transcriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId || selectedTab === void 0} scrollable=${false}>
+        <${SampleTranscript} id=${`${baseId}-transcript-display`} evalEvents=${sample.transcript}/>
       </${TabPanel}>`);
   }
   const scorerNames = Object.keys(sample.scores);
   if (scorerNames.length === 1) {
     tabs.push(m$1`
-      <${TabPanel} id=${scoringTabId} title="Scoring" onSelected=${onSelectedTab} selected=${selectedTab === scoringTabId}>
+      <${TabPanel} id=${scoringTabId} classes="sample-tab" title="Scoring" onSelected=${onSelectedTab} selected=${selectedTab === scoringTabId}>
         <${SampleScoreView}
           sample=${sample}
           context=${context}
@@ -18789,7 +18865,7 @@ const SampleDisplay = ({
     for (const scorer of Object.keys(sample.scores)) {
       const tabId = `score-${scorer}`;
       tabs.push(m$1`
-        <${TabPanel} id="${tabId}" title="${scorer}" onSelected=${onSelectedTab} selected=${selectedTab === tabId}>
+        <${TabPanel} id="${tabId}" classes="sample-tab" title="${scorer}" onSelected=${onSelectedTab} selected=${selectedTab === tabId}>
           <${SampleScoreView}
             sample=${sample}
             context=${context}
@@ -18806,6 +18882,7 @@ const SampleDisplay = ({
       m$1`
       <${TabPanel} 
           id=${metdataTabId} 
+          classes="sample-tab"
           title="Metadata" 
           onSelected=${onSelectedTab} 
           selected=${selectedTab === metdataTabId}>
@@ -18820,6 +18897,7 @@ const SampleDisplay = ({
       m$1`
       <${TabPanel} 
           id=${errorTabId} 
+          classes="sample-tab"
           title="Error" 
           onSelected=${onSelectedTab} 
           selected=${selectedTab === errorTabId}>
@@ -18829,17 +18907,84 @@ const SampleDisplay = ({
       </${TabPanel}>`
     );
   }
+  const tabsetId = `task-sample-details-tab-${sample.id}`;
+  const targetId = `${tabsetId}-content`;
+  const printSample = () => {
+    const targetTabEl = document.querySelector(
+      `#${escapeSelector(targetId)} .sample-tab.tab-pane.show.active`
+    );
+    if (targetTabEl) {
+      const targetEl = targetTabEl.firstElementChild;
+      if (targetEl) {
+        const headingId = `sample-heading-${sample.id}`;
+        const headingEl = document.getElementById(headingId);
+        const headingHtml = printHeadingHtml();
+        const css = `
+        html { font-size: 9pt }
+        /* Allow content to break anywhere without any forced page breaks */
+        * {
+          break-inside: auto;  /* Let elements break anywhere */
+          page-break-inside: auto;  /* Legacy support */
+          break-before: auto;
+          page-break-before: auto;
+          break-after: auto;
+          page-break-after: auto;
+        }
+        /* Specifically disable all page breaks for divs */
+        div {
+          break-inside: auto;
+          page-break-inside: auto;
+        }
+        body > .transcript-step {
+          break-inside: avoid;
+        }
+        body{
+          -webkit-print-color-adjust:exact !important;
+          print-color-adjust:exact !important;
+        }
+        /* Allow preformatted text and code blocks to break across pages */
+        pre, code {
+            white-space: pre-wrap; /* Wrap long lines instead of keeping them on one line */
+            overflow-wrap: break-word; /* Ensure long words are broken to fit within the page */
+            break-inside: auto; /* Allow page breaks inside the element */
+            page-break-inside: auto; /* Older equivalent */
+        }
+
+        /* Additional control for long lines within code/preformatted blocks */
+        pre {
+            word-wrap: break-word; /* Break long words if needed */
+        }    
+            
+        `;
+        printHtml(
+          [headingHtml, headingEl.outerHTML, targetEl.innerHTML].join("\n"),
+          css
+        );
+      }
+    }
+  };
+  const tools = [];
+  if (!isVscode()) {
+    tools.push(
+      m$1`<${ToolButton}
+        name=${m$1`Print`}
+        icon="${ApplicationIcons.copy}"
+        onclick="${printSample}"
+      />`
+    );
+  }
   return m$1`<${SampleSummary}
     id=${sample.id}
     sample=${sample}
     sampleDescriptor=${sampleDescriptor}/>
 
-  <${TabSet} id="task-sample-details-tab-${id}" styles=${{
+  <${TabSet} id=${tabsetId} styles=${{
     tabs: {
       fontSize: FontSize.base
     },
     tabBody: {}
-  }}>
+  }}
+    tools=${tools}>
     ${tabs}
   </${TabSet}>`;
 };
@@ -18912,7 +19057,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
     columns.push({
       label: "Answer",
       value: sample ? m$1`<${MarkdownDiv}
-            markdown=${arrayToString(shortenCompletion(fullAnswer))}
+            markdown=${fullAnswer}
             style=${{ paddingLeft: "0" }}
             class="no-last-para-padding"
           />` : "",
@@ -18928,7 +19073,7 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   });
   return m$1`
     <div
-      id=${`sample-${id}`}
+      id=${`sample-heading-${id}`}
       style=${{
     display: "grid",
     gridTemplateColumns: `${columns.map((col) => {
@@ -18977,10 +19122,12 @@ const SampleDialog = (props) => {
     sampleDescriptor,
     nextSample,
     prevSample,
+    sampleDialogVisible,
+    hideSample,
     context
   } = props;
   if (!sample) {
-    return m$1`<${LargeModal} id=${id} title="No Sample"><${EmptyPanel}>No Sample Selected</${EmptyPanel}></${LargeModal}>`;
+    return m$1`<${LargeModal} visible=${sampleDialogVisible} onHide=${hideSample} id=${id} title="No Sample"><${EmptyPanel}>No Sample Selected</${EmptyPanel}></${LargeModal}>`;
   }
   const tools = T(() => {
     const nextTool = {
@@ -19013,6 +19160,9 @@ const SampleDialog = (props) => {
             prevSample();
           }
           break;
+        case "Escape":
+          hideSample();
+          break;
       }
     },
     [prevSample, nextSample]
@@ -19023,12 +19173,15 @@ const SampleDialog = (props) => {
       detail=${title}
       detailTools=${tools}
       onkeyup=${handleKeyUp}   
+      visible=${sampleDialogVisible}
+      onHide=${hideSample}
     >
     <${SampleDisplay}
       index=${index}
       id=${id}
       sample=${sample}
       sampleDescriptor=${sampleDescriptor}
+      visible=${sampleDialogVisible}
       context=${context}/>
     </${LargeModal}>`;
 };
@@ -19379,9 +19532,7 @@ const SampleRow = ({
       >
         ${sample ? m$1`
               <${MarkdownDiv}
-                markdown=${shortenCompletion(
-    sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScorer(sample).answer()
-  )}
+                markdown=${sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScorer(sample).answer()}
                 style=${{ paddingLeft: "0" }}
                 class="no-last-para-padding"
               />
@@ -19439,6 +19590,7 @@ const SamplesTab = (props) => {
     /** @type {HTMLElement|null} */
     null
   );
+  const [sampleDialogVisible, setSampleDialogVisible] = h(false);
   y(() => {
     setFilteredSamples(
       (samples || []).filter((sample) => {
@@ -19456,32 +19608,18 @@ const SamplesTab = (props) => {
     );
   }, [samples, filter, sort$1, epoch]);
   const showSample = q(() => {
-    const dialogEl = sampleDialogRef.current;
-    if (dialogEl) {
-      const modal = new Modal(dialogEl.base);
-      modal.show();
-    }
-  }, [sampleDialogRef]);
+    setSampleDialogVisible(true);
+    setTimeout(() => {
+      sampleDialogRef.current.base.focus();
+    }, 0);
+  }, [setSampleDialogVisible, sampleDialogRef]);
   const hideSample = q(() => {
-    const dialogEl = sampleDialogRef.current;
-    if (dialogEl && dialogEl.base) {
-      const modal = Modal.getInstance(dialogEl.base);
-      if (modal) {
-        modal.hide();
-      }
+    setSampleDialogVisible(false);
+    const listEl = sampleListRef.current;
+    if (listEl && listEl.base) {
+      listEl.base.focus();
     }
-  }, [sampleDialogRef]);
-  y(() => {
-    const dialogEl = sampleDialogRef.current;
-    if (dialogEl) {
-      dialogEl.base.addEventListener("hidden.bs.modal", () => {
-        const listEl = sampleListRef.current;
-        if (listEl) {
-          listEl.base.focus();
-        }
-      });
-    }
-  }, [sampleDialogRef, sampleListRef]);
+  }, [setSampleDialogVisible]);
   y(() => {
     const { sorted, order: order2 } = sort(sort$1, filteredSamples, sampleDescriptor);
     const sampleProcessor = getSampleProcessor(
@@ -19576,6 +19714,8 @@ const SamplesTab = (props) => {
       sampleDescriptor=${sampleDescriptor}
       nextSample=${nextSample}
       prevSample=${previousSample}
+      sampleDialogVisible=${sampleDialogVisible}
+      hideSample=${hideSample}
       context=${context}
     />
   `);
@@ -20238,7 +20378,7 @@ const ParamSummary = ({ params }) => {
   }
 };
 const Navbar = ({ file, logs, log, offcanvas }) => {
-  var _a, _b;
+  var _a, _b, _c;
   const toggleOffCanClass = offcanvas ? "" : " d-md-none";
   const logFileName = file ? filename(file) : "";
   const task = (_a = log == null ? void 0 : log.eval) == null ? void 0 : _a.task;
@@ -20246,6 +20386,7 @@ const Navbar = ({ file, logs, log, offcanvas }) => {
   const results = log == null ? void 0 : log.results;
   const samples = log == null ? void 0 : log.samples;
   const status = log == null ? void 0 : log.status;
+  const created = (_c = log == null ? void 0 : log.eval) == null ? void 0 : _c.created;
   let statusPanel;
   if (status === "success") {
     statusPanel = m$1`<${ResultsPanel} results="${results}" />`;
@@ -20294,6 +20435,7 @@ const Navbar = ({ file, logs, log, offcanvas }) => {
   }}
             >
               <div
+                id="task-title"
                 style=${{
     fontWeight: 600,
     marginRight: "0.3rem",
@@ -20305,6 +20447,7 @@ const Navbar = ({ file, logs, log, offcanvas }) => {
                 ${task}
               </div>
               <div
+                id="task-model"
                 style=${{
     fontSize: FontSize.base,
     paddingTop: "0.4rem",
@@ -20338,6 +20481,8 @@ const Navbar = ({ file, logs, log, offcanvas }) => {
             </div>
           </div>
         </div>
+
+        <div id="task-created" style=${{ display: "none" }}>${created}</div>
 
         <div
           class="navbar-text"
@@ -21881,50 +22026,18 @@ const vscodeApi$1 = {
   download_file,
   open_log_file
 };
-function singleFileHttpApi() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const fetchLogPath = urlParams.get("log_file");
-  if (fetchLogPath) {
-    const resolvedLogPath = fetchLogPath.replace(" ", "+");
-    const api2 = httpApiForFile(resolvedLogPath);
-    return api2;
-  }
+function simpleHttpApi(log_dir, log_file) {
+  const resolved_log_dir = log_dir.replace(" ", "+");
+  const resolved_log_path = log_file ? log_file.replace(" ", "+") : void 0;
+  return simpleHttpAPI({
+    log_file: resolved_log_path,
+    log_dir: resolved_log_dir
+  });
 }
-function httpApiForFile(logFile) {
-  const getContents = async () => {
-    {
-      const response = await fetch(`${logFile}`, { method: "GET" });
-      if (response.ok) {
-        const text = await response.text();
-        const log = await asyncJsonParse(text);
-        if (log.version === 1) {
-          if (log.results) {
-            log.results.scores = [];
-            log.results.scorer.scorer = log.results.scorer.name;
-            log.results.scores.push(log.results.scorer);
-            delete log.results.scorer;
-            log.results.scores[0].metrics = log.results.metrics;
-            delete log.results.metrics;
-            const scorerName = log.results.scores[0].name;
-            log.samples.forEach((sample) => {
-              sample.scores = { [scorerName]: sample.score };
-              delete sample.score;
-            });
-          }
-        }
-        return {
-          parsed: log,
-          raw: text
-        };
-      } else if (response.status !== 200) {
-        const message = await response.text() || response.statusText;
-        const error = new Error(`Error: ${response.status}: ${message})`);
-        throw error;
-      } else {
-        throw new Error(`${response.status} - ${response.statusText} `);
-      }
-    }
-  };
+function simpleHttpAPI(logInfo) {
+  const log_file = logInfo.log_file;
+  const log_dir = logInfo.log_dir;
+  const cache = log_file_cache(log_file);
   async function open_log_file2() {
   }
   return {
@@ -21932,30 +22045,176 @@ function httpApiForFile(logFile) {
       return Promise.resolve([]);
     },
     eval_logs: async () => {
-      const contents = await getContents();
-      const files = [
-        {
-          name: logFile,
-          task: contents.parsed.eval.task,
-          task_id: contents.parsed.eval.task_id
+      const headers = await fetchLogHeaders(log_dir);
+      if (headers) {
+        const logRecord = headers.parsed;
+        const logs = Object.keys(logRecord).map((key2) => {
+          return {
+            name: joinURI(log_dir, key2),
+            task: logRecord[key2].eval.task,
+            task_id: logRecord[key2].eval.task_id
+          };
+        });
+        return Promise.resolve({
+          files: logs
+        });
+      } else if (log_file) {
+        let evalLog = cache.get();
+        if (!evalLog) {
+          const response = await fetchLogFile(log_file);
+          cache.set(response.parsed);
+          evalLog = response.parsed;
         }
-      ];
-      return Promise.resolve({
-        files
-      });
+        const result = {
+          name: log_file,
+          task: evalLog.eval.task,
+          task_id: evalLog.eval.task_id
+        };
+        return {
+          files: [result]
+        };
+      } else {
+        throw new Error(
+          `Failed to load a manifest files using the directory: ${log_dir}. Please be sure you have deployed a manifest file (logs.json).`
+        );
+      }
     },
-    eval_log: async () => {
-      return await getContents();
+    eval_log: async (file) => {
+      const response = await fetchLogFile(file);
+      cache.set(response.parsed);
+      return response;
     },
-    eval_log_headers: async () => {
-      const contents = await getContents();
-      return Promise.resolve([contents.parsed]);
+    eval_log_headers: async (files) => {
+      const headers = await fetchLogHeaders(log_dir);
+      if (headers) {
+        const keys = Object.keys(headers.parsed);
+        const result = [];
+        files.forEach((file) => {
+          const fileKey = keys.find((key2) => {
+            return file.endsWith(key2);
+          });
+          if (fileKey) {
+            result.push(headers.parsed[fileKey]);
+          }
+        });
+        return result;
+      } else if (log_file) {
+        let evalLog = cache.get();
+        if (!evalLog) {
+          const response = await fetchLogFile(log_file);
+          cache.set(response.parsed);
+          evalLog = response.parsed;
+        }
+        return [evalLog];
+      } else {
+        throw new Error(
+          `Failed to load a manifest files using the directory: ${log_dir}. Please be sure you have deployed a manifest file (logs.json).`
+        );
+      }
     },
     download_file: download_file$1,
     open_log_file: open_log_file2
   };
 }
-const api = window.acquireVsCodeApi ? vscodeApi$1 : singleFileHttpApi() || browserApi;
+async function fetchFile(url, parse3, handleError) {
+  const response = await fetch(`${url}`, { method: "GET" });
+  if (response.ok) {
+    const text = await response.text();
+    return {
+      parsed: await parse3(text),
+      raw: text
+    };
+  } else if (response.status !== 200) {
+    if (handleError && handleError(response)) {
+      return void 0;
+    }
+    const message = await response.text() || response.statusText;
+    const error = new Error(`${response.status}: ${message})`);
+    throw error;
+  } else {
+    throw new Error(`${response.status} - ${response.statusText} `);
+  }
+}
+const fetchLogFile = async (file) => {
+  return fetchFile(file, async (text) => {
+    const log = await asyncJsonParse(text);
+    if (log.version === 1) {
+      if (log.results) {
+        log.results.scores = [];
+        log.results.scorer.scorer = log.results.scorer.name;
+        log.results.scores.push(log.results.scorer);
+        delete log.results.scorer;
+        log.results.scores[0].metrics = log.results.metrics;
+        delete log.results.metrics;
+        const scorerName = log.results.scores[0].name;
+        log.samples.forEach((sample) => {
+          sample.scores = { [scorerName]: sample.score };
+          delete sample.score;
+        });
+      }
+    }
+    return log;
+  });
+};
+const fetchLogHeaders = async (log_dir) => {
+  const logs = await fetchFile(
+    log_dir + "/logs.json",
+    async (text) => {
+      return await asyncJsonParse(text);
+    },
+    (response) => {
+      if (response.status === 404) {
+        return true;
+      }
+    }
+  );
+  return logs;
+};
+function joinURI(...segments) {
+  return segments.map((segment) => segment.replace(/(^\/+|\/+$)/g, "")).join("/");
+}
+const log_file_cache = (log_file) => {
+  if (!log_file) {
+    return {
+      set: () => {
+      },
+      get: () => {
+        return void 0;
+      }
+    };
+  }
+  let cache_file;
+  return {
+    set: (log_file2) => {
+      cache_file = log_file2;
+    },
+    get: () => {
+      return cache_file;
+    }
+  };
+};
+const resolveApi = () => {
+  if (window.acquireVsCodeApi) {
+    return vscodeApi$1;
+  } else {
+    const scriptEl = document.getElementById("log_dir_context");
+    if (scriptEl) {
+      const data = JSON.parse(scriptEl.textContent);
+      if (data.log_dir || data.log_file) {
+        const log_dir2 = data.log_dir || dirname(data.log_file);
+        return simpleHttpApi(log_dir2, data.log_file);
+      }
+    }
+    const urlParams = new URLSearchParams(window.location.search);
+    const log_file = urlParams.get("log_file");
+    const log_dir = urlParams.get("log_dir");
+    if (log_file || log_dir) {
+      return simpleHttpApi(log_dir, log_file);
+    }
+    return browserApi;
+  }
+};
+const api = resolveApi();
 const DownloadButton = ({ logFile, label, fileName, fileContents }) => {
   return m$1`<button
     class="btn btn-outline-primary"
@@ -22172,7 +22431,7 @@ const WorkSpace = (props) => {
         if (!((_e2 = workspaceLog.contents) == null ? void 0 : _e2.samples) && ((_h = (_g = (_f2 = workspaceLog.contents) == null ? void 0 : _f2.eval) == null ? void 0 : _g.dataset) == null ? void 0 : _h.samples) > 0 && ((_i = workspaceLog.contents) == null ? void 0 : _i.status) !== "error") {
           warnings.push(
             m$1`<${WarningBand}
-              message="This evaluation log is too large to display samples."
+              message="Unable to display samples (this evaluation log may be too large)."
             />`
           );
         }
@@ -22716,15 +22975,11 @@ function App({ api: api2, pollForLogs = true }) {
   }, [onMessage]);
   y(async () => {
     const urlParams = new URLSearchParams(window.location.search);
-    const bodyEl = document.querySelector("body");
-    const isVSCode = !!bodyEl.getAttributeNames().find((attr) => {
-      return attr.includes("data-vscode-");
-    });
     const extensionVersionEl = document.querySelector(
       'meta[name="inspect-extension:version"]'
     );
     const extensionVersion = extensionVersionEl ? extensionVersionEl.getAttribute("content") : void 0;
-    if (isVSCode) {
+    if (isVscode()) {
       if (!extensionVersion) {
         setCapabilities({ downloadFiles: false, webWorkers: false });
       }
@@ -22745,9 +23000,18 @@ function App({ api: api2, pollForLogs = true }) {
     } else {
       const result = await load();
       setLogs(result);
-    }
-    if (selected === -1 && !embeddedState) {
-      setSelected(0);
+      const log_file = urlParams.get("log_file");
+      if (log_file) {
+        const index = result.files.findIndex((val) => {
+          return log_file.endsWith(val.name);
+        });
+        console.log({ result, log_file, index });
+        if (index > -1) {
+          setSelected(index);
+        }
+      } else if (selected === -1) {
+        setSelected(0);
+      }
     }
     new ClipboardJS(".clipboard-button,.copy-button");
     if (pollForLogs) {

@@ -127,7 +127,7 @@ class FileSystem:
     def rm(
         self, path: str, recursive: bool = False, maxdepth: int | None = None
     ) -> None:
-        self.fs.rm(path, recursive, maxdepth)
+        self.fs.rm(path, recursive=recursive, maxdepth=maxdepth)
 
     def mkdir(self, path: str, exist_ok: bool = False) -> None:
         self.fs.makedirs(path, exist_ok=exist_ok)
@@ -160,6 +160,9 @@ class FileSystem:
 
     def put_file(self, lpath: str, rpath: str) -> None:
         self.fs.put_file(lpath, rpath)
+
+    def get_file(self, rpath: str, lpath: str) -> None:
+        self.fs.get_file(rpath, lpath)
 
     def _file_info(self, info: dict[str, Any]) -> FileInfo:
         # name needs the protocol prepended

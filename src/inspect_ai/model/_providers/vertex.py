@@ -293,7 +293,9 @@ def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
         FunctionDeclaration(
             name=tool.name,
             description=tool.description,
-            parameters=tool.parameters.model_dump(exclude_none=True),
+            parameters=tool.parameters.model_dump(
+                exclude_none=True, exclude={"additionalProperties"}
+            ),
         )
         for tool in tools
     ]

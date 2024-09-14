@@ -360,6 +360,7 @@ def eval_command(
         max_subprocesses=max_subprocesses,
         fail_on_error=fail_on_error,
         no_fail_on_error=no_fail_on_error,
+        debug_errors=kwargs["debug_errors"],
         no_log_samples=no_log_samples,
         log_images=log_images,
         log_buffer=log_buffer,
@@ -397,6 +398,18 @@ def eval_command(
     is_flag=True,
     help="Do not cleanup failed log files after retries",
     envvar="INSPECT_EVAL_NO_RETRY_CLEANUP",
+)
+@click.option(
+    "--bundle-dir",
+    type=str,
+    is_flag=False,
+    help="Bundle viewer and logs into output directory",
+)
+@click.option(
+    "--bundle-overwrite",
+    type=str,
+    is_flag=True,
+    help="Overwrite existing bundle dir.",
 )
 @eval_options
 @click.pass_context
@@ -446,6 +459,8 @@ def eval_set_command(
     log_images: bool | None,
     log_buffer: int | None,
     no_score: bool | None,
+    bundle_dir: str | None,
+    bundle_overwrite: bool | None,
     **kwargs: Unpack[CommonOptions],
 ) -> int:
     """Evaluate a set of tasks."""
@@ -475,6 +490,7 @@ def eval_set_command(
         max_subprocesses=max_subprocesses,
         fail_on_error=fail_on_error,
         no_fail_on_error=no_fail_on_error,
+        debug_errors=kwargs["debug_errors"],
         no_log_samples=no_log_samples,
         log_images=log_images,
         log_buffer=log_buffer,
@@ -484,6 +500,8 @@ def eval_set_command(
         retry_wait=retry_wait,
         retry_connections=retry_connections,
         retry_cleanup=not no_retry_cleanup,
+        bundle_dir=bundle_dir,
+        bundle_overwrite=True if bundle_overwrite else False,
         **config,
     )
 
@@ -510,6 +528,7 @@ def eval_exec(
     max_subprocesses: int | None,
     fail_on_error: bool | float | None,
     no_fail_on_error: bool | None,
+    debug_errors: bool | None,
     no_log_samples: bool | None,
     log_images: bool | None,
     log_buffer: int | None,
@@ -519,6 +538,8 @@ def eval_exec(
     retry_wait: int | None = None,
     retry_connections: float | None = None,
     retry_cleanup: bool | None = None,
+    bundle_dir: str | None = None,
+    bundle_overwrite: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
     # parse params and model args
@@ -562,6 +583,7 @@ def eval_exec(
             limit=eval_limit,
             epochs=eval_epochs,
             fail_on_error=fail_on_error,
+            debug_errors=debug_errors,
             max_messages=max_messages,
             max_samples=max_samples,
             max_tasks=max_tasks,
@@ -580,6 +602,8 @@ def eval_exec(
         params["retry_wait"] = retry_wait
         params["retry_connections"] = retry_connections
         params["retry_cleanup"] = retry_cleanup
+        params["bundle_dir"] = bundle_dir
+        params["bundle_overwrite"] = bundle_overwrite
         success, _ = eval_set(**params)
         return success
     else:
@@ -723,6 +747,7 @@ def eval_retry_command(
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         sandbox_cleanup=sandbox_cleanup,
+        debug_errors=kwargs["debug_errors"],
         log_samples=log_samples,
         log_images=log_images,
         log_buffer=log_buffer,

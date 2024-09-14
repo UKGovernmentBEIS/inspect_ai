@@ -18,14 +18,6 @@ An important additional consideration for agent evaluations is sandboxing (provi
 
 ## Basic Agent {#sec-basic-agent}
 
-::: {.callout-note appearance="simple"}
-Note that the `basic_agent()` feature described below is available only in the development version of Inspect. You can install the development version with:
-
-``` bash
-pip install git+https://github.com/ukgovernmentbeis/inspect_ai
-```
-:::
-
 The `basic_agent()`provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck. The basic agent serves a number of important purposes:
 
 1.  When developing tasks and datasets it's convenient to have a ready made agent that you know that will competently navigate your task.
@@ -79,7 +71,7 @@ def ctf():
 4.  Limit the total messages that can be used for each CTF sample.
 5.  Specify that Docker should be used as the sandbox environment.
 
-The full source code for this example can be found in the Inspect GitHub repository at [examples/agents/intercode-ctf](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/agents/intercode-ctf).
+The full source code for this example can be found in the Inspect GitHub repository at [intercode_ctf](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/gdm_capabilities/intercode_ctf).
 
 ### Options
 
@@ -97,6 +89,9 @@ There are several options available for customising the behaviour of the basic a
 | `submit_description` | `str` | Description of submit tool (defaults to 'Submit an answer for evaluation') |
 
 : {tbl-colwidths=\[23,20,50\]}
+
+For multiple attempts, submissions are evaluated using the task's main scorer, with value of 1.0 indicating a correct answer. Scorer values are converted to float (e.g. "C" becomes 1.0) using the standard `value_to_float()` function. Provide an alternate conversion scheme as required via `score_value`.
+
 
 ## Custom Scaffold {#sec-custom-scaffolding}
 
@@ -204,7 +199,7 @@ class InspectChatModel(BaseChatModel):
 ```
 
 ::: {.callout-note appearance="simple"}
-Note that the the `inspect_langchain` module imported here is not a built in feature of Inspect. Rather, you can find its [source code](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/agents/langchain/inspect_langchain.py) as part of the example. You can use this to create your own LangChain agents or as the basis for creating similar integrations with other agent frameworks.
+Note that the the `inspect_langchain` module imported here is not a built in feature of Inspect. Rather, you can find its [source code](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/langchain/inspect_langchain.py) as part of the example. You can use this to create your own LangChain agents or as the basis for creating similar integrations with other agent frameworks.
 :::
 
 Now here's the `wikipedia_search()` solver (imports again excluded for brevity):
@@ -269,7 +264,7 @@ def wikipedia() -> Task:
     )
 ```
 
-The full source code for this example can be found in the Inspect GitHub repo at [examples/agents/langchain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/agents/langchain).
+The full source code for this example can be found in the Inspect GitHub repo at [examples/langchain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/langchain).
 
 ## Sandboxing {#sec-sandbox-environments}
 
@@ -352,6 +347,8 @@ The following instance methods are available to tools that need to interact with
 
 {{< include _sandboxenv-interface.md >}}
 
+The sandbox is also available to custom [scorers](#sec-sandbox-access).
+
 ### Environment Binding
 
 There are two sandbox environments built in to Inspect:
@@ -361,7 +358,7 @@ There are two sandbox environments built in to Inspect:
 | `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
 | `docker` | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details). |
 
-Sandbox environments can be bound at the `Sample`, `Task`, or `eval()` level. Binding precedence goes from `eval()`, to `Task` to `Sample`, however sandbox config files defined on the `Sample` always take precedence when the sandbox type for the `Sample` is the same as the enclosing `Task` or `eval()`.
+Sandbox environment definitions can be bound at the `Sample`, `Task`, or `eval()` level. Binding precedence goes from `eval()`, to `Task` to `Sample`, however sandbox config files defined on the `Sample` always take precedence when the sandbox type for the `Sample` is the same as the enclosing `Task` or `eval()`.
 
 Here is a `Task` that defines a `sandbox` and corresponding sandbox config file:
 
@@ -389,7 +386,7 @@ The `Sample` class includes `sandbox`, `files` and `setup` fields that are used 
 
 #### Sandbox {#sec-per-sample-sandbox}
 
-You can either define a default `sandbox` for an entire `Task` as illustrated abvove, or alternatively define a per-sample `sandbox`. For example, you might want to do this if each sample has its own Dockerfile and/or custom compose configuration file.
+You can either define a default `sandbox` for an entire `Task` as illustrated abvove, or alternatively define a per-sample `sandbox`. For example, you might want to do this if each sample has its own Dockerfile and/or custom compose configuration file. (Note, each sample gets its own sandbox *instance*, even if the sandbox is defined at Task level. So samples do not interfere with each other's sandboxes.)
 
 The `sandbox` can be specified as a string (e.g. `"docker`") or a list of sandbox type and config file (e.g. `["docker", "compose.yaml"]`).
 

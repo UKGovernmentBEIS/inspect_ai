@@ -62,6 +62,7 @@ export const StateEventView = ({ id, event, style, stateManager }) => {
  * @returns {import("preact").JSX.Element|Object|string|undefined} - The rendered HTML template if the value is an object with content and source, otherwise the value itself.
  */
 const generatePreview = (changes, resolvedState) => {
+  const results = [];
   for (const changeType of RenderableChangeTypes) {
     const requiredMatchCount =
       changeType.signature.remove.length +
@@ -69,19 +70,19 @@ const generatePreview = (changes, resolvedState) => {
       changeType.signature.add.length;
     let matchingOps = 0;
     for (const change of changes) {
-      if (
-        changeType.signature.remove.includes(change.path) ||
-        changeType.signature.replace.includes(change.path) ||
-        changeType.signature.add.includes(change.path)
-      ) {
-        matchingOps++;
-      }
-      if (matchingOps === requiredMatchCount) {
-        return changeType.render(resolvedState);
+      if (changeType.signature[change.op].length > 0) {
+        changeType.signature[change.op].forEach((signature) => {
+          if (change.path.match(signature)) {
+            matchingOps++;
+          }
+        });
       }
     }
+    if (matchingOps === requiredMatchCount) {
+      results.push(changeType.render(resolvedState));
+    }
   }
-  return undefined;
+  return results.length > 0 ? results : undefined;
 };
 
 /**

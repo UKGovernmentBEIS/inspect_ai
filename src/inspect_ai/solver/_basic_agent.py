@@ -37,7 +37,8 @@ DEFAULT_SUBMIT_DESCRIPTION = "Submit an answer for evaluation."
 def basic_agent(
     *,
     init: Solver | list[Solver] | None = None,
-    tools: list[Tool] = [],
+    tools: list[Tool] | Solver | None = None,
+    agent_name: str = "basic_agent",
     max_attempts: int = 1,
     score_value: ValueToFloat | None = None,
     incorrect_message: str = DEFAULT_INCORRECT_MESSAGE,
@@ -65,8 +66,10 @@ def basic_agent(
     Args:
        init: (Solver | list[Solver] | None): Agent initialisation
          (defaults to system_message with basic ReAct prompt)
-       tools (list[Tool]): Tools available for the agent.
+       tools (list[Tool] | Solver | None): Tools available for the agent. Either a
+         list of tools or a Solver that can yield dynamic tools per-sample.
        max_attempts (int): Maximum number of submissions to accept before terminating.
+       agent_name (str): Name passed to the Plan constructor (defaults to 'basic_agent')
        score_value (ValueToFloat): Function used to extract float from scores (defaults
          to standard value_to_float())
        incorrect_message (str): User message reply for an incorrect submission from
@@ -86,6 +89,11 @@ def basic_agent(
         init = system_message(DEFAULT_SYSTEM_MESSAGE, submit=submit_name)
     init = init if isinstance(init, list) else [init]
 
+    # resolve tools
+    if tools is None:
+        tools = []
+    tools = tools if isinstance(tools, Solver) else use_tools(tools)
+
     # resolve score_value function
     score_value_fn = score_value or value_to_float()
 
@@ -102,8 +110,14 @@ def basic_agent(
 
         return execute
 
-    # enable customisation of submit tool name/description
-    submit_tool = tool_with(submit(), submit_name, submit_description)
+    # solver that adds submission tool
+    @solver
+    def submit_tool() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            state.tools.append(tool_with(submit(), submit_name, submit_description))
+            return state
+
+        return solve
 
     # helper to extract a submitted answer
     def submission(tool_results: list[ChatMessageTool]) -> str | None:
@@ -169,7 +183,9 @@ def basic_agent(
     return Plan(
         init
         + [
-            use_tools(tools + [submit_tool]),
+            tools,
+            submit_tool(),
             basic_agent_loop(),
-        ]
+        ],
+        name=agent_name,
     )
