@@ -18,14 +18,6 @@ An important additional consideration for agent evaluations is sandboxing (provi
 
 ## Basic Agent {#sec-basic-agent}
 
-::: {.callout-note appearance="simple"}
-Note that the `basic_agent()` feature described below is available only in the development version of Inspect. You can install the development version with:
-
-``` bash
-pip install git+https://github.com/ukgovernmentbeis/inspect_ai
-```
-:::
-
 The `basic_agent()`provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck. The basic agent serves a number of important purposes:
 
 1.  When developing tasks and datasets it's convenient to have a ready made agent that you know that will competently navigate your task.
