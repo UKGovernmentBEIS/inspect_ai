@@ -88,7 +88,7 @@ def vertex() -> type[ModelAPI]:
 def google() -> type[ModelAPI]:
     FEATURE = "Google API"
     PACKAGE = "google-generativeai"
-    MIN_VERSION = "0.6.1"
+    MIN_VERSION = "0.8.1"
 
     # verify we have the package
     try:
