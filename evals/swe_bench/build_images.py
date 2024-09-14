@@ -4,12 +4,12 @@ import argparse
 import json
 import os
 
-from datasets import load_dataset
-from docker.client import DockerClient
-from swe_bench import SAMPLE_TO_IMAGE_PATH
-from swebench.harness.docker_build import build_env_images
-from swebench.harness.test_spec import get_test_specs_from_dataset
-from swebench.harness.utils import load_swebench_dataset
+from datasets import load_dataset  # type: ignore
+from docker.client import DockerClient  # type: ignore
+from swe_bench import SAMPLE_TO_IMAGE_PATH  # type: ignore
+from swebench.harness.docker_build import build_env_images  # type: ignore
+from swebench.harness.test_spec import get_test_specs_from_dataset  # type: ignore
+from swebench.harness.utils import load_swebench_dataset  # type: ignore
 
 
 def build_images(
