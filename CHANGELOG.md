@@ -17,6 +17,7 @@
 - Improved display of prerequisite errors when running `eval()` from a script or notebook.
 - Fix `eval_set()` issue with cleaning up failed logs on S3.
 - Add support for computing metrics for both individual keys within a dictionary but also for the dictionary as a whole
+- Fix for Vertex tool calling (don't pass 'additionalProperties').
 - Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/squad), [AGIEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/agieval), [IFEval](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/evals/ifeval/), [PubMedQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/pubmedqa), and [MBPP](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/mbpp) benchmarks.
 
 
