@@ -18831,8 +18831,12 @@ const SampleDisplay = ({
   const errorTabId = `${baseId}-error`;
   y(() => {
     if (!visible) {
-      const defaultTab = sample.transcript && sample.transcript.events.length ? transcriptTabId : msgTabId;
-      setSelectedTab(defaultTab);
+      setSelectedTab(void 0);
+    } else {
+      if (selectedTab === void 0) {
+        const defaultTab = sample.transcript && sample.transcript.events.length > 0 ? transcriptTabId : msgTabId;
+        setSelectedTab(defaultTab);
+      }
     }
   }, [visible]);
   const [selectedTab, setSelectedTab] = h(void 0);
