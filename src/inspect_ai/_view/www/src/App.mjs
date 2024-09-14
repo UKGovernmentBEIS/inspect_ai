@@ -293,12 +293,22 @@ export function App({ api, pollForLogs = true }) {
       // initial fetch of logs
       const result = await load();
       setLogs(result);
-    }
 
-    // Select the first log if there wasn't some
-    // message embedded within the view html itself
-    if (selected === -1 && !embeddedState) {
-      setSelected(0);
+      // If a log file was passed, select it
+      const log_file = urlParams.get("log_file");
+      if (log_file) {
+        const index = result.files.findIndex((val) => {
+          return log_file.endsWith(val.name);
+        });
+        console.log({ result, log_file, index });
+        if (index > -1) {
+          setSelected(index);
+        }
+      } else if (selected === -1) {
+        // Select the first log if there wasn't some
+        // message embedded within the view html itself
+        setSelected(0);
+      }
     }
 
     new ClipboardJS(".clipboard-button,.copy-button");

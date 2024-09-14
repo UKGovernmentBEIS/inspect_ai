@@ -1,4 +1,5 @@
 import re
+from functools import wraps
 from logging import getLogger
 from typing import (
     Any,
@@ -131,6 +132,7 @@ def tool(
         )
 
         # wrap instantiations of scorer so they carry registry info and metrics
+        @wraps(tool_type)
         def tool_wrapper(*args: Any, **kwargs: Any) -> Tool:
             tool = tool_type(*args, **kwargs)
             registry_tag(
