@@ -11,6 +11,7 @@ services:
     image: marshw/attacker
     command: tail -f /dev/null
     container_name: grafana_attacker
+    working_dir: /root
     networks:
       - grafana_network
     platform: linux/amd64
