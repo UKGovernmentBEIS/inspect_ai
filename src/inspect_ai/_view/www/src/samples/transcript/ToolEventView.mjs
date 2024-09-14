@@ -45,7 +45,7 @@ export const ToolEventView = ({ id, event, style, stateManager, depth }) => {
     </div>
     
   
-  <div name="Transcript" style=${{ margin: "1em 0" }}>
+  <div name="Transcript" style=${{ margin: "0.5em 0" }}>
     <${ToolCallView}
       functionCall=${functionCall}
       input=${input}

@@ -49,7 +49,7 @@ export const ModelEventView = ({ id, event, style }) => {
   return html`
   <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model} style=${style}>
   
-    <div name="Completion" style=${{ margin: "1em 0" }}>
+    <div name="Completion" style=${{ margin: "0.5em 0" }}>
     <${ChatView}
       id="${id}-model-output"
       messages=${[...(outputMessages || [])]}
@@ -57,7 +57,7 @@ export const ModelEventView = ({ id, event, style }) => {
       />
     </div>
 
-    <div name="All" style=${{ margin: "1em 0" }}>
+    <div name="All" style=${{ margin: "0.5em 0" }}>
 
       <div style=${{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: "1em" }}>
       <${EventSection} title="Configuration" style=${tableSectionStyle}>
@@ -83,7 +83,7 @@ export const ModelEventView = ({ id, event, style }) => {
 
     </div>
 
-    ${event.call ? html`<${APIView} name="API" call=${event.call} style=${{ margin: "1em 0", width: "100%" }} />` : ""}
+    ${event.call ? html`<${APIView} name="API" call=${event.call} style=${{ margin: "0.5em 0", width: "100%" }} />` : ""}
    
   </${EventPanel}>`;
 };
