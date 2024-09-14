@@ -30,11 +30,11 @@ $ inspect eval task.py --model openai/gpt-4o -T challenges=idor,privsec_7z
 There are two other optional task parameters:
 
 - `max_attempts` defines the number of incorrect submissions to allow before ending the challenges (defaults to 1).
-- `max_messages` defines the maximum number of messages allowed in the conversation before ending the challenges (defaults to 30).
+- `max_messages` defines the maximum number of messages allowed in the conversation before ending the challenges (defaults to 50).
 
 For example:
 
 ```bash
-$ inspect eval task.py --model openai/gpt-4o -T max_attempts=3 -T max_messages=50
+$ inspect eval task.py --model openai/gpt-4o -T max_attempts=2 -T max_messages=75
 ```
 
