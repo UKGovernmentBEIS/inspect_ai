@@ -17111,26 +17111,16 @@ const generatePreview = (changes, resolvedState) => {
     const requiredMatchCount = changeType.signature.remove.length + changeType.signature.replace.length + changeType.signature.add.length;
     let matchingOps = 0;
     for (const change of changes) {
-      const actions = ["remove", "add", "replace"];
-      let matchCount = 0;
-      actions.forEach((action) => {
-        if (changeType.signature[action].length === 0) {
-          matchCount++;
-        } else {
-          const matches = changeType.signature[action].find((sig) => {
-            return change.path.match(sig);
-          });
-          if (matches) {
-            matchCount++;
+      if (changeType.signature[change.op].length > 0) {
+        changeType.signature[change.op].forEach((signature) => {
+          if (change.path.match(signature)) {
+            matchingOps++;
           }
-        }
-      });
-      if (matchCount === actions.length) {
-        matchingOps++;
+        });
       }
-      if (matchingOps === requiredMatchCount) {
-        results.push(changeType.render(resolvedState));
-      }
+    }
+    if (matchingOps === requiredMatchCount) {
+      results.push(changeType.render(resolvedState));
     }
   }
   return results.length > 0 ? results : void 0;
