@@ -304,7 +304,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#running-eval-sets" id="toc-running-eval-sets" class="nav-link" data-scroll-target="#running-eval-sets">Running Eval Sets</a>
   <ul class="collapse">
   <li><a href="#dynamic-tasks" id="toc-dynamic-tasks" class="nav-link" data-scroll-target="#dynamic-tasks">Dynamic Tasks</a></li>
-  <li><a href="#options" id="toc-options" class="nav-link" data-scroll-target="#options">Options</a></li>
+  <li><a href="#retry-options" id="toc-retry-options" class="nav-link" data-scroll-target="#retry-options">Retry Options</a></li>
+  <li><a href="#publishing" id="toc-publishing" class="nav-link" data-scroll-target="#publishing">Publishing</a></li>
   </ul></li>
   <li><a href="#logging-context" id="toc-logging-context" class="nav-link" data-scroll-target="#logging-context">Logging Context</a>
   <ul class="collapse">
@@ -397,8 +398,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </ol>
 <p>Note that you can pass a <code>plan</code> to an <code>@task</code> function, so long as it was created by a function decorated with <code>@plan</code>.</p>
 </section>
-<section id="options" class="level3">
-<h3 class="anchored" data-anchor-id="options">Options</h3>
+<section id="retry-options" class="level3">
+<h3 class="anchored" data-anchor-id="retry-options">Retry Options</h3>
 <p>There are a number of options that control the retry behaviour of eval sets:</p>
 <table class="caption-top table">
 <colgroup>
@@ -440,6 +441,33 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>,</span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>   retry_wait<span class="op">=</span><span class="dv">120</span></span>
 <span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="publishing" class="level3">
+<h3 class="anchored" data-anchor-id="publishing">Publishing</h3>
+<p>You can bundle a standalone version of the log viewer for an eval set using the bundling options:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 40%">
+<col style="width: 60%">
+</colgroup>
+<thead>
+<tr class="header">
+<th><strong>Option</strong></th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>--bundle-dir</code></td>
+<td>Directory to write standalone log viewer files to.</td>
+</tr>
+<tr class="even">
+<td><code>--bundle-overwrite</code></td>
+<td>Overwrite existing bundle directory (defaults to not overwriting).</td>
+</tr>
+</tbody>
+</table>
+<p>The bundle directory can then be deployed to any static web server (<a href="https://docs.github.com/en/pages">GitHub Pages</a>, <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html">S3 buckets</a>, or <a href="https://docs.netlify.com/get-started/">Netlify</a>, for example) to provide a standalone version of the log viewer for the eval set. See the section on <a href="./log-viewer.html#sec-publishing">Log Viewer Publishing</a> for additional details.</p>
 </section>
 </section>
 <section id="logging-context" class="level2">
