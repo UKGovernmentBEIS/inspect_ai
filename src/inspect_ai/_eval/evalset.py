@@ -331,14 +331,14 @@ def eval_set(
 
                     previous_tasks: list[PreviousTask] = []
                     for task, log in zip(tasks, map(task_to_failed_log, tasks)):
-                        # if its a registry task then do str and task_args
-                        # so it is fully recreated for the retry
-                        if is_registry_object(task.task):
-                            prev_task: str | Task = task.task.name
-                        # if its a vanilla task then deepcopy so the same
-                        # instance is not run twice
-                        else:
-                            prev_task = deepcopy(task.task)
+                        # NOTE: we used to try to recreate registry objects by
+                        # by just passing the task name, but that didn't work
+                        # when evals were run from another directory. we may
+                        # want to bring this back but we'd need to resolve the
+                        # directory issues.
+
+                        # deepcopy so the same instance is not run twice
+                        prev_task = deepcopy(task.task)
 
                         previous_tasks.append(
                             PreviousTask(
