@@ -2,10 +2,8 @@
 
 import argparse
 import json
-from inspect_ai import Task
 import os
 
-from datasets import load_dataset  # type: ignore
 from docker.client import DockerClient  # type: ignore
 from swe_bench import SAMPLE_TO_IMAGE_PATH  # type: ignore
 from swebench.harness.docker_build import build_env_images  # type: ignore
