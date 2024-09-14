@@ -57,6 +57,7 @@ def eval_set(
     sandbox: SandboxEnvironmentSpec | None = None,
     sandbox_cleanup: bool | None = None,
     plan: Plan | Solver | list[Solver] | None = None,
+    score: bool = True,
     log_level: str | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
@@ -70,7 +71,7 @@ def eval_set(
     log_images: bool | None = None,
     log_buffer: int | None = None,
     bundle_dir: str | None = None,
-    score: bool = True,
+    bundle_overwrite: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[bool, list[EvalLog]]:
     r"""Evaluate a set of tasks.
@@ -102,6 +103,7 @@ def eval_set(
           (defaults to True)
         plan (Plan | Solver | list[Solver] | None): Alternative plan
            for evaluating task(s). Optional (uses task plan by default).
+        score (bool): Score output (defaults to True)
         log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
            or "critical" (defaults to "info")
         limit (int | tuple[int, int] | None): Limit evaluated samples
@@ -129,7 +131,8 @@ def eval_set(
             (defaults to 10 for local filesystems and 100 for remote filesystems)
         bundle_dir: (str | None): If specified, the log viewer and logs generated
             by this eval set will be bundled into this directory.
-        score (bool): Score output (defaults to True)
+        bundle_overwrite (bool): Whether to overwrite files in the bundle_dir.
+            (defaults to False).
         **kwargs (GenerateConfigArgs): Model generation options.
 
     Returns:
@@ -174,7 +177,9 @@ def eval_set(
 
         # if specified, bundle the output directory
         if bundle_dir:
-            bundle_log_dir(log_dir=log_dir, output_dir=bundle_dir)
+            bundle_log_dir(
+                log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
+            )
 
         # return results
         return results

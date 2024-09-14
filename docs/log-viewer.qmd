@@ -139,19 +139,19 @@ Note that you can also set the log level using the `INSPECT_LOG_LEVEL` environme
 
 In addition to seeing the Python logging activity at the end of an eval run in the log viewer, you can also arrange to have Python logger entries written to an external file. Set the `INSPECT_PY_LOGGER_FILE` environment variable to do this:
 
-```bash
+``` bash
 export INSPECT_PY_LOGGER_FILE=/tmp/inspect.log
 ```
 
 You can set this in the shell or within your global `.env` file. By default, messages of level `info` and higher will be written to the log file. If you set your main `--log-level` lower than that (e.g. to `http`) then the log file will follow. To set a distinct log level for the file, set the `INSPECT_PY_LOGGER_FILE` environment variable. For example:
 
-```bash
+``` bash
 export INSPECT_PY_LOGGER_LEVEL=http
 ```
 
 Use `tail --follow` to track the contents of the log file in realtime. For example:
 
-```bash
+``` bash
 tail --follow /tmp/inspect.log
 ```
 
@@ -161,28 +161,39 @@ The **Info** panel of the log viewer provides additional meta-information about 
 
 ![](images/inspect-view-info.png){.border .lightbox fig-alt="The Info panel of the Inspect log viewer, displaying various details about the evaluation including dataset, plan, and scorer details, git revision, and model token usage."}
 
-## Publishing
+## Publishing {#sec-publishing}
 
 ::: {.callout-note appearance="simple"}
-Note that the `inspect view bundle` feature described below is available only in the development version of Inspect. You can install the development version with:
+The `inspect view bundle` feature described below is available only in the development version of Inspect. You can install the development version with:
 
 ``` bash
 pip install git+https://github.com/ukgovernmentbeis/inspect_ai
 ```
 :::
 
-You can use the command `inspect view bundle` (or the `bundle_log_dir()` function from Python) to create a self contained directory with the log viewer and a set of logs for display. This directory can then be deployed as static HTML to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide an interactive copy of the viewer. For example, to bundle the `logs` directory to a directory named `output`:
+You can use the command `inspect view bundle` (or the `bundle_log_dir()` function from Python) to create a self contained directory with the log viewer and a set of logs for display. This directory can then be deployed to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the viewer. For example, to bundle the `logs` directory to a directory named `logs-www`:
 
-`inspect view bundle --log-dir logs --output-dir output`
+``` bash
+$ inspect view bundle --log-dir logs --output-dir logs-www
+```
 
-or to bundle the default log folder, overwriting an existing output directory:
+Or to bundle the default log folder (read from `INSPECT_LOG_DIR`):
 
-`inspect view bundle --output-dir output --overwrite`
+``` bash
+$ inspect view bundle --output-dir logs-www
+```
+
+By default, an existing output dir will NOT be overwritten. Specify the `--overwrite` option to remove and replace an existing output dir:
+
+``` bash
+$ inspect view bundle --output-dir logs-www --overwrite
+```
+
 
 Bundling the viewer and logs will produce an output directory with the following structure:
 
-```bash
-output
+``` bash
+logs-www
  └── index.html # <1>
  └── robots.txt  # <2>
  └── assets     # <3>
@@ -191,21 +202,25 @@ output
      └──  ..
 ```
 
-1. The root viewer HTML
-2. Excludes this site from being indexed
-3. Supporting assets for the viewer
-4. The logs to be displayed
+1.  The root viewer HTML
+2.  Excludes this site from being indexed
+3.  Supporting assets for the viewer
+4.  The logs to be displayed
 
-Deploy this folder to a static webserver to publish an interactive copy of the log viewer.
+Deploy this folder to a static webserver to publish the log viewer.
 
-#### Other Notes
+### Other Notes {.unlisted}
 
-- You may provide a default output directory for bundling the viewer in your `.env` file by setting the `INSPECT_VIEW_BUNDLE_OUTPUT_DIR` variable. 
+-   You may provide a default output directory for bundling the viewer in your `.env` file by setting the `INSPECT_VIEW_BUNDLE_OUTPUT_DIR` variable.
 
-- You may specify an S3 url as the target for bundled views. See the [Amazon S3](eval-logs.qmd#sec-amazon-s3) section for additional information on configuring S3.
+-   You may specify an S3 url as the target for bundled views. See the [Amazon S3](eval-logs.qmd#sec-amazon-s3) section for additional information on configuring S3.
 
-- You can use the `bundle_log_dir()` function in Python directly to bundle the viewer and logs into an output directory.
+-   You can use the `inspect_ai.log.bundle_log_dir` function in Python directly to bundle the viewer and logs into an output directory.
 
-- The bundled viewer will show the first log file by default. You may link to the viewer to show a specific log file by including the url parameter `log_file=<log_file>`.
+-   The bundled viewer will show the first log file by default. You may link to the viewer to show a specific log file by including the `log_file` URL parameter, for example:
 
-- The bundled output directory includes a `robots.txt` file to prevent indexing of the folder. If you deploy this folder outside of the root of your website, we recommend that you update your root `robots.txt` file to exclude this folder from being indexed.
+    ```         
+    https://logs.example.com?log_file=<log_file>
+    ```
+
+-   The bundled output directory includes a `robots.txt` file to prevent indexing by web crawlers. If you deploy this folder outside of the root of your website then you would need to update your root `robots.txt` accordingly to exclude the folder from indexing (this is required because web crawlers only read `robots.txt` from the root of the website not subdirectories).

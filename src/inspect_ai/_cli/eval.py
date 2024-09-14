@@ -405,6 +405,12 @@ def eval_command(
     is_flag=False,
     help="Bundle viewer and logs into output directory",
 )
+@click.option(
+    "--bundle-overwrite",
+    type=str,
+    is_flag=True,
+    help="Overwrite existing bundle dir.",
+)
 @eval_options
 @click.pass_context
 def eval_set_command(
@@ -454,6 +460,7 @@ def eval_set_command(
     log_buffer: int | None,
     no_score: bool | None,
     bundle_dir: str | None,
+    bundle_overwrite: bool | None,
     **kwargs: Unpack[CommonOptions],
 ) -> int:
     """Evaluate a set of tasks."""
@@ -494,6 +501,7 @@ def eval_set_command(
         retry_connections=retry_connections,
         retry_cleanup=not no_retry_cleanup,
         bundle_dir=bundle_dir,
+        bundle_overwrite=True if bundle_overwrite else False,
         **config,
     )
 
@@ -531,6 +539,7 @@ def eval_exec(
     retry_connections: float | None = None,
     retry_cleanup: bool | None = None,
     bundle_dir: str | None = None,
+    bundle_overwrite: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
     # parse params and model args
@@ -583,7 +592,6 @@ def eval_exec(
             log_images=log_images,
             log_buffer=log_buffer,
             score=score,
-            bundle_dir=bundle_dir,
         )
         | kwargs
     )
@@ -594,6 +602,8 @@ def eval_exec(
         params["retry_wait"] = retry_wait
         params["retry_connections"] = retry_connections
         params["retry_cleanup"] = retry_cleanup
+        params["bundle_dir"] = bundle_dir
+        params["bundle_overwrite"] = bundle_overwrite
         success, _ = eval_set(**params)
         return success
     else:

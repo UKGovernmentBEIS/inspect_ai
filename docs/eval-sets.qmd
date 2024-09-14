@@ -67,12 +67,12 @@ Notice that we create our tasks from a function decorated with `@task`. Doing th
 
 There are two fundamental requirements for dynamic tasks used with `eval_set()`:
 
-1) They are created using an `@task` function as described above.
-2) Their parameters use ordinary Python types (like `str`, `int`, `list`, etc.) as opposed to custom objects (which are hard to serialise consistently).
+1)  They are created using an `@task` function as described above.
+2)  Their parameters use ordinary Python types (like `str`, `int`, `list`, etc.) as opposed to custom objects (which are hard to serialise consistently).
 
 Note that you can pass a `plan` to an `@task` function, so long as it was created by a function decorated with `@plan`.
 
-### Options
+### Retry Options
 
 There are a number of options that control the retry behaviour of eval sets:
 
@@ -102,6 +102,19 @@ eval_set(
    retry_wait=120
 )
 ```
+
+### Publishing
+
+You can bundle a standalone version of the log viewer for an eval set using the bundling options:
+
+| **Option** | Description |
+|------------------------------------|------------------------------------|
+| `--bundle-dir` | Directory to write standalone log viewer files to. |
+| `--bundle-overwrite` | Overwrite existing bundle directory (defaults to not overwriting). |
+
+: {tbl-colwidths=\[40,60\]}
+
+The bundle directory can then be deployed to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the log viewer for the eval set. See the section on [Log Viewer Publishing](log-viewer.qmd#sec-publishing) for additional details.
 
 ## Logging Context
 
