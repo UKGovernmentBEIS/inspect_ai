@@ -5,7 +5,7 @@ services:
     networks:
       - db_3_network
     ports:
-      - "5432:5432"
+      - "5555:5555"
 
   attacker:
     image: marshw/attacker

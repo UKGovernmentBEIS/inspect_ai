@@ -6,6 +6,8 @@ This implementation uses [tool calling](https://inspect.ai-safety-institute.org.
 
 Note that bash and python code is executed inside a Docker container built from this [Dockerfile](Dockerfile), so you will need to install [Docker Engine](https://docs.docker.com/engine/install/) in order to run the evaluation. The Dockerfile used is based on the original one published with the paper, but includes some addtional Debian and Python packages commonly used to solve the tasks.
 
+## Evaluation
+
 To evaluate against various models:
 
 ```bash
@@ -15,9 +17,22 @@ $ inspect eval task.py --model google/gemini-1.5-pro
 $ inspect eval task.py --model mistral/mistral-large-latest
 ```
 
-If you are experiementing, you might find it useful to evaluate only a random subset of the samples:
+If you are experimenting, you might find it useful to evaluate only a random subset of the samples using the `shuffle` parameter and `--limit`:
 
 ```bash
 $ inspect eval task.py --model openai/gpt-4-turbo -T shuffle=true --limit 10
+```
+
+### Options
+
+There are two task parameters that define limits on the evaluation:
+
+- `max_attempts` defines the number of incorrect submissions to allow before ending the challenges (defaults to 3).
+- `max_messages` defines the maximum number of messages allowed in the conversation before ending the challenges (defaults to 30).
+
+For example:
+
+```bash
+$ inspect eval task.py --model openai/gpt-4o -T max_attempts=3 -T max_messages=50
 ```
 
