@@ -69,7 +69,6 @@ export const ToolCallView = ({
           }}
         ></i>`;
   const codeIndent = mode === "compact" ? "" : "";
-
   return html`<p>
         ${icon}
         <code style=${{ fontSize: FontSize.small }}>${functionCall}</code>

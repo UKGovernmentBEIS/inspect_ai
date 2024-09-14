@@ -13558,7 +13558,7 @@ const messageRenderers = {
   },
   tool: {
     render: (content) => {
-      return m$1`<${ToolOutput} output=${content.text} />`;
+      return m$1`<${ToolOutput} output=${content.text.trim()} />`;
     }
   }
 };
@@ -15561,7 +15561,7 @@ const SampleInitEventView = ({ id, event, style, stateManager }) => {
         </${EventSection}>
       </div>
     </div>
-    ${event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? m$1`<${MetaDataGrid} name="Metadata" style=${{ margin: "1em 0" }} entries=${event.sample.metadata} />` : ""}
+    ${event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? m$1`<${MetaDataGrid} name="Metadata" style=${{ margin: "0.5em 0" }} entries=${event.sample.metadata} />` : ""}
 
   </${EventPanel}>`;
 };
@@ -17111,26 +17111,16 @@ const generatePreview = (changes, resolvedState) => {
     const requiredMatchCount = changeType.signature.remove.length + changeType.signature.replace.length + changeType.signature.add.length;
     let matchingOps = 0;
     for (const change of changes) {
-      const actions = ["remove", "add", "replace"];
-      let matchCount = 0;
-      actions.forEach((action) => {
-        if (changeType.signature[action].length === 0) {
-          matchCount++;
-        } else {
-          const matches = changeType.signature[action].find((sig) => {
-            return change.path.match(sig);
-          });
-          if (matches) {
-            matchCount++;
+      if (changeType.signature[change.op].length > 0) {
+        changeType.signature[change.op].forEach((signature) => {
+          if (change.path.match(signature)) {
+            matchingOps++;
           }
-        }
-      });
-      if (matchCount === actions.length) {
-        matchingOps++;
+        });
       }
-      if (matchingOps === requiredMatchCount) {
-        results.push(changeType.render(resolvedState));
-      }
+    }
+    if (matchingOps === requiredMatchCount) {
+      results.push(changeType.render(resolvedState));
     }
   }
   return results.length > 0 ? results : void 0;
@@ -17299,7 +17289,7 @@ const SubtaskSummary = ({ input, result }) => {
     display: "grid",
     gridTemplateColumns: "minmax(0, 1fr) max-content minmax(0, 1fr)",
     columnGap: "1em",
-    margin: "1em 0"
+    margin: "0.5em 0"
   }}
   >
     <div style=${{ ...TextStyle.label }}>Input</div>
@@ -17529,7 +17519,7 @@ const ModelEventView = ({ id, event, style }) => {
   return m$1`
   <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model} style=${style}>
   
-    <div name="Completion" style=${{ margin: "1em 0" }}>
+    <div name="Completion" style=${{ margin: "0.5em 0" }}>
     <${ChatView}
       id="${id}-model-output"
       messages=${[...outputMessages || []]}
@@ -17537,7 +17527,7 @@ const ModelEventView = ({ id, event, style }) => {
       />
     </div>
 
-    <div name="All" style=${{ margin: "1em 0" }}>
+    <div name="All" style=${{ margin: "0.5em 0" }}>
 
       <div style=${{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: "1em" }}>
       <${EventSection} title="Configuration" style=${tableSectionStyle}>
@@ -17563,7 +17553,7 @@ const ModelEventView = ({ id, event, style }) => {
 
     </div>
 
-    ${event.call ? m$1`<${APIView} name="API" call=${event.call} style=${{ margin: "1em 0", width: "100%" }} />` : ""}
+    ${event.call ? m$1`<${APIView} name="API" call=${event.call} style=${{ margin: "0.5em 0", width: "100%" }} />` : ""}
    
   </${EventPanel}>`;
 };
@@ -17713,7 +17703,7 @@ const JSONPanel = ({ data, style }) => {
 const InfoEventView = ({ id, event, style }) => {
   return m$1`
   <${EventPanel} id=${id} title="Info" icon=${ApplicationIcons.info} style=${style}>
-    <${JSONPanel} data=${event.data} style=${{ margin: "1em 0" }}/>
+    <${JSONPanel} data=${event.data} style=${{ margin: "0.5em 0" }}/>
   </${EventPanel}>`;
 };
 const ScoreEventView = ({ id, event, style }) => {
@@ -17722,7 +17712,7 @@ const ScoreEventView = ({ id, event, style }) => {
   
     <div
       name="Explanation"
-      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "1em 0" }}
+      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "0.5em 0" }}
     >
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Answer</div>
@@ -17739,7 +17729,7 @@ const ScoreEventView = ({ id, event, style }) => {
             <${MetaDataGrid}
               entries=${event.score.metadata}
               compact=${true}
-              style=${{ margin: "1em 0" }}
+              style=${{ margin: "0.5em 0" }}
             />
           </div>` : void 0}
 
@@ -17747,30 +17737,26 @@ const ScoreEventView = ({ id, event, style }) => {
   </${EventPanel}>`;
 };
 const ToolEventView = ({ id, event, style, stateManager, depth }) => {
+  var _a;
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
     event.arguments
   );
   const title = `Tool: ${event.function}`;
+  const output = event.result || ((_a = event.error) == null ? void 0 : _a.message);
   return m$1`
   <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
-    <div name="Summary" style=${{ width: "100%", margin: "1em 0" }}>
-    ${event.result ? m$1`
+    <div name="Summary" style=${{ width: "100%", margin: "0.5em 0" }}>
+        ${!output ? "(No output)" : m$1`
           <${ExpandablePanel} collapse=${true} border=${true} lines=10>
-          <${ToolOutput}
-            output=${event.result}
-            style=${{ margin: "1em 0" }}
-          />
-          </${ExpandablePanel}>
-          ` : event.error ? m$1`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>
-              ${event.error.type}: ${event.error.message}
-            </div>` : m$1`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>
-              No output
-            </div>`}
+            <${ToolOutput}
+              output=${output}
+            />
+          </${ExpandablePanel}>`}
     </div>
     
   
-  <div name="Transcript" style=${{ margin: "1em 0" }}>
+  <div name="Transcript" style=${{ margin: "0.5em 0" }}>
     <${ToolCallView}
       functionCall=${functionCall}
       input=${input}
@@ -17792,7 +17778,7 @@ const ToolEventView = ({ id, event, style, stateManager, depth }) => {
 const ErrorEventView = ({ id, event, style }) => {
   return m$1`
   <${EventPanel} id=${id} title="Error" icon=${ApplicationIcons.error} style=${style}>
-    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "1em 0" }}/>
+    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "0.5em 0" }}/>
   </${EventPanel}>`;
 };
 const InputEventView = ({ id, event, style }) => {
@@ -18831,8 +18817,12 @@ const SampleDisplay = ({
   const errorTabId = `${baseId}-error`;
   y(() => {
     if (!visible) {
-      const defaultTab = sample.transcript && sample.transcript.events.length ? transcriptTabId : msgTabId;
-      setSelectedTab(defaultTab);
+      setSelectedTab(void 0);
+    } else {
+      if (selectedTab === void 0) {
+        const defaultTab = sample.transcript && sample.transcript.events.length > 0 ? transcriptTabId : msgTabId;
+        setSelectedTab(defaultTab);
+      }
     }
   }, [visible]);
   const [selectedTab, setSelectedTab] = h(void 0);

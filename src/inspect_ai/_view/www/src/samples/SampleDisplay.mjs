@@ -58,13 +58,16 @@ export const SampleDisplay = ({
 
   // Upon new dialog
   useEffect(() => {
-    // reset tabs when the dialog loads
     if (!visible) {
-      const defaultTab =
-        sample.transcript && sample.transcript.events.length
-          ? transcriptTabId
-          : msgTabId;
-      setSelectedTab(defaultTab);
+      setSelectedTab(undefined);
+    } else {
+      if (selectedTab === undefined) {
+        const defaultTab =
+          sample.transcript && sample.transcript.events.length > 0
+            ? transcriptTabId
+            : msgTabId;
+        setSelectedTab(defaultTab);
+      }
     }
   }, [visible]);
 
