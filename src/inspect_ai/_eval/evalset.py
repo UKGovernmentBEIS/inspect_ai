@@ -17,7 +17,6 @@ from typing_extensions import Unpack
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem
-from inspect_ai._util.registry import is_registry_object
 from inspect_ai.log import EvalLog
 from inspect_ai.log._bundle import bundle_log_dir
 from inspect_ai.log._file import (
