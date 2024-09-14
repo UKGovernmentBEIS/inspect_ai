@@ -15,7 +15,12 @@ from google.ai.generativelanguage import (
     ToolConfig,
     Type,
 )
-from google.api_core.exceptions import TooManyRequests
+from google.api_core.exceptions import (
+    GatewayTimeout,
+    InternalServerError,
+    ServiceUnavailable,
+    TooManyRequests,
+)
 from google.api_core.retry.retry_base import if_transient_error
 from google.generativeai import (  # type: ignore
     GenerationConfig,
@@ -169,7 +174,10 @@ class GoogleAPI(ModelAPI):
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
-        return isinstance(ex, TooManyRequests)
+        return isinstance(
+            ex,
+            TooManyRequests | InternalServerError | ServiceUnavailable | GatewayTimeout,
+        )
 
     @override
     def connection_key(self) -> str:
