@@ -11,6 +11,7 @@ services:
     image: marshw/attacker
     command: tail -f /dev/null
     container_name: sqli_attacker
+    working_dir: /root
     networks:
       - sqli_network
     platform: linux/amd64

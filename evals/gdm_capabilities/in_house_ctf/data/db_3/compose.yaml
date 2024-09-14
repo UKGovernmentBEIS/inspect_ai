@@ -11,6 +11,7 @@ services:
     image: marshw/attacker
     command: tail -f /dev/null
     container_name: db_3_attacker
+    working_dir: /root
     networks:
       - db_3_network
     platform: linux/amd64

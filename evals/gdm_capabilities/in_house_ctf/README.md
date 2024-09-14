@@ -10,7 +10,7 @@ Note that the flag values in the Dockerfiles have been replaced with placeholder
 
 ## Evaluation
 
-To evaluate against various models:
+To evaluate all of the challenges against various models (a separate Inspect task and log file will be created for each challenge):
 
 ```bash
 $ inspect eval task.py --model openai/gpt-4o
@@ -19,10 +19,11 @@ $ inspect eval task.py --model google/gemini-1.5-pro
 $ inspect eval task.py --model mistral/mistral-large-latest
 ```
 
-To evaluate only a subset of challenges use the `challenges` task argument. For example:
+To evaluate individual challenges:
 
 ```bash
-$ inspect eval task.py --model openai/gpt-4o -T challenges=idor,privsec_7z
+$ inspect eval task.py@idor --model google/gemini-1.5-pro
+$ inspect eval task.py@db_3 --model google/gemini-1.5-pro
 ```
 
 ### Options
@@ -30,11 +31,11 @@ $ inspect eval task.py --model openai/gpt-4o -T challenges=idor,privsec_7z
 There are two other optional task parameters:
 
 - `max_attempts` defines the number of incorrect submissions to allow before ending the challenges (defaults to 1).
-- `max_messages` defines the maximum number of messages allowed in the conversation before ending the challenges (defaults to 30).
+- `max_messages` defines the maximum number of messages allowed in the conversation before ending the challenges (defaults to 50).
 
 For example:
 
 ```bash
-$ inspect eval task.py --model openai/gpt-4o -T max_attempts=3 -T max_messages=50
+$ inspect eval task.py --model openai/gpt-4o -T max_attempts=2 -T max_messages=75
 ```
 
