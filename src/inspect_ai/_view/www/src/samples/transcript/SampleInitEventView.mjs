@@ -83,7 +83,7 @@ export const SampleInitEventView = ({ id, event, style, stateManager }) => {
         </${EventSection}>
       </div>
     </div>
-    ${event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? html`<${MetaDataGrid} name="Metadata" style=${{ margin: "1em 0" }} entries=${event.sample.metadata} />` : ""}
+    ${event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? html`<${MetaDataGrid} name="Metadata" style=${{ margin: "0.5em 0" }} entries=${event.sample.metadata} />` : ""}
 
   </${EventPanel}>`;
 };

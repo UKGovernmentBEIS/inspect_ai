@@ -50,7 +50,7 @@ const SubtaskSummary = ({ input, result }) => {
       display: "grid",
       gridTemplateColumns: "minmax(0, 1fr) max-content minmax(0, 1fr)",
       columnGap: "1em",
-      margin: "1em 0",
+      margin: "0.5em 0",
     }}
   >
     <div style=${{ ...TextStyle.label }}>Input</div>

@@ -21,7 +21,7 @@ export const ScoreEventView = ({ id, event, style }) => {
   
     <div
       name="Explanation"
-      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "1em 0" }}
+      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "0.5em 0" }}
     >
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Answer</div>
@@ -40,7 +40,7 @@ export const ScoreEventView = ({ id, event, style }) => {
             <${MetaDataGrid}
               entries=${event.score.metadata}
               compact=${true}
-              style=${{ margin: "1em 0" }}
+              style=${{ margin: "0.5em 0" }}
             />
           </div>`
         : undefined

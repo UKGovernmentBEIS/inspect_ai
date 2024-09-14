@@ -9,7 +9,6 @@ import {
   ToolOutput,
 } from "../../components/Tools.mjs";
 import { TranscriptView } from "./TranscriptView.mjs";
-import { FontSize } from "../../appearance/Fonts.mjs";
 
 /**
  * Renders the ToolEventView component.
@@ -29,32 +28,24 @@ export const ToolEventView = ({ id, event, style, stateManager, depth }) => {
     event.arguments,
   );
   const title = `Tool: ${event.function}`;
-
+  const output = event.result || event.error?.message;
   return html`
   <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
-    <div name="Summary" style=${{ width: "100%", margin: "1em 0" }}>
-    ${
-      event.result
-        ? html`
+    <div name="Summary" style=${{ width: "100%", margin: "0.5em 0" }}>
+        ${
+          !output
+            ? "(No output)"
+            : html`
           <${ExpandablePanel} collapse=${true} border=${true} lines=10>
-          <${ToolOutput}
-            output=${event.result}
-            style=${{ margin: "1em 0" }}
-          />
-          </${ExpandablePanel}>
-          `
-        : event.error
-          ? html`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>
-              ${event.error.type}: ${event.error.message}
-            </div>`
-          : html`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>
-              No output
-            </div>`
-    }
+            <${ToolOutput}
+              output=${output}
+            />
+          </${ExpandablePanel}>`
+        }
     </div>
     
   
-  <div name="Transcript" style=${{ margin: "1em 0" }}>
+  <div name="Transcript" style=${{ margin: "0.5em 0" }}>
     <${ToolCallView}
       functionCall=${functionCall}
       input=${input}

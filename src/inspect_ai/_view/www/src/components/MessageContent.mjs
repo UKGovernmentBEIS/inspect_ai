@@ -54,7 +54,7 @@ const messageRenderers = {
   },
   tool: {
     render: (content) => {
-      return html`<${ToolOutput} output=${content.text} />`;
+      return html`<${ToolOutput} output=${content.text.trim()} />`;
     },
   },
 };
