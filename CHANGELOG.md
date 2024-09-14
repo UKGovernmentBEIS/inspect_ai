@@ -9,6 +9,7 @@
 - `generate()` solver now accepts arbitrary generation config params.
 - `use_tools()` now accepts a variadic list of `Tool` in addition to literal `list[Tool]`.
 - `bash()` and `python()` tools now have a `user` parameter for choosing an alternate user to run code as.
+- `bash()` and `python()` tools now always return stderr and stdout no matter the exit status.
 - Support for OpenAI o1-preview and o1-mini models.
 - Input event for recording screen input in sample transcripts.
 - Record to sample function for CSV and JSON dataset readers can now return multiple samples.

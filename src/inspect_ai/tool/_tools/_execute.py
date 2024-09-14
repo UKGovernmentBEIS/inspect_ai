@@ -27,13 +27,15 @@ def bash(timeout: int | None = None, user: str | None = None) -> Tool:
         Returns:
           The output of the command.
         """
+        # execute the command
         result = await sandbox().exec(
             cmd=["bash", "-c", cmd], timeout=timeout, user=user
         )
-        if result.success:
-            return result.stdout
-        else:
-            raise ToolError(result.stderr or result.stdout or "error executing command")
+        # return output (including stderr if any)
+        output = ""
+        if result.stderr:
+            output = f"{result.stderr}\n"
+        return f"{output}{result.stdout}"
 
     return execute
 
@@ -65,9 +67,10 @@ def python(timeout: int | None = None, user: str | None = None) -> Tool:
         result = await sandbox().exec(
             cmd=["python3"], input=code, timeout=timeout, user=user
         )
-        if result.success:
-            return result.stdout
-        else:
-            raise ToolError(result.stderr or result.stdout or "error executing code")
+        # return output (including stderr if any)
+        output = ""
+        if result.stderr:
+            output = f"{result.stderr}\n"
+        return f"{output}{result.stdout}"
 
     return execute
