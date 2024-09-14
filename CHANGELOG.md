@@ -4,7 +4,7 @@
 
 - [basic_agent()](https://inspect.ai-safety-institute.org.uk/agents.html#sec-basic-agent) that provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck.
 - [score()](https://inspect.ai-safety-institute.org.uk/solvers.html#sec-scoring-in-solvers) function for accessing scoring logic from within solvers.
-- Ability to [publish](https://inspect.ai-safety-institute.org.uk/log-viewer.html#publishing) a static standalone Inspect View website for a log directory.
+- Ability to [publish](https://inspect.ai-safety-institute.org.uk/log-viewer.html#sec-publishing) a static standalone Inspect View website for a log directory.
 - `system_message()` now supports custom parameters and interpolation of `metadata` values from `Sample`.
 - `generate()` solver now accepts arbitrary generation config params.
 - `use_tools()` now accepts a variadic list of `Tool` in addition to literal `list[Tool]`.
