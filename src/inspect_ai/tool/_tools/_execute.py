@@ -1,6 +1,6 @@
 from inspect_ai.util import sandbox
 
-from .._tool import Tool, ToolError, tool
+from .._tool import Tool, tool
 
 
 @tool
