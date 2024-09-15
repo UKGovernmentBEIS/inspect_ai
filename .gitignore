@@ -162,7 +162,7 @@ cython_debug/
 #.idea/
 *.*workspace
 data/datasets/*/hidden
-logs/
+logs*/
 
 # thumbnails
 .DS_Store
