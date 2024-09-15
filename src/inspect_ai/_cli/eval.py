@@ -73,7 +73,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     )
     @click.option(
         "--plan",
-        type="str",
+        type=str,
         envvar="INSPECT_EVAL_PLAN",
         help="Plan to execute (overrides task default plan)",
     )
