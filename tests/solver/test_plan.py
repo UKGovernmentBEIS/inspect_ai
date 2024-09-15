@@ -1,3 +1,4 @@
+import os
 from random import random
 
 import pytest
@@ -5,6 +6,7 @@ import pytest
 from inspect_ai import Task, eval, eval_async, eval_retry, task
 from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
+from inspect_ai.log._log import EvalLog
 from inspect_ai.solver import (
     Generate,
     Plan,
@@ -14,6 +16,7 @@ from inspect_ai.solver import (
     plan,
     solver,
 )
+from inspect_ai.solver._plan import PlanSpec
 
 
 @plan(fancy=True)
@@ -82,13 +85,31 @@ def the_task(plan: Plan = Plan(generate())):
     )
 
 
+def test_plan_spec():
+    plan_file = f"{os.path.relpath(__file__)}"
+    plan_name = f"{plan_file}@the_plan"
+    log = eval(
+        f"{plan_file}@the_task",
+        plan=PlanSpec(plan_name, {"rate": 1.0}),
+    )[0]
+    check_plan(log, plan_name)
+
+    log = eval(
+        f"{plan_file}@the_task",
+        plan=PlanSpec("the_plan", {"rate": 1.0}),
+    )[0]
+    check_plan(log)
+
+
 def test_plan_retry():
-    log = eval(the_task(the_plan()), plan=the_plan(1.0), model="mockllm/model")[0]
-    assert log.eval.plan == "the_plan"
-    assert log.eval.plan_args == {"rate": 1.0}
-    assert log.plan.steps[0].params["rate"] == 1.0
+    log = eval(the_task(), plan=the_plan(1.0), model="mockllm/model")[0]
+    check_plan(log)
 
     log = eval_retry(log)[0]
-    assert log.eval.plan == "the_plan"
+    check_plan(log)
+
+
+def check_plan(log: EvalLog, plan_name="the_plan"):
+    assert log.eval.plan == plan_name
     assert log.eval.plan_args == {"rate": 1.0}
     assert log.plan.steps[0].params["rate"] == 1.0
