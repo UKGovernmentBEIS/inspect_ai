@@ -1,4 +1,5 @@
 from random import random
+
 import pytest
 
 from inspect_ai import Task, eval, eval_async, eval_retry, task
