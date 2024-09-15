@@ -6,6 +6,8 @@ from typing import Any, Callable, Literal, TypedDict, TypeGuard, cast
 from pydantic import BaseModel, Field
 from pydantic_core import to_jsonable_python
 
+from .entrypoints import ensure_entry_points
+
 from .constants import PKG_NAME
 
 obj_type = type
@@ -45,7 +47,7 @@ def registry_add(o: object, info: RegistryInfo) -> None:
     setattr(o, REGISTRY_INFO, info)
 
     # add to registry
-    registry[registry_key(info.type, info.name)] = o
+    registry()[registry_key(info.type, info.name)] = o
 
 
 def registry_tag(
@@ -133,12 +135,12 @@ def registry_lookup(type: RegistryType, name: str) -> object | None:
         Object or None if not found.
     """
     # first try
-    object = registry.get(registry_key(type, name))
+    object = registry().get(registry_key(type, name))
     if object:
         return object
     # unnamespaced objects can also be found in inspect_ai
     elif name.find("/") == -1:
-        return registry.get(registry_key(type, f"{PKG_NAME}/{name}"))
+        return registry().get(registry_key(type, f"{PKG_NAME}/{name}"))
     else:
         return None
 
@@ -152,7 +154,9 @@ def registry_find(predicate: Callable[[RegistryInfo], bool]) -> list[object]:
     Returns:
         List of registry objects found
     """
-    return [object for object in registry.values() if predicate(registry_info(object))]
+    return [
+        object for object in registry().values() if predicate(registry_info(object))
+    ]
 
 
 def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:
@@ -319,7 +323,12 @@ def registry_key(type: RegistryType, name: str) -> str:
 
 REGISTRY_INFO = "__registry_info__"
 REGISTRY_PARAMS = "__registry_params__"
-registry: dict[str, object] = {}
+_registry: dict[str, object] = {}
+
+
+def registry() -> dict[str, object]:
+    ensure_entry_points()
+    return _registry
 
 
 def get_package_name(o: object) -> str | None:
