@@ -58,7 +58,7 @@ from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._score import init_scoring_context
 from inspect_ai.scorer._scorer import unique_scorer_name
-from inspect_ai.solver import Generate, Plan, Solver, TaskState
+from inspect_ai.solver import Generate, Plan, TaskState
 from inspect_ai.solver._task_state import state_jsonable
 from inspect_ai.util._subtask import init_subtask
 
@@ -88,7 +88,7 @@ class TaskRunOptions:
     logger: TaskLogger
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
-    plan: Plan | Solver | list[Solver] | None = field(default=None)
+    plan: Plan | None = field(default=None)
     score: bool = field(default=True)
     debug_errors: bool = field(default=False)
     sample_source: EvalSampleSource | None = field(default=None)
@@ -146,13 +146,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         )
 
         # resolve the plan and scorer
-        plan = (
-            plan
-            if isinstance(plan, Plan)
-            else Plan(plan)
-            if plan is not None
-            else task.plan
-        )
+        plan = plan if plan else task.plan
         score = score and task.scorer is not None
         scorers: list[Scorer] | None = task.scorer if (score and task.scorer) else None
         scorer_profiles = (

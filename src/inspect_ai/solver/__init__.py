@@ -3,7 +3,7 @@ from inspect_ai._util.deprecation import relocated_module_attribute
 from ._basic_agent import basic_agent
 from ._critique import self_critique
 from ._multiple_choice import multiple_choice
-from ._plan import Plan, plan
+from ._plan import Plan, PlanSpec, plan
 from ._prompt import (
     chain_of_thought,
     prompt_template,
@@ -24,6 +24,7 @@ __all__ = [
     "use_tools",
     "plan",
     "Plan",
+    "PlanSpec",
     "Solver",
     "solver",
     "Choice",

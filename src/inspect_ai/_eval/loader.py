@@ -10,15 +10,18 @@ from types import ModuleType
 from typing import Any, Callable, cast
 
 from inspect_ai._eval.task.util import task_file, task_run_dir
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.path import chdir_python
 from inspect_ai._util.registry import (
     RegistryInfo,
     is_registry_object,
+    registry_create,
     registry_info,
     registry_lookup,
     registry_params,
 )
 from inspect_ai.model import Model, ModelName
+from inspect_ai.solver._plan import Plan, PlanSpec
 from inspect_ai.util import SandboxEnvironmentSpec
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
@@ -247,8 +250,8 @@ def create_tasks(
         # that include an @ index. for this case directly
         # create the task (we also need to load the file
         # so the task is registered before we create it)
-        spec_split = split_task_spec(glob)
-        if len(spec_split[1]) > 0:
+        spec_split = split_spec(glob)
+        if spec_split[1] is not None:
             task_path = Path(spec_split[0])
             load_file_tasks(task_path.absolute())
             tasks.extend(
@@ -312,7 +315,7 @@ def create_file_tasks(
 # intended as a helper function)
 def _load_task_specs(task_path: Path) -> list[RegistryInfo]:
     # load the module
-    module = load_task_module(task_path)
+    module = load_module(task_path)
     if module:
         # find the tasks in the module
         tasks = inspect.getmembers(module, lambda m: is_registry_object(m, "task"))
@@ -321,23 +324,23 @@ def _load_task_specs(task_path: Path) -> list[RegistryInfo]:
         return []
 
 
-def split_task_spec(task_spec: str) -> tuple[str, str]:
-    parts = task_spec.rsplit("@", 1)
+def split_spec(spec: str) -> tuple[str, str | None]:
+    parts = spec.rsplit("@", 1)
     if len(parts) == 2:
         return parts[0], parts[1]
     else:
-        return task_spec, ""
+        return spec, None
 
 
-def load_task_module(task_path: Path) -> ModuleType | None:
-    if task_path.suffix == ".py":
+def load_module(module_path: Path) -> ModuleType | None:
+    if module_path.suffix == ".py":
         # bail if the code doesn't have a task
-        with open(task_path, "r", encoding="utf-8") as file:
+        with open(module_path, "r", encoding="utf-8") as file:
             if not code_has_task(file.read()):
                 return None
 
-        module_name = task_path.as_posix()
-        loader = SourceFileLoader(module_name, task_path.absolute().as_posix())
+        module_name = module_path.as_posix()
+        loader = SourceFileLoader(module_name, module_path.absolute().as_posix())
         spec = spec_from_loader(loader.name, loader)
         if not spec:
             raise ModuleNotFoundError(f"Module {module_name} not found")
@@ -345,7 +348,7 @@ def load_task_module(task_path: Path) -> ModuleType | None:
         loader.exec_module(module)
         return module
 
-    elif task_path.suffix == ".ipynb":
+    elif module_path.suffix == ".ipynb":
         try:
             from inspect_ai._util.notebook import NotebookLoader
         except ImportError:
@@ -357,30 +360,84 @@ def load_task_module(task_path: Path) -> ModuleType | None:
             return code_has_task(code)
 
         notebook_loader = NotebookLoader(exec_filter)
-        return notebook_loader.load_module(task_path.as_posix())
+        return notebook_loader.load_module(module_path.as_posix())
 
     else:
         raise ModuleNotFoundError(
-            f"Invalid extension for task file: {task_path.suffix}"
+            f"Invalid extension for task file: {module_path.suffix}"
         )
 
 
-def code_has_task(code: str) -> bool:
+def code_has_decorator(code: str, decorator: str) -> bool:
     try:
         tree = ast.parse(code)
         for node in ast.iter_child_nodes(tree):
             if isinstance(node, ast.FunctionDef):
-                for decorator in node.decorator_list:
-                    if isinstance(decorator, ast.Name):
-                        if str(decorator.id) == "task":
+                for dec in node.decorator_list:
+                    if isinstance(dec, ast.Name):
+                        if str(dec.id) == decorator:
                             return True
                     elif (
-                        isinstance(decorator, ast.Call)
-                        and isinstance(decorator.func, ast.Name)
-                        and str(decorator.func.id) == "task"
+                        isinstance(dec, ast.Call)
+                        and isinstance(dec.func, ast.Name)
+                        and str(dec.func.id) == decorator
                     ):
                         return True
     except SyntaxError:
         pass
 
     return False
+
+
+def code_has_task(code: str) -> bool:
+    return code_has_decorator(code, "task")
+
+
+def as_plan_spec(plan: Plan) -> PlanSpec:
+    if not is_registry_object(plan):
+        raise PrerequisiteError(
+            f"The plan {plan.name} was not created by a function decorated with @plan so cannot be recorded."
+        )
+    return PlanSpec(plan=registry_info(plan).name, args=registry_params(plan))
+
+
+def create_plan(spec: PlanSpec) -> Plan:
+    # resolve @ reference
+    spec_split = split_spec(spec.plan)
+    if spec_split[1] is not None:
+        plan_file: Path | None = Path(spec_split[0])
+        plan_name: str | None = spec_split[1]
+    elif Path(spec_split[0]).exists():
+        plan_file = Path(spec_split[0])
+        plan_name = None
+    else:
+        plan_file = None
+        plan_name = spec_split[0]
+
+    # if we have a file then we need to load it
+    if plan_file is not None:
+        # ensure the module is loaded so we can see the plans
+        plan_module = load_module(plan_file)
+
+        # if there is no plan_name we need to discover the first plan
+        if plan_name is None:
+            plans = inspect.getmembers(
+                plan_module, lambda m: is_registry_object(m, "plan")
+            )
+            if len(plans) == 0:
+                raise PrerequisiteError(
+                    f"The source file {plan_file.as_posix()} does not contain any @plan functions."
+                )
+            if len(plans) > 1:
+                raise PrerequisiteError(
+                    f"The source file {plan_file.as_posix()} has more than one @plan function (qualify which plan using file.py@plan)"
+                )
+            plan_name = registry_info(plans[0][1]).name
+
+    # make mypy happy and catch unexpected branching
+    if plan_name is None:
+        raise ValueError(f"Unable to resolve plan name from {spec.plan}")
+
+    # create and return the plan
+    plan = cast(Plan, registry_create("plan", plan_name, **spec.args))
+    return plan
