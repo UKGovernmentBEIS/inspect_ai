@@ -2,6 +2,7 @@ import os
 from random import random
 
 import pytest
+from test_helpers.utils import ensure_test_package_installed
 
 from inspect_ai import Task, eval, eval_async, eval_retry, task
 from inspect_ai.dataset import Sample
@@ -76,12 +77,22 @@ def test_plan_spec():
         log = eval(
             f"{plan_file}@the_task",
             plan=PlanSpec(plan_spec, {"rate": 1.0}),
+            model="mockllm/model",
         )[0]
         check_plan(log, plan_spec)
 
     check_plan_spec("the_plan")
     check_plan_spec(plan_file)
     check_plan_spec(f"{plan_file}@the_plan")
+
+
+def test_plan_extension():
+    ensure_test_package_installed()
+    log = eval(the_task(), plan=PlanSpec("inspect_package/cot"), model="mockllm/model")[
+        0
+    ]
+    assert log.eval.plan == "inspect_package/cot"
+    assert log.plan.steps[0].solver == "chain_of_thought"
 
 
 def test_plan_retry():
