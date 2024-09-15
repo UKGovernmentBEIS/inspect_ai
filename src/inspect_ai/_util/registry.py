@@ -1,12 +1,13 @@
 import inspect
 from importlib import import_module
 from inspect import get_annotations, getmodule, isclass
-from typing import Any, Callable, Literal, cast
+from typing import Any, Callable, Literal, TypedDict, TypeGuard, cast
 
 from pydantic import BaseModel, Field
 from pydantic_core import to_jsonable_python
 
 from .constants import PKG_NAME
+from .entrypoints import ensure_entry_points
 
 obj_type = type
 
@@ -45,7 +46,7 @@ def registry_add(o: object, info: RegistryInfo) -> None:
     setattr(o, REGISTRY_INFO, info)
 
     # add to registry
-    registry[registry_key(info.type, info.name)] = o
+    registry()[registry_key(info.type, info.name)] = o
 
 
 def registry_tag(
@@ -77,13 +78,11 @@ def registry_tag(
             named_params[params[i]] = arg
     named_params |= kwargs
 
-    # plan objects are serialised with name and params
+    # serialise registry objects with RegistryDict
     for param in named_params.keys():
         value = named_params[param]
-        if is_registry_object(value) and registry_info(value).type == "plan":
-            named_params[param] = dict(
-                plan=registry_log_name(value), params=registry_params(value)
-            )
+        if is_registry_object(value):
+            named_params[param] = registry_dict(value)
 
     # callables are not serializable so use their names
     for param in named_params.keys():
@@ -135,12 +134,12 @@ def registry_lookup(type: RegistryType, name: str) -> object | None:
         Object or None if not found.
     """
     # first try
-    object = registry.get(registry_key(type, name))
+    object = registry().get(registry_key(type, name))
     if object:
         return object
     # unnamespaced objects can also be found in inspect_ai
     elif name.find("/") == -1:
-        return registry.get(registry_key(type, f"{PKG_NAME}/{name}"))
+        return registry().get(registry_key(type, f"{PKG_NAME}/{name}"))
     else:
         return None
 
@@ -154,7 +153,9 @@ def registry_find(predicate: Callable[[RegistryInfo], bool]) -> list[object]:
     Returns:
         List of registry objects found
     """
-    return [object for object in registry.values() if predicate(registry_info(object))]
+    return [
+        object for object in registry().values() if predicate(registry_info(object))
+    ]
 
 
 def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:
@@ -179,14 +180,13 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:
     def with_registry_info(o: object) -> object:
         return set_registry_info(o, registry_info(obj))
 
-    # instantiate plan objects for tasks
-    if type == "task":
-        for param in kwargs.keys():
-            value = kwargs[param]
-            if isinstance(value, dict) and "plan" in value and "params" in value:
-                kwargs[param] = registry_create(
-                    "plan", value["plan"], **value["params"]
-                )
+    # instantiate registry objects
+    for param in kwargs.keys():
+        value = kwargs[param]
+        if is_registry_dict(value):
+            kwargs[param] = registry_create(
+                value["type"], value["name"], **value["params"]
+            )
 
     if isclass(obj):
         return with_registry_info(obj(**kwargs))
@@ -322,7 +322,12 @@ def registry_key(type: RegistryType, name: str) -> str:
 
 REGISTRY_INFO = "__registry_info__"
 REGISTRY_PARAMS = "__registry_params__"
-registry: dict[str, object] = {}
+_registry: dict[str, object] = {}
+
+
+def registry() -> dict[str, object]:
+    ensure_entry_points()
+    return _registry
 
 
 def get_package_name(o: object) -> str | None:
@@ -338,3 +343,23 @@ def get_package_name(o: object) -> str | None:
                     return package
 
     return None
+
+
+class RegistryDict(TypedDict):
+    type: RegistryType
+    name: str
+    params: dict[str, Any]
+
+
+def is_registry_dict(o: object) -> TypeGuard[RegistryDict]:
+    return isinstance(o, dict) and "type" in o and "name" in o and "params" in o
+
+
+def registry_dict(o: object) -> RegistryDict:
+    return dict(
+        type=registry_info(o).type, name=registry_log_name(o), params=registry_params(o)
+    )
+
+
+def registry_create_from_dict(d: RegistryDict) -> object:
+    return registry_create(d["type"], d["name"], **d["params"])

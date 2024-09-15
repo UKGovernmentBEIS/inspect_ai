@@ -1,7 +1,6 @@
 import re
 from typing import Any, Callable, TypeVar, cast, overload
 
-from inspect_ai._util.entrypoints import ensure_entry_points
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
@@ -135,8 +134,6 @@ def create_reducers(reducers: None) -> None: ...
 def create_reducers(reducers: ScoreReducers | None) -> list[ScoreReducer] | None:
     if reducers is None:
         return None
-
-    ensure_entry_points()
 
     def create_reducer(name: str) -> ScoreReducer:
         # special case to get digit parameters

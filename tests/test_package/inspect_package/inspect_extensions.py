@@ -1,5 +1,6 @@
 from inspect_ai.model import modelapi
 
+from .plans.cot import cot  # noqa: F401
 from .sandboxenv.podman import PodmanSandboxEnvironment  # noqa: F401
 
 
