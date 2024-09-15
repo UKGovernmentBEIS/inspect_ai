@@ -6,9 +6,8 @@ from typing import Any, Callable, Literal, TypedDict, TypeGuard, cast
 from pydantic import BaseModel, Field
 from pydantic_core import to_jsonable_python
 
-from .entrypoints import ensure_entry_points
-
 from .constants import PKG_NAME
+from .entrypoints import ensure_entry_points
 
 obj_type = type
 
