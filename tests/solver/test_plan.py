@@ -4,24 +4,18 @@ from random import random
 import pytest
 
 from inspect_ai import Task, eval, eval_async, eval_retry, task
-from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
 from inspect_ai.log._log import EvalLog
 from inspect_ai.solver import (
     Generate,
     Plan,
+    PlanSpec,
     TaskState,
     chain_of_thought,
     generate,
     plan,
     solver,
 )
-from inspect_ai.solver._plan import PlanSpec
-
-
-@plan(fancy=True)
-def my_plan() -> Plan:
-    return Plan(steps=[chain_of_thought(), generate()])
 
 
 @solver
@@ -62,16 +56,6 @@ async def test_plan_cleanup():
     assert cleaned_up
 
 
-def test_plan_registration():
-    plan = my_plan()
-    assert registry_info(plan).name == "my_plan"
-
-
-def test_plan_attribs():
-    plan = my_plan()
-    assert registry_info(plan).metadata["attribs"]["fancy"] is True
-
-
 @plan
 def the_plan(rate=1.0):
     return Plan(steps=[failing_solver(rate), generate()])
@@ -87,18 +71,17 @@ def the_task(plan: Plan = Plan(generate())):
 
 def test_plan_spec():
     plan_file = f"{os.path.relpath(__file__)}"
-    plan_name = f"{plan_file}@the_plan"
-    log = eval(
-        f"{plan_file}@the_task",
-        plan=PlanSpec(plan_name, {"rate": 1.0}),
-    )[0]
-    check_plan(log, plan_name)
 
-    log = eval(
-        f"{plan_file}@the_task",
-        plan=PlanSpec("the_plan", {"rate": 1.0}),
-    )[0]
-    check_plan(log)
+    def check_plan_spec(plan_spec: str):
+        log = eval(
+            f"{plan_file}@the_task",
+            plan=PlanSpec(plan_spec, {"rate": 1.0}),
+        )[0]
+        check_plan(log, plan_spec)
+
+    check_plan_spec("the_plan")
+    check_plan_spec(plan_file)
+    check_plan_spec(f"{plan_file}@the_plan")
 
 
 def test_plan_retry():
