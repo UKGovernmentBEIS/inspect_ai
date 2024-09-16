@@ -1,15 +1,22 @@
 from inspect_ai.model import modelapi
+from inspect_ai.util import sandboxenv
 
 from .plans.cot import cot  # noqa: F401
-from .sandboxenv.podman import PodmanSandboxEnvironment  # noqa: F401
+
+# delayed import for the model and sandbox allows us to only resolve the imports
+# when they are actually requeasted (so that we don't end up requiring all
+# of their dependencies whenever inspect is loaded)
 
 
 @modelapi(name="custom")
 def custom():
-    # delayed import allows us to only resolve the imports in
-    # .modelapi.custom when the modelapi is referenced (helpful
-    # if the modelapi provider has dependencies we don't want to
-    # require unless the provider is actually used)
     from .modelapi.custom import CustomModelAPI
 
     return CustomModelAPI
+
+
+@sandboxenv(name="podman")
+def podman():
+    from .sandboxenv.podman import PodmanSandboxEnvironment
+
+    return PodmanSandboxEnvironment
