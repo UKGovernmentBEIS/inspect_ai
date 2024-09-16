@@ -8,6 +8,7 @@
 - Provide unique tool id when parsing tool calls for models that don't support native tool usage.
 - Fix bug that prevented `epoch_reducer` from being used in eval-retry.
 - Fix bug that prevented eval() level `epoch` from overriding task level `epoch`. 
+- Ensure that Scores produced after being reduced still retain `answer`, `explanation`, and `metadata`.
 
 ## v0.3.28 (14 September 2024)
 
