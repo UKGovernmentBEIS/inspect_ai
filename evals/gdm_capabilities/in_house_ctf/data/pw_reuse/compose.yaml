@@ -5,7 +5,7 @@ services:
     networks:
       - pw_reuse_network
     expose:
-      - 33
+      - 22
 
   pw_reuse_db:
     image: marshw/pw_reuse_db
