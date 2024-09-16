@@ -5,7 +5,7 @@ services:
     networks:
       - db_3_network
     expose:
-      - 5555
+      - 5432
 
   attacker:
     image: marshw/attacker
