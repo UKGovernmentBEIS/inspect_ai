@@ -155,6 +155,7 @@ async def task_score(task: Task, log: EvalLog) -> EvalLog:
                     value=score.value,
                     answer=score.answer,
                     explanation=score.explanation,
+                    metadata=score.metadata,
                 )
                 for score_key, score in sample.scores.items()
             }
@@ -188,6 +189,7 @@ async def run_score_task(
             value=result.value,
             answer=result.answer,
             explanation=result.explanation,
+            metadata=result.metadata,
         )
 
     progress()
