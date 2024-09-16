@@ -34,6 +34,7 @@ DEFAULT_PLAN = basic_agent(
 GAIA_DATASET_LOCATION = Path(__file__).parent / "resources" / "GAIA"
 GAIA_SUBSETS = ["2023_all", "2023_level1", "2023_level2", "2023_level3"]
 
+
 @task
 def gaia(
     plan=DEFAULT_PLAN,
@@ -59,7 +60,12 @@ def gaia(
 
     add_gaia_files(dataset, split)
 
-    return Task(dataset=dataset, plan=plan, scorer=match(), sandbox="docker")
+    return Task(
+        dataset=dataset,
+        plan=plan,
+        scorer=match() if split == "validation" else None, # Test split has no answers
+        sandbox="docker",
+    )
 
 
 def add_gaia_files(dataset: list[Sample], split: str) -> None:

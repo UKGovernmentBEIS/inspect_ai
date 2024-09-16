@@ -14,11 +14,9 @@ The ```swe_bench.py``` file contains the ```swe_bench``` function, which creates
 
 ```python
 from inspect_ai import eval
-from inspect_ai.solver import use_tools, generate, system_message
-from inspect_ai.solver import basic_agent
+from inspect_ai.solver import use_tools, generate, system_message, basic_agent
 from inspect_ai.tool import bash, python
 from swe_bench import swe_bench
-from inspect_ai.solver import system_message
 
 # Create an agent that only uses bash, and an agent that only uses python.
 agents = [
@@ -28,7 +26,9 @@ agents = [
     )
     for tool in [bash(), python()]
 ]
-
+from inspect_ai import eval
+from inspect_ai.solver import use_tools, generate, system_message, basic_agent
+from inspect_ai.tool import bash, python
 # Create a swe-bench instance for each of those agents.
 swebench_task = [swe_bench(dataset="princeton-nlp/SWE-bench_Verified", split="test", plan=agent) for agent in agents]
 
