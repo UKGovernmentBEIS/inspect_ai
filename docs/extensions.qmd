@@ -114,8 +114,7 @@ To create a custom sandbox environment, derive a class from `SandboxEnvironment`
 
 The static class methods control the lifecycle of containers and other computing resources associated with the `SandboxEnvironment`:
 
-``` python
-@sandboxenv(name="podman")
+```{.python filename="podman.py"}
 class PodmanSandboxEnvironment(SandboxEnvironment):
 
     @classmethod
@@ -159,6 +158,16 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
 
     # (instance methods shown below)
 ```
+
+```{.python filename="providers.py"}
+def podman():
+    from .podman import PodmanSandboxEnvironment
+
+    return PodmanSandboxEnvironment
+```
+
+The layer of indirection (creating a function that returns a SandboxEnvironment class) is done so that you can separate the registration of sandboxes from the importing of libraries they require (important for limiting dependencies).
+
 
 The class methods take care of various stages of initialisation, setup, and teardown:
 

@@ -19,7 +19,6 @@ from tenacity import (
 
 from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS
 from inspect_ai._util.content import Content, ContentText
-from inspect_ai._util.entrypoints import ensure_entry_points
 from inspect_ai._util.hooks import init_hooks, override_api_key, send_telemetry
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import (
@@ -515,9 +514,6 @@ def get_model(
             model = model.split(",")[0]
         else:
             raise ValueError("No model specified (and no INSPECT_EVAL_MODEL defined)")
-
-    # ensure that inspect model provider extensions are loaded
-    ensure_entry_points()
 
     # split model into api name and model name if necessary
     api_name = None
