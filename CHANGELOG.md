@@ -6,6 +6,7 @@
 - Improved support for eval retries when calling `eval()` or `eval_set()` with a `plan` argument.
 - Don't log base64 images by default (re-enable logging with `--log-images`).
 - Provide unique tool id when parsing tool calls for models that don't support native tool usage.
+- Fix bug that prevented `epoch_reducer` from being used in eval-retry.
 
 ## v0.3.28 (14 September 2024)
 

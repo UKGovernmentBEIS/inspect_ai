@@ -512,7 +512,11 @@ async def eval_retry_async(
         model_args = eval_log.eval.model_args
         task_args = eval_log.eval.task_args
         limit = eval_log.eval.config.limit
-        epochs = eval_log.eval.config.epochs
+        epochs = (
+            Epochs(eval_log.eval.config.epochs, eval_log.eval.config.epochs_reducer)
+            if eval_log.eval.config.epochs
+            else None
+        )
         fail_on_error = eval_log.eval.config.fail_on_error
         max_messages = eval_log.eval.config.max_messages
         max_samples = max_samples or eval_log.eval.config.max_samples
