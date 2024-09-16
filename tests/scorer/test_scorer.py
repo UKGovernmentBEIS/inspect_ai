@@ -1,3 +1,5 @@
+# type: ignore
+
 import pytest
 from test_helpers.utils import ensure_test_package_installed, run_example
 
@@ -76,7 +78,7 @@ def test_score_function():
 
 def test_score_package_name():
     ensure_test_package_installed()
-    from inspect_package import simple_score  # type: ignore
+    from inspect_package import simple_score
 
     task = Task(
         dataset=[Sample(input="What is the capital of Kansas?", target=["Topeka"])],
@@ -88,7 +90,7 @@ def test_score_package_name():
 
 def test_score_unique():
     ensure_test_package_installed()
-    from inspect_package import simple_score  # type: ignore
+    from inspect_package import simple_score
 
     task = Task(
         dataset=[Sample(input="What is the capital of Kansas?", target=["Topeka"])],
