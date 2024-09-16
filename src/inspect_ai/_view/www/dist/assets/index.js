@@ -17207,7 +17207,13 @@ const summarizeChanges = (changes) => {
   }
   return changeList.join(", ");
 };
-const StepEventView = ({ event, children, style, stateManager }) => {
+const StepEventView = ({
+  event,
+  children,
+  style,
+  stateManager,
+  storeManager
+}) => {
   const descriptor = stepDescriptor(event);
   const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
   const text = summarize(children);
@@ -17225,6 +17231,7 @@ const StepEventView = ({ event, children, style, stateManager }) => {
       id=${`step-${event.name}-transcript`}
       eventNodes=${children}
       stateManager=${stateManager}
+      storeManager=${storeManager}
     />
   </EventPanel>
   `;
@@ -17318,7 +17325,14 @@ const stepDescriptor = (event) => {
     }
   }
 };
-const SubtaskEventView = ({ id, event, style, stateManager, depth }) => {
+const SubtaskEventView = ({
+  id,
+  event,
+  style,
+  stateManager,
+  storeManager,
+  depth
+}) => {
   return m$1`
     <${EventPanel} id=${id} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask} style=${style}>
       <${SubtaskSummary} name="Summary"  input=${event.input} result=${event.result}/>
@@ -17327,6 +17341,7 @@ const SubtaskEventView = ({ id, event, style, stateManager, depth }) => {
               name="Transcript"
               events=${event.events}
               stateManager=${stateManager}
+              storeManager=${storeManager}
               depth=${depth + 1}
             />` : ""}
     </${EventPanel}>`;
@@ -17785,7 +17800,14 @@ const ScoreEventView = ({ id, event, style }) => {
 
   </${EventPanel}>`;
 };
-const ToolEventView = ({ id, event, style, stateManager, depth }) => {
+const ToolEventView = ({
+  id,
+  event,
+  style,
+  stateManager,
+  storeManager,
+  depth
+}) => {
   var _a;
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
@@ -17818,6 +17840,7 @@ const ToolEventView = ({ id, event, style, stateManager, depth }) => {
                 name="Transcript"
                 events=${event.events}
                 stateManager=${stateManager}
+                storeManager=${storeManager}
                 depth=${depth + 1}
               />` : ""}
 
@@ -18482,9 +18505,10 @@ Object.assign({}, core, duplex, {
   escapePathComponent,
   unescapePathComponent
 });
-const initStateManager = () => {
+const initStateManager = (scope) => {
   let state = {};
   return {
+    scope,
     /**
      * Retrieves the current state object.
      *
@@ -18521,7 +18545,13 @@ const ensureValidChange = (change) => {
   }
   return change;
 };
-const TranscriptView = ({ id, events, stateManager, depth = 0 }) => {
+const TranscriptView = ({
+  id,
+  events,
+  stateManager,
+  storeManager,
+  depth = 0
+}) => {
   const resolvedEvents = fixupEventStream(events);
   const eventNodes = treeifyEvents(resolvedEvents, depth);
   return m$1`
@@ -18529,6 +18559,7 @@ const TranscriptView = ({ id, events, stateManager, depth = 0 }) => {
       id=${id}
       eventNodes=${eventNodes}
       stateManager=${stateManager}
+      storeManager=${storeManager}
     />
   `;
 };
@@ -18536,7 +18567,8 @@ const TranscriptComponent = ({
   id,
   eventNodes,
   style,
-  stateManager
+  stateManager,
+  storeManager
 }) => {
   const rows = eventNodes.map((eventNode, index) => {
     const toggleStyle = {};
@@ -18555,6 +18587,7 @@ const TranscriptComponent = ({
         id=${`${id}-event${index}`}
         node=${eventNode}
         stateManager=${stateManager}
+        storeManager=${storeManager}
         style=${{
       ...toggleStyle,
       ...style
@@ -18576,7 +18609,13 @@ const TranscriptComponent = ({
     ${rows}
   </div>`;
 };
-const RenderedEventNode = ({ id, node, style, stateManager }) => {
+const RenderedEventNode = ({
+  id,
+  node,
+  style,
+  stateManager,
+  storeManager
+}) => {
   switch (node.event.event) {
     case "sample_init":
       return m$1`<${SampleInitEventView}
@@ -18622,13 +18661,14 @@ const RenderedEventNode = ({ id, node, style, stateManager }) => {
         event=${node.event}
         children=${node.children}
         stateManager=${stateManager}
+        storeManager=${storeManager}
         style=${style}
       />`;
     case "store":
       return m$1`<${StateEventView}
         id=${id}
         event=${node.event}
-        stateManager=${initStateManager()}
+        stateManager=${storeManager}
         style=${style}
       />`;
     case "subtask":
@@ -18636,6 +18676,7 @@ const RenderedEventNode = ({ id, node, style, stateManager }) => {
         id=${id}
         event=${node.event}
         stateManager=${stateManager}
+        storeManager=${initStateManager(`${node.event.name}`)}
         style=${style}
         depth=${node.depth}
       />`;
@@ -18644,6 +18685,7 @@ const RenderedEventNode = ({ id, node, style, stateManager }) => {
         id=${id}
         event=${node.event}
         stateManager=${stateManager}
+        storeManager=${storeManager}
         style=${style}
         depth=${node.depth}
       />`;
@@ -18716,12 +18758,14 @@ function treeifyEvents(events, depth) {
 }
 const kContentProtocol = "tc://";
 const SampleTranscript = ({ id, evalEvents }) => {
-  const stateManager = initStateManager();
+  const stateManager = initStateManager("global_state");
+  const storeManager = initStateManager("global_storage");
   const denormalizedEvents = resolveEventContent(evalEvents);
   return m$1`<${TranscriptView}
     id=${id}
     events=${denormalizedEvents}
     stateManager=${stateManager}
+    storeManager=${storeManager}
   />`;
 };
 const resolveEventContent = (evalEvents) => {
