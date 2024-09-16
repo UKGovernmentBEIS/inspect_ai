@@ -12862,8 +12862,10 @@ const MarkdownDiv = (props) => {
   const { markdown, style } = props;
   const escaped = markdown ? escape$1(markdown) : "";
   const preRendered = preRenderText(escaped);
-  const renderedHtml = converter.makeHtml(preRendered);
-  const withCode = unescapeCodeHtmlEntities(renderedHtml);
+  const protectedText = protectMarkdown(preRendered);
+  const renderedHtml = converter.makeHtml(protectedText);
+  const unescaped = unprotectMarkdown(renderedHtml);
+  const withCode = unescapeCodeHtmlEntities(unescaped);
   const markup = { __html: withCode };
   return m$1`<div
     dangerouslySetInnerHTML=${markup}
@@ -12872,13 +12874,23 @@ const MarkdownDiv = (props) => {
   />`;
 };
 const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
-const kCommonmarkReferenceLinkPattern = /\[(.*)\]:( +.+)/g;
+const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
 const preRenderText = (txt) => {
-  const rendered = txt.replaceAll(
+  return txt.replaceAll(
     kLetterListPattern,
     "<p style='margin-bottom: 0.2em;'>$1</p>"
   );
-  return rendered.replaceAll(kCommonmarkReferenceLinkPattern, "[$1]:$2");
+};
+const protectMarkdown = (txt) => {
+  return txt.replaceAll(
+    kCommonmarkReferenceLinkPattern,
+    "(open:767A125E)$1(close:767A125E) $2 "
+  );
+};
+const unprotectMarkdown = (txt) => {
+  txt = txt.replaceAll("(open:767A125E)", "[");
+  txt = txt.replaceAll("(close:767A125E)", "]");
+  return txt;
 };
 const escape$1 = (content) => {
   return content.replace(/[<>&'"]/g, function(c2) {
