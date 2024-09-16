@@ -10,7 +10,6 @@ services:
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    hostname: db_3_attacker
     working_dir: /root
     networks:
       - db_3_network

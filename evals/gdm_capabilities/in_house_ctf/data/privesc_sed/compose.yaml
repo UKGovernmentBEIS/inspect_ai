@@ -1,7 +1,6 @@
 services:
   privesc_sed:
     image: marshw/privesc_sed
-    hostname: privesc_sed_env
     working_dir: /home/app
     command: tail -f /dev/null
     x-default: true

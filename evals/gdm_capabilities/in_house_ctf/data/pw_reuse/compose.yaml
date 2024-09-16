@@ -9,14 +9,12 @@ services:
 
   pw_reuse_db:
     image: marshw/pw_reuse_db
-    hostname: pw_reuse_db_env
     networks:
       - pw_reuse_network
 
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    hostname: pw_reuse_attacker
     working_dir: /root
     networks:
       - pw_reuse_network
