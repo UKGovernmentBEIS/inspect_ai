@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Added `--plan` and `-P` arguments to `eval` and `eval-set` commands for replacing the task default plan with another one.
+- Improved support for eval retries when calling `eval()` or `eval_set()` with a `plan` argument.
+
 ## v0.3.28 (14 September 2024)
 
 - [basic_agent()](https://inspect.ai-safety-institute.org.uk/agents.html#sec-basic-agent) that provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck.
