@@ -16,7 +16,7 @@ from inspect_ai.tool import bash, web_search
 from gaia import gaia
 
 # Create a task to attempt to solve GAIA with a basic agent.
-agent =  basic_agent(tools =[bash(), web_search()])
+agent = basic_agent(tools=[bash()])
 task = gaia(split="validation", plan=agent)
 
 # For the demonstration, we will select only the first 5 tasks.

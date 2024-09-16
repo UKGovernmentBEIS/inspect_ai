@@ -20,7 +20,7 @@ DEFAULT_INPUT_PROMPT = """Please answer the question below. You should:
 - If the answer is a string, don't include articles, and don't use abbreviations (e.g. for states).
 - If the answer is a comma separated list, apply the above rules to each element in the list.
 
-Any files or attachments mentioned in the question can be found in your home directory (some questions do not have associated files). Here is the question:
+Any files or attachments mentioned in the question can be found in the /shared_files/ directory (some questions do not have associated files). Here is the question:
 
 {question}"""
 
@@ -81,7 +81,7 @@ def add_gaia_files(dataset: Sequence[Sample], split: str) -> None:
         # Setup files into the sample
         file = next((file for file in os.listdir(files) if sample.id in file), None)
         if file:
-            sample.files = {file: str((files / file))}
+            sample.files = {"/shared_files/" + file: str((files / file))}
 
 
 if not Path(GAIA_DATASET_LOCATION).exists():
