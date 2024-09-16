@@ -129,7 +129,7 @@ class TaskLogger:
         state: TaskState,
         scores: dict[str, SampleScore],
         error: EvalError | None,
-        flush: bool = False,
+        log_images: bool,
     ) -> None:
         # log
         self.log(
@@ -152,10 +152,10 @@ class TaskLogger:
                 output=state.output,
                 scores=cast(dict[str, Score], scores),
                 store=dict(state.store.items()),
-                transcript=eval_events(transcript().events),
+                transcript=eval_events(transcript().events, log_images),
                 error=error,
             ),
-            flush,
+            True,
         )
 
     def log_plan(self, plan: EvalPlan) -> None:
