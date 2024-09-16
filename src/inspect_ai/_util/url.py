@@ -6,7 +6,8 @@ def is_http_url(url: str) -> bool:
 
 
 def is_data_uri(url: str) -> bool:
-    return url.startswith("data:")
+    pattern = r"^data:([^;]+);base64,.*"
+    return re.match(pattern, url) is not None
 
 
 def data_uri_mime_type(data_url: str) -> str | None:

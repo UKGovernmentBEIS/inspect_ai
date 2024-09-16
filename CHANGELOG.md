@@ -1,10 +1,19 @@
 # Changelog
 
+## v0.3.29 (16 September 2024)
+
+- Added `--plan` and `-P` arguments to `eval` and `eval-set` commands for replacing the task default plan with another one.
+- Improved support for eval retries when calling `eval()` or `eval_set()` with a `plan` argument.
+- Don't log base64 images by default (re-enable logging with `--log-images`).
+- Provide unique tool id when parsing tool calls for models that don't support native tool usage.
+- Fix bug that prevented `epoch_reducer` from being used in eval-retry.
+- Fix bug that prevented eval() level `epoch` from overriding task level `epoch`. 
+
 ## v0.3.28 (14 September 2024)
 
 - [basic_agent()](https://inspect.ai-safety-institute.org.uk/agents.html#sec-basic-agent) that provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck.
 - [score()](https://inspect.ai-safety-institute.org.uk/solvers.html#sec-scoring-in-solvers) function for accessing scoring logic from within solvers.
-- Ability to [publish](https://inspect.ai-safety-institute.org.uk/log-viewer.html#publishing) a static standalone Inspect View website for a log directory.
+- Ability to [publish](https://inspect.ai-safety-institute.org.uk/log-viewer.html#sec-publishing) a static standalone Inspect View website for a log directory.
 - `system_message()` now supports custom parameters and interpolation of `metadata` values from `Sample`.
 - `generate()` solver now accepts arbitrary generation config params.
 - `use_tools()` now accepts a variadic list of `Tool` in addition to literal `list[Tool]`.

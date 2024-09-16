@@ -14,10 +14,11 @@ from typing import (
 import mmh3
 from pydantic import BaseModel, Field, JsonValue, field_serializer
 
-from inspect_ai._util.constants import SAMPLE_SUBTASK
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED, SAMPLE_SUBTASK
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.json import JsonChange, json_changes
+from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._message import LoggingMessage
 from inspect_ai.model._chat_message import ChatMessage
@@ -328,11 +329,13 @@ class EvalEvents(BaseModel):
     """Content references."""
 
 
-def eval_events(events: list[Event]) -> EvalEvents:
+def eval_events(events: list[Event], log_images: bool) -> EvalEvents:
     content: dict[str, str] = {}
 
     def content_fn(text: str) -> str:
-        if len(text) > 50:
+        if not log_images and is_data_uri(text):
+            return BASE_64_DATA_REMOVED
+        elif len(text) > 50:
             hash = mm3_hash(text)
             content[hash] = text
             return f"{CONTENT_PROTOCOL}{hash}"

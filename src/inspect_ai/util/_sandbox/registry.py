@@ -1,6 +1,5 @@
 from typing import Callable, Type, TypeVar, cast
 
-from inspect_ai._util.entrypoints import ensure_entry_points
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
@@ -43,9 +42,6 @@ def sandboxenv_register(sandboxenv_type: Type[T], name: str) -> Type[T]:
 
 
 def registry_find_sandboxenv(envtype: str) -> type[SandboxEnvironment]:
-    # ensure external packages are loaded
-    ensure_entry_points()
-
     # find a matching sandboxenv_type
     sanxboxenv_types = registry_find(registry_match_sandboxenv(envtype))
     if len(sanxboxenv_types) > 0:
@@ -56,9 +52,6 @@ def registry_find_sandboxenv(envtype: str) -> type[SandboxEnvironment]:
 
 
 def registry_has_sandboxenv(envtype: str) -> bool:
-    # ensure external packages are loaded
-    ensure_entry_points()
-
     # see if we have this type
     return len(registry_find(registry_match_sandboxenv(envtype))) > 0
 

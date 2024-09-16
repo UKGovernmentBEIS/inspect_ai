@@ -11,6 +11,7 @@ from openai.types.chat import (
     ChatCompletionMessageParam,
     ChatCompletionUserMessageParam,
 )
+from shortuuid import uuid
 from typing_extensions import override
 
 from inspect_ai.model import (
@@ -269,7 +270,8 @@ def parse_tool_call_content(content: str, tools: list[ToolInfo]) -> ToolCall:
         # now perform the parse (we need to call thi function because it includes
         # the special handling to for mapping arguments that are a plain `str`
         # to the first parameter of the function)
-        return parse_tool_call(name, name, json.dumps(arguments), tools)
+        unique_id = f"{name}_{uuid()}"
+        return parse_tool_call(unique_id, name, json.dumps(arguments), tools)
 
     except Exception as ex:
         # buld error message

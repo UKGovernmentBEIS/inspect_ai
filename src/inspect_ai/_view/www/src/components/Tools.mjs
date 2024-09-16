@@ -143,10 +143,12 @@ export const ToolInput = ({ type, contents }) => {
  * @returns {import("preact").JSX.Element | string} The ToolOutput component.
  */
 export const ToolOutput = ({ output, style }) => {
+  // If there is no output, don't show the tool
   if (!output) {
     return "";
   }
 
+  // First process an array or object into a string
   if (typeof output === "object" || Array.isArray(output)) {
     output = JSON.stringify(output);
   }
@@ -160,7 +162,7 @@ export const ToolOutput = ({ output, style }) => {
       ...style,
     }}
   ><code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
-      ${output}
+      ${output.trim()}
       </code></pre>`;
 };
 

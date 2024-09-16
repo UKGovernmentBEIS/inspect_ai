@@ -2,7 +2,7 @@ from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.deprecation import relocated_module_attribute
 
 from ._tool import Tool, ToolError, ToolResult, tool
-from ._tool_call import ToolCall
+from ._tool_call import ToolCall, ToolCallError
 from ._tool_choice import ToolChoice, ToolFunction
 from ._tool_info import ToolInfo, ToolParam, ToolParams
 from ._tool_with import tool_with
@@ -16,6 +16,7 @@ __all__ = [
     "tool",
     "tool_with",
     "Tool",
+    "ToolCallError",
     "ToolError",
     "ToolResult",
     "Content",
