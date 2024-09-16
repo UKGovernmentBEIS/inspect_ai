@@ -13459,7 +13459,7 @@ const ToolOutput = ({ output, style }) => {
     ...style
   }}
   ><code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
-      ${output}
+      ${output.trim()}
       </code></pre>`;
 };
 const extractInputMetadata = (toolName) => {
@@ -13558,7 +13558,7 @@ const messageRenderers = {
   },
   tool: {
     render: (content) => {
-      return m$1`<${ToolOutput} output=${content.text.trim()} />`;
+      return m$1`<${ToolOutput} output=${content.text} />`;
     }
   }
 };
@@ -15572,7 +15572,7 @@ const system_msg_added_sig = {
     replace: ["/messages/0/role", "/messages/0/content"],
     add: ["/messages/1"]
   },
-  render: (resolvedState) => {
+  render: (_changes, resolvedState) => {
     const message = resolvedState["messages"][0];
     return m$1`<${ChatView}
       id="system_msg_event_preview"
@@ -15580,56 +15580,92 @@ const system_msg_added_sig = {
     />`;
   }
 };
-const tools_choice = {
-  type: "tools_choice",
+const kToolPattern = "/tools/(\\d+)";
+const use_tools = {
+  type: "use_tools",
   signature: {
-    add: ["/tools/\\d+"],
+    add: ["/tools/0"],
+    replace: ["/tool_choice"],
+    remove: []
+  },
+  render: (changes, resolvedState) => {
+    return renderTools(changes, resolvedState);
+  }
+};
+const add_tools = {
+  type: "add_tools",
+  signature: {
+    add: [kToolPattern],
     replace: [],
     remove: []
   },
-  render: (resolvedState) => {
-    const toolName = (toolChoice) => {
-      if (typeof toolChoice === "object" && toolChoice) {
-        return toolChoice["name"];
-      } else {
-        return toolChoice;
-      }
-    };
-    const toolsInfo = {};
-    if (resolvedState.tool_choice) {
-      toolsInfo["Tool Choice"] = toolName(resolvedState.tool_choice);
+  render: (changes, resolvedState) => {
+    return renderTools(changes, resolvedState);
+  }
+};
+const renderTools = (changes, resolvedState) => {
+  const toolIndexes = [];
+  for (const change of changes) {
+    const match = change.path.match(kToolPattern);
+    if (match) {
+      toolIndexes.push(match[1]);
     }
-    if (resolvedState.tools.length > 0) {
+  }
+  const toolName = (toolChoice) => {
+    if (typeof toolChoice === "object" && toolChoice) {
+      return toolChoice["name"];
+    } else {
+      return toolChoice;
+    }
+  };
+  const toolsInfo = {};
+  const hasToolChoice = changes.find((change) => {
+    return change.path.startsWith("/tool_choice");
+  });
+  if (resolvedState.tool_choice && hasToolChoice) {
+    toolsInfo["Tool Choice"] = toolName(resolvedState.tool_choice);
+  }
+  if (resolvedState.tools.length > 0) {
+    if (toolIndexes.length === 0) {
       toolsInfo["Tools"] = m$1`<${Tools}
         toolDefinitions=${resolvedState.tools}
       />`;
+    } else {
+      const filtered = resolvedState.tools.filter((_2, index) => {
+        return toolIndexes.includes(index.toString());
+      });
+      toolsInfo["Tools"] = m$1`<${Tools} toolDefinitions=${filtered} />`;
     }
-    return m$1`
-      <div
-        style=${{
-      display: "grid",
-      gridTemplateColumns: "max-content max-content",
-      columnGap: "1rem",
-      margin: "0"
-    }}
-      >
-        ${Object.keys(toolsInfo).map((key2) => {
-      return m$1` <div
-              style=${{
-        fontSize: FontSize.smaller,
-        ...TextStyle.label,
-        ...TextStyle.secondary
-      }}
-            >
-              ${key2}
-            </div>
-            <div style=${{ fontSize: FontSize.base }}>${toolsInfo[key2]}</div>`;
-    })}
-      </div>
-    `;
   }
+  return m$1`
+    <div
+      style=${{
+    display: "grid",
+    gridTemplateColumns: "max-content max-content",
+    columnGap: "1rem",
+    margin: "0"
+  }}
+    >
+      ${Object.keys(toolsInfo).map((key2) => {
+    return m$1` <div
+            style=${{
+      fontSize: FontSize.smaller,
+      ...TextStyle.label,
+      ...TextStyle.secondary
+    }}
+          >
+            ${key2}
+          </div>
+          <div style=${{ fontSize: FontSize.base }}>${toolsInfo[key2]}</div>`;
+  })}
+    </div>
+  `;
 };
-const RenderableChangeTypes = [system_msg_added_sig, tools_choice];
+const RenderableChangeTypes = [
+  system_msg_added_sig,
+  use_tools,
+  add_tools
+];
 const Tools = ({ toolDefinitions }) => {
   return toolDefinitions.map((toolDefinition) => {
     const toolName = toolDefinition.name;
@@ -17094,7 +17130,7 @@ const StateEventView = ({ id, event, style, stateManager }) => {
   );
   if (changePreview) {
     tabs.unshift(
-      m$1`<div name="Summary" style=${{ margin: "1em 0em" }}>
+      m$1`<div name="Summary" style=${{ margin: "1em 0em", width: "100%" }}>
         ${changePreview}
       </div>`
     );
@@ -17120,7 +17156,8 @@ const generatePreview = (changes, resolvedState) => {
       }
     }
     if (matchingOps === requiredMatchCount) {
-      results.push(changeType.render(resolvedState));
+      results.push(changeType.render(changes, resolvedState));
+      break;
     }
   }
   return results.length > 0 ? results : void 0;
