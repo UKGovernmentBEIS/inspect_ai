@@ -66,7 +66,12 @@ from ..context import init_task_context
 from ..task import Task
 from .error import SampleErrorHandler
 from .generate import task_generate
-from .images import samples_with_base64_images, states_with_base64_images
+from .images import (
+    sample_without_base64_images,
+    samples_with_base64_images,
+    state_without_base64_images,
+    states_with_base64_images,
+)
 from .log import TaskLogger, collect_eval_data, log_plan
 from .results import eval_results
 from .rundir import set_task_run_dir
@@ -466,8 +471,20 @@ async def task_run_sample(
             if log_images:
                 state = (await states_with_base64_images([state]))[0]
 
+            # otherwise ensure there are no base64 images in sample or messages
+            else:
+                sample = sample_without_base64_images(sample)
+                state = state_without_base64_images(state)
+
             # log the sample
-            logger.log_sample(state.epoch, sample, state, results, error, True)
+            logger.log_sample(
+                epoch=state.epoch,
+                sample=sample,
+                state=state,
+                scores=results,
+                error=error,
+                log_images=log_images,
+            )
 
         # return
         if error is None:
