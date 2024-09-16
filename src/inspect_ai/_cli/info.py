@@ -66,10 +66,16 @@ def log_schema() -> None:
 @info_command.command("log-types")
 def log_types() -> None:
     """Print TS declarations for log files."""
-    print(view_resource("log.d.ts"))
+    print(view_type_resource("log.d.ts"))
 
 
 def view_resource(file: str) -> str:
     resource = PKG_PATH / "_view" / "www" / file
+    with open(resource, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+def view_type_resource(file: str) -> str:
+    resource = PKG_PATH / "_view" / "www" / "src" / "types" / file
     with open(resource, "r", encoding="utf-8") as f:
         return f.read()
