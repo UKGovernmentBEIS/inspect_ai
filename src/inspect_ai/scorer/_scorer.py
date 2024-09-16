@@ -13,7 +13,6 @@ from inspect_ai._util.registry import (
     registry_add,
     registry_create,
     registry_info,
-    registry_log_name,
     registry_name,
     registry_tag,
     registry_unqualified_name,
