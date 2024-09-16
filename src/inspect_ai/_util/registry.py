@@ -150,7 +150,7 @@ def registry_lookup(type: RegistryType, name: str) -> object | None:
         ensure_entry_points()
         return _lookup()
     else:
-        return 0
+        return o
 
 
 def registry_find(predicate: Callable[[RegistryInfo], bool]) -> list[object]:
