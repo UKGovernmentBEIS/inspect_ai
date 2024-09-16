@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.29 (16 September 2024)
 
 - Added `--plan` and `-P` arguments to `eval` and `eval-set` commands for replacing the task default plan with another one.
 - Improved support for eval retries when calling `eval()` or `eval_set()` with a `plan` argument.
