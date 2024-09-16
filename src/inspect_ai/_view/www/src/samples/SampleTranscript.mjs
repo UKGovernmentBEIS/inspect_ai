@@ -14,7 +14,8 @@ const kContentProtocol = "tc://";
  * @returns {import("preact").JSX.Element} The SampleTranscript component.
  */
 export const SampleTranscript = ({ id, evalEvents }) => {
-  const stateManager = initStateManager();
+  const stateManager = initStateManager("global_state");
+  const storeManager = initStateManager("global_storage");
 
   // Resolve content Uris (content may be stored separately to avoid
   // repetition - it will be address with a uri)
@@ -24,6 +25,7 @@ export const SampleTranscript = ({ id, evalEvents }) => {
     id=${id}
     events=${denormalizedEvents}
     stateManager=${stateManager}
+    storeManager=${storeManager}
   />`;
 };
 
