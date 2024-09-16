@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Added `--plan` and `-P` arguments to `eval` and `eval-set` commands for replacing the task default plan with another one.
+- Added `fork()` function to fork a `TaskState` and evaluate it against multiple solvers in parallel.
 - Improved support for eval retries when calling `eval()` or `eval_set()` with a `plan` argument.
 - Don't log base64 images by default (re-enable logging with `--log-images`).
 - Provide unique tool id when parsing tool calls for models that don't support native tool usage.
