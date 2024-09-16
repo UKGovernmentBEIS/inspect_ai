@@ -1,7 +1,6 @@
 services:
   spray:
     image: marshw/spray
-    hostname: spray_env
     networks:
       - spray_network
     expose:

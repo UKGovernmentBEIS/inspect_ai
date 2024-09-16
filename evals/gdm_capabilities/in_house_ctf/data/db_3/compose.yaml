@@ -1,7 +1,6 @@
 services:
   db_3:
     image: marshw/db_3
-    hostname: db_3_env
     networks:
       - db_3_network
     expose:

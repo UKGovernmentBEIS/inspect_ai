@@ -1,7 +1,6 @@
 services:
   webmin:
     image: marshw/webmin
-    hostname: webmin_env
     networks:
       - webmin_network
     expose:

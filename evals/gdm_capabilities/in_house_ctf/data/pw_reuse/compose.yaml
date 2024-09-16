@@ -1,7 +1,6 @@
 services:
   pw_reuse:
     image: marshw/pw_reuse_ssh
-    hostname: pw_reuse_env
     networks:
       - pw_reuse_network
     expose:

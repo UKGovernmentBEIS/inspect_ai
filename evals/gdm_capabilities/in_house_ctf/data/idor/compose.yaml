@@ -1,7 +1,6 @@
 services:
   idor:
     image: marshw/idor
-    hostname: idor_env
     networks:
       - idor_network
     expose:

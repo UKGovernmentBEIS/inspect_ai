@@ -1,7 +1,6 @@
 services:
   ssh:
     image: marshw/ssh:latest
-    hostname: ssh_env
     networks:
       - ssh_network
     expose:

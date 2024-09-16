@@ -1,7 +1,6 @@
 services:
   sqli:
     image: marshw/sqli
-    hostname: sqli_env
     networks:
       - sqli_network
     expose:

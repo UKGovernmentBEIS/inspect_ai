@@ -1,7 +1,6 @@
 services:
   cmd_injection:
     image: marshw/cmd_injection
-    hostname: cmd_injection_env
     networks:
       - cmd_injection_network
     expose:
