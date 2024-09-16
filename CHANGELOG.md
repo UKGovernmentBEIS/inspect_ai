@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Ensure that Scores produced after being reduced still retain `answer`, `explanation`, and `metadata`.
+- Fix error when running `inspect info log-types`
+
 ## v0.3.29 (16 September 2024)
 
 - Added `--plan` and `-P` arguments to `eval` and `eval-set` commands for replacing the task default plan with another one.
