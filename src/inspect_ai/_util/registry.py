@@ -46,7 +46,7 @@ def registry_add(o: object, info: RegistryInfo) -> None:
     setattr(o, REGISTRY_INFO, info)
 
     # add to registry
-    registry()[registry_key(info.type, info.name)] = o
+    _registry[registry_key(info.type, info.name)] = o
 
 
 def registry_tag(
@@ -133,15 +133,24 @@ def registry_lookup(type: RegistryType, name: str) -> object | None:
     Returns:
         Object or None if not found.
     """
-    # first try
-    object = registry().get(registry_key(type, name))
-    if object:
-        return object
-    # unnamespaced objects can also be found in inspect_ai
-    elif name.find("/") == -1:
-        return registry().get(registry_key(type, f"{PKG_NAME}/{name}"))
+
+    def _lookup() -> object | None:
+        # first try
+        object = _registry.get(registry_key(type, name))
+        if object:
+            return object
+        # unnamespaced objects can also be found in inspect_ai
+        elif name.find("/") == -1:
+            return _registry.get(registry_key(type, f"{PKG_NAME}/{name}"))
+        else:
+            return None
+
+    o = _lookup()
+    if o is None:
+        ensure_entry_points()
+        return _lookup()
     else:
-        return None
+        return o
 
 
 def registry_find(predicate: Callable[[RegistryInfo], bool]) -> list[object]:
@@ -153,9 +162,18 @@ def registry_find(predicate: Callable[[RegistryInfo], bool]) -> list[object]:
     Returns:
         List of registry objects found
     """
-    return [
-        object for object in registry().values() if predicate(registry_info(object))
-    ]
+
+    def _find() -> list[object]:
+        return [
+            object for object in _registry.values() if predicate(registry_info(object))
+        ]
+
+    o = _find()
+    if len(o) == 0:
+        ensure_entry_points()
+        return _find()
+    else:
+        return o
 
 
 def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:
@@ -323,11 +341,6 @@ def registry_key(type: RegistryType, name: str) -> str:
 REGISTRY_INFO = "__registry_info__"
 REGISTRY_PARAMS = "__registry_params__"
 _registry: dict[str, object] = {}
-
-
-def registry() -> dict[str, object]:
-    ensure_entry_points()
-    return _registry
 
 
 def get_package_name(o: object) -> str | None:
