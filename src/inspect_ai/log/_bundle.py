@@ -31,24 +31,23 @@ def bundle_log_dir(
     Args:
         log_dir: (str | None): The log_dir to bundle
         output_dir: (str | None): The directory to place bundled output. If no directory
-            is specified, the env variable `INSPECT_BUNDLE_DIR` will be used. If that is
-            not specified, a directory named `bundle` will be used as the output directory.
-        overwrite: (bool ): Optional. Whether to overwrite files in the output directory.
+            is specified, the env variable `INSPECT_VIEW_BUNDLE_OUTPUT_DIR` will be used.
+        overwrite: (bool): Optional. Whether to overwrite files in the output directory.
             Defaults to False.
         fs_options (dict[str, Any]): Optional. Additional arguments to pass through
-            to the filesystem provider (e.g. `S3FileSystem`). Use `{"anon": True }`
-            if you are accessing a public S3 bucket with no credentials.
+            to the filesystem provider (e.g. `S3FileSystem`).
     """
     # resolve the log directory
     log_dir = log_dir if log_dir else os.getenv("INSPECT_LOG_DIR", "./logs")
 
     # resolve the output directory
-    output_dir = output_dir if output_dir else os.getenv("INSPECT_BUNDLE_DIR", "")
-
-    # ensure output_dir doesn't exist
+    output_dir = (
+        output_dir if output_dir else os.getenv("INSPECT_VIEW_BUNDLE_OUTPUT_DIR", "")
+    )
     if output_dir == "":
         raise PrerequisiteError("You must provide an 'output_dir'")
 
+    # ensure output_dir doesn't exist
     if filesystem(output_dir, fs_options).exists(output_dir) and not overwrite:
         raise PrerequisiteError(
             f"The output directory '{output_dir}' already exists. Choose another output directory or use 'overwrite' to overwrite the directory and contents"

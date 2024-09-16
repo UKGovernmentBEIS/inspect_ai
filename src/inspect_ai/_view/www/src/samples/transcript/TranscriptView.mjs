@@ -22,10 +22,17 @@ import { initStateManager } from "./TranscriptState.mjs";
  * @param {string} params.id - The identifier for this view
  * @param {import("../../types/log").Events} params.events - The transcript events to display.
  * @param {import("./Types.mjs").StateManager} params.stateManager - A function that updates the state with a new state object.
+ * @param {import("./Types.mjs").StateManager} params.storeManager - A function that updates the state with a new state object.
  * @param {number} params.depth - The base depth for this transcript view
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
-export const TranscriptView = ({ id, events, stateManager, depth = 0 }) => {
+export const TranscriptView = ({
+  id,
+  events,
+  stateManager,
+  storeManager,
+  depth = 0,
+}) => {
   // Normalize Events themselves
   const resolvedEvents = fixupEventStream(events);
   const eventNodes = treeifyEvents(resolvedEvents, depth);
@@ -34,6 +41,7 @@ export const TranscriptView = ({ id, events, stateManager, depth = 0 }) => {
       id=${id}
       eventNodes=${eventNodes}
       stateManager=${stateManager}
+      storeManager=${storeManager}
     />
   `;
 };
@@ -46,6 +54,7 @@ export const TranscriptView = ({ id, events, stateManager, depth = 0 }) => {
  * @param {EventNode[]} params.eventNodes - The transcript events nodes to display.
  * @param {Object} params.style - The transcript style to display.
  * @param {import("./Types.mjs").StateManager} params.stateManager - A function that updates the state with a new state object.
+ * @param {import("./Types.mjs").StateManager} params.storeManager - A function that updates the state with a new state object.
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
 export const TranscriptComponent = ({
@@ -53,6 +62,7 @@ export const TranscriptComponent = ({
   eventNodes,
   style,
   stateManager,
+  storeManager,
 }) => {
   const rows = eventNodes.map((eventNode, index) => {
     const toggleStyle = {};
@@ -72,6 +82,7 @@ export const TranscriptComponent = ({
         id=${`${id}-event${index}`}
         node=${eventNode}
         stateManager=${stateManager}
+        storeManager=${storeManager}
         style=${{
           ...toggleStyle,
           ...style,
@@ -103,9 +114,16 @@ export const TranscriptComponent = ({
  * @param { EventNode } props.node - This event.
  * @param { Object } props.style - The style for this node.
  * @param {import("./Types.mjs").StateManager} props.stateManager State manager to track state as diffs are applied
+ * @param {import("./Types.mjs").StateManager} props.storeManager State manager to track state as diffs are applied
  * @returns {import("preact").JSX.Element} The rendered event.
  */
-export const RenderedEventNode = ({ id, node, style, stateManager }) => {
+export const RenderedEventNode = ({
+  id,
+  node,
+  style,
+  stateManager,
+  storeManager,
+}) => {
   switch (node.event.event) {
     case "sample_init":
       return html`<${SampleInitEventView}
@@ -157,6 +175,7 @@ export const RenderedEventNode = ({ id, node, style, stateManager }) => {
         event=${node.event}
         children=${node.children}
         stateManager=${stateManager}
+        storeManager=${storeManager}
         style=${style}
       />`;
 
@@ -164,7 +183,7 @@ export const RenderedEventNode = ({ id, node, style, stateManager }) => {
       return html`<${StateEventView}
         id=${id}
         event=${node.event}
-        stateManager=${initStateManager()}
+        stateManager=${storeManager}
         style=${style}
       />`;
 
@@ -173,6 +192,7 @@ export const RenderedEventNode = ({ id, node, style, stateManager }) => {
         id=${id}
         event=${node.event}
         stateManager=${stateManager}
+        storeManager=${initStateManager(`${node.event.name}`)}
         style=${style}
         depth=${node.depth}
       />`;
@@ -182,6 +202,7 @@ export const RenderedEventNode = ({ id, node, style, stateManager }) => {
         id=${id}
         event=${node.event}
         stateManager=${stateManager}
+        storeManager=${storeManager}
         style=${style}
         depth=${node.depth}
       />`;

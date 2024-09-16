@@ -12862,8 +12862,10 @@ const MarkdownDiv = (props) => {
   const { markdown, style } = props;
   const escaped = markdown ? escape$1(markdown) : "";
   const preRendered = preRenderText(escaped);
-  const renderedHtml = converter.makeHtml(preRendered);
-  const withCode = unescapeCodeHtmlEntities(renderedHtml);
+  const protectedText = protectMarkdown(preRendered);
+  const renderedHtml = converter.makeHtml(protectedText);
+  const unescaped = unprotectMarkdown(renderedHtml);
+  const withCode = unescapeCodeHtmlEntities(unescaped);
   const markup = { __html: withCode };
   return m$1`<div
     dangerouslySetInnerHTML=${markup}
@@ -12872,13 +12874,23 @@ const MarkdownDiv = (props) => {
   />`;
 };
 const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
-const kCommonmarkReferenceLinkPattern = /\[(.*)\]:( +.+)/g;
+const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
 const preRenderText = (txt) => {
-  const rendered = txt.replaceAll(
+  return txt.replaceAll(
     kLetterListPattern,
     "<p style='margin-bottom: 0.2em;'>$1</p>"
   );
-  return rendered.replaceAll(kCommonmarkReferenceLinkPattern, "[$1]:$2");
+};
+const protectMarkdown = (txt) => {
+  return txt.replaceAll(
+    kCommonmarkReferenceLinkPattern,
+    "(open:767A125E)$1(close:767A125E) $2 "
+  );
+};
+const unprotectMarkdown = (txt) => {
+  txt = txt.replaceAll("(open:767A125E)", "[");
+  txt = txt.replaceAll("(close:767A125E)", "]");
+  return txt;
 };
 const escape$1 = (content) => {
   return content.replace(/[<>&'"]/g, function(c2) {
@@ -13459,7 +13471,7 @@ const ToolOutput = ({ output, style }) => {
     ...style
   }}
   ><code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
-      ${output}
+      ${output.trim()}
       </code></pre>`;
 };
 const extractInputMetadata = (toolName) => {
@@ -15561,7 +15573,7 @@ const SampleInitEventView = ({ id, event, style, stateManager }) => {
         </${EventSection}>
       </div>
     </div>
-    ${event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? m$1`<${MetaDataGrid} name="Metadata" style=${{ margin: "1em 0" }} entries=${event.sample.metadata} />` : ""}
+    ${event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? m$1`<${MetaDataGrid} name="Metadata" style=${{ margin: "0.5em 0" }} entries=${event.sample.metadata} />` : ""}
 
   </${EventPanel}>`;
 };
@@ -15572,7 +15584,7 @@ const system_msg_added_sig = {
     replace: ["/messages/0/role", "/messages/0/content"],
     add: ["/messages/1"]
   },
-  render: (resolvedState) => {
+  render: (_changes, resolvedState) => {
     const message = resolvedState["messages"][0];
     return m$1`<${ChatView}
       id="system_msg_event_preview"
@@ -15580,56 +15592,92 @@ const system_msg_added_sig = {
     />`;
   }
 };
-const tools_choice = {
-  type: "tools_choice",
+const kToolPattern = "/tools/(\\d+)";
+const use_tools = {
+  type: "use_tools",
   signature: {
-    add: ["/tools/\\d+"],
+    add: ["/tools/0"],
+    replace: ["/tool_choice"],
+    remove: []
+  },
+  render: (changes, resolvedState) => {
+    return renderTools(changes, resolvedState);
+  }
+};
+const add_tools = {
+  type: "add_tools",
+  signature: {
+    add: [kToolPattern],
     replace: [],
     remove: []
   },
-  render: (resolvedState) => {
-    const toolName = (toolChoice) => {
-      if (typeof toolChoice === "object" && toolChoice) {
-        return toolChoice["name"];
-      } else {
-        return toolChoice;
-      }
-    };
-    const toolsInfo = {};
-    if (resolvedState.tool_choice) {
-      toolsInfo["Tool Choice"] = toolName(resolvedState.tool_choice);
+  render: (changes, resolvedState) => {
+    return renderTools(changes, resolvedState);
+  }
+};
+const renderTools = (changes, resolvedState) => {
+  const toolIndexes = [];
+  for (const change of changes) {
+    const match = change.path.match(kToolPattern);
+    if (match) {
+      toolIndexes.push(match[1]);
     }
-    if (resolvedState.tools.length > 0) {
+  }
+  const toolName = (toolChoice) => {
+    if (typeof toolChoice === "object" && toolChoice) {
+      return toolChoice["name"];
+    } else {
+      return toolChoice;
+    }
+  };
+  const toolsInfo = {};
+  const hasToolChoice = changes.find((change) => {
+    return change.path.startsWith("/tool_choice");
+  });
+  if (resolvedState.tool_choice && hasToolChoice) {
+    toolsInfo["Tool Choice"] = toolName(resolvedState.tool_choice);
+  }
+  if (resolvedState.tools.length > 0) {
+    if (toolIndexes.length === 0) {
       toolsInfo["Tools"] = m$1`<${Tools}
         toolDefinitions=${resolvedState.tools}
       />`;
+    } else {
+      const filtered = resolvedState.tools.filter((_2, index) => {
+        return toolIndexes.includes(index.toString());
+      });
+      toolsInfo["Tools"] = m$1`<${Tools} toolDefinitions=${filtered} />`;
     }
-    return m$1`
-      <div
-        style=${{
-      display: "grid",
-      gridTemplateColumns: "max-content max-content",
-      columnGap: "1rem",
-      margin: "0"
-    }}
-      >
-        ${Object.keys(toolsInfo).map((key2) => {
-      return m$1` <div
-              style=${{
-        fontSize: FontSize.smaller,
-        ...TextStyle.label,
-        ...TextStyle.secondary
-      }}
-            >
-              ${key2}
-            </div>
-            <div style=${{ fontSize: FontSize.base }}>${toolsInfo[key2]}</div>`;
-    })}
-      </div>
-    `;
   }
+  return m$1`
+    <div
+      style=${{
+    display: "grid",
+    gridTemplateColumns: "max-content max-content",
+    columnGap: "1rem",
+    margin: "0"
+  }}
+    >
+      ${Object.keys(toolsInfo).map((key2) => {
+    return m$1` <div
+            style=${{
+      fontSize: FontSize.smaller,
+      ...TextStyle.label,
+      ...TextStyle.secondary
+    }}
+          >
+            ${key2}
+          </div>
+          <div style=${{ fontSize: FontSize.base }}>${toolsInfo[key2]}</div>`;
+  })}
+    </div>
+  `;
 };
-const RenderableChangeTypes = [system_msg_added_sig, tools_choice];
+const RenderableChangeTypes = [
+  system_msg_added_sig,
+  use_tools,
+  add_tools
+];
 const Tools = ({ toolDefinitions }) => {
   return toolDefinitions.map((toolDefinition) => {
     const toolName = toolDefinition.name;
@@ -17094,7 +17142,7 @@ const StateEventView = ({ id, event, style, stateManager }) => {
   );
   if (changePreview) {
     tabs.unshift(
-      m$1`<div name="Summary" style=${{ margin: "1em 0em" }}>
+      m$1`<div name="Summary" style=${{ margin: "1em 0em", width: "100%" }}>
         ${changePreview}
       </div>`
     );
@@ -17111,26 +17159,17 @@ const generatePreview = (changes, resolvedState) => {
     const requiredMatchCount = changeType.signature.remove.length + changeType.signature.replace.length + changeType.signature.add.length;
     let matchingOps = 0;
     for (const change of changes) {
-      const actions = ["remove", "add", "replace"];
-      let matchCount = 0;
-      actions.forEach((action) => {
-        if (changeType.signature[action].length === 0) {
-          matchCount++;
-        } else {
-          const matches = changeType.signature[action].find((sig) => {
-            return change.path.match(sig);
-          });
-          if (matches) {
-            matchCount++;
+      if (changeType.signature[change.op].length > 0) {
+        changeType.signature[change.op].forEach((signature) => {
+          if (change.path.match(signature)) {
+            matchingOps++;
           }
-        }
-      });
-      if (matchCount === actions.length) {
-        matchingOps++;
+        });
       }
-      if (matchingOps === requiredMatchCount) {
-        results.push(changeType.render(resolvedState));
-      }
+    }
+    if (matchingOps === requiredMatchCount) {
+      results.push(changeType.render(changes, resolvedState));
+      break;
     }
   }
   return results.length > 0 ? results : void 0;
@@ -17168,7 +17207,13 @@ const summarizeChanges = (changes) => {
   }
   return changeList.join(", ");
 };
-const StepEventView = ({ event, children, style, stateManager }) => {
+const StepEventView = ({
+  event,
+  children,
+  style,
+  stateManager,
+  storeManager
+}) => {
   const descriptor = stepDescriptor(event);
   const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
   const text = summarize(children);
@@ -17186,6 +17231,7 @@ const StepEventView = ({ event, children, style, stateManager }) => {
       id=${`step-${event.name}-transcript`}
       eventNodes=${children}
       stateManager=${stateManager}
+      storeManager=${storeManager}
     />
   </EventPanel>
   `;
@@ -17279,7 +17325,14 @@ const stepDescriptor = (event) => {
     }
   }
 };
-const SubtaskEventView = ({ id, event, style, stateManager, depth }) => {
+const SubtaskEventView = ({
+  id,
+  event,
+  style,
+  stateManager,
+  storeManager,
+  depth
+}) => {
   return m$1`
     <${EventPanel} id=${id} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask} style=${style}>
       <${SubtaskSummary} name="Summary"  input=${event.input} result=${event.result}/>
@@ -17288,6 +17341,7 @@ const SubtaskEventView = ({ id, event, style, stateManager, depth }) => {
               name="Transcript"
               events=${event.events}
               stateManager=${stateManager}
+              storeManager=${storeManager}
               depth=${depth + 1}
             />` : ""}
     </${EventPanel}>`;
@@ -17299,7 +17353,7 @@ const SubtaskSummary = ({ input, result }) => {
     display: "grid",
     gridTemplateColumns: "minmax(0, 1fr) max-content minmax(0, 1fr)",
     columnGap: "1em",
-    margin: "1em 0"
+    margin: "0.5em 0"
   }}
   >
     <div style=${{ ...TextStyle.label }}>Input</div>
@@ -17529,7 +17583,7 @@ const ModelEventView = ({ id, event, style }) => {
   return m$1`
   <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model} style=${style}>
   
-    <div name="Completion" style=${{ margin: "1em 0" }}>
+    <div name="Completion" style=${{ margin: "0.5em 0" }}>
     <${ChatView}
       id="${id}-model-output"
       messages=${[...outputMessages || []]}
@@ -17537,7 +17591,7 @@ const ModelEventView = ({ id, event, style }) => {
       />
     </div>
 
-    <div name="All" style=${{ margin: "1em 0" }}>
+    <div name="All" style=${{ margin: "0.5em 0" }}>
 
       <div style=${{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: "1em" }}>
       <${EventSection} title="Configuration" style=${tableSectionStyle}>
@@ -17563,7 +17617,7 @@ const ModelEventView = ({ id, event, style }) => {
 
     </div>
 
-    ${event.call ? m$1`<${APIView} name="API" call=${event.call} style=${{ margin: "1em 0", width: "100%" }} />` : ""}
+    ${event.call ? m$1`<${APIView} name="API" call=${event.call} style=${{ margin: "0.5em 0", width: "100%" }} />` : ""}
    
   </${EventPanel}>`;
 };
@@ -17713,7 +17767,7 @@ const JSONPanel = ({ data, style }) => {
 const InfoEventView = ({ id, event, style }) => {
   return m$1`
   <${EventPanel} id=${id} title="Info" icon=${ApplicationIcons.info} style=${style}>
-    <${JSONPanel} data=${event.data} style=${{ margin: "1em 0" }}/>
+    <${JSONPanel} data=${event.data} style=${{ margin: "0.5em 0" }}/>
   </${EventPanel}>`;
 };
 const ScoreEventView = ({ id, event, style }) => {
@@ -17722,7 +17776,7 @@ const ScoreEventView = ({ id, event, style }) => {
   
     <div
       name="Explanation"
-      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "1em 0" }}
+      style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "0.5em 0" }}
     >
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Answer</div>
@@ -17739,38 +17793,41 @@ const ScoreEventView = ({ id, event, style }) => {
             <${MetaDataGrid}
               entries=${event.score.metadata}
               compact=${true}
-              style=${{ margin: "1em 0" }}
+              style=${{ margin: "0.5em 0" }}
             />
           </div>` : void 0}
 
 
   </${EventPanel}>`;
 };
-const ToolEventView = ({ id, event, style, stateManager, depth }) => {
+const ToolEventView = ({
+  id,
+  event,
+  style,
+  stateManager,
+  storeManager,
+  depth
+}) => {
+  var _a;
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
     event.arguments
   );
   const title = `Tool: ${event.function}`;
+  const output = event.result || ((_a = event.error) == null ? void 0 : _a.message);
   return m$1`
   <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
-    <div name="Summary" style=${{ width: "100%", margin: "1em 0" }}>
-    ${event.result ? m$1`
+    <div name="Summary" style=${{ width: "100%", margin: "0.5em 0" }}>
+        ${!output ? "(No output)" : m$1`
           <${ExpandablePanel} collapse=${true} border=${true} lines=10>
-          <${ToolOutput}
-            output=${event.result}
-            style=${{ margin: "1em 0" }}
-          />
-          </${ExpandablePanel}>
-          ` : event.error ? m$1`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>
-              ${event.error.type}: ${event.error.message}
-            </div>` : m$1`<div style=${{ margin: "1em 0", fontSize: FontSize.small }}>
-              No output
-            </div>`}
+            <${ToolOutput}
+              output=${output}
+            />
+          </${ExpandablePanel}>`}
     </div>
     
   
-  <div name="Transcript" style=${{ margin: "1em 0" }}>
+  <div name="Transcript" style=${{ margin: "0.5em 0" }}>
     <${ToolCallView}
       functionCall=${functionCall}
       input=${input}
@@ -17783,6 +17840,7 @@ const ToolEventView = ({ id, event, style, stateManager, depth }) => {
                 name="Transcript"
                 events=${event.events}
                 stateManager=${stateManager}
+                storeManager=${storeManager}
                 depth=${depth + 1}
               />` : ""}
 
@@ -17792,7 +17850,7 @@ const ToolEventView = ({ id, event, style, stateManager, depth }) => {
 const ErrorEventView = ({ id, event, style }) => {
   return m$1`
   <${EventPanel} id=${id} title="Error" icon=${ApplicationIcons.error} style=${style}>
-    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "1em 0" }}/>
+    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "0.5em 0" }}/>
   </${EventPanel}>`;
 };
 const InputEventView = ({ id, event, style }) => {
@@ -18447,9 +18505,10 @@ Object.assign({}, core, duplex, {
   escapePathComponent,
   unescapePathComponent
 });
-const initStateManager = () => {
+const initStateManager = (scope) => {
   let state = {};
   return {
+    scope,
     /**
      * Retrieves the current state object.
      *
@@ -18486,7 +18545,13 @@ const ensureValidChange = (change) => {
   }
   return change;
 };
-const TranscriptView = ({ id, events, stateManager, depth = 0 }) => {
+const TranscriptView = ({
+  id,
+  events,
+  stateManager,
+  storeManager,
+  depth = 0
+}) => {
   const resolvedEvents = fixupEventStream(events);
   const eventNodes = treeifyEvents(resolvedEvents, depth);
   return m$1`
@@ -18494,6 +18559,7 @@ const TranscriptView = ({ id, events, stateManager, depth = 0 }) => {
       id=${id}
       eventNodes=${eventNodes}
       stateManager=${stateManager}
+      storeManager=${storeManager}
     />
   `;
 };
@@ -18501,7 +18567,8 @@ const TranscriptComponent = ({
   id,
   eventNodes,
   style,
-  stateManager
+  stateManager,
+  storeManager
 }) => {
   const rows = eventNodes.map((eventNode, index) => {
     const toggleStyle = {};
@@ -18520,6 +18587,7 @@ const TranscriptComponent = ({
         id=${`${id}-event${index}`}
         node=${eventNode}
         stateManager=${stateManager}
+        storeManager=${storeManager}
         style=${{
       ...toggleStyle,
       ...style
@@ -18541,7 +18609,13 @@ const TranscriptComponent = ({
     ${rows}
   </div>`;
 };
-const RenderedEventNode = ({ id, node, style, stateManager }) => {
+const RenderedEventNode = ({
+  id,
+  node,
+  style,
+  stateManager,
+  storeManager
+}) => {
   switch (node.event.event) {
     case "sample_init":
       return m$1`<${SampleInitEventView}
@@ -18587,13 +18661,14 @@ const RenderedEventNode = ({ id, node, style, stateManager }) => {
         event=${node.event}
         children=${node.children}
         stateManager=${stateManager}
+        storeManager=${storeManager}
         style=${style}
       />`;
     case "store":
       return m$1`<${StateEventView}
         id=${id}
         event=${node.event}
-        stateManager=${initStateManager()}
+        stateManager=${storeManager}
         style=${style}
       />`;
     case "subtask":
@@ -18601,6 +18676,7 @@ const RenderedEventNode = ({ id, node, style, stateManager }) => {
         id=${id}
         event=${node.event}
         stateManager=${stateManager}
+        storeManager=${initStateManager(`${node.event.name}`)}
         style=${style}
         depth=${node.depth}
       />`;
@@ -18609,6 +18685,7 @@ const RenderedEventNode = ({ id, node, style, stateManager }) => {
         id=${id}
         event=${node.event}
         stateManager=${stateManager}
+        storeManager=${storeManager}
         style=${style}
         depth=${node.depth}
       />`;
@@ -18681,12 +18758,14 @@ function treeifyEvents(events, depth) {
 }
 const kContentProtocol = "tc://";
 const SampleTranscript = ({ id, evalEvents }) => {
-  const stateManager = initStateManager();
+  const stateManager = initStateManager("global_state");
+  const storeManager = initStateManager("global_storage");
   const denormalizedEvents = resolveEventContent(evalEvents);
   return m$1`<${TranscriptView}
     id=${id}
     events=${denormalizedEvents}
     stateManager=${stateManager}
+    storeManager=${storeManager}
   />`;
 };
 const resolveEventContent = (evalEvents) => {
@@ -18831,8 +18910,12 @@ const SampleDisplay = ({
   const errorTabId = `${baseId}-error`;
   y(() => {
     if (!visible) {
-      const defaultTab = sample.transcript && sample.transcript.events.length ? transcriptTabId : msgTabId;
-      setSelectedTab(defaultTab);
+      setSelectedTab(void 0);
+    } else {
+      if (selectedTab === void 0) {
+        const defaultTab = sample.transcript && sample.transcript.events.length > 0 ? transcriptTabId : msgTabId;
+        setSelectedTab(defaultTab);
+      }
     }
   }, [visible]);
   const [selectedTab, setSelectedTab] = h(void 0);
@@ -22094,10 +22177,20 @@ function simpleHttpAPI(logInfo) {
       cache.set(response.parsed);
       return response;
     },
-    eval_log_headers: async () => {
+    eval_log_headers: async (files) => {
       const headers = await fetchLogHeaders(log_dir);
       if (headers) {
-        return Object.values(headers.parsed);
+        const keys = Object.keys(headers.parsed);
+        const result = [];
+        files.forEach((file) => {
+          const fileKey = keys.find((key2) => {
+            return file.endsWith(key2);
+          });
+          if (fileKey) {
+            result.push(headers.parsed[fileKey]);
+          }
+        });
+        return result;
       } else if (log_file) {
         let evalLog = cache.get();
         if (!evalLog) {

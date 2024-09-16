@@ -3,6 +3,7 @@ import { html } from "htm/preact";
 
 showdown.setOption("simpleLineBreaks", true);
 showdown.setOption("literalMidWordUnderscores", true);
+
 const converter = new showdown.Converter();
 
 export const MarkdownDiv = (props) => {
@@ -13,10 +14,13 @@ export const MarkdownDiv = (props) => {
 
   // Pre-render any text that isn't handled by markdown
   const preRendered = preRenderText(escaped);
-  const renderedHtml = converter.makeHtml(preRendered);
+
+  const protectedText = protectMarkdown(preRendered);
+  const renderedHtml = converter.makeHtml(protectedText);
+  const unescaped = unprotectMarkdown(renderedHtml);
 
   // For `code` tags, reverse the escaping if we can
-  const withCode = unescapeCodeHtmlEntities(renderedHtml);
+  const withCode = unescapeCodeHtmlEntities(unescaped);
 
   // Return the rendered markdown
   const markup = { __html: withCode };
@@ -29,23 +33,34 @@ export const MarkdownDiv = (props) => {
 };
 
 const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
-const kCommonmarkReferenceLinkPattern = /\[(.*)\]:( +.+)/g;
+const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
 
 const preRenderText = (txt) => {
   // Special handling for ordered lists that look like
   // multiple choice (e.g. a), b), c), d) etc..)
-  const rendered = txt.replaceAll(
+  return txt.replaceAll(
     kLetterListPattern,
     "<p style='margin-bottom: 0.2em;'>$1</p>",
   );
+};
 
+const protectMarkdown = (txt) => {
   // Special handling for commonmark like reference links which might
   // look like:
   // [alias]: http://www.google.com
   // but text like:
   // [expert]: answer
   // Also fools this
-  return rendered.replaceAll(kCommonmarkReferenceLinkPattern, "[$1]:$2");
+  return txt.replaceAll(
+    kCommonmarkReferenceLinkPattern,
+    "(open:767A125E)$1(close:767A125E) $2 ",
+  );
+};
+
+const unprotectMarkdown = (txt) => {
+  txt = txt.replaceAll("(open:767A125E)", "[");
+  txt = txt.replaceAll("(close:767A125E)", "]");
+  return txt;
 };
 
 const escape = (content) => {

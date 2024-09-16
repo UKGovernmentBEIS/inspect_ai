@@ -58,6 +58,7 @@ def start(
 )
 @click.option(
     "--output-dir",
+    required=True,
     help="The directory where bundled output will be placed.",
 )
 @click.option(

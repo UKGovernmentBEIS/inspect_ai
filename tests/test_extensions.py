@@ -1,11 +1,6 @@
-# type: ignore
-
-import subprocess
-import sys
-
 import pytest
 from test_helpers.tools import list_files
-from test_helpers.utils import skip_if_no_openai
+from test_helpers.utils import ensure_test_package_installed, skip_if_no_openai
 
 from inspect_ai import Task, eval_async
 from inspect_ai.dataset import Sample
@@ -17,7 +12,7 @@ from inspect_ai.solver import generate, use_tools
 @pytest.mark.asyncio
 async def test_extension_model():
     # ensure the package is installed
-    ensure_package_installed()
+    ensure_test_package_installed()
 
     # call the model
     mdl = get_model("custom/gpt7")
@@ -29,7 +24,7 @@ async def test_extension_model():
 @pytest.mark.asyncio
 async def test_extension_sandboxenv():
     # ensure the package is installed
-    ensure_package_installed()
+    ensure_test_package_installed()
 
     # run a task using the sandboxenv
     try:
@@ -46,12 +41,3 @@ async def test_extension_sandboxenv():
         await eval_async(task, model="openai/gpt-4")
     except Exception as ex:
         pytest.fail(f"Exception raised: {ex}")
-
-
-def ensure_package_installed():
-    try:
-        import inspect_package  # noqa: F401
-    except ImportError:
-        subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", "--no-deps", "tests/test_package"]
-        )

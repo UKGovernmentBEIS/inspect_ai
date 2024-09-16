@@ -39,7 +39,7 @@ export const StateEventView = ({ id, event, style, stateManager }) => {
   );
   if (changePreview) {
     tabs.unshift(
-      html`<div name="Summary" style=${{ margin: "1em 0em" }}>
+      html`<div name="Summary" style=${{ margin: "1em 0em", width: "100%" }}>
         ${changePreview}
       </div>`,
     );
@@ -69,30 +69,21 @@ const generatePreview = (changes, resolvedState) => {
       changeType.signature.replace.length +
       changeType.signature.add.length;
     let matchingOps = 0;
-
     for (const change of changes) {
-      const actions = ["remove", "add", "replace"];
-      let matchCount = 0;
-      actions.forEach((action) => {
-        if (changeType.signature[action].length === 0) {
-          matchCount++;
-        } else {
-          const matches = changeType.signature[action].find((sig) => {
-            return change.path.match(sig);
-          });
-          if (matches) {
-            matchCount++;
+      if (changeType.signature[change.op].length > 0) {
+        changeType.signature[change.op].forEach((signature) => {
+          if (change.path.match(signature)) {
+            matchingOps++;
           }
-        }
-      });
-
-      //  All actions matched
-      if (matchCount === actions.length) {
-        matchingOps++;
+        });
       }
-      if (matchingOps === requiredMatchCount) {
-        results.push(changeType.render(resolvedState));
-      }
+    }
+    if (matchingOps === requiredMatchCount) {
+      results.push(changeType.render(changes, resolvedState));
+      // Only one renderer can process a change
+      // TODO: consider changing this to allow many handlers to render (though then we sort of need
+      // to match the renderer to the key (e.g. a rendered for `tool_choice` a renderer for `tools` etc..))
+      break;
     }
   }
   return results.length > 0 ? results : undefined;

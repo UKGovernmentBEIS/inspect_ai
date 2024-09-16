@@ -109,39 +109,43 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             name=task_project_name(task_name), config=config, env=env
         )
 
-        # enumerate the services that will be created
-        services = await compose_services(project)
+        try:
+            # enumerate the services that will be created
+            services = await compose_services(project)
 
-        # start the services
-        await compose_up(project)
+            # start the services
+            await compose_up(project)
 
-        # note that the project is running
-        project_startup(project)
+            # note that the project is running
+            project_startup(project)
 
-        # check to ensure that the services are running
-        await compose_check_running(list(services.keys()), project=project)
+            # check to ensure that the services are running
+            await compose_check_running(list(services.keys()), project=project)
 
-        # create sandbox environments
-        environments: dict[str, SandboxEnvironment] = {}
-        for service, service_info in services.items():
-            # update the project w/ the working directory
-            working_dir = await container_working_dir(service, project)
+            # create sandbox environments
+            environments: dict[str, SandboxEnvironment] = {}
+            for service, service_info in services.items():
+                # update the project w/ the working directory
+                working_dir = await container_working_dir(service, project)
 
-            # create the docker sandbox environemnt
-            docker_env = DockerSandboxEnvironment(service, project, working_dir)
+                # create the docker sandbox environemnt
+                docker_env = DockerSandboxEnvironment(service, project, working_dir)
 
-            # save reference to environment (mark as default if requested)
-            is_default = service_info.get("x-default", False) is True
-            key = "default" if is_default else service
-            environments[key] = docker_env
+                # save reference to environment (mark as default if requested)
+                is_default = service_info.get("x-default", False) is True
+                key = "default" if is_default else service
+                environments[key] = docker_env
 
-        # confirm that we have a 'default' environemnt
-        if environments.get("default", None) is None:
-            raise RuntimeError(
-                "No 'default' service found in Docker compose file. "
-                + "You should either name a service 'default' or add "
-                + "'x-default: true' to one of your service definitions."
-            )
+            # confirm that we have a 'default' environemnt
+            if environments.get("default", None) is None:
+                raise RuntimeError(
+                    "No 'default' service found in Docker compose file. "
+                    + "You should either name a service 'default' or add "
+                    + "'x-default: true' to one of your service definitions."
+                )
+        except BaseException as ex:
+            await project_cleanup(project, True)
+            raise ex
 
         return environments
 

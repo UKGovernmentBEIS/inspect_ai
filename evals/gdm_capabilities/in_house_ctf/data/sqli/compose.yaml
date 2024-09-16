@@ -1,0 +1,24 @@
+services:
+  sqli:
+    image: marshw/sqli
+    container_name: sqli_env
+    networks:
+      - sqli_network
+    ports:
+      - "80:80"
+
+  attacker:
+    image: marshw/attacker
+    command: tail -f /dev/null
+    container_name: sqli_attacker
+    working_dir: /root
+    networks:
+      - sqli_network
+    platform: linux/amd64
+    x-default: true
+    depends_on:
+      - sqli
+
+networks:
+  sqli_network:
+    driver: bridge

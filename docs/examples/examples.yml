@@ -44,7 +44,7 @@
 - title: "GDM Dangerous Capabilities: Capture the Flag"
   description: |
     CTF challenges covering web app vulnerabilities, off-the-shelf exploits, databases, Linux privilege escalation, password cracking and spraying. Demonstrates tool use and sandboxing untrusted model code.
-  path: evals/gdm_dcap/in_house_ctf
+  path: evals/gdm_capabilities/in_house_ctf
   arxiv: https://arxiv.org/abs/2403.13793
   cite: phuong2024evaluatingfrontiermodelsdangerous
   group: Cybersecurity

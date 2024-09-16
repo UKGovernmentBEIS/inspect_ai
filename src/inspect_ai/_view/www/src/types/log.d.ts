@@ -7,12 +7,14 @@
 
 export type Version = number;
 export type Status = "started" | "success" | "cancelled" | "error";
-export type Task = string;
-export type TaskVersion = number;
-export type TaskFile = string | null;
-export type TaskId = string;
 export type RunId = string;
 export type Created = string;
+export type Task = string;
+export type TaskId = string;
+export type TaskVersion = number;
+export type TaskFile = string | null;
+export type Plan = string | null;
+export type PlanArgs = {} | null;
 export type Name = string | null;
 export type Location = string | null;
 export type Samples = number | null;
@@ -339,32 +341,34 @@ export interface EvalLog {
   samples?: Samples2;
 }
 export interface EvalSpec {
-  task: Task;
-  task_version: TaskVersion;
-  task_file: TaskFile;
-  task_id: TaskId;
   run_id: RunId;
   created: Created;
+  task: Task;
+  task_id: TaskId;
+  task_version: TaskVersion;
+  task_file: TaskFile;
+  task_attribs: TaskAttribs;
+  task_args: TaskArgs;
+  plan: Plan;
+  plan_args: PlanArgs;
   dataset: EvalDataset;
   sandbox: Sandbox;
   model: Model;
   model_base_url: ModelBaseUrl;
-  task_attribs: TaskAttribs;
-  task_args: TaskArgs;
   model_args: ModelArgs;
   config: EvalConfig;
   revision: EvalRevision | null;
   packages: Packages;
   metadata: Metadata;
 }
+export interface TaskAttribs {}
+export interface TaskArgs {}
 export interface EvalDataset {
   name: Name;
   location: Location;
   samples: Samples;
   shuffled: Shuffled;
 }
-export interface TaskAttribs {}
-export interface TaskArgs {}
 export interface ModelArgs {}
 export interface EvalConfig {
   limit: Limit;

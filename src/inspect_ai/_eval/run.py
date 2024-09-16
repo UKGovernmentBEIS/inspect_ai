@@ -14,11 +14,11 @@ from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._log import Recorder
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
-from inspect_ai.solver import Plan, Solver
+from inspect_ai.solver._plan import Plan, PlanSpec
 from inspect_ai.util._sandbox.environment import TaskCleanup, TaskInit
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
-from .loader import ResolvedTask
+from .loader import ResolvedTask, as_plan_spec, create_plan
 from .task.log import TaskLogger
 from .task.run import TaskRunOptions, create_sample_semaphore, task_run
 from .task.rundir import task_run_dir_switching
@@ -36,7 +36,7 @@ async def eval_run(
     recorder: Recorder,
     model_args: dict[str, Any],
     epochs_reducer: list[ScoreReducer] | None = None,
-    plan: Plan | Solver | list[Solver] | None = None,
+    plan: Plan | PlanSpec | None = None,
     debug_errors: bool = False,
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -64,6 +64,17 @@ async def eval_run(
         shutdown_sandbox_environments = await startup_sandbox_environments(
             tasks, cleanup
         )
+
+    # resolve plan and plan spec
+    if isinstance(plan, Plan):
+        eval_plan = plan
+        eval_plan_spec = as_plan_spec(plan)
+    elif isinstance(plan, PlanSpec):
+        eval_plan = create_plan(plan)
+        eval_plan_spec = plan
+    else:
+        eval_plan = None
+        eval_plan_spec = None
 
     try:
         # create run tasks
@@ -100,6 +111,7 @@ async def eval_run(
                     task_file=resolved_task.task_file,
                     task_id=resolved_task.id if resolved_task.id else uuid(),
                     run_id=run_id,
+                    plan=eval_plan_spec,
                     model=resolved_task.model,
                     dataset=task.dataset,
                     sandbox=resolved_task.sandbox,
@@ -119,7 +131,7 @@ async def eval_run(
                         logger=logger,
                         eval_wd=eval_wd,
                         config=task_eval_config,
-                        plan=plan,
+                        plan=eval_plan,
                         score=score,
                         debug_errors=debug_errors,
                         sample_source=resolved_task.sample_source,

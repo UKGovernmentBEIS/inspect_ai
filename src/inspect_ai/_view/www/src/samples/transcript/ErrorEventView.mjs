@@ -16,6 +16,6 @@ import { ANSIDisplay } from "../../components/AnsiDisplay.mjs";
 export const ErrorEventView = ({ id, event, style }) => {
   return html`
   <${EventPanel} id=${id} title="Error" icon=${ApplicationIcons.error} style=${style}>
-    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "1em 0" }}/>
+    <${ANSIDisplay} output=${event.error.traceback_ansi} style=${{ fontSize: "clamp(0.5rem, calc(0.25em + 1vw), 0.8rem)", margin: "0.5em 0" }}/>
   </${EventPanel}>`;
 };

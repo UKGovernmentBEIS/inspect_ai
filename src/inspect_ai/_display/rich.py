@@ -25,6 +25,7 @@ from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.logger import http_rate_limit_count
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai._util.platform import is_running_in_jupyterlab, is_running_in_vscode
+from inspect_ai._util.registry import is_registry_dict
 from inspect_ai._util.throttle import throttle
 from inspect_ai.log import EvalStats
 from inspect_ai.log._log import rich_traceback
@@ -504,8 +505,8 @@ def task_config(profile: TaskProfile, generate_config: bool = True) -> str:
     task_args = dict(profile.task_args)
     for key in task_args.keys():
         value = task_args[key]
-        if isinstance(value, dict) and "plan" in value and "params" in value:
-            task_args[key] = value["plan"]
+        if is_registry_dict(value):
+            task_args[key] = value["name"]
     config = task_args | dict(profile.eval_config.model_dump(exclude_none=True))
     if generate_config:
         config = config | dict(profile.generate_config.model_dump(exclude_none=True))

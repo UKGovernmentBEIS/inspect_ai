@@ -17,7 +17,6 @@ from typing_extensions import Unpack
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem
-from inspect_ai._util.registry import is_registry_object
 from inspect_ai.log import EvalLog
 from inspect_ai.log._bundle import bundle_log_dir
 from inspect_ai.log._file import (
@@ -32,7 +31,7 @@ from inspect_ai.model import (
     Model,
 )
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.solver import Plan, Solver
+from inspect_ai.solver import Plan, PlanSpec
 from inspect_ai.util import SandboxEnvironmentSpec
 
 from .eval import eval, eval_init
@@ -56,7 +55,8 @@ def eval_set(
     task_args: dict[str, Any] = dict(),
     sandbox: SandboxEnvironmentSpec | None = None,
     sandbox_cleanup: bool | None = None,
-    plan: Plan | Solver | list[Solver] | None = None,
+    plan: Plan | PlanSpec | None = None,
+    score: bool = True,
     log_level: str | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
@@ -70,7 +70,7 @@ def eval_set(
     log_images: bool | None = None,
     log_buffer: int | None = None,
     bundle_dir: str | None = None,
-    score: bool = True,
+    bundle_overwrite: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[bool, list[EvalLog]]:
     r"""Evaluate a set of tasks.
@@ -100,8 +100,9 @@ def eval_set(
            environment type (or optionally a tuple with type and config file)
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
           (defaults to True)
-        plan (Plan | Solver | list[Solver] | None): Alternative plan
-           for evaluating task(s). Optional (uses task plan by default).
+        plan (Plan | PlanSpec | None): Alternative plan for evaluating task(s).
+          Optional (uses task plan by default).
+        score (bool): Score output (defaults to True)
         log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
            or "critical" (defaults to "info")
         limit (int | tuple[int, int] | None): Limit evaluated samples
@@ -129,7 +130,8 @@ def eval_set(
             (defaults to 10 for local filesystems and 100 for remote filesystems)
         bundle_dir: (str | None): If specified, the log viewer and logs generated
             by this eval set will be bundled into this directory.
-        score (bool): Score output (defaults to True)
+        bundle_overwrite (bool): Whether to overwrite files in the bundle_dir.
+            (defaults to False).
         **kwargs (GenerateConfigArgs): Model generation options.
 
     Returns:
@@ -174,7 +176,9 @@ def eval_set(
 
         # if specified, bundle the output directory
         if bundle_dir:
-            bundle_log_dir(log_dir=log_dir, output_dir=bundle_dir)
+            bundle_log_dir(
+                log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
+            )
 
         # return results
         return results
@@ -326,14 +330,14 @@ def eval_set(
 
                     previous_tasks: list[PreviousTask] = []
                     for task, log in zip(tasks, map(task_to_failed_log, tasks)):
-                        # if its a registry task then do str and task_args
-                        # so it is fully recreated for the retry
-                        if is_registry_object(task.task):
-                            prev_task: str | Task = task.task.name
-                        # if its a vanilla task then deepcopy so the same
-                        # instance is not run twice
-                        else:
-                            prev_task = deepcopy(task.task)
+                        # NOTE: we used to try to recreate registry objects by
+                        # by just passing the task name, but that didn't work
+                        # when evals were run from another directory. we may
+                        # want to bring this back but we'd need to resolve the
+                        # directory issues.
+
+                        # deepcopy so the same instance is not run twice
+                        prev_task = deepcopy(task.task)
 
                         previous_tasks.append(
                             PreviousTask(

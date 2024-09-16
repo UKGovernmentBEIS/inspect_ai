@@ -16,6 +16,6 @@ import { JSONPanel } from "../../components/JsonPanel.mjs";
 export const InfoEventView = ({ id, event, style }) => {
   return html`
   <${EventPanel} id=${id} title="Info" icon=${ApplicationIcons.info} style=${style}>
-    <${JSONPanel} data=${event.data} style=${{ margin: "1em 0" }}/>
+    <${JSONPanel} data=${event.data} style=${{ margin: "0.5em 0" }}/>
   </${EventPanel}>`;
 };

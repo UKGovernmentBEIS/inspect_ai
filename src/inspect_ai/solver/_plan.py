@@ -1,4 +1,5 @@
 import inspect
+from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, TypeVar, cast
 
 from inspect_ai._util.registry import (
@@ -78,6 +79,17 @@ class Plan:
 
 
 PlanType = TypeVar("PlanType", bound=Callable[..., Plan])
+
+
+@dataclass(frozen=True)
+class PlanSpec:
+    """Plan specification used to (re-)create plans."""
+
+    plan: str
+    """Plan name (simple name or file@name)."""
+
+    args: dict[str, Any] = field(default_factory=dict)
+    """Plan arguments."""
 
 
 def plan(*plan: PlanType | None, name: str | None = None, **attribs: Any) -> Any:

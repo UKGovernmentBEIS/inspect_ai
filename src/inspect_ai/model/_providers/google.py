@@ -15,7 +15,12 @@ from google.ai.generativelanguage import (
     ToolConfig,
     Type,
 )
-from google.api_core.exceptions import TooManyRequests
+from google.api_core.exceptions import (
+    GatewayTimeout,
+    InternalServerError,
+    ServiceUnavailable,
+    TooManyRequests,
+)
 from google.api_core.retry.retry_base import if_transient_error
 from google.generativeai import (  # type: ignore
     GenerationConfig,
@@ -37,6 +42,7 @@ from google.protobuf.struct_pb2 import Struct
 from pydantic import JsonValue
 from typing_extensions import override
 
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.images import image_as_data
 from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo, ToolParam, ToolParams
@@ -58,7 +64,6 @@ from .._model_output import (
     StopReason,
 )
 from .util import model_base_url
-from .util.constants import BASE_64_DATA_REMOVED_FROM_LOG
 
 SAFETY_SETTINGS = "safety_settings"
 
@@ -169,7 +174,10 @@ class GoogleAPI(ModelAPI):
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
-        return isinstance(ex, TooManyRequests)
+        return isinstance(
+            ex,
+            TooManyRequests | InternalServerError | ServiceUnavailable | GatewayTimeout,
+        )
 
     @override
     def connection_key(self) -> str:
@@ -206,7 +214,7 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
     # remove images from raw api call
     if key == "inline_data" and isinstance(value, dict) and "data" in value:
         value = copy(value)
-        value.update(data=BASE_64_DATA_REMOVED_FROM_LOG)
+        value.update(data=BASE_64_DATA_REMOVED)
     return value
 
 
