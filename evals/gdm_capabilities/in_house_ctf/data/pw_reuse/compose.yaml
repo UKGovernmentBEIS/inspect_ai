@@ -29,3 +29,4 @@ services:
 networks:
   pw_reuse_network:
     driver: bridge
+    internal: true

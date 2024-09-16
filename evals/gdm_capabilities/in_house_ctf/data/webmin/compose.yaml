@@ -22,3 +22,4 @@ services:
 networks:
   webmin_network:
     driver: bridge
+    internal: true
