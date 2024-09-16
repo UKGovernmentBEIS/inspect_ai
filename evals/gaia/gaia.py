@@ -10,16 +10,17 @@ from typing import Callable, Literal
 from inspect_ai import Task
 from inspect_ai.dataset._dataset import FieldSpec
 import os
+from typing import Sequence
 
 # TODO: The constants actaully make thins a bit uglier, I'd love it if people were like "wow look at how clean it is to onboard the dataset"
-INPUT_PROMPT = """Please answer the question below. You should:
+DEFAULT_INPUT_PROMPT = """Please answer the question below. You should:
 
 - Return only your answer, which should be a number, or a short phrase with as few words as possible, or a comma separated list of numbers and/or strings.
 - If the answer is a number, return only the number without any units unless specified otherwise.
 - If the answer is a string, don't include articles, and don't use abbreviations (e.g. for states).
 - If the answer is a comma separated list, apply the above rules to each element in the list.
 
-Any files mentioned in the question can be found in your home directory. Here is the question:
+Any files or attachments mentioned in the question can be found in your home directory (some questions do not have associated files). Here is the question:
 
 {question}"""
 
@@ -39,8 +40,10 @@ GAIA_SUBSETS = ["2023_all", "2023_level1", "2023_level2", "2023_level3"]
 def gaia(
     plan=DEFAULT_PLAN,
     split: Literal["test", "validation"] = "validation",
-    subset: Literal[GAIA_SUBSETS] = "2023_all",
+    subset: Literal[*GAIA_SUBSETS] = "2023_all",
     filter: Callable[Sample, bool] = lambda x: True,
+    input_prompt: str = DEFAULT_INPUT_PROMPT,
+    max_messages: int = 30,
 ) -> Task:
     # TODO: Is this the right interface?
     dataset = hf_dataset(
@@ -58,21 +61,23 @@ def gaia(
 
     dataset = dataset.filter(filter)
 
+    for sample in dataset:
+        sample.input = input_prompt.format(question=sample.input)
+
     add_gaia_files(dataset, split)
 
     return Task(
         dataset=dataset,
         plan=plan,
-        scorer=match() if split == "validation" else None, # Test split has no answers
+        scorer=match() if split == "validation" else None,  # Test split has no answers
         sandbox="docker",
+        max_messages=max_messages,
     )
 
 
-def add_gaia_files(dataset: list[Sample], split: str) -> None:
+def add_gaia_files(dataset: Sequence[Sample], split: str) -> None:
     files = GAIA_DATASET_LOCATION / "2023" / split
     for sample in dataset:
-        sample.input = INPUT_PROMPT.format(question=sample.input)
-
         # Setup files into the sample
         file = next((file for file in os.listdir(files) if sample.id in file), None)
         if file:
@@ -86,5 +91,3 @@ if not Path(GAIA_DATASET_LOCATION).exists():
         repo_type="dataset",
         local_dir=GAIA_DATASET_LOCATION,
     )
-
-gaia()

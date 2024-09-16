@@ -17,10 +17,12 @@ from gaia import gaia
 
 # Create a task to attempt to solve GAIA with a basic agent.
 agent =  basic_agent(tools =[bash(), web_search()])
-task = gaia(split="train", plan=agent)
+task = gaia(split="validation", plan=agent)
 
 # For the demonstration, we will select only the first 5 tasks.
 task.dataset = task.dataset[:5]
 
 eval(task, model="openai/gpt-4o")
 ```
+
+Note that the GAIA test split does not come with any solutions - they must be uploaded to the online leaderboard.

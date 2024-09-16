@@ -14,7 +14,7 @@ The ```swe_bench.py``` file contains the ```swe_bench``` function, which creates
 
 ```python
 from inspect_ai import eval
-from inspect_ai.solver import use_tools, generate, system_message, basic_agent
+from inspect_ai.solver import system_message, basic_agent
 from inspect_ai.tool import bash, python
 from swe_bench import swe_bench
 
@@ -26,9 +26,7 @@ agents = [
     )
     for tool in [bash(), python()]
 ]
-from inspect_ai import eval
-from inspect_ai.solver import use_tools, generate, system_message, basic_agent
-from inspect_ai.tool import bash, python
+
 # Create a swe-bench instance for each of those agents.
 swebench_task = [swe_bench(dataset="princeton-nlp/SWE-bench_Verified", split="test", plan=agent) for agent in agents]
 
@@ -36,7 +34,7 @@ swebench_task = [swe_bench(dataset="princeton-nlp/SWE-bench_Verified", split="te
 swebench_task.dataset = swebench_task.dataset[:5]
 
 # Compare how these two agents perform. 
-eval(swebench_task, model="openai/gpt-4o")
+eval(swebench_task, model="openai/gpt-4o", max_tasks=2, max_subprocesses=8, max_connections=4)
 ```
 
 NOTE: SWE-bench will take a while to run, and uses a lot of tokens. If things are too slow, you should increase the level of parallelism - see https://inspect.ai-safety-institute.org.uk/parallelism.html. Note that running too many docker containers on your machine can also cause issues, most notably with a 'ALL PREDEFINED ADDRESS POOLS HAVE BEEN FULLY SUBNETTED' error - we don't recommend running more than 32 containers at any one time.
