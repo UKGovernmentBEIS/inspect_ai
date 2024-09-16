@@ -6,7 +6,7 @@ This implementation uses [tool calling](https://inspect.ai-safety-institute.org.
 
 Each task runs using the task-specific `compose.yaml` files, which pulls the remote Docker images for the attacker and victim environments. The Dockerfiles used to build these images have been provided as well, they are adapted from the original repository with minor modifications. 
 
-Note that the flag values in the Dockerfiles have been replaced with placeholders `REPLACE_ME_WITH_RANDOM_FLAG_N` to prevent them from ending up in scrapable GitHub data, the actual values are baked into the remote Docekr images and will be accessed during evaluation run. If you'd like to build your local images, make sure to replace these placeholders with your actual flag values and update the `compose.yaml` files accordingly.
+Note that the flag values in the Dockerfiles have been replaced with placeholders `REPLACE_ME_WITH_RANDOM_FLAG_N` to prevent them from ending up in scrapable GitHub data, the actual values are baked into the remote Docker images and will be accessed during evaluation run. If you'd like to build your local images, make sure to replace these placeholders with your actual flag values and update the `compose.yaml` files accordingly.
 
 ## Evaluation
 
