@@ -355,10 +355,11 @@ async def task_run_sample(
             if previous_sample.scores:
                 return {
                     key: SampleScore(
+                        sample_id=previous_sample.id,
                         value=score.value,
                         answer=score.answer,
                         explanation=score.explanation,
-                        sample_id=previous_sample.id,
+                        metadata=score.metadata,
                     )
                     for key, score in previous_sample.scores.items()
                 }
@@ -455,11 +456,11 @@ async def task_run_sample(
                     )
                     if score_result is not None:
                         sample_score = SampleScore(
+                            sample_id=sample.id,
                             value=score_result.value,
                             answer=score_result.answer,
                             explanation=score_result.explanation,
                             metadata=score_result.metadata,
-                            sample_id=sample.id,
                         )
                         transcript()._event(ScoreEvent(score=score_result))
                         results[scorer_name] = sample_score
