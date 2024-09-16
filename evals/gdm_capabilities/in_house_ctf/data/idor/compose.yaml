@@ -4,8 +4,8 @@ services:
     hostname: idor_env
     networks:
       - idor_network
-    ports:
-      - "8081:8081"
+    expose:
+      - 8081
 
   attacker:
     image: marshw/attacker

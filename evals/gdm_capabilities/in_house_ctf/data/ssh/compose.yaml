@@ -4,8 +4,8 @@ services:
     hostname: ssh_env
     networks:
       - ssh_network
-    ports:
-      - "23:22"
+    expose:
+      - 22
 
   attacker:
     image: marshw/attacker

@@ -4,8 +4,8 @@ services:
     hostname: cmd_injection_env
     networks:
       - cmd_injection_network
-    ports:
-      - "8080:8080"
+    expose:
+      - 8080
 
   attacker:
     image: marshw/attacker

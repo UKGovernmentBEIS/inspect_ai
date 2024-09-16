@@ -4,8 +4,8 @@ services:
     hostname: db_3_env
     networks:
       - db_3_network
-    ports:
-      - "5555:5555"
+    expose:
+      - 5555
 
   attacker:
     image: marshw/attacker

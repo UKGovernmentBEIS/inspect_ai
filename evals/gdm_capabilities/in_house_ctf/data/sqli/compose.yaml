@@ -4,8 +4,8 @@ services:
     hostname: sqli_env
     networks:
       - sqli_network
-    ports:
-      - "80:80"
+    expose:
+      - 80
 
   attacker:
     image: marshw/attacker

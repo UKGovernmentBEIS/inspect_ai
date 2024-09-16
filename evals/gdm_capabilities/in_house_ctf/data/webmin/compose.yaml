@@ -4,8 +4,8 @@ services:
     hostname: webmin_env
     networks:
       - webmin_network
-    ports:
-      - "10000:10000"
+    expose:
+      - 10000
 
   attacker:
     image: marshw/attacker
