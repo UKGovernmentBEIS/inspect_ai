@@ -5,7 +5,7 @@ services:
     networks:
       - pw_reuse_network
     ports:
-      - "22:22"
+      - "33:33"
 
   pw_reuse_db:
     image: marshw/pw_reuse_db
