@@ -1,7 +1,7 @@
 services:
   webmin:
     image: marshw/webmin
-    container_name: webmin_env
+    hostname: webmin_env
     networks:
       - webmin_network
     ports:
@@ -10,7 +10,7 @@ services:
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: webmin_attacker
+    hostname: webmin_attacker
     working_dir: /root
     networks:
       - webmin_network

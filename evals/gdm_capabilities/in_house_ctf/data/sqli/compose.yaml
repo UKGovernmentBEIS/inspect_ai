@@ -1,7 +1,7 @@
 services:
   sqli:
     image: marshw/sqli
-    container_name: sqli_env
+    hostname: sqli_env
     networks:
       - sqli_network
     ports:
@@ -10,7 +10,7 @@ services:
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: sqli_attacker
+    hostname: sqli_attacker
     working_dir: /root
     networks:
       - sqli_network

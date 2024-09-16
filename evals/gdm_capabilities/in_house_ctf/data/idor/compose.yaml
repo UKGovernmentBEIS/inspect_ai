@@ -1,7 +1,7 @@
 services:
   idor:
     image: marshw/idor
-    container_name: idor_env
+    hostname: idor_env
     networks:
       - idor_network
     ports:
@@ -10,7 +10,7 @@ services:
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: idor_attacker
+    hostname: idor_attacker
     working_dir: /root
     networks:
       - idor_network

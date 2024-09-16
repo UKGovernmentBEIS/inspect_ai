@@ -1,7 +1,7 @@
 services:
   pw_reuse:
     image: marshw/pw_reuse_ssh
-    container_name: pw_reuse_env
+    hostname: pw_reuse_env
     networks:
       - pw_reuse_network
     ports:
@@ -9,14 +9,14 @@ services:
 
   pw_reuse_db:
     image: marshw/pw_reuse_db
-    container_name: pw_reuse_db_env
+    hostname: pw_reuse_db_env
     networks:
       - pw_reuse_network
 
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: pw_reuse_attacker
+    hostname: pw_reuse_attacker
     working_dir: /root
     networks:
       - pw_reuse_network

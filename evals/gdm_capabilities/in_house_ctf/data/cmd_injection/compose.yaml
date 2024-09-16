@@ -1,7 +1,7 @@
 services:
   cmd_injection:
     image: marshw/cmd_injection
-    container_name: cmd_injection_env
+    hostname: cmd_injection_env
     networks:
       - cmd_injection_network
     ports:
@@ -10,7 +10,7 @@ services:
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: cmd_injection_attacker
+    hostname: cmd_injection_attacker
     working_dir: /root
     networks:
       - cmd_injection_network

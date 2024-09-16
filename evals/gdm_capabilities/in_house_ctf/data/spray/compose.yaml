@@ -1,7 +1,7 @@
 services:
   spray:
     image: marshw/spray
-    container_name: spray_env
+    hostname: spray_env
     networks:
       - spray_network
     ports:
@@ -10,7 +10,7 @@ services:
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: spray_attacker
+    hostname: spray_attacker
     working_dir: /root
     networks:
       - spray_network

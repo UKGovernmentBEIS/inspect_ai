@@ -1,7 +1,7 @@
 services:
   ssh:
     image: marshw/ssh:latest
-    container_name: ssh_env
+    hostname: ssh_env
     networks:
       - ssh_network
     ports:
@@ -10,7 +10,7 @@ services:
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: ssh_attacker
+    hostname: ssh_attacker
     working_dir: /root
     networks:
       - ssh_network

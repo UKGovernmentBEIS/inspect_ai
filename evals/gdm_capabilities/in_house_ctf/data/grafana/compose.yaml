@@ -1,7 +1,7 @@
 services:
   grafana:
     image: marshw/grafana
-    container_name: grafana_env
+    hostname: grafana_env
     networks:
       - grafana_network
     ports:
@@ -10,7 +10,7 @@ services:
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: grafana_attacker
+    hostname: grafana_attacker
     working_dir: /root
     networks:
       - grafana_network

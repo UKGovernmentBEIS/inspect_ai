@@ -1,7 +1,7 @@
 services:
   db_3:
     image: marshw/db_3
-    container_name: db_3_env
+    hostname: db_3_env
     networks:
       - db_3_network
     ports:
@@ -10,7 +10,7 @@ services:
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: db_3_attacker
+    hostname: db_3_attacker
     working_dir: /root
     networks:
       - db_3_network
