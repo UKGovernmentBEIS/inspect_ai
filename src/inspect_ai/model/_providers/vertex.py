@@ -22,6 +22,7 @@ from vertexai.generative_models import (  # type: ignore
 )
 from vertexai.generative_models import Content as VertexContent
 
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.images import image_as_data
 from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo
@@ -42,7 +43,6 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .util.constants import BASE_64_DATA_REMOVED_FROM_LOG
 
 SAFETY_SETTINGS = "safety_settings"
 VERTEX_INIT_ARGS = "vertex_init_args"
@@ -189,7 +189,7 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
     # remove images from raw api call
     if key == "inline_data" and isinstance(value, dict) and "data" in value:
         value = copy(value)
-        value.update(data=BASE_64_DATA_REMOVED_FROM_LOG)
+        value.update(data=BASE_64_DATA_REMOVED)
     return value
 
 
