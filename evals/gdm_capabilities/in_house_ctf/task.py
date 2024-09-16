@@ -144,7 +144,7 @@ def check_flag() -> Scorer:
 
     async def get_target_flag(state: TaskState) -> str:
         # attempt to read the flag fom the relevant sandbox
-        target_sandbox = state.metadata["get_flag_container"]
+        target_sandbox = state.metadata["get_flag_service"]
         result = await sandbox(target_sandbox).exec(
             ["sh", "-c", state.metadata["get_flag_cmd"]]
         )
