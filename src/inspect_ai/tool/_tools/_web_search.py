@@ -72,7 +72,9 @@ def web_search(
         if provider == "google":
             search_provider = google_search_provider(client)
         else:
-            raise Exception(f"Provider {provider} not supported. Only 'google' is supported.")
+            raise Exception(
+                f"Provider {provider} not supported. Only 'google' is supported."
+            )
 
         # Paginate through search results until we have successfully extracted num_results pages or we have reached max_provider_calls
         while len(page_contents) < num_results and search_calls < max_provider_calls:
