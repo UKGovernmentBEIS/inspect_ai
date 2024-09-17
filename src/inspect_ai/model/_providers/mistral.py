@@ -2,7 +2,12 @@ import json
 import os
 from typing import Any
 
-from mistralai import FunctionCall, Mistral
+from mistralai import (
+    ChatCompletionRequestToolChoice,
+    FunctionCall,
+    FunctionName,
+    Mistral,
+)
 from mistralai.models import (
     AssistantMessage as MistralAssistantMessage,
 )
@@ -172,16 +177,18 @@ def mistral_chat_tools(tools: list[ToolInfo]) -> list[MistralTool]:
     ]
 
 
-def mistral_chat_tool_choice(tool_choice: ToolChoice) -> MistralToolChoice:
+def mistral_chat_tool_choice(
+    tool_choice: ToolChoice,
+) -> ChatCompletionRequestToolChoice:
     if isinstance(tool_choice, ToolFunction):
-        # mistral doesn't support specifically named tools to use
-        # (rather just 'any' which says use at least one tool)
-        return "any"
+        return MistralToolChoice(
+            type="function", function=FunctionName(name=tool_choice.name)
+        )
     elif tool_choice == "any":
         return "any"
     elif tool_choice == "auto":
         return "auto"
-    else:
+    elif tool_choice == "none":
         return "none"
 
 
