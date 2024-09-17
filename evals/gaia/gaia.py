@@ -1,17 +1,12 @@
-from huggingface_hub import snapshot_download
-from pathlib import Path
-from evals.drop.drop import sample_to_fewshot
-from inspect_ai import task
-from inspect_ai.scorer import Score, match
-from inspect_ai.solver import basic_agent, system_message, TaskState, Plan
-from inspect_ai.tool import web_search, bash
-from inspect_ai.scorer import scorer, Target
-from inspect_ai.dataset import Sample, hf_dataset
-from typing import Callable, Literal
-from inspect_ai import Task
-from inspect_ai.dataset._dataset import FieldSpec
 import os
-from typing import Sequence, Any
+from pathlib import Path
+from typing import Any, Callable, Literal
+
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample, hf_dataset
+from inspect_ai.scorer import match
+from inspect_ai.solver import Plan, basic_agent, system_message
+from inspect_ai.tool import bash, web_search
 
 GAIA_DATASET_LOCATION = Path(__file__).parent / "resources" / "GAIA"
 GAIA_SUBSETS = ["2023_all", "2023_level1", "2023_level2", "2023_level3"]
