@@ -325,6 +325,14 @@ class Model:
                 )
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
+                    await self._model_transcript(
+                        input=input,
+                        tools=tools,
+                        tool_choice=tool_choice,
+                        config=config,
+                        output=existing,
+                        call=None,
+                    )
                     return existing
 
             result = await self.api.generate(
