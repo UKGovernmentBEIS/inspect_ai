@@ -13,9 +13,9 @@ from inspect_ai._util.registry import (
     registry_add,
     registry_create,
     registry_info,
-    registry_log_name,
     registry_name,
     registry_tag,
+    registry_unqualified_name,
 )
 from inspect_ai.solver._task_state import TaskState
 
@@ -158,11 +158,11 @@ def scorer_metrics(
 
 
 def unique_scorer_name(scorer: Scorer, already_used_names: list[str]) -> str:
-    base_name = registry_log_name(scorer)
+    base_name = registry_unqualified_name(scorer)
     scorer_name = base_name
     count = 1
     while scorer_name in already_used_names:
-        scorer_name = f"{scorer_name}{count}"
+        scorer_name = f"{base_name}{count}"
         count = count + 1
     return scorer_name
 

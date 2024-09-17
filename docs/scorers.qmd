@@ -568,6 +568,12 @@ Inspect includes several built in reducers which are summarised below.
 : {tbl-colwidths="\[40,60\]"}
 
 
+:::{.callout-note}
+
+The built in reducers will compute a reduced `value` for the score and populate the remaining fields (`answer`, `explanation`, and `metadata` using the values from the first score that is being reduced)
+
+:::
+
 
 ## Workflow {#sec-scorer-workflow}
 
