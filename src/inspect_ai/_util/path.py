@@ -38,6 +38,21 @@ class chdir(AbstractContextManager[None]):
         os.chdir(self._old_cwd.pop())
 
 
+class add_to_syspath(AbstractContextManager[None]):
+    """Non thread-safe context manager to add to the python syspath."""
+
+    def __init__(self, path: str):
+        self.path = path
+        self._old_sys_path: list[list[str]] = []
+
+    def __enter__(self) -> None:
+        self._old_sys_path.append(deepcopy(sys.path))
+        sys.path.append(self.path)
+
+    def __exit__(self, *excinfo: Any) -> None:
+        sys.path = self._old_sys_path.pop()
+
+
 class chdir_python(AbstractContextManager[None]):
     """Non thread-safe context manager to change the runtime Python directory.
 

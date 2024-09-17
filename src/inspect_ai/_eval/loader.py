@@ -11,7 +11,7 @@ from typing import Any, Callable, cast
 
 from inspect_ai._eval.task.util import task_file, task_run_dir
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.path import chdir_python
+from inspect_ai._util.path import add_to_syspath, chdir_python
 from inspect_ai._util.registry import (
     RegistryInfo,
     is_registry_object,
@@ -419,7 +419,7 @@ def create_plan(spec: PlanSpec) -> Plan:
     # if we have a file then we need to load it
     if plan_file is not None:
         # ensure the module is loaded so we can see the plans
-        with chdir_python(plan_file.parent.as_posix()):
+        with add_to_syspath(plan_file.parent.as_posix()):
             plan_module = load_module(plan_file)
 
         # if there is no plan_name we need to discover the first plan
