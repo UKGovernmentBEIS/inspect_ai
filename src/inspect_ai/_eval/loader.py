@@ -11,7 +11,7 @@ from typing import Any, Callable, cast
 
 from inspect_ai._eval.task.util import task_file, task_run_dir
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.path import chdir_python
+from inspect_ai._util.path import add_to_syspath, chdir_python
 from inspect_ai._util.registry import (
     RegistryInfo,
     is_registry_object,
@@ -315,7 +315,7 @@ def create_file_tasks(
 # intended as a helper function)
 def _load_task_specs(task_path: Path) -> list[RegistryInfo]:
     # load the module
-    module = load_module(task_path)
+    module = load_module(task_path, code_has_task)
     if module:
         # find the tasks in the module
         tasks = inspect.getmembers(module, lambda m: is_registry_object(m, "task"))
@@ -332,11 +332,13 @@ def split_spec(spec: str) -> tuple[str, str | None]:
         return spec, None
 
 
-def load_module(module_path: Path) -> ModuleType | None:
+def load_module(
+    module_path: Path, filter: Callable[[str], bool] | None = None
+) -> ModuleType | None:
     if module_path.suffix == ".py":
-        # bail if the code doesn't have a task
+        # bail if the code doesn't pass the filter
         with open(module_path, "r", encoding="utf-8") as file:
-            if not code_has_task(file.read()):
+            if filter and not filter(file.read()):
                 return None
 
         module_name = module_path.as_posix()
@@ -354,10 +356,10 @@ def load_module(module_path: Path) -> ModuleType | None:
         except ImportError:
             return None
 
-        # bail if the code doesn't have a task
+        # bail if the code doesn't pass the filter
         def exec_filter(cells: list[str]) -> bool:
             code = "\n\n".join(cells)
-            return code_has_task(code)
+            return not filter or filter(code)
 
         notebook_loader = NotebookLoader(exec_filter)
         return notebook_loader.load_module(module_path.as_posix())
@@ -417,7 +419,8 @@ def create_plan(spec: PlanSpec) -> Plan:
     # if we have a file then we need to load it
     if plan_file is not None:
         # ensure the module is loaded so we can see the plans
-        plan_module = load_module(plan_file)
+        with add_to_syspath(plan_file.parent.as_posix()):
+            plan_module = load_module(plan_file)
 
         # if there is no plan_name we need to discover the first plan
         if plan_name is None:
