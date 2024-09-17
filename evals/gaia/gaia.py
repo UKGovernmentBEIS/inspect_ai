@@ -10,6 +10,7 @@ from inspect_ai.tool import bash, web_search
 
 GAIA_DATASET_LOCATION = Path(__file__).parent / "resources" / "GAIA"
 
+
 @task
 def gaia(
     plan: Plan | None = None,
@@ -49,7 +50,7 @@ def gaia_hf_record_to_sample(
     input_prompt: str | None, split: str
 ) -> Callable[[dict[str, Any]], Sample]:
     input_prompt = input_prompt if input_prompt is not None else DEFAULT_INPUT_PROMPT
-    files = GAIA_DATASET_LOCATION / "2023" / split
+    files_location = GAIA_DATASET_LOCATION / "2023" / split
 
     def gaia_hf_record_to_sample(record: dict[str, Any]) -> Sample:
         sample = Sample(
@@ -65,11 +66,9 @@ def gaia_hf_record_to_sample(
         sample.input = input_prompt.format(question=sample.input)
 
         # Setup files into the sample
-        file = next(
-            (file for file in os.listdir(files) if str(sample.id) in file), None
-        )
-        if file:
-            sample.files = {"/shared_files/" + file: str((files / file))}
+        files = [file for file in os.listdir(files_location) if str(sample.id) in file]
+        if len(files) > 0:
+            sample.files = {"/shared_files/" + files[0]: str((files / files[0]))}
 
         return sample
 
