@@ -10,7 +10,6 @@ from inspect_ai.tool import bash, web_search
 
 GAIA_DATASET_LOCATION = Path(__file__).parent / "resources" / "GAIA"
 
-
 @task
 def gaia(
     plan: Plan | None = None,
