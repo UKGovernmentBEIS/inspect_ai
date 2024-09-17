@@ -389,14 +389,6 @@ Note that calls to `generate()` (for both the critique model and the model being
 
 ### Scoring in Solvers {#sec-scoring-in-solvers}
 
-::: {.callout-note appearance="simple"}
-Note that the `score()` function described below is available only in the development version of Inspect. You can install the development version with:
-
-```bash
-pip install git+https://github.com/ukgovernmentbeis/inspect_ai
-```
-:::
-
 In some cases it is useful for a solver to score a task directly to assist in deciding whether or how to continue. You can do this using the `score()` function:
 
 ```python

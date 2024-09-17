@@ -1,19 +1,15 @@
+import importlib.util
 import os
+import shutil
 import subprocess
 import sys
 import time
+import warnings
 
 import pytest
 from moto.server import ThreadedMotoServer
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "helpers"))
-
-try:
-    subprocess.check_call(
-        [sys.executable, "-m", "pip", "uninstall", "-y", "inspect_package"]
-    )
-except subprocess.CalledProcessError:
-    pass
 
 
 def pytest_addoption(parser):
@@ -70,3 +66,18 @@ def mock_s3():
             os.environ[key] = value
 
     server.stop()
+
+
+def pytest_sessionfinish(session, exitstatus):
+    if importlib.util.find_spec("inspect_package"):
+        try:
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "uninstall", "-y", "inspect_package"]
+            )
+            shutil.rmtree("tests/test_package/build")
+            shutil.rmtree("tests/test_package/inspect_package.egg-info")
+        except subprocess.CalledProcessError as ex:
+            warnings.warn(f"Error occurred uninstalling inspect_package: {ex}")
+
+        except BaseException:
+            pass

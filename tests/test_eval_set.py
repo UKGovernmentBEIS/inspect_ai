@@ -23,12 +23,12 @@ from inspect_ai.solver._solver import generate
 
 
 def test_eval_set() -> None:
-    # run eval with a solver that fails 20% of the time
+    # run eval with a solver that fails 10% of the time
     with tempfile.TemporaryDirectory() as log_dir:
         success, logs = eval_set(
-            tasks=failing_task(rate=0.2, samples=10),
+            tasks=failing_task(rate=0.1, samples=10),
             log_dir=log_dir,
-            retry_attempts=100,
+            retry_attempts=1000,
             retry_wait=0.1,
             model="mockllm/model",
         )

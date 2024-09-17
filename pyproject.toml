@@ -39,6 +39,7 @@ norecursedirs = [
     "tests/test_task_list",
 ]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 log_level = "warning"
 
 [tool.mypy]
@@ -118,7 +119,7 @@ dev = [
     "pytest-cov",
     "pytest-dotenv",
     "pytest-xdist",
-    "ruff==0.6.4", # match version specified in .pre-commit-config.yaml
+    "ruff==0.6.5", # match version specified in .pre-commit-config.yaml
     "types-PyYAML",
     "types-aiofiles",
     "types-beautifulsoup4",

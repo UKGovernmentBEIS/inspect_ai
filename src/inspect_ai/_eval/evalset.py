@@ -31,7 +31,7 @@ from inspect_ai.model import (
     Model,
 )
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.solver import Plan, Solver
+from inspect_ai.solver import Plan, PlanSpec
 from inspect_ai.util import SandboxEnvironmentSpec
 
 from .eval import eval, eval_init
@@ -55,7 +55,7 @@ def eval_set(
     task_args: dict[str, Any] = dict(),
     sandbox: SandboxEnvironmentSpec | None = None,
     sandbox_cleanup: bool | None = None,
-    plan: Plan | Solver | list[Solver] | None = None,
+    plan: Plan | PlanSpec | None = None,
     score: bool = True,
     log_level: str | None = None,
     limit: int | tuple[int, int] | None = None,
@@ -100,8 +100,8 @@ def eval_set(
            environment type (or optionally a tuple with type and config file)
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
           (defaults to True)
-        plan (Plan | Solver | list[Solver] | None): Alternative plan
-           for evaluating task(s). Optional (uses task plan by default).
+        plan (Plan | PlanSpec | None): Alternative plan for evaluating task(s).
+          Optional (uses task plan by default).
         score (bool): Score output (defaults to True)
         log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
            or "critical" (defaults to "info")

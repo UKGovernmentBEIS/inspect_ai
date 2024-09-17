@@ -39,7 +39,7 @@ export const StateEventView = ({ id, event, style, stateManager }) => {
   );
   if (changePreview) {
     tabs.unshift(
-      html`<div name="Summary" style=${{ margin: "1em 0em" }}>
+      html`<div name="Summary" style=${{ margin: "1em 0em", width: "100%" }}>
         ${changePreview}
       </div>`,
     );
@@ -79,7 +79,11 @@ const generatePreview = (changes, resolvedState) => {
       }
     }
     if (matchingOps === requiredMatchCount) {
-      results.push(changeType.render(resolvedState));
+      results.push(changeType.render(changes, resolvedState));
+      // Only one renderer can process a change
+      // TODO: consider changing this to allow many handlers to render (though then we sort of need
+      // to match the renderer to the key (e.g. a rendered for `tool_choice` a renderer for `tools` etc..))
+      break;
     }
   }
   return results.length > 0 ? results : undefined;

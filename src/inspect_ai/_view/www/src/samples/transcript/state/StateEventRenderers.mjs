@@ -14,7 +14,7 @@ import { FontSize, TextStyle } from "../../../appearance/Fonts.mjs";
  * @typedef {Object} ChangeType
  * @property {string} type - Type of the system message.
  * @property {Signature} signature - Signature of the system message.
- * @property {function(Object): import("preact").JSX.Element} render - Function to render the resolved state.
+ * @property {function(import("../../../types/log").JsonChange[], Object): import("preact").JSX.Element} render - Function to render the resolved state.
  */
 
 /** @type {ChangeType} */
@@ -25,7 +25,7 @@ const system_msg_added_sig = {
     replace: ["/messages/0/role", "/messages/0/content"],
     add: ["/messages/1"],
   },
-  render: (resolvedState) => {
+  render: (_changes, resolvedState) => {
     const message = resolvedState["messages"][0];
     return html`<${ChatView}
       id="system_msg_event_preview"
@@ -34,63 +34,107 @@ const system_msg_added_sig = {
   },
 };
 
+const kToolPattern = "/tools/(\\d+)";
+
 /** @type {ChangeType} */
-const tools_choice = {
-  type: "tools_choice",
+const use_tools = {
+  type: "use_tools",
   signature: {
-    add: ["/tools/\\d+"],
-    replace: [],
+    add: ["/tools/0"],
+    replace: ["/tool_choice"],
     remove: [],
   },
-  render: (resolvedState) => {
-    const toolName = (toolChoice) => {
-      if (typeof toolChoice === "object" && toolChoice) {
-        return toolChoice["name"];
-      } else {
-        return toolChoice;
-      }
-    };
-
-    const toolsInfo = {};
-
-    if (resolvedState.tool_choice) {
-      toolsInfo["Tool Choice"] = toolName(resolvedState.tool_choice);
-    }
-
-    if (resolvedState.tools.length > 0) {
-      toolsInfo["Tools"] = html`<${Tools}
-        toolDefinitions=${resolvedState.tools}
-      />`;
-    }
-
-    return html`
-      <div
-        style=${{
-          display: "grid",
-          gridTemplateColumns: "max-content max-content",
-          columnGap: "1rem",
-          margin: "0",
-        }}
-      >
-        ${Object.keys(toolsInfo).map((key) => {
-          return html` <div
-              style=${{
-                fontSize: FontSize.smaller,
-                ...TextStyle.label,
-                ...TextStyle.secondary,
-              }}
-            >
-              ${key}
-            </div>
-            <div style=${{ fontSize: FontSize.base }}>${toolsInfo[key]}</div>`;
-        })}
-      </div>
-    `;
+  render: (changes, resolvedState) => {
+    return renderTools(changes, resolvedState);
   },
 };
 
+/** @type {ChangeType} */
+const add_tools = {
+  type: "add_tools",
+  signature: {
+    add: [kToolPattern],
+    replace: [],
+    remove: [],
+  },
+  render: (changes, resolvedState) => {
+    return renderTools(changes, resolvedState);
+  },
+};
+
+const renderTools = (changes, resolvedState) => {
+  // Find which tools were added in this change
+  const toolIndexes = [];
+  for (const change of changes) {
+    const match = change.path.match(kToolPattern);
+    if (match) {
+      toolIndexes.push(match[1]);
+    }
+  }
+
+  const toolName = (toolChoice) => {
+    if (typeof toolChoice === "object" && toolChoice) {
+      return toolChoice["name"];
+    } else {
+      return toolChoice;
+    }
+  };
+
+  const toolsInfo = {};
+
+  // Show tool choice if it was changed
+  const hasToolChoice = changes.find((change) => {
+    return change.path.startsWith("/tool_choice");
+  });
+  if (resolvedState.tool_choice && hasToolChoice) {
+    toolsInfo["Tool Choice"] = toolName(resolvedState.tool_choice);
+  }
+
+  // Show either all tools or just the specific tools
+  if (resolvedState.tools.length > 0) {
+    if (toolIndexes.length === 0) {
+      toolsInfo["Tools"] = html`<${Tools}
+        toolDefinitions=${resolvedState.tools}
+      />`;
+    } else {
+      const filtered = resolvedState.tools.filter((_, index) => {
+        return toolIndexes.includes(index.toString());
+      });
+      toolsInfo["Tools"] = html`<${Tools} toolDefinitions=${filtered} />`;
+    }
+  }
+
+  return html`
+    <div
+      style=${{
+        display: "grid",
+        gridTemplateColumns: "max-content max-content",
+        columnGap: "1rem",
+        margin: "0",
+      }}
+    >
+      ${Object.keys(toolsInfo).map((key) => {
+        return html` <div
+            style=${{
+              fontSize: FontSize.smaller,
+              ...TextStyle.label,
+              ...TextStyle.secondary,
+            }}
+          >
+            ${key}
+          </div>
+          <div style=${{ fontSize: FontSize.base }}>${toolsInfo[key]}</div>`;
+      })}
+    </div>
+  `;
+};
+
 /** @type {ChangeType[]} */
-export const RenderableChangeTypes = [system_msg_added_sig, tools_choice];
+export const RenderableChangeTypes = [
+  system_msg_added_sig,
+  use_tools,
+  add_tools,
+];
 
 /**
  * @typedef {Object} ToolParameters

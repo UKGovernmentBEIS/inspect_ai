@@ -88,10 +88,20 @@ function simpleHttpAPI(logInfo) {
       cache.set(response.parsed);
       return response;
     },
-    eval_log_headers: async () => {
+    eval_log_headers: async (files) => {
       const headers = await fetchLogHeaders(log_dir);
       if (headers) {
-        return Object.values(headers.parsed);
+        const keys = Object.keys(headers.parsed);
+        const result = [];
+        files.forEach((file) => {
+          const fileKey = keys.find((key) => {
+            return file.endsWith(key);
+          });
+          if (fileKey) {
+            result.push(headers.parsed[fileKey]);
+          }
+        });
+        return result;
       } else if (log_file) {
         // Check the cache
         let evalLog = cache.get();

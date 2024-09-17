@@ -12863,8 +12863,10 @@ const MarkdownDiv = (props) => {
   const { markdown, style } = props;
   const escaped = markdown ? escape$1(markdown) : "";
   const preRendered = preRenderText(escaped);
-  const renderedHtml = converter.makeHtml(preRendered);
-  const withCode = unescapeCodeHtmlEntities(renderedHtml);
+  const protectedText = protectMarkdown(preRendered);
+  const renderedHtml = converter.makeHtml(protectedText);
+  const unescaped = unprotectMarkdown(renderedHtml);
+  const withCode = unescapeCodeHtmlEntities(unescaped);
   const markup = { __html: withCode };
   return m$1`<div
     dangerouslySetInnerHTML=${markup}
@@ -12873,13 +12875,23 @@ const MarkdownDiv = (props) => {
   />`;
 };
 const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
-const kCommonmarkReferenceLinkPattern = /\[(.*)\]:( +.+)/g;
+const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
 const preRenderText = (txt) => {
-  const rendered = txt.replaceAll(
+  return txt.replaceAll(
     kLetterListPattern,
     "<p style='margin-bottom: 0.2em;'>$1</p>"
   );
-  return rendered.replaceAll(kCommonmarkReferenceLinkPattern, "[$1]:$2");
+};
+const protectMarkdown = (txt) => {
+  return txt.replaceAll(
+    kCommonmarkReferenceLinkPattern,
+    "(open:767A125E)$1(close:767A125E) $2 "
+  );
+};
+const unprotectMarkdown = (txt) => {
+  txt = txt.replaceAll("(open:767A125E)", "[");
+  txt = txt.replaceAll("(close:767A125E)", "]");
+  return txt;
 };
 const escape$1 = (content) => {
   return content.replace(/[<>&'"]/g, function(c2) {
@@ -13460,7 +13472,7 @@ const ToolOutput = ({ output, style }) => {
     ...style
   }}
   ><code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
-      ${output}
+      ${output.trim()}
       </code></pre>`;
 };
 const extractInputMetadata = (toolName) => {
@@ -13559,7 +13571,7 @@ const messageRenderers = {
   },
   tool: {
     render: (content) => {
-      return m$1`<${ToolOutput} output=${content.text.trim()} />`;
+      return m$1`<${ToolOutput} output=${content.text} />`;
     }
   }
 };
@@ -15573,7 +15585,7 @@ const system_msg_added_sig = {
     replace: ["/messages/0/role", "/messages/0/content"],
     add: ["/messages/1"]
   },
-  render: (resolvedState) => {
+  render: (_changes, resolvedState) => {
     const message = resolvedState["messages"][0];
     return m$1`<${ChatView}
       id="system_msg_event_preview"
@@ -15581,56 +15593,92 @@ const system_msg_added_sig = {
     />`;
   }
 };
-const tools_choice = {
-  type: "tools_choice",
+const kToolPattern = "/tools/(\\d+)";
+const use_tools = {
+  type: "use_tools",
   signature: {
-    add: ["/tools/\\d+"],
+    add: ["/tools/0"],
+    replace: ["/tool_choice"],
+    remove: []
+  },
+  render: (changes, resolvedState) => {
+    return renderTools(changes, resolvedState);
+  }
+};
+const add_tools = {
+  type: "add_tools",
+  signature: {
+    add: [kToolPattern],
     replace: [],
     remove: []
   },
-  render: (resolvedState) => {
-    const toolName = (toolChoice) => {
-      if (typeof toolChoice === "object" && toolChoice) {
-        return toolChoice["name"];
-      } else {
-        return toolChoice;
-      }
-    };
-    const toolsInfo = {};
-    if (resolvedState.tool_choice) {
-      toolsInfo["Tool Choice"] = toolName(resolvedState.tool_choice);
+  render: (changes, resolvedState) => {
+    return renderTools(changes, resolvedState);
+  }
+};
+const renderTools = (changes, resolvedState) => {
+  const toolIndexes = [];
+  for (const change of changes) {
+    const match = change.path.match(kToolPattern);
+    if (match) {
+      toolIndexes.push(match[1]);
     }
-    if (resolvedState.tools.length > 0) {
+  }
+  const toolName = (toolChoice) => {
+    if (typeof toolChoice === "object" && toolChoice) {
+      return toolChoice["name"];
+    } else {
+      return toolChoice;
+    }
+  };
+  const toolsInfo = {};
+  const hasToolChoice = changes.find((change) => {
+    return change.path.startsWith("/tool_choice");
+  });
+  if (resolvedState.tool_choice && hasToolChoice) {
+    toolsInfo["Tool Choice"] = toolName(resolvedState.tool_choice);
+  }
+  if (resolvedState.tools.length > 0) {
+    if (toolIndexes.length === 0) {
       toolsInfo["Tools"] = m$1`<${Tools}
         toolDefinitions=${resolvedState.tools}
       />`;
+    } else {
+      const filtered = resolvedState.tools.filter((_2, index) => {
+        return toolIndexes.includes(index.toString());
+      });
+      toolsInfo["Tools"] = m$1`<${Tools} toolDefinitions=${filtered} />`;
     }
-    return m$1`
-      <div
-        style=${{
-      display: "grid",
-      gridTemplateColumns: "max-content max-content",
-      columnGap: "1rem",
-      margin: "0"
-    }}
-      >
-        ${Object.keys(toolsInfo).map((key2) => {
-      return m$1` <div
-              style=${{
-        fontSize: FontSize.smaller,
-        ...TextStyle.label,
-        ...TextStyle.secondary
-      }}
-            >
-              ${key2}
-            </div>
-            <div style=${{ fontSize: FontSize.base }}>${toolsInfo[key2]}</div>`;
-    })}
-      </div>
-    `;
   }
+  return m$1`
+    <div
+      style=${{
+    display: "grid",
+    gridTemplateColumns: "max-content max-content",
+    columnGap: "1rem",
+    margin: "0"
+  }}
+    >
+      ${Object.keys(toolsInfo).map((key2) => {
+    return m$1` <div
+            style=${{
+      fontSize: FontSize.smaller,
+      ...TextStyle.label,
+      ...TextStyle.secondary
+    }}
+          >
+            ${key2}
+          </div>
+          <div style=${{ fontSize: FontSize.base }}>${toolsInfo[key2]}</div>`;
+  })}
+    </div>
+  `;
 };
-const RenderableChangeTypes = [system_msg_added_sig, tools_choice];
+const RenderableChangeTypes = [
+  system_msg_added_sig,
+  use_tools,
+  add_tools
+];
 const Tools = ({ toolDefinitions }) => {
   return toolDefinitions.map((toolDefinition) => {
     const toolName = toolDefinition.name;
@@ -17095,7 +17143,7 @@ const StateEventView = ({ id, event, style, stateManager }) => {
   );
   if (changePreview) {
     tabs.unshift(
-      m$1`<div name="Summary" style=${{ margin: "1em 0em" }}>
+      m$1`<div name="Summary" style=${{ margin: "1em 0em", width: "100%" }}>
         ${changePreview}
       </div>`
     );
@@ -17121,7 +17169,8 @@ const generatePreview = (changes, resolvedState) => {
       }
     }
     if (matchingOps === requiredMatchCount) {
-      results.push(changeType.render(resolvedState));
+      results.push(changeType.render(changes, resolvedState));
+      break;
     }
   }
   return results.length > 0 ? results : void 0;
@@ -17159,7 +17208,13 @@ const summarizeChanges = (changes) => {
   }
   return changeList.join(", ");
 };
-const StepEventView = ({ event, children, style, stateManager }) => {
+const StepEventView = ({
+  event,
+  children,
+  style,
+  stateManager,
+  storeManager
+}) => {
   const descriptor = stepDescriptor(event);
   const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
   const text = summarize(children);
@@ -17177,6 +17232,7 @@ const StepEventView = ({ event, children, style, stateManager }) => {
       id=${`step-${event.name}-transcript`}
       eventNodes=${children}
       stateManager=${stateManager}
+      storeManager=${storeManager}
     />
   </EventPanel>
   `;
@@ -17270,7 +17326,14 @@ const stepDescriptor = (event) => {
     }
   }
 };
-const SubtaskEventView = ({ id, event, style, stateManager, depth }) => {
+const SubtaskEventView = ({
+  id,
+  event,
+  style,
+  stateManager,
+  storeManager,
+  depth
+}) => {
   return m$1`
     <${EventPanel} id=${id} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask} style=${style}>
       <${SubtaskSummary} name="Summary"  input=${event.input} result=${event.result}/>
@@ -17279,6 +17342,7 @@ const SubtaskEventView = ({ id, event, style, stateManager, depth }) => {
               name="Transcript"
               events=${event.events}
               stateManager=${stateManager}
+              storeManager=${storeManager}
               depth=${depth + 1}
             />` : ""}
     </${EventPanel}>`;
@@ -17737,7 +17801,14 @@ const ScoreEventView = ({ id, event, style }) => {
 
   </${EventPanel}>`;
 };
-const ToolEventView = ({ id, event, style, stateManager, depth }) => {
+const ToolEventView = ({
+  id,
+  event,
+  style,
+  stateManager,
+  storeManager,
+  depth
+}) => {
   var _a;
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
@@ -17770,6 +17841,7 @@ const ToolEventView = ({ id, event, style, stateManager, depth }) => {
                 name="Transcript"
                 events=${event.events}
                 stateManager=${stateManager}
+                storeManager=${storeManager}
                 depth=${depth + 1}
               />` : ""}
 
@@ -18434,9 +18506,10 @@ Object.assign({}, core, duplex, {
   escapePathComponent,
   unescapePathComponent
 });
-const initStateManager = () => {
+const initStateManager = (scope) => {
   let state = {};
   return {
+    scope,
     /**
      * Retrieves the current state object.
      *
@@ -18473,7 +18546,13 @@ const ensureValidChange = (change) => {
   }
   return change;
 };
-const TranscriptView = ({ id, events, stateManager, depth = 0 }) => {
+const TranscriptView = ({
+  id,
+  events,
+  stateManager,
+  storeManager,
+  depth = 0
+}) => {
   const resolvedEvents = fixupEventStream(events);
   const eventNodes = treeifyEvents(resolvedEvents, depth);
   return m$1`
@@ -18481,6 +18560,7 @@ const TranscriptView = ({ id, events, stateManager, depth = 0 }) => {
       id=${id}
       eventNodes=${eventNodes}
       stateManager=${stateManager}
+      storeManager=${storeManager}
     />
   `;
 };
@@ -18488,7 +18568,8 @@ const TranscriptComponent = ({
   id,
   eventNodes,
   style,
-  stateManager
+  stateManager,
+  storeManager
 }) => {
   const rows = eventNodes.map((eventNode, index) => {
     const toggleStyle = {};
@@ -18507,6 +18588,7 @@ const TranscriptComponent = ({
         id=${`${id}-event${index}`}
         node=${eventNode}
         stateManager=${stateManager}
+        storeManager=${storeManager}
         style=${{
       ...toggleStyle,
       ...style
@@ -18528,7 +18610,13 @@ const TranscriptComponent = ({
     ${rows}
   </div>`;
 };
-const RenderedEventNode = ({ id, node, style, stateManager }) => {
+const RenderedEventNode = ({
+  id,
+  node,
+  style,
+  stateManager,
+  storeManager
+}) => {
   switch (node.event.event) {
     case "sample_init":
       return m$1`<${SampleInitEventView}
@@ -18574,13 +18662,14 @@ const RenderedEventNode = ({ id, node, style, stateManager }) => {
         event=${node.event}
         children=${node.children}
         stateManager=${stateManager}
+        storeManager=${storeManager}
         style=${style}
       />`;
     case "store":
       return m$1`<${StateEventView}
         id=${id}
         event=${node.event}
-        stateManager=${initStateManager()}
+        stateManager=${storeManager}
         style=${style}
       />`;
     case "subtask":
@@ -18588,6 +18677,7 @@ const RenderedEventNode = ({ id, node, style, stateManager }) => {
         id=${id}
         event=${node.event}
         stateManager=${stateManager}
+        storeManager=${initStateManager(`${node.event.name}`)}
         style=${style}
         depth=${node.depth}
       />`;
@@ -18596,6 +18686,7 @@ const RenderedEventNode = ({ id, node, style, stateManager }) => {
         id=${id}
         event=${node.event}
         stateManager=${stateManager}
+        storeManager=${storeManager}
         style=${style}
         depth=${node.depth}
       />`;
@@ -18668,12 +18759,14 @@ function treeifyEvents(events, depth) {
 }
 const kContentProtocol = "tc://";
 const SampleTranscript = ({ id, evalEvents }) => {
-  const stateManager = initStateManager();
+  const stateManager = initStateManager("global_state");
+  const storeManager = initStateManager("global_storage");
   const denormalizedEvents = resolveEventContent(evalEvents);
   return m$1`<${TranscriptView}
     id=${id}
     events=${denormalizedEvents}
     stateManager=${stateManager}
+    storeManager=${storeManager}
   />`;
 };
 const resolveEventContent = (evalEvents) => {
@@ -22085,10 +22178,20 @@ function simpleHttpAPI(logInfo) {
       cache.set(response.parsed);
       return response;
     },
-    eval_log_headers: async () => {
+    eval_log_headers: async (files) => {
       const headers = await fetchLogHeaders(log_dir);
       if (headers) {
-        return Object.values(headers.parsed);
+        const keys = Object.keys(headers.parsed);
+        const result = [];
+        files.forEach((file) => {
+          const fileKey = keys.find((key2) => {
+            return file.endsWith(key2);
+          });
+          if (fileKey) {
+            result.push(headers.parsed[fileKey]);
+          }
+        });
+        return result;
       } else if (log_file) {
         let evalLog = cache.get();
         if (!evalLog) {

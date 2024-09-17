@@ -292,6 +292,7 @@ def reduce_scores(
             SampleScore(
                 sample_id=scores[0].sample_id,
                 value=reduced.value,
+                answer=reduced.answer,
                 explanation=reduced.explanation,
                 metadata=reduced.metadata,
             )
