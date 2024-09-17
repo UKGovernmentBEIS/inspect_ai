@@ -13433,13 +13433,13 @@ const ToolInput = ({ type, contents }) => {
   if (typeof contents === "object" || Array.isArray(contents)) {
     contents = JSON.stringify(contents);
   }
-  T(() => {
+  y(() => {
     const tokens = Prism$1.languages[type];
     if (toolInputRef.current && tokens) {
       const html = Prism$1.highlight(contents, tokens, type);
       toolInputRef.current.innerHTML = html;
     }
-  }, [toolInputRef.current, type, contents]);
+  }, [toolInputRef.current, contents, type]);
   return m$1`<pre
     class="tool-output"
     style=${{
@@ -18901,6 +18901,7 @@ const SampleDisplay = ({
   sample,
   sampleDescriptor,
   visible,
+  index,
   context
 }) => {
   const baseId = `sample-dialog`;
@@ -18929,8 +18930,8 @@ const SampleDisplay = ({
     m$1`
     <${TabPanel} id=${msgTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === msgTabId}>
       <${ChatView} 
-        key=${`${baseId}-chat`} 
-        id=${`${baseId}-chat`} 
+        key=${`${baseId}-chat-${index}`} 
+        id=${`${baseId}-chat-${index}`} 
         messages=${sample.messages} 
         style=${{ paddingLeft: ".8em", paddingTop: "1em" }}
         indented=${true}
@@ -18940,7 +18941,7 @@ const SampleDisplay = ({
   if (sample.transcript && sample.transcript.events.length > 0) {
     tabs.unshift(m$1`
       <${TabPanel} id=${transcriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${selectedTab === transcriptTabId || selectedTab === void 0} scrollable=${false}>
-        <${SampleTranscript} id=${`${baseId}-transcript-display`} evalEvents=${sample.transcript}/>
+        <${SampleTranscript} key=${`${baseId}-transcript-display-${index}`} id=${`${baseId}-transcript-display-${index}`} evalEvents=${sample.transcript}/>
       </${TabPanel}>`);
   }
   const scorerNames = Object.keys(sample.scores);
@@ -18970,7 +18971,11 @@ const SampleDisplay = ({
         </${TabPanel}>`);
     }
   }
-  const sampleMetadatas = metadataViewsForSample(baseId, sample, context);
+  const sampleMetadatas = metadataViewsForSample(
+    `${baseId}-${index}`,
+    sample,
+    context
+  );
   if (sampleMetadatas.length > 0) {
     tabs.push(
       m$1`
