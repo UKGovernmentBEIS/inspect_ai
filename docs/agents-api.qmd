@@ -214,6 +214,32 @@ results = await asyncio.gather(*searches)
 
 Note that we don't `await` the subtasks when building up our list of `searches`. Rather, we let `asyncio.gather()` await all of them, returning only when all of the results are available.
 
+### Forking {#sec-forking}
+
+::: {.callout-note appearance="simple"}
+Note that the `fork()` feature described below is available only in the development version of Inspect. You can install the development version with:
+
+``` bash
+pip install git+https://github.com/ukgovernmentbeis/inspect_ai
+```
+:::
+
+Inspect's `fork()` function provids a convenient wrapper around a very common use of subtasks: running a `TaskState` against a set of solvers in parallel to explore different trajectories. 
+
+For example, let's say you have a solver named `explore()` that takes `temperature` as a parameter. You might want to try the solver out with multiple temperature values and then continue on with the best result:
+
+```python
+from inspect_ai.solver import fork
+
+results = await fork(state, [
+    explore(temperature = 0.5),
+    explore(temperature = 0.75),
+    explore(temperature = 1.0)
+])
+```
+
+The `state` will be deep copied so that each `explore()` solver instance gets it own copy of the `state` to work on. The `results` contain a list of `TaskState` with the value returned from each of the solvers.
+
 ## Sandboxing
 
 Many agents provide models with the ability to execute arbitrary code. It's important that this code be sandboxed so that it executes in an isolated context. Inspect supports this through the `SandboxEnvironment` (which in turn may be implemented using Docker or various other schemes). Enable sandboxing for a task with the `sandbox` parameter. For example:

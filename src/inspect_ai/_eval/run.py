@@ -81,15 +81,19 @@ async def eval_run(
         task_run_options: list[TaskRunOptions] = []
         for resolved_task in tasks:
             with chdir(task_run_dir(resolved_task.task)):
-                # tasks can provide their own epochs and max_messages
+                # tasks can provide their epochs, max_messages, and fail_on_error
+                # so broadcast these into the eval config (so long as they aren't
+                # overriding a value specified from eval() or the CLI)
                 task = resolved_task.task
                 task_eval_config = eval_config.model_copy()
-                if task.epochs is not None:
-                    task_eval_config.epochs = task.epochs
-                if task.max_messages is not None:
-                    task_eval_config.max_messages = task.max_messages
 
-                # eval epochs_reducer can override the task epochs_reducer
+                # epochs
+                if task_eval_config.epochs is None:
+                    task_eval_config.epochs = task.epochs
+                else:
+                    task.epochs = task_eval_config.epochs
+
+                # epochs reducer
                 if epochs_reducer is not None:
                     # override task (eval_config already reflects epochs_reducer)
                     task.epochs_reducer = epochs_reducer
@@ -99,10 +103,17 @@ async def eval_run(
                         task.epochs_reducer
                     )
 
-                # tasks can provide a fail_on_error policy, but don't let it override
-                # an eval level fail_on_error policy
+                # max messages
+                if task_eval_config.max_messages is None:
+                    task_eval_config.max_messages = task.max_messages
+                else:
+                    task.max_messages = task_eval_config.max_messages
+
+                # fail_on_error
                 if task_eval_config.fail_on_error is None:
                     task_eval_config.fail_on_error = task.fail_on_error
+                else:
+                    task.fail_on_error = task_eval_config.fail_on_error
 
                 # create and track the logger
                 logger = TaskLogger(

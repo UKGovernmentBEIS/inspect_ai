@@ -77,6 +77,39 @@ def test_dict_reducers() -> None:
     assert at_least_5_reducer(dict_scores).value == {"coolness": 0, "spiciness": 0}
 
 
+def test_reducer_preserve_metadata() -> None:
+    simple_scores = [
+        Score(
+            value=1, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+        ),
+        Score(value=2),
+        Score(value=3),
+        Score(value=4),
+        Score(value=5),
+        Score(value=6),
+    ]
+
+    reducers = [
+        avg_reducer,
+        median_reducer,
+        mode_reducer,
+        max_reducer,
+        at_least_3_reducer,
+    ]
+
+    # verify that metadata is preserved
+    for reducer in reducers:
+        assert reducer(simple_scores).answer is not None
+        assert reducer(simple_scores).explanation is not None
+        assert reducer(simple_scores).metadata is not None
+
+    # verify that metadata is preserved for a single epoch
+    for reducer in reducers:
+        assert reducer([simple_scores[0]]).answer is not None
+        assert reducer([simple_scores[0]]).explanation is not None
+        assert reducer([simple_scores[0]]).metadata is not None
+
+
 @score_reducer(name="add_em_up")
 def sum(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     def sum(scores: list[Score]) -> Score:

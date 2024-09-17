@@ -1,5 +1,6 @@
 /**
  * @typedef {Object} StateManager
+ * @property {string} scope - The scope (name) of this statemanager
  * @property {function(): Object} getState - Retrieves the current state object.
  * @property {function(Object): void} initializeState - Initializes the current state with a new state object.
  * @property {function(import("../../types/log").Changes): Object} applyChanges - Updates the current state with a new state object.*

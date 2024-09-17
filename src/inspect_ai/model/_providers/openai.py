@@ -33,7 +33,7 @@ from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import JsonValue
 from typing_extensions import override
 
-from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED, DEFAULT_MAX_RETRIES
 from inspect_ai._util.content import Content
 from inspect_ai._util.images import image_as_data_uri
 from inspect_ai._util.url import is_data_uri, is_http_url
@@ -51,7 +51,6 @@ from .._model_output import (
 )
 from .openai_o1 import generate_o1
 from .util import as_stop_reason, model_base_url, parse_tool_call
-from .util.constants import BASE_64_DATA_REMOVED_FROM_LOG
 
 OPENAI_API_KEY = "OPENAI_API_KEY"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
@@ -436,5 +435,5 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         url = str(value.get("url"))
         if url.startswith("data:"):
             value = copy(value)
-            value.update(url=BASE_64_DATA_REMOVED_FROM_LOG)
+            value.update(url=BASE_64_DATA_REMOVED)
     return value

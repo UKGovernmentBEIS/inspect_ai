@@ -59,6 +59,7 @@ from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._score import init_scoring_context
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, TaskState
+from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._task_state import state_jsonable
 from inspect_ai.util._subtask import init_subtask
 
@@ -66,7 +67,12 @@ from ..context import init_task_context
 from ..task import Task
 from .error import SampleErrorHandler
 from .generate import task_generate
-from .images import samples_with_base64_images, states_with_base64_images
+from .images import (
+    sample_without_base64_images,
+    samples_with_base64_images,
+    state_without_base64_images,
+    states_with_base64_images,
+)
 from .log import TaskLogger, collect_eval_data, log_plan
 from .results import eval_results
 from .rundir import set_task_run_dir
@@ -210,6 +216,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                             config=generate_config.merge(kwargs),
                         )
 
+                    # set generate for fork module
+                    set_task_generate(generate)
+
                     # semaphore to limit concurrency
                     sample_semaphore = (
                         sample_semaphore
@@ -350,10 +359,11 @@ async def task_run_sample(
             if previous_sample.scores:
                 return {
                     key: SampleScore(
+                        sample_id=previous_sample.id,
                         value=score.value,
                         answer=score.answer,
                         explanation=score.explanation,
-                        sample_id=previous_sample.id,
+                        metadata=score.metadata,
                     )
                     for key, score in previous_sample.scores.items()
                 }
@@ -450,11 +460,11 @@ async def task_run_sample(
                     )
                     if score_result is not None:
                         sample_score = SampleScore(
+                            sample_id=sample.id,
                             value=score_result.value,
                             answer=score_result.answer,
                             explanation=score_result.explanation,
                             metadata=score_result.metadata,
-                            sample_id=sample.id,
                         )
                         transcript()._event(ScoreEvent(score=score_result))
                         results[scorer_name] = sample_score
@@ -466,8 +476,20 @@ async def task_run_sample(
             if log_images:
                 state = (await states_with_base64_images([state]))[0]
 
+            # otherwise ensure there are no base64 images in sample or messages
+            else:
+                sample = sample_without_base64_images(sample)
+                state = state_without_base64_images(state)
+
             # log the sample
-            logger.log_sample(state.epoch, sample, state, results, error, True)
+            logger.log_sample(
+                epoch=state.epoch,
+                sample=sample,
+                state=state,
+                scores=results,
+                error=error,
+                log_images=log_images,
+            )
 
         # return
         if error is None:
