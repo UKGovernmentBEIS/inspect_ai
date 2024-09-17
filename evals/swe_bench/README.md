@@ -53,7 +53,7 @@ swebench_verified_short_descriptions = swe_bench(dataset="princeton-nlp/SWE-benc
 # Report the Claude 3.5 Sonnet + SweAgent baseline, as well as the performance of the agent. To download the baseline run ./resources/baselines/download_swebench_baseline.sh
 swebench_verified_task_subset.scorer = [swebench_baseline_scorer("./resources/baselines/swebench_verified_20240620_sweagent_claude3.5sonnet",name="sweagent_baseline"), swebench_scorer()]
 
-eval(swebench_verified_task_subset)
+eval(swebench_verified_task_subset,limit=5)
 ```
 
 This will lead to both numbers being reported in the final output, allowing you to compare baselines:

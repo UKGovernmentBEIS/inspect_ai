@@ -39,8 +39,6 @@ def gaia(
         name=subset,
     )
 
-    dataset = dataset.filter(filter)
-
     return Task(
         dataset=dataset,
         plan=plan if plan is not None else DEFAULT_PLAN,

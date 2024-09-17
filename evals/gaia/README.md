@@ -20,9 +20,7 @@ agent = basic_agent(tools=[bash()])
 task = gaia(split="validation", plan=agent)
 
 # For the demonstration, we will select only the first 5 tasks.
-task.dataset = task.dataset[:5]
-
-eval(task, model="openai/gpt-4o")
+eval(task, model="openai/gpt-4o", limit=5)
 ```
 
 Note that the GAIA test split does not come with any solutions - they must be uploaded to the online leaderboard.
