@@ -39,7 +39,7 @@ export class InspectLogviewManager {
       log_uri = Uri.parse(env_log, true);
     } catch {
       // This isn't a uri, bud
-      const logDir = join(workspacePath(env_log).path, "logs");
+      const logDir = env_log ? workspacePath(env_log).path : join(workspacePath().path, "logs");
       log_uri = Uri.file(logDir);
     }
 
