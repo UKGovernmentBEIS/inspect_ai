@@ -3,12 +3,15 @@ import { applyPatch } from "fast-json-patch";
 /**
  * Manages the state, providing methods to retrieve and update it.
  *
+ * @param {string} scope - The name identifier for the state manager.
  * @returns {import("./Types.mjs").StateManager} An object containing `getState` and `onState` methods for managing state.
  */
-export const initStateManager = () => {
+export const initStateManager = (scope) => {
   /** @type {Object} */
   let state = {};
   return {
+    scope: scope,
+
     /**
      * Retrieves the current state object.
      *
@@ -33,9 +36,23 @@ export const initStateManager = () => {
     applyChanges: (changes) => {
       state = applyPatch(
         structuredClone(state),
-        structuredClone(changes),
+        structuredClone(changes).map(ensureValidChange),
         true,
       ).newDocument;
     },
   };
+};
+
+/**
+ * Ensures that the change is valid (provides default values)
+ * If the operation is "add" and `value` is not present, it assigns `null` to `value`.
+ *
+ * @param { import("../../types/log").JsonChange } change - The change object containing the operation and value.
+ * @returns {Object} The modified change object with a guaranteed `value` property.
+ */
+const ensureValidChange = (change) => {
+  if (change.op === "add" && !change.value) {
+    change.value = null;
+  }
+  return change;
 };

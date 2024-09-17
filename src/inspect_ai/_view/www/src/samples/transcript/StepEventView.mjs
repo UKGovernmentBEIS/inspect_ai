@@ -11,9 +11,16 @@ import { TranscriptComponent } from "./TranscriptView.mjs";
  * @param {import("../../types/log").StepEvent} props.event - The event object to display.
  * @param {import("./Types.mjs").EventNode[]} props.children - The event notes children of this step
  * @param {import("./Types.mjs").StateManager} props.stateManager - An array of child EventNodes.
+ * @param {import("./Types.mjs").StateManager} props.storeManager - An array of child EventNodes.
  * @returns {import("preact").JSX.Element} The component that displays event details.
  */
-export const StepEventView = ({ event, children, style, stateManager }) => {
+export const StepEventView = ({
+  event,
+  children,
+  style,
+  stateManager,
+  storeManager,
+}) => {
   const descriptor = stepDescriptor(event);
   const title =
     descriptor.name ||
@@ -21,7 +28,8 @@ export const StepEventView = ({ event, children, style, stateManager }) => {
   const text = summarize(children);
 
   return html`<${EventPanel}
-    id=${`$step-${event.name}`}
+    id=${`step-${event.name}`}
+    classes="transcript-step"
     title="${title}"
     icon=${descriptor.icon}
     style=${{ ...descriptor.style, ...style }}
@@ -33,6 +41,7 @@ export const StepEventView = ({ event, children, style, stateManager }) => {
       id=${`step-${event.name}-transcript`}
       eventNodes=${children}
       stateManager=${stateManager}
+      storeManager=${storeManager}
     />
   </EventPanel>
   `;

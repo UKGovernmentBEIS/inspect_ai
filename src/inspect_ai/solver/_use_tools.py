@@ -6,15 +6,15 @@ from ._task_state import TaskState
 
 @solver
 def use_tools(
-    tools: Tool | list[Tool] | None = None, tool_choice: ToolChoice | None = "auto"
+    *tools: Tool | list[Tool], tool_choice: ToolChoice | None = "auto"
 ) -> Solver:
     """
     Inject tools into the task state to be used in generate().
 
     Args:
-        tools (Tool | list[Tool] | None): One or more tools to make available
-          to the model. If `None` is passed, then no change to the currently
-          available set of `tools` is made.
+        *tools (Tool | list[Tool]): One or more tools or lists of tools
+          to make available to the model. If no tools are passed, then
+          no change to the currently available set of `tools` is made.
         tool_choice (ToolChoice | None): Directive indicating which
           tools the model should use. If `None` is passed, then no
           change to `tool_choice` is made.
@@ -24,9 +24,15 @@ def use_tools(
     """
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        # set tools if specified
-        if tools is not None:
-            state.tools = tools if isinstance(tools, list) else [tools]
+        # build up tools
+        tools_update: list[Tool] = []
+        for tool in tools:
+            if isinstance(tool, list):
+                tools_update.extend(tool)
+            else:
+                tools_update.append(tool)
+        if len(tools_update) > 0:
+            state.tools = tools_update
 
         # set tool choice if specified
         if tool_choice is not None:

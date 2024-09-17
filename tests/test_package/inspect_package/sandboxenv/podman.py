@@ -2,10 +2,9 @@ from typing import Literal, Union, overload
 
 from typing_extensions import override
 
-from inspect_ai.util import ExecResult, SandboxEnvironment, sandboxenv
+from inspect_ai.util import ExecResult, SandboxEnvironment
 
 
-@sandboxenv(name="podman")
 class PodmanSandboxEnvironment(SandboxEnvironment):
     @classmethod
     async def sample_init(

@@ -4,7 +4,7 @@
     "eval": {
         "task": "wikipedia",
         "task_version": 0,
-        "task_file": "examples/agents/langchain/wikipedia.py",
+        "task_file": "examples/langchain/wikipedia.py",
         "task_id": "YAdbKczyeSb6mEgPd3R9Qs",
         "run_id": "i5LyrzaUdD9K4EW5WTAd5t",
         "created": "2024-05-05T07:59:35",

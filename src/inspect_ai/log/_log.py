@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from rich.console import Console, RenderableType
 from rich.traceback import Traceback
 
-from inspect_ai._util.constants import PKG_NAME
+from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, PKG_NAME
 from inspect_ai._util.error import EvalError, exception_message
 from inspect_ai.model import (
     ChatMessage,
@@ -306,8 +306,17 @@ class EvalRevision(BaseModel):
 
 
 class EvalSpec(BaseModel):
+    run_id: str = Field(default="")
+    """Unique run id"""
+
+    created: str
+    """Time created."""
+
     task: str
     """Task name."""
+
+    task_id: str = Field(default="")
+    """Unique task id."""
 
     task_version: int = Field(default=0)
     """Task version."""
@@ -315,14 +324,17 @@ class EvalSpec(BaseModel):
     task_file: str | None = Field(default=None)
     """Task source file."""
 
-    task_id: str = Field(default="")
-    """Unique task id."""
+    task_attribs: dict[str, Any] = Field(default={})
+    """Attributes of the @task decorator."""
 
-    run_id: str = Field(default="")
-    """Unique run id"""
+    task_args: dict[str, Any] = Field(default={})
+    """Arguments used for invoking the task."""
 
-    created: str
-    """Time created."""
+    plan: str | None = Field(default=None)
+    """Plan name."""
+
+    plan_args: dict[str, Any] | None = Field(default=None)
+    """Arguments used for invoking the plan."""
 
     dataset: EvalDataset
     """Dataset used for eval."""
@@ -335,12 +347,6 @@ class EvalSpec(BaseModel):
 
     model_base_url: str | None = Field(default=None)
     """Optional override of model base url"""
-
-    task_attribs: dict[str, Any] = Field(default={})
-    """Attributes of the @task decorator."""
-
-    task_args: dict[str, Any] = Field(default={})
-    """Arguments used for invoking the task."""
 
     model_args: dict[str, Any] = Field(default={})
     """Model specific arguments."""
@@ -394,6 +400,7 @@ def rich_traceback(
         traceback=exc_traceback,
         suppress=[click, asyncio, tenacity, sys.modules[PKG_NAME]],
         show_locals=False,
+        width=CONSOLE_DISPLAY_WIDTH,
     )
     return rich_tb
 

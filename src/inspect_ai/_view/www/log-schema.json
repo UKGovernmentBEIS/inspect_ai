@@ -707,6 +707,9 @@
                 "$ref": "#/$defs/ToolEvent"
               },
               {
+                "$ref": "#/$defs/InputEvent"
+              },
+              {
                 "$ref": "#/$defs/ScoreEvent"
               },
               {
@@ -1272,8 +1275,22 @@
     },
     "EvalSpec": {
       "properties": {
+        "run_id": {
+          "default": "",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "created": {
+          "title": "Created",
+          "type": "string"
+        },
         "task": {
           "title": "Task",
+          "type": "string"
+        },
+        "task_id": {
+          "default": "",
+          "title": "Task Id",
           "type": "string"
         },
         "task_version": {
@@ -1293,19 +1310,39 @@
           "default": null,
           "title": "Task File"
         },
-        "task_id": {
-          "default": "",
-          "title": "Task Id",
-          "type": "string"
+        "task_attribs": {
+          "default": {},
+          "title": "Task Attribs",
+          "type": "object"
         },
-        "run_id": {
-          "default": "",
-          "title": "Run Id",
-          "type": "string"
+        "task_args": {
+          "default": {},
+          "title": "Task Args",
+          "type": "object"
         },
-        "created": {
-          "title": "Created",
-          "type": "string"
+        "plan": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Plan"
+        },
+        "plan_args": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Plan Args"
         },
         "dataset": {
           "$ref": "#/$defs/EvalDataset"
@@ -1355,16 +1392,6 @@
           "default": null,
           "title": "Model Base Url"
         },
-        "task_attribs": {
-          "default": {},
-          "title": "Task Attribs",
-          "type": "object"
-        },
-        "task_args": {
-          "default": {},
-          "title": "Task Args",
-          "type": "object"
-        },
         "model_args": {
           "default": {},
           "title": "Model Args",
@@ -1406,18 +1433,20 @@
         }
       },
       "required": [
-        "task",
-        "task_version",
-        "task_file",
-        "task_id",
         "run_id",
         "created",
+        "task",
+        "task_id",
+        "task_version",
+        "task_file",
+        "task_attribs",
+        "task_args",
+        "plan",
+        "plan_args",
         "dataset",
         "sandbox",
         "model",
         "model_base_url",
-        "task_attribs",
-        "task_args",
         "model_args",
         "config",
         "revision",
@@ -1768,6 +1797,42 @@
         "data"
       ],
       "title": "InfoEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "InputEvent": {
+      "description": "Input screen interaction.",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "input",
+          "default": "input",
+          "enum": [
+            "input"
+          ],
+          "title": "Event",
+          "type": "string"
+        },
+        "input": {
+          "title": "Input",
+          "type": "string"
+        },
+        "input_ansi": {
+          "title": "Input Ansi",
+          "type": "string"
+        }
+      },
+      "required": [
+        "timestamp",
+        "event",
+        "input",
+        "input_ansi"
+      ],
+      "title": "InputEvent",
       "type": "object",
       "additionalProperties": false
     },
@@ -2836,6 +2901,9 @@
                 "$ref": "#/$defs/ToolEvent"
               },
               {
+                "$ref": "#/$defs/InputEvent"
+              },
+              {
                 "$ref": "#/$defs/ScoreEvent"
               },
               {
@@ -3044,6 +3112,9 @@
               },
               {
                 "$ref": "#/$defs/ToolEvent"
+              },
+              {
+                "$ref": "#/$defs/InputEvent"
               },
               {
                 "$ref": "#/$defs/ScoreEvent"

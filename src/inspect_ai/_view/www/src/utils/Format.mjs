@@ -12,30 +12,6 @@ export const arrayToString = (val) => {
   return val.join(", ");
 };
 
-const shorteners = [/^.*(\[.+\])$/m];
-
-/**
- * Shortens a completion string based on predefined patterns.
- *
- * @param {string} completion - The completion string to be shortened.
- * @returns {string} - The shortened string or the original completion if no patterns match.
- */
-export const shortenCompletion = (completion) => {
-  if (!completion) {
-    return completion;
-  }
-
-  let shortened = undefined;
-  for (const shortenPattern of shorteners) {
-    const shortMatch = completion.match(shortenPattern);
-    if (shortMatch && shortMatch[1]) {
-      shortened = shortMatch[1];
-      break;
-    }
-  }
-  return shortened || completion;
-};
-
 /**
  * Gets a string for a sample input.
  *

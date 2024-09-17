@@ -58,7 +58,7 @@ from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._score import init_scoring_context
 from inspect_ai.scorer._scorer import unique_scorer_name
-from inspect_ai.solver import Generate, Plan, Solver, TaskState
+from inspect_ai.solver import Generate, Plan, TaskState
 from inspect_ai.solver._task_state import state_jsonable
 from inspect_ai.util._subtask import init_subtask
 
@@ -66,7 +66,12 @@ from ..context import init_task_context
 from ..task import Task
 from .error import SampleErrorHandler
 from .generate import task_generate
-from .images import samples_with_base64_images, states_with_base64_images
+from .images import (
+    sample_without_base64_images,
+    samples_with_base64_images,
+    state_without_base64_images,
+    states_with_base64_images,
+)
 from .log import TaskLogger, collect_eval_data, log_plan
 from .results import eval_results
 from .rundir import set_task_run_dir
@@ -88,8 +93,9 @@ class TaskRunOptions:
     logger: TaskLogger
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
-    plan: Plan | Solver | list[Solver] | None = field(default=None)
+    plan: Plan | None = field(default=None)
     score: bool = field(default=True)
+    debug_errors: bool = field(default=False)
     sample_source: EvalSampleSource | None = field(default=None)
     sample_semaphore: asyncio.Semaphore | None = field(default=None)
     kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
@@ -145,13 +151,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         )
 
         # resolve the plan and scorer
-        plan = (
-            plan
-            if isinstance(plan, Plan)
-            else Plan(plan)
-            if plan is not None
-            else task.plan
-        )
+        plan = plan if plan else task.plan
         score = score and task.scorer is not None
         scorers: list[Scorer] | None = task.scorer if (score and task.scorer) else None
         scorer_profiles = (
@@ -282,19 +282,24 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 td.complete(TaskCancelled(logger.samples_completed, stats))
 
             except BaseException as ex:
-                # get exception info
-                type, value, traceback = sys.exc_info()
-                type = type if type else BaseException
-                value = value if value else ex
+                if options.debug_errors:
+                    raise
+                else:
+                    # get exception info
+                    type, value, traceback = sys.exc_info()
+                    type = type if type else BaseException
+                    value = value if value else ex
 
-                # build eval error
-                error = eval_error(ex, type, value, traceback)
+                    # build eval error
+                    error = eval_error(ex, type, value, traceback)
 
-                # collect eval data
-                collect_eval_data(stats, logger)
+                    # collect eval data
+                    collect_eval_data(stats, logger)
 
-                # display it
-                td.complete(TaskError(logger.samples_completed, type, value, traceback))
+                    # display it
+                    td.complete(
+                        TaskError(logger.samples_completed, type, value, traceback)
+                    )
 
         # log as appropriate
         if cancelled:
@@ -466,8 +471,20 @@ async def task_run_sample(
             if log_images:
                 state = (await states_with_base64_images([state]))[0]
 
+            # otherwise ensure there are no base64 images in sample or messages
+            else:
+                sample = sample_without_base64_images(sample)
+                state = state_without_base64_images(state)
+
             # log the sample
-            logger.log_sample(state.epoch, sample, state, results, error, True)
+            logger.log_sample(
+                epoch=state.epoch,
+                sample=sample,
+                state=state,
+                scores=results,
+                error=error,
+                log_images=log_images,
+            )
 
         # return
         if error is None:

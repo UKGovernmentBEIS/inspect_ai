@@ -3,7 +3,17 @@ import { html } from "htm/preact";
 import { FontSize } from "../appearance/Fonts.mjs";
 
 export const LargeModal = (props) => {
-  const { id, title, detail, detailTools, footer, onkeyup, children } = props;
+  const {
+    id,
+    title,
+    detail,
+    detailTools,
+    footer,
+    onkeyup,
+    visible,
+    onHide,
+    children,
+  } = props;
 
   // The footer
   const modalFooter = footer
@@ -61,7 +71,9 @@ export const LargeModal = (props) => {
   headerEls.push(html`<button
       type="button"
       class="btn btn-close-large-dialog"
-      data-bs-dismiss="modal"
+      onclick=${() => {
+        onHide();
+      }}
       aria-label="Close"
       style=${{
         borderWidth: "0px",
@@ -81,7 +93,11 @@ export const LargeModal = (props) => {
     tabindex="0"
     role="dialog"
     onkeyup=${onkeyup}
-    style=${{ borderRadius: "var(--bs-border-radius)" }}
+    style=${{
+      borderRadius: "var(--bs-border-radius)",
+      display: visible ? "block" : "none",
+    }}
+    tabindex=${visible ? 0 : undefined}
   >
     <div
       class="modal-dialog modal-dialog-scrollable"

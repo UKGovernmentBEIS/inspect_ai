@@ -37,13 +37,16 @@ export const TabPanel = ({
   selected,
   style,
   scrollable,
+  classes,
   children,
 }) => {
   const tabContentsId = computeTabContentsId(id, index);
 
   return html`<div
     id="${tabContentsId}"
-    class="tab-pane show ${selected ? "active" : ""}"
+    class="tab-pane show${selected ? " active" : ""}${classes
+      ? ` ${classes}`
+      : ""}"
     style=${{
       flex: "1",
       overflowY: scrollable === undefined || scrollable ? "auto" : "hidden",

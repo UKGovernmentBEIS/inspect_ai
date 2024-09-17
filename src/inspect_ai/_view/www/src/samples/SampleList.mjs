@@ -7,11 +7,7 @@ import { TextStyle } from "../appearance/Fonts.mjs";
 import { MarkdownDiv } from "../components/MarkdownDiv.mjs";
 import { SampleError } from "./SampleError.mjs";
 
-import {
-  shortenCompletion,
-  arrayToString,
-  formatNoDecimal,
-} from "../utils/Format.mjs";
+import { arrayToString, formatNoDecimal } from "../utils/Format.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { VirtualList } from "../components/VirtualList.mjs";
 import { WarningBand } from "../components/WarningBand.mjs";
@@ -294,9 +290,7 @@ const SampleRow = ({
         ${sample
           ? html`
               <${MarkdownDiv}
-                markdown=${shortenCompletion(
-                  sampleDescriptor?.selectedScorer(sample).answer(),
-                )}
+                markdown=${sampleDescriptor?.selectedScorer(sample).answer()}
                 style=${{ paddingLeft: "0" }}
                 class="no-last-para-padding"
               />

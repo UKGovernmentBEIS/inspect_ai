@@ -1,16 +1,17 @@
 from inspect_ai.util import sandbox
 
-from .._tool import Tool, ToolError, tool
+from .._tool import Tool, tool
 
 
 @tool
-def bash(timeout: int | None = None) -> Tool:
+def bash(timeout: int | None = None, user: str | None = None) -> Tool:
     """Bash shell command execution tool.
 
     Execute bash shell commands using a sandbox environment (e.g. "docker").
 
     Args:
       timeout (int | None): Timeout (in seconds) for command.
+      user (str | None): User to execute commands as.
 
     Returns:
       String with command output (stdout) or command error (stderr).
@@ -26,25 +27,28 @@ def bash(timeout: int | None = None) -> Tool:
         Returns:
           The output of the command.
         """
-        result = await sandbox().exec(cmd=["bash", "-c", cmd], timeout=timeout)
-        if result.success:
-            return result.stdout
-        else:
-            raise ToolError(
-                result.stderr if result.stderr else "error executing command"
-            )
+        # execute the command
+        result = await sandbox().exec(
+            cmd=["bash", "-c", cmd], timeout=timeout, user=user
+        )
+        # return output (including stderr if any)
+        output = ""
+        if result.stderr:
+            output = f"{result.stderr}\n"
+        return f"{output}{result.stdout}"
 
     return execute
 
 
 @tool
-def python(timeout: int | None = None) -> Tool:
+def python(timeout: int | None = None, user: str | None = None) -> Tool:
     """Python code execution tool.
 
     Execute Python code using a sandbox environment (e.g. "docker").
 
     Args:
       timeout (int | None): Timeout (in seconds) for command.
+      user (str | None): User to execute commands as.
 
     Returns:
       String with command output (stdout) or command error (stderr).
@@ -60,10 +64,13 @@ def python(timeout: int | None = None) -> Tool:
         Returns:
           The output of the command.
         """
-        result = await sandbox().exec(cmd=["python3"], input=code, timeout=timeout)
-        if result.success:
-            return result.stdout
-        else:
-            raise ToolError(result.stderr if result.stderr else "error executing code")
+        result = await sandbox().exec(
+            cmd=["python3"], input=code, timeout=timeout, user=user
+        )
+        # return output (including stderr if any)
+        output = ""
+        if result.stderr:
+            output = f"{result.stderr}\n"
+        return f"{output}{result.stdout}"
 
     return execute
