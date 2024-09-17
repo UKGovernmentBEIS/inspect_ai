@@ -20,9 +20,10 @@ export const ErrorPanel = ({ id, classes, title, error }) => {
         flexDirection: "column",
         minHeight: "10rem",
         marginTop: "4rem",
+        width: "100vw",
       }}
     >
-      <div style=${{ ...emptyStyle, fontSize: FontSize["title-secondary"] }}>
+      <div style=${{ ...emptyStyle, fontSize: FontSize.larger }}>
         <div>
           <i
             class="${ApplicationIcons.error}"
@@ -35,7 +36,7 @@ export const ErrorPanel = ({ id, classes, title, error }) => {
         style=${{
           display: "inline-block",
           fontSize: FontSize.smaller,
-          marginTop: "3rem",
+          marginTop: "1rem",
           border: "solid 1px var(--bs-border-color)",
           borderRadius: "var(--bs-border-radius)",
           padding: "1em",
@@ -46,7 +47,9 @@ export const ErrorPanel = ({ id, classes, title, error }) => {
           Error: ${message || ""}
           ${stack &&
           html`
-            <pre style=${{ fontSize: FontSize.smaller }}>
+            <pre
+              style=${{ fontSize: FontSize.smaller, whiteSpace: "pre-wrap" }}
+            >
             <code>
               at ${stack}
             </code>

@@ -94,6 +94,7 @@ export function App({ api, pollForLogs = true }) {
 
   // Load a specific log
   useEffect(async () => {
+    console.log({ logs });
     const targetLog = logs.files[selected];
     if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
       try {
@@ -113,6 +114,13 @@ export function App({ api, pollForLogs = true }) {
         console.log(e);
         setStatus({ loading: false, error: e });
       }
+    } else if (logs.files.length === 0) {
+      setStatus({
+        loading: false,
+        error: new Error(
+          `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`,
+        ),
+      });
     }
   }, [selected, logs, capabilities, currentLog, setCurrentLog, setStatus]);
 

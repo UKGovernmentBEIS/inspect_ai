@@ -7843,10 +7843,11 @@ const ErrorPanel = ({ id, classes, title, error }) => {
     ...emptyStyle,
     flexDirection: "column",
     minHeight: "10rem",
-    marginTop: "4rem"
+    marginTop: "4rem",
+    width: "100vw"
   }}
     >
-      <div style=${{ ...emptyStyle, fontSize: FontSize["title-secondary"] }}>
+      <div style=${{ ...emptyStyle, fontSize: FontSize.larger }}>
         <div>
           <i
             class="${ApplicationIcons.error}"
@@ -7859,7 +7860,7 @@ const ErrorPanel = ({ id, classes, title, error }) => {
         style=${{
     display: "inline-block",
     fontSize: FontSize.smaller,
-    marginTop: "3rem",
+    marginTop: "1rem",
     border: "solid 1px var(--bs-border-color)",
     borderRadius: "var(--bs-border-radius)",
     padding: "1em",
@@ -7869,7 +7870,7 @@ const ErrorPanel = ({ id, classes, title, error }) => {
         <div>
           Error: ${message || ""}
           ${stack2 && m$1`
-            <pre style=${{ fontSize: FontSize.smaller }}>
+            <pre style=${{ fontSize: FontSize.smaller, whiteSpace: "pre-wrap" }}>
             <code>
               at ${stack2}
             </code>
@@ -22932,6 +22933,7 @@ function App({ api: api2, pollForLogs = true }) {
     setHeadersLoading(false);
   }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
   y(async () => {
+    console.log({ logs });
     const targetLog = logs.files[selected];
     if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
       try {
@@ -22950,6 +22952,8 @@ function App({ api: api2, pollForLogs = true }) {
         console.log(e2);
         setStatus({ loading: false, error: e2 });
       }
+    } else if (logs.files.length === 0) {
+      setStatus({ loading: false, error: new Error(`No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`) });
     }
   }, [selected, logs, capabilities, currentLog, setCurrentLog, setStatus]);
   const loadLogs = async () => {
