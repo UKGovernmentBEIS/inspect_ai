@@ -5,7 +5,7 @@ import "prismjs/components/prism-python";
 import "prismjs/components/prism-bash";
 import "prismjs/components/prism-json";
 
-import { useMemo, useRef } from "preact/hooks";
+import { useRef, useEffect } from "preact/hooks";
 import { html } from "htm/preact";
 
 import { MessageContent } from "./MessageContent.mjs";
@@ -107,13 +107,13 @@ export const ToolInput = ({ type, contents }) => {
     contents = JSON.stringify(contents);
   }
 
-  useMemo(() => {
+  useEffect(() => {
     const tokens = Prism.languages[type];
     if (toolInputRef.current && tokens) {
       const html = Prism.highlight(contents, tokens, type);
       toolInputRef.current.innerHTML = html;
     }
-  }, [toolInputRef.current, type, contents]);
+  }, [toolInputRef.current, contents, type]);
 
   return html`<pre
     class="tool-output"
