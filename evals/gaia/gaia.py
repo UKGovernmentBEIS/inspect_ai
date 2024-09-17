@@ -16,6 +16,7 @@ from typing import Sequence, Any
 GAIA_DATASET_LOCATION = Path(__file__).parent / "resources" / "GAIA"
 GAIA_SUBSETS = ["2023_all", "2023_level1", "2023_level2", "2023_level3"]
 
+
 @task
 def gaia(
     plan: Plan | None = None,
