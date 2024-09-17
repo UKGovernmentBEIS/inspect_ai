@@ -40,6 +40,7 @@ def in_house_ctf(
         scorer=check_flag(),
         max_messages=max_messages,
         epochs=Epochs(1, "at_least_1"),
+        name=challenges if isinstance(challenges, str) else None,
     )
 
 
