@@ -29,12 +29,11 @@ DEFAULT_PLAN = basic_agent(
     init=system_message(
         "Please solve the coding task below. Once you are done, use your submit tool."
     ),
-    tools=[bash()],  # + [web_search()]
+    tools=[bash()],  + [web_search()]
 )
 
 GAIA_DATASET_LOCATION = Path(__file__).parent / "resources" / "GAIA"
 GAIA_SUBSETS = ["2023_all", "2023_level1", "2023_level2", "2023_level3"]
-
 
 @task
 def gaia(
@@ -74,7 +73,6 @@ def gaia(
         max_messages=max_messages,
     )
 
-
 def add_gaia_files(dataset: Sequence[Sample], split: str) -> None:
     files = GAIA_DATASET_LOCATION / "2023" / split
     for sample in dataset:
@@ -83,7 +81,6 @@ def add_gaia_files(dataset: Sequence[Sample], split: str) -> None:
         if file:
             sample.files = {"/shared_files/" + file: str((files / file))}
 
-
 if not Path(GAIA_DATASET_LOCATION).exists():
     GAIA_DATASET_LOCATION.mkdir(parents=True, exist_ok=True)
     snapshot_download(
@@ -91,3 +88,4 @@ if not Path(GAIA_DATASET_LOCATION).exists():
         repo_type="dataset",
         local_dir=GAIA_DATASET_LOCATION,
     )
+§
