@@ -16,7 +16,6 @@ from typing import Sequence, Any
 GAIA_DATASET_LOCATION = Path(__file__).parent / "resources" / "GAIA"
 GAIA_SUBSETS = ["2023_all", "2023_level1", "2023_level2", "2023_level3"]
 
-
 @task
 def gaia(
     plan: Plan | None = None,
@@ -39,6 +38,8 @@ def gaia(
         name=subset,
     )
 
+    dataset = dataset.filter(filter)
+
     return Task(
         dataset=dataset,
         plan=plan if plan is not None else DEFAULT_PLAN,
@@ -51,7 +52,6 @@ def gaia(
 def gaia_hf_record_to_sample(
     input_prompt: str | None, split: str
 ) -> Callable[[dict[str, Any]], Sample]:
-    
     input_prompt = input_prompt if input_prompt is not None else DEFAULT_INPUT_PROMPT
     files = GAIA_DATASET_LOCATION / "2023" / split
 
