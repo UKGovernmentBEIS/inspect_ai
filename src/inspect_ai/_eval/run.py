@@ -14,11 +14,11 @@ from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._log import Recorder
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
-from inspect_ai.solver import Plan, Solver
+from inspect_ai.solver._plan import Plan, PlanSpec
 from inspect_ai.util._sandbox.environment import TaskCleanup, TaskInit
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
-from .loader import ResolvedTask
+from .loader import ResolvedTask, as_plan_spec, create_plan
 from .task.log import TaskLogger
 from .task.run import TaskRunOptions, create_sample_semaphore, task_run
 from .task.rundir import task_run_dir_switching
@@ -36,7 +36,7 @@ async def eval_run(
     recorder: Recorder,
     model_args: dict[str, Any],
     epochs_reducer: list[ScoreReducer] | None = None,
-    plan: Plan | Solver | list[Solver] | None = None,
+    plan: Plan | PlanSpec | None = None,
     debug_errors: bool = False,
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -65,20 +65,35 @@ async def eval_run(
             tasks, cleanup
         )
 
+    # resolve plan and plan spec
+    if isinstance(plan, Plan):
+        eval_plan = plan
+        eval_plan_spec = as_plan_spec(plan)
+    elif isinstance(plan, PlanSpec):
+        eval_plan = create_plan(plan)
+        eval_plan_spec = plan
+    else:
+        eval_plan = None
+        eval_plan_spec = None
+
     try:
         # create run tasks
         task_run_options: list[TaskRunOptions] = []
         for resolved_task in tasks:
             with chdir(task_run_dir(resolved_task.task)):
-                # tasks can provide their own epochs and max_messages
+                # tasks can provide their epochs, max_messages, and fail_on_error
+                # so broadcast these into the eval config (so long as they aren't
+                # overriding a value specified from eval() or the CLI)
                 task = resolved_task.task
                 task_eval_config = eval_config.model_copy()
-                if task.epochs is not None:
-                    task_eval_config.epochs = task.epochs
-                if task.max_messages is not None:
-                    task_eval_config.max_messages = task.max_messages
 
-                # eval epochs_reducer can override the task epochs_reducer
+                # epochs
+                if task_eval_config.epochs is None:
+                    task_eval_config.epochs = task.epochs
+                else:
+                    task.epochs = task_eval_config.epochs
+
+                # epochs reducer
                 if epochs_reducer is not None:
                     # override task (eval_config already reflects epochs_reducer)
                     task.epochs_reducer = epochs_reducer
@@ -88,10 +103,17 @@ async def eval_run(
                         task.epochs_reducer
                     )
 
-                # tasks can provide a fail_on_error policy, but don't let it override
-                # an eval level fail_on_error policy
+                # max messages
+                if task_eval_config.max_messages is None:
+                    task_eval_config.max_messages = task.max_messages
+                else:
+                    task.max_messages = task_eval_config.max_messages
+
+                # fail_on_error
                 if task_eval_config.fail_on_error is None:
                     task_eval_config.fail_on_error = task.fail_on_error
+                else:
+                    task.fail_on_error = task_eval_config.fail_on_error
 
                 # create and track the logger
                 logger = TaskLogger(
@@ -100,6 +122,7 @@ async def eval_run(
                     task_file=resolved_task.task_file,
                     task_id=resolved_task.id if resolved_task.id else uuid(),
                     run_id=run_id,
+                    plan=eval_plan_spec,
                     model=resolved_task.model,
                     dataset=task.dataset,
                     sandbox=resolved_task.sandbox,
@@ -119,7 +142,7 @@ async def eval_run(
                         logger=logger,
                         eval_wd=eval_wd,
                         config=task_eval_config,
-                        plan=plan,
+                        plan=eval_plan,
                         score=score,
                         debug_errors=debug_errors,
                         sample_source=resolved_task.sample_source,

@@ -4,7 +4,6 @@ import argparse
 import json
 import os
 
-from datasets import load_dataset  # type: ignore
 from docker.client import DockerClient  # type: ignore
 from swe_bench import SAMPLE_TO_IMAGE_PATH  # type: ignore
 from swebench.harness.docker_build import build_env_images  # type: ignore
@@ -18,21 +17,23 @@ def build_images(
     max_workers: int = 4,
     force_rebuild=False,
 ) -> None:
-    """This function uses the swe_bench library to build docker images for the environment of the SWE-bench dataset. It also creates a mapping from the information contained in the dataset itself ( in particular, the "instance_id" and env_image_key) to the name of the docker images. This mapping lets us find the images directly from the dataset entries, rather than relying on objects created in the swe_bench code."""
+    """This function uses the swe_bench library to build the docker images for the SWE-bench dataset.
+
+    Args:
+        dataset_name (str): The name of the huggingface dataset to build images for. Can be a local path or the name of a dataset on the huggingface hub.
+        split (str, optional): The split of the dataset to build images for. Defaults to None.
+        max_workers (int, optional): The maximum number of workers to use for building images. Defaults to 4.
+        force_rebuild (bool, optional): Whether to force a rebuild of the images. Defaults to False.
+    """
     # Code copied from the swe_bench repository
     docker_client = DockerClient.from_env()
-
     swebench_dataset = load_swebench_dataset(dataset_name, split)
-    if not isinstance(swebench_dataset[0], dict):
-        raise ValueError(
-            f"After loading the dataset, the elements should be a dictonary. Got {type(swebench_dataset[0])} instead. Did you pass the correct dataset name and split? \n\nOutput of huggingface load_dataset: {load_dataset(dataset_name, split)}"
-        )
 
     # We then use a couple of internal functions from swebench to build the environment images
     test_specs = get_test_specs_from_dataset(swebench_dataset)
     build_env_images(docker_client, swebench_dataset, force_rebuild, max_workers)
 
-    # We build a mapping of insance_ids and envirnoment_commits to the name of the docker images. This is used to find the images in our main swe_bench code.
+    # We build a mapping of insance_ids and envirnoment_commits to the name of the docker images. This is used to find the images in our main swe_bench code
     environment_name_mapping = (
         {}
         if not os.path.exists(SAMPLE_TO_IMAGE_PATH)

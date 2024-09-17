@@ -5,7 +5,7 @@ import "prismjs/components/prism-python";
 import "prismjs/components/prism-bash";
 import "prismjs/components/prism-json";
 
-import { useMemo, useRef } from "preact/hooks";
+import { useRef, useEffect } from "preact/hooks";
 import { html } from "htm/preact";
 
 import { MessageContent } from "./MessageContent.mjs";
@@ -107,13 +107,13 @@ export const ToolInput = ({ type, contents }) => {
     contents = JSON.stringify(contents);
   }
 
-  useMemo(() => {
+  useEffect(() => {
     const tokens = Prism.languages[type];
     if (toolInputRef.current && tokens) {
       const html = Prism.highlight(contents, tokens, type);
       toolInputRef.current.innerHTML = html;
     }
-  }, [toolInputRef.current, type, contents]);
+  }, [toolInputRef.current, contents, type]);
 
   return html`<pre
     class="tool-output"
@@ -143,10 +143,12 @@ export const ToolInput = ({ type, contents }) => {
  * @returns {import("preact").JSX.Element | string} The ToolOutput component.
  */
 export const ToolOutput = ({ output, style }) => {
+  // If there is no output, don't show the tool
   if (!output) {
     return "";
   }
 
+  // First process an array or object into a string
   if (typeof output === "object" || Array.isArray(output)) {
     output = JSON.stringify(output);
   }
@@ -160,7 +162,7 @@ export const ToolOutput = ({ output, style }) => {
       ...style,
     }}
   ><code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
-      ${output}
+      ${output.trim()}
       </code></pre>`;
 };
 

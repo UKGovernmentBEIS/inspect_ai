@@ -4,7 +4,7 @@ This is an inspect-native implementation of [the SWE-bench dataset](https://www.
 ## Installation
 
 - **Install requirements.** As well as the requirements provided by inspect, this benchmark has its own dependencies. You can install them in your virtual environment by running ```pip install -r requirements.txt```
-- **Build environment images.** SWE-bench requires a set of images with all the dependencies of each repository. To build them for the SWE-bench-verified split, run ```./build_images.py --dataset_path princeton-nlp/SWE-bench_Verified --split train```. See ```./build_images.py --help``` for all arguments. NOTE: Depending on the repositories contained in your subset of SWE-bench, this can take a while to run (several hours). 
+- **Build environment images.** SWE-bench requires a set of images with all the dependencies of each repository. To build them for the SWE-bench-verified split, run ```./build_images.py --dataset_path princeton-nlp/SWE-bench_Verified --split train```. See ```./build_images.py --help``` for all arguments. NOTE: Depending on the repositories contained in your subset of SWE-bench, this can take a while to run (several hours). If you wish to download a subset of the images, you can create a local copy of the SWE-bench dataset, and pass the path to that dataset. 
 
 ## Usage
 

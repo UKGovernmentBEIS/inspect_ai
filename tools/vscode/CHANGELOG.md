@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.32
+
+- Properly resolve log directory when showing log view using `cmd+L`
+- Fix an error when reading notebook selection
+
 ## 0.3.31
 
 - Don't restrict the availability of the `Open with Inspect View` command based upon the filename.

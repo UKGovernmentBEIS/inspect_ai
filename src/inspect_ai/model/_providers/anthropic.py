@@ -27,7 +27,7 @@ from anthropic.types import (
 from pydantic import JsonValue
 from typing_extensions import override
 
-from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED, DEFAULT_MAX_RETRIES
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.images import image_as_data_uri
@@ -50,7 +50,6 @@ from .._model_output import (
     StopReason,
 )
 from .util import model_base_url
-from .util.constants import BASE_64_DATA_REMOVED_FROM_LOG
 
 logger = getLogger(__name__)
 
@@ -216,13 +215,16 @@ class AnthropicAPI(ModelAPI):
 
     # convert some common BadRequestError states into 'refusal' model output
     def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | None:
-        error = exception_message(ex)
+        error = exception_message(ex).lower()
         content: str | None = None
         stop_reason: StopReason | None = None
 
         if "prompt is too long" in error:
             content = "Sorry, but your prompt is too long."
             stop_reason = "length"
+        elif "content filtering" in error:
+            content = "Sorry, but I am unable to help with that request."
+            stop_reason = "content_filter"
 
         if content and stop_reason:
             return ModelOutput.from_content(
@@ -578,5 +580,5 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         and value.get("type", None) == "base64"
     ):
         value = copy(value)
-        value.update(data=BASE_64_DATA_REMOVED_FROM_LOG)
+        value.update(data=BASE_64_DATA_REMOVED)
     return value

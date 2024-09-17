@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+- Added [fork()](agents-api.qmd#sec-forking) function to fork a `TaskState` and evaluate it against multiple solvers in parallel.
+- Ensure that Scores produced after being reduced still retain `answer`, `explanation`, and `metadata`.
+- Fix error when running `inspect info log-types`
+- Improve scorer names imported from modules by not including the the module names.
+- Don't mark messages read from cache with source="cache" (as this breaks the cache key)
+- Add `cache` argument to `basic_agent()` for specifying cache policy for the agent.
+- Add `cache` field to `ModelEvent` to track cache reads and writes.
+- Compatibility with Mistral v1.1 client (now required for Mistral).
+- Catch and propagate Anthropic content filter exceptions as normal "content_filter" responses.
+
+## v0.3.29 (16 September 2024)
+
+- Added `--plan` and `-P` arguments to `eval` and `eval-set` commands for replacing the task default plan with another one.
+- Improved support for eval retries when calling `eval()` or `eval_set()` with a `plan` argument.
+- Don't log base64 images by default (re-enable logging with `--log-images`).
+- Provide unique tool id when parsing tool calls for models that don't support native tool usage.
+- Fix bug that prevented `epoch_reducer` from being used in eval-retry.
+- Fix bug that prevented eval() level `epoch` from overriding task level `epoch`. 
+
 ## v0.3.28 (14 September 2024)
 
 - [basic_agent()](https://inspect.ai-safety-institute.org.uk/agents.html#sec-basic-agent) that provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck.
@@ -21,7 +42,6 @@
 - Add support for computing metrics for both individual keys within a dictionary but also for the dictionary as a whole
 - Fix for Vertex tool calling (don't pass 'additionalProperties').
 - Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/squad), [AGIEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/agieval), [IFEval](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/evals/ifeval/), [PubMedQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/pubmedqa), and [MBPP](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/mbpp) benchmarks.
-
 
 ## v0.3.27 (6 September 2024)
 

@@ -18,6 +18,7 @@ from inspect_ai._util.samples import parse_samples_limit
 from inspect_ai.log._file import log_file_info
 from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.scorer._reducer import create_reducers
+from inspect_ai.solver._plan import PlanSpec
 
 from .common import CommonOptions, common_options, resolve_common_options
 from .util import parse_cli_args, parse_sandbox
@@ -60,7 +61,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "-M",
         multiple=True,
         type=str,
-        envvar=["INSPECT_EVAL_MODEL_ARGS"],
+        envvar="INSPECT_EVAL_MODEL_ARGS",
         help="One or more native model arguments (e.g. -M arg=value)",
     )
     @click.option(
@@ -69,6 +70,19 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         envvar="INSPECT_EVAL_TASK_ARGS",
         help="One or more task arguments (e.g. -T arg=value)",
+    )
+    @click.option(
+        "--plan",
+        type=str,
+        envvar="INSPECT_EVAL_PLAN",
+        help="Plan to execute (overrides task default plan)",
+    )
+    @click.option(
+        "-P",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_PLAN_ARGS",
+        help="One or more plan arguments (e.g. -P arg=value)",
     )
     @click.option(
         "--sandbox",
@@ -292,10 +306,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 @eval_options
 def eval_command(
     tasks: tuple[str] | None,
+    plan: str | None,
     model: str,
     model_base_url: str | None,
     m: tuple[str] | None,
     t: tuple[str] | None,
+    p: tuple[str] | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     epochs: int | None,
@@ -343,12 +359,14 @@ def eval_command(
     # exec eval
     eval_exec(
         tasks=tasks,
+        plan=plan,
         log_level=log_level,
         log_dir=log_dir,
         model=model,
         model_base_url=model_base_url,
         m=m,
         t=t,
+        p=p,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
         epochs=epochs,
@@ -420,10 +438,12 @@ def eval_set_command(
     retry_wait: int | None,
     retry_connections: float | None,
     no_retry_cleanup: bool | None,
+    plan: str | None,
     model: str,
     model_base_url: str | None,
     m: tuple[str] | None,
     t: tuple[str] | None,
+    p: tuple[str] | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     epochs: int | None,
@@ -473,12 +493,14 @@ def eval_set_command(
     # exec eval
     success = eval_exec(
         tasks=tasks,
+        plan=plan,
         log_level=log_level,
         log_dir=log_dir,
         model=model,
         model_base_url=model_base_url,
         m=m,
         t=t,
+        p=p,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
         epochs=epochs,
@@ -511,12 +533,14 @@ def eval_set_command(
 
 def eval_exec(
     tasks: tuple[str] | None,
+    plan: str | None,
     log_level: str,
     log_dir: str,
     model: str,
     model_base_url: str | None,
     m: tuple[str] | None,
     t: tuple[str] | None,
+    p: tuple[str] | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     epochs: int | None,
@@ -542,8 +566,9 @@ def eval_exec(
     bundle_overwrite: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
-    # parse params and model args
+    # parse task, plan, and model args
     task_args = parse_cli_args(t)
+    plan_args = parse_cli_args(p)
     model_args = parse_cli_args(m)
 
     # resolve epochs
@@ -576,6 +601,7 @@ def eval_exec(
             model_base_url=model_base_url,
             model_args=model_args,
             task_args=task_args,
+            plan=PlanSpec(plan, plan_args) if plan else None,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,
             log_level=log_level,

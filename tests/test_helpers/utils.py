@@ -1,6 +1,7 @@
 import importlib.util
 import os
 import subprocess
+import sys
 from pathlib import Path
 from random import random
 
@@ -163,3 +164,12 @@ def failing_task(rate=0.5, samples=1) -> Task:
         plan=[failing_solver(rate), generate()],
         scorer=match(),
     )
+
+
+def ensure_test_package_installed():
+    try:
+        import inspect_package  # type: ignore # noqa: F401
+    except ImportError:
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "--no-deps", "tests/test_package"]
+        )

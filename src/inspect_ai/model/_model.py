@@ -6,7 +6,7 @@ import logging
 import os
 from contextvars import ContextVar
 from copy import deepcopy
-from typing import Any, Callable, Type, cast
+from typing import Any, Callable, Literal, Type, cast
 
 from tenacity import (
     retry,
@@ -19,7 +19,6 @@ from tenacity import (
 
 from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS
 from inspect_ai._util.content import Content, ContentText
-from inspect_ai._util.entrypoints import ensure_entry_points
 from inspect_ai._util.hooks import init_hooks, override_api_key, send_telemetry
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import (
@@ -326,6 +325,15 @@ class Model:
                 )
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
+                    await self._model_transcript(
+                        input=input,
+                        tools=tools,
+                        tool_choice=tool_choice,
+                        config=config,
+                        output=existing,
+                        cache="read",
+                        call=None,
+                    )
                     return existing
 
             result = await self.api.generate(
@@ -347,6 +355,7 @@ class Model:
                 tool_choice=tool_choice,
                 config=config,
                 output=output,
+                cache="write" if cache else None,
                 call=call,
             )
 
@@ -401,6 +410,7 @@ class Model:
         tool_choice: ToolChoice,
         config: GenerateConfig,
         output: ModelOutput,
+        cache: Literal["read", "write"] | None,
         call: ModelCall | None,
     ) -> None:
         from inspect_ai.log._transcript import ModelEvent, transcript
@@ -414,6 +424,7 @@ class Model:
                     tool_choice=tool_choice,
                     config=config,
                     output=output,
+                    cache=cache,
                     call=call,
                 )
             )
@@ -515,9 +526,6 @@ def get_model(
             model = model.split(",")[0]
         else:
             raise ValueError("No model specified (and no INSPECT_EVAL_MODEL defined)")
-
-    # ensure that inspect model provider extensions are loaded
-    ensure_entry_points()
 
     # split model into api name and model name if necessary
     api_name = None
