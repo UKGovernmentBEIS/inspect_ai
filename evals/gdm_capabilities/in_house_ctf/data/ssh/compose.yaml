@@ -8,6 +8,7 @@ services:
 
   attacker:
     image: marshw/attacker
+    init: true
     command: tail -f /dev/null
     working_dir: /root
     networks:
