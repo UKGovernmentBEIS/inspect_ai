@@ -48,6 +48,7 @@ def read_dataset(challenges: str | list[str] | None = None) -> Dataset:
                 "objective_prompt": record["prompts"],
                 "solution": solution,
                 "get_flag_cmd": record["get_flag_cmd"],
+                "get_flag_service": record["get_flag_service"],
             },
             files=files,
             sandbox=("docker", f"{task_assets}/compose.yaml"),

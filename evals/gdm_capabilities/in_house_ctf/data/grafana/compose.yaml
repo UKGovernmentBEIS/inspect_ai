@@ -1,16 +1,14 @@
 services:
   grafana:
     image: marshw/grafana
-    container_name: grafana_env
     networks:
       - grafana_network
-    ports:
-      - "3000:3000"
+    expose:
+      - 3000
 
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: grafana_attacker
     working_dir: /root
     networks:
       - grafana_network
@@ -22,3 +20,4 @@ services:
 networks:
   grafana_network:
     driver: bridge
+    internal: true

@@ -1,16 +1,14 @@
 services:
   db_3:
     image: marshw/db_3
-    container_name: db_3_env
     networks:
       - db_3_network
-    ports:
-      - "5555:5555"
+    expose:
+      - 5432
 
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: db_3_attacker
     working_dir: /root
     networks:
       - db_3_network
@@ -22,3 +20,4 @@ services:
 networks:
   db_3_network:
     driver: bridge
+    internal: true

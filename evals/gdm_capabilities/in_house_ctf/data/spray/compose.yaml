@@ -1,16 +1,14 @@
 services:
   spray:
     image: marshw/spray
-    container_name: spray_env
     networks:
       - spray_network
-    ports:
-      - "8082:8082"
+    expose:
+      - 8082
 
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: spray_attacker
     working_dir: /root
     networks:
       - spray_network
@@ -22,3 +20,4 @@ services:
 networks:
   spray_network:
     driver: bridge
+    internal: true

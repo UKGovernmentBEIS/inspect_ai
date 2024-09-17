@@ -1,16 +1,14 @@
 services:
   ssh:
     image: marshw/ssh:latest
-    container_name: ssh_env
     networks:
       - ssh_network
-    ports:
-      - "23:22"
+    expose:
+      - 22
 
   attacker:
     image: marshw/attacker
     command: tail -f /dev/null
-    container_name: ssh_attacker
     working_dir: /root
     networks:
       - ssh_network
@@ -22,3 +20,4 @@ services:
 networks:
   ssh_network:
     driver: bridge
+    internal: true
