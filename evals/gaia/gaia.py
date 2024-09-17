@@ -10,7 +10,6 @@ from inspect_ai.tool import bash, web_search
 
 GAIA_DATASET_LOCATION = Path(__file__).parent / "resources" / "GAIA"
 
-
 @task
 def gaia(
     plan: Plan | None = None,
@@ -19,7 +18,7 @@ def gaia(
         "2023_all", "2023_level1", "2023_level2", "2023_level3"
     ] = "2023_all",
     filter: Callable[[Sample], bool] = lambda x: True,
-    input_prompt: str = None,
+    input_prompt: str | None = None,
     max_messages: int = 30,
 ) -> Task:
     if not os.path.exists(GAIA_DATASET_LOCATION):
