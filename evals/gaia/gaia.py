@@ -9,15 +9,16 @@ from inspect_ai.solver import Plan, basic_agent, system_message
 from inspect_ai.tool import bash, web_search
 
 GAIA_DATASET_LOCATION = Path(__file__).parent / "resources" / "GAIA"
-GAIA_SUBSETS = ["2023_all", "2023_level1", "2023_level2", "2023_level3"]
 
 
 @task
 def gaia(
     plan: Plan | None = None,
     split: Literal["test", "validation"] = "validation",
-    subset: Literal[*GAIA_SUBSETS] = "2023_all",
-    filter: Callable[Sample, bool] = lambda x: True,
+    subset: Literal[
+        "2023_all", "2023_level1", "2023_level2", "2023_level3"
+    ] = "2023_all",
+    filter: Callable[[Sample], bool] = lambda x: True,
     input_prompt: str = None,
     max_messages: int = 30,
 ) -> Task:
@@ -65,7 +66,9 @@ def gaia_hf_record_to_sample(
         sample.input = input_prompt.format(question=sample.input)
 
         # Setup files into the sample
-        file = next((file for file in os.listdir(files) if sample.id in file), None)
+        file = next(
+            (file for file in os.listdir(files) if str(sample.id) in file), None
+        )
         if file:
             sample.files = {"/shared_files/" + file: str((files / file))}
 
