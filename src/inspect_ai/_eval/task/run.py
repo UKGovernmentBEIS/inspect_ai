@@ -59,6 +59,7 @@ from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._score import init_scoring_context
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, TaskState
+from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._task_state import state_jsonable
 from inspect_ai.util._subtask import init_subtask
 
@@ -214,6 +215,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                             cache=cache,
                             config=generate_config.merge(kwargs),
                         )
+
+                    # set generate for fork module
+                    set_task_generate(generate)
 
                     # semaphore to limit concurrency
                     sample_semaphore = (
