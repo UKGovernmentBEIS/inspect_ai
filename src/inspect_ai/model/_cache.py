@@ -216,10 +216,6 @@ def cache_fetch(entry: CacheEntry) -> ModelOutput | None:
                 filename.unlink(missing_ok=True)
                 return None
 
-            # Make it clear we pulled from cache for logging
-            for choice in output.choices:
-                choice.message.source = "cache"
-
             return output
     except Exception as e:
         logger.debug(f"Failed to fetch from cache {filename}: {e}")

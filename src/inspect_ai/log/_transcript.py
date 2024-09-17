@@ -102,6 +102,9 @@ class ModelEvent(BaseEvent):
     output: ModelOutput
     """Output from model."""
 
+    cache: Literal["read", "write"] | None = Field(default=None)
+    """Was this a cache read or write."""
+
     call: ModelCall | None = Field(default=None)
     """Raw call made to model API."""
 

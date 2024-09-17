@@ -6,7 +6,7 @@ import logging
 import os
 from contextvars import ContextVar
 from copy import deepcopy
-from typing import Any, Callable, Type, cast
+from typing import Any, Callable, Literal, Type, cast
 
 from tenacity import (
     retry,
@@ -325,6 +325,15 @@ class Model:
                 )
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
+                    await self._model_transcript(
+                        input=input,
+                        tools=tools,
+                        tool_choice=tool_choice,
+                        config=config,
+                        output=existing,
+                        cache="read",
+                        call=None,
+                    )
                     return existing
 
             result = await self.api.generate(
@@ -346,6 +355,7 @@ class Model:
                 tool_choice=tool_choice,
                 config=config,
                 output=output,
+                cache="write" if cache else None,
                 call=call,
             )
 
@@ -400,6 +410,7 @@ class Model:
         tool_choice: ToolChoice,
         config: GenerateConfig,
         output: ModelOutput,
+        cache: Literal["read", "write"] | None,
         call: ModelCall | None,
     ) -> None:
         from inspect_ai.log._transcript import ModelEvent, transcript
@@ -413,6 +424,7 @@ class Model:
                     tool_choice=tool_choice,
                     config=config,
                     output=output,
+                    cache=cache,
                     call=call,
                 )
             )

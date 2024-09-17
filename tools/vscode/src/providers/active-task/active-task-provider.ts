@@ -64,7 +64,7 @@ export class ActiveTaskManager {
     context.subscriptions.push(
       window.onDidChangeActiveNotebookEditor(
         debounce(async (event: NotebookEditor | undefined) => {
-          if (window.activeNotebookEditor?.selection.start) {
+          if (window.activeNotebookEditor && window.activeNotebookEditor.selection) {
             const cell = event?.notebook.cellAt(
               window.activeNotebookEditor.selection.start
             );
