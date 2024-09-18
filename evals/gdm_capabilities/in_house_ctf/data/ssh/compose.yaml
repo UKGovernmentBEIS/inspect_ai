@@ -1,6 +1,7 @@
 services:
   ssh:
     image: marshw/ssh:latest
+    init: true
     networks:
       - ssh_network
     expose:

@@ -1,6 +1,7 @@
 services:
   sqli:
     image: marshw/sqli
+    init: true
     networks:
       - sqli_network
     expose:
