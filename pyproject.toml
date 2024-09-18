@@ -124,6 +124,7 @@ dev = [
     "types-aiofiles",
     "types-beautifulsoup4",
     "types-aioboto3",
+    "types-boto3",
     "types-botocore",
     "types-jsonpatch",
     "types-jsonschema",
