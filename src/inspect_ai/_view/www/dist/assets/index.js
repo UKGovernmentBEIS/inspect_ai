@@ -15266,7 +15266,7 @@ const EventPanel = ({
   const [selectedNav, setSelectedNav] = h("");
   y(() => {
     setSelectedNav(pillId(0));
-  }, []);
+  }, [id]);
   const pillId = (index) => {
     return `${id}-nav-pill-${index}`;
   };

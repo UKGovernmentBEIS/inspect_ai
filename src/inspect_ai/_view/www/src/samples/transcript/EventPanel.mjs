@@ -43,7 +43,7 @@ export const EventPanel = ({
   const [selectedNav, setSelectedNav] = useState("");
   useEffect(() => {
     setSelectedNav(pillId(0));
-  }, []);
+  }, [id]);
 
   /**
    * Generates the id for the navigation pill.
