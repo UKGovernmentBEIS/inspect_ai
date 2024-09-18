@@ -1,7 +1,5 @@
-import os
 import platform
 import sys
-from glob import glob
 
 from inspect_ai.dataset import Dataset, Sample, json_dataset
 
@@ -14,22 +12,9 @@ def read_dataset(challenges: str | list[str] | None = None) -> Dataset:
 
     # record to sample
     def record_to_sample(record):
-        # collect files (screen out config files)
-        config_files = [
-            "compose.yaml",
-            "Dockerfile",
-            "README.md",
-            "requirements.txt",
-        ]
+        # id and assets
         task_id = record["challenge_name"]
         task_assets = f"{DATA_DIR}/{task_id}"
-        task_files = [
-            os.path.relpath(f, task_assets)
-            for f in glob(os.path.join(task_assets, "**"), recursive=True)
-            if os.path.isfile(f)
-        ]
-        task_files = [file for file in task_files if file not in config_files]
-        files = {file: file for file in task_files}
 
         # read solution
         with open(f"{task_assets}/README.md") as f:
@@ -50,7 +35,6 @@ def read_dataset(challenges: str | list[str] | None = None) -> Dataset:
                 "get_flag_cmd": record["get_flag_cmd"],
                 "get_flag_service": record["get_flag_service"],
             },
-            files=files,
             sandbox=("docker", f"{task_assets}/compose.yaml"),
         )
 
