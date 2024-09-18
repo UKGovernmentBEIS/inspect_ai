@@ -1,7 +1,5 @@
-import os
 import platform
 import sys
-from glob import glob
 
 from inspect_ai.dataset import Dataset, Sample, json_dataset
 
