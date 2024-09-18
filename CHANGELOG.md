@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.3.30 (18 September 2024)
+
+- Added [fork()](agents-api.qmd#sec-forking) function to fork a `TaskState` and evaluate it against multiple solvers in parallel.
+- Ensure that Scores produced after being reduced still retain `answer`, `explanation`, and `metadata`.
+- Fix error when running `inspect info log-types`
+- Improve scorer names imported from modules by not including the the module names.
+- Don't mark messages read from cache with source="cache" (as this breaks the cache key)
+- Add `cache` argument to `basic_agent()` for specifying cache policy for the agent.
+- Add `cache` field to `ModelEvent` to track cache reads and writes.
+- Compatibility with Mistral v1.1 client (now required for Mistral).
+- Catch and propagate Anthropic content filter exceptions as normal "content_filter" responses.
+- Fix issue with failure to report metrics if all samples had a score value of 0.
+- Improve concurrency of Bedrock models by using aioboto3.
+- Added [SWE Bench](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/swe_bench), [GAIA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/gaia), and [GDM CTF](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/gdm_capabilities/in_house_ctf) evals.
+
 ## v0.3.29 (16 September 2024)
 
 - Added `--plan` and `-P` arguments to `eval` and `eval-set` commands for replacing the task default plan with another one.
@@ -30,7 +45,6 @@
 - Add support for computing metrics for both individual keys within a dictionary but also for the dictionary as a whole
 - Fix for Vertex tool calling (don't pass 'additionalProperties').
 - Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/squad), [AGIEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/agieval), [IFEval](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/evals/ifeval/), [PubMedQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/pubmedqa), and [MBPP](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/mbpp) benchmarks.
-
 
 ## v0.3.27 (6 September 2024)
 

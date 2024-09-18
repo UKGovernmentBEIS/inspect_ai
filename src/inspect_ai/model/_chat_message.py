@@ -14,7 +14,7 @@ class ChatMessageBase(BaseModel):
     content: str | list[Content]
     """Content (simple string or list of string|image content)"""
 
-    source: Literal["input", "generate", "cache"] | None = Field(default=None)
+    source: Literal["input", "generate"] | None = Field(default=None)
     """Source of message."""
 
     @property
