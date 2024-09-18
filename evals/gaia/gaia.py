@@ -2,7 +2,8 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Literal
 
-from huggingface_hub import snapshot_download  # type: ignore
+from huggingface_hub import snapshot_download
+from regex import P  # type: ignore
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Dataset, Sample, hf_dataset
@@ -11,7 +12,7 @@ from inspect_ai.solver import Plan, basic_agent, system_message
 from inspect_ai.tool import bash, web_search
 
 GAIA_DATASET_LOCATION = Path(__file__).parent / "resources" / "GAIA"
-
+COMPOSE_FILE = Path(__file__).parent / "compose.yaml"
 
 @task
 def gaia(
@@ -50,7 +51,7 @@ def gaia(
         dataset=dataset,
         plan=plan,
         scorer=scorer,
-        sandbox="docker",
+        sandbox=("docker", str(COMPOSE_FILE)),
         max_messages=max_messages,
     )
 
