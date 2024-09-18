@@ -72,7 +72,7 @@ def gaia_hf_record_to_sample(
             sample.files = {
                 "/shared_files/" + files[0]: str((files_location / files[0]))
             }
-            
+
         sample.setup
 
         return sample
