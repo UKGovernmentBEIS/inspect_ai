@@ -1,3 +1,4 @@
+from functools import wraps
 from typing import (
     Any,
     Callable,
@@ -174,21 +175,33 @@ def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
             solver_type, name if name else getattr(solver_type, "__name__")
         )
 
+        @wraps(solver_type)
         def solver_wrapper(*args: Any, **kwargs: dict[str, Any]) -> Solver:
             solver = solver_type(*args, **kwargs)
 
             if not is_callable_coroutine(solver):
                 raise TypeError(f"'{solver}' is not declared as an async callable.")
 
+            @wraps(solver)
+            async def solver_with_transcript(
+                state: TaskState, generate: Generate
+            ) -> TaskState:
+                from ._transcript import solver_transcript
+
+                with solver_transcript(solver, state, solver_name) as st:  # type: ignore
+                    state = await solver(state, generate)
+                    st.complete(state)
+                return state
+
             registry_tag(
                 solver_type,
-                solver,
+                solver_with_transcript,
                 RegistryInfo(type="solver", name=solver_name),
                 *args,
                 **kwargs,
             )
 
-            return solver
+            return solver_with_transcript
 
         return solver_register(cast(SolverType, solver_wrapper), solver_name)
 

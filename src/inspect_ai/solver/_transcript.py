@@ -23,10 +23,12 @@ class SolverTranscript:
 
 
 @contextlib.contextmanager
-def solver_transcript(solver: Solver, state: TaskState) -> Iterator[SolverTranscript]:
+def solver_transcript(
+    solver: Solver, state: TaskState, name: str | None = None
+) -> Iterator[SolverTranscript]:
     from inspect_ai.log._transcript import transcript
 
     set_sample_state(state)
-    name = registry_log_name(solver)
+    name = registry_log_name(name or solver)
     with transcript().step(name=name, type="solver"):
         yield SolverTranscript(name, state)

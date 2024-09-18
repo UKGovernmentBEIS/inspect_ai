@@ -1,6 +1,5 @@
 from ._solver import Generate, Solver
 from ._task_state import TaskState
-from ._transcript import solver_transcript
 
 
 def chain(*solvers: Solver) -> Solver:
@@ -20,12 +19,7 @@ def chain(*solvers: Solver) -> Solver:
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         for solver in solvers:
-            # run solver with transcript and StepEvent
-            with solver_transcript(solver, state) as st:
-                state = await solver(state, generate)
-                st.complete(state)
-
-            # check for completed
+            state = await solver(state, generate)
             if state.completed:
                 break
 

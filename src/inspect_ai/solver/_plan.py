@@ -12,7 +12,6 @@ from inspect_ai._util.registry import (
     registry_name,
     registry_tag,
 )
-from inspect_ai.solver._transcript import solver_transcript
 
 from ._solver import Generate, Solver
 from ._task_state import TaskState
@@ -90,10 +89,8 @@ class Plan(Solver):
         try:
             # execute steps
             for index, solver in enumerate(self.steps):
-                # run solver with transcript
-                with solver_transcript(solver, state) as st:
-                    state = await solver(state, generate)
-                    st.complete(state)
+                # run solver
+                state = await solver(state, generate)
 
                 # tick progress
                 self.progress()
@@ -108,9 +105,7 @@ class Plan(Solver):
 
             # execute finish
             if self.finish:
-                with solver_transcript(self.finish, state) as st:
-                    state = await self.finish(state, generate)
-                    st.complete(state)
+                state = await self.finish(state, generate)
                 self.progress()
 
             # mark completed
