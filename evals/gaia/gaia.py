@@ -58,7 +58,7 @@ def gaia_hf_record_to_sample(
             target=record["Final answer"],
             id=record["task_id"],
             metadata={
-                "level": record["level"],
+                "level": record["Level"],
                 "Annotator Metadata": record["Annotator Metadata"],
             },
         )
@@ -68,7 +68,7 @@ def gaia_hf_record_to_sample(
         # Setup files into the sample
         files = [file for file in os.listdir(files_location) if str(sample.id) in file]
         if len(files) > 0:
-            sample.files = {"/shared_files/" + files[0]: str((files / files[0]))}
+            sample.files = {"/shared_files/" + files[0]: str((files_location / files[0]))}
 
         return sample
 
