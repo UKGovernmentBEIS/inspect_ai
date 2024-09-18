@@ -1,5 +1,6 @@
 import inspect
 from dataclasses import dataclass, field
+from logging import getLogger
 from typing import Any, Awaitable, Callable, TypeVar, cast
 
 from inspect_ai._util.registry import (
@@ -11,12 +12,15 @@ from inspect_ai._util.registry import (
     registry_name,
     registry_tag,
 )
+from inspect_ai.solver._transcript import solver_transcript
 
-from ._solver import Solver
+from ._solver import Generate, Solver
 from ._task_state import TaskState
 
+logger = getLogger(__name__)
 
-class Plan:
+
+class Plan(Solver):
     """Task plan: List of solvers with an optional finishing solver.
 
     The optional `finish` solver is called after executing the steps (including in the case
@@ -52,6 +56,7 @@ class Plan:
 
         self.finish = finish
         self.cleanup = cleanup
+        self.progress: Callable[[], None] = lambda: None
         self._name = name
 
     @property
@@ -76,6 +81,50 @@ class Plan:
     (it is only for cleanup not for transforming the state). Note also that
     this function should be declared `async`.
     """
+
+    async def __call__(
+        self,
+        state: TaskState,
+        generate: Generate,
+    ) -> TaskState:
+        try:
+            # execute steps
+            for index, solver in enumerate(self.steps):
+                # run solver with transcript
+                with solver_transcript(solver, state) as st:
+                    state = await solver(state, generate)
+                    st.complete(state)
+
+                # tick progress
+                self.progress()
+
+                # check for completed
+                if state.completed:
+                    # tick rest of progress
+                    for _ in range(index + 1, len(self.steps)):
+                        self.progress()
+                    # exit loop
+                    break
+
+            # execute finish
+            if self.finish:
+                with solver_transcript(self.finish, state) as st:
+                    state = await self.finish(state, generate)
+                    st.complete(state)
+                self.progress()
+
+            # mark completed
+            state.completed = True
+
+        finally:
+            # always do cleanup if we have one
+            if self.cleanup:
+                try:
+                    await self.cleanup(state)
+                except Exception as ex:
+                    logger.warning(f"Exception occurred during plan cleanup: {ex}")
+
+        return state
 
 
 PlanType = TypeVar("PlanType", bound=Callable[..., Plan])

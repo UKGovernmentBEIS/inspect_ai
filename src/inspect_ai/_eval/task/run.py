@@ -77,7 +77,6 @@ from .log import TaskLogger, collect_eval_data, log_plan
 from .results import eval_results
 from .rundir import set_task_run_dir
 from .sandbox import sandboxenv_context
-from .transcript import solver_transcript
 from .util import sample_messages, task_run_dir
 
 py_logger = getLogger(__name__)
@@ -401,31 +400,9 @@ async def task_run_sample(
                 SampleInitEvent(sample=event_sample, state=state_jsonable(state))
             )
 
-            # run plan steps (checking for early termination)
-            for index, solver in enumerate(plan.steps):
-                # run the solver
-                with solver_transcript(solver, state) as st:
-                    state = await solver(state, generate)
-                    if state is None:
-                        raise RuntimeError(
-                            f"Solver '{st.name}' did not return a TaskState"
-                        )
-                    st.complete(state)
-                progress()
-
-                # check for early termination (tick remaining progress)
-                if state.completed:
-                    for _ in range(index + 1, len(plan.steps)):
-                        progress()
-                    break
-
-            # run finishing step them mark completed
-            if plan.finish:
-                with solver_transcript(plan.finish, state) as st:
-                    state = await plan.finish(state, generate)
-                    st.complete(state)
-                progress()
-            state.completed = True
+            # set progress for plan then run it
+            plan.progress = progress
+            state = await plan(state, generate)
 
         except asyncio.CancelledError:
             # allow cancelled error to propagate
@@ -437,17 +414,6 @@ async def task_run_sample(
 
             # fire error event
             transcript()._event(ErrorEvent(error=error))
-
-        finally:
-            # safely run cleanup function if there is one
-            if plan.cleanup:
-                try:
-                    await plan.cleanup(state)
-                except Exception as ex:
-                    py_logger.warning(
-                        f"Exception occurred during plan cleanup for task {task_name}: "
-                        + f"{exception_message(ex)}"
-                    )
 
         # score it
         results: dict[str, SampleScore] = {}
