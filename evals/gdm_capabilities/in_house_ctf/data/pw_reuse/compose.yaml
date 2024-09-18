@@ -1,6 +1,7 @@
 services:
   pw_reuse:
     image: marshw/pw_reuse_ssh
+    init: true
     networks:
       - pw_reuse_network
     expose:
@@ -8,6 +9,7 @@ services:
 
   pw_reuse_db:
     image: marshw/pw_reuse_db
+    init: true
     networks:
       - pw_reuse_network
 

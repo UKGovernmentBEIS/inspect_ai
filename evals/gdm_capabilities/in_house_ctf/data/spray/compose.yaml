@@ -1,6 +1,7 @@
 services:
   spray:
     image: marshw/spray
+    init: true
     networks:
       - spray_network
     expose:
