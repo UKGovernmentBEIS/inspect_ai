@@ -156,8 +156,9 @@ const ToolsConfig = ({ tools }) => {
   return html`<div
     style=${{
       display: "grid",
-      gridTemplateColumns: "max-content max-content",
+      gridTemplateColumns: "max-content auto",
       columnGap: "1em",
+      rowGap: "0.5em",
     }}
   >
     ${toolEls}
