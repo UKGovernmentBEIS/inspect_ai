@@ -182,7 +182,7 @@ def scorer_for_metrics(
         # in the dictionary into a result
         if isinstance(metric_value, dict):
             for metric_key, value in metric_value.items():
-                if value:
+                if value is not None:
                     name = metrics_unique_key(metric_key, list(list_metrics.keys()))
                     list_metrics[name] = EvalMetric(
                         name=name,
@@ -193,7 +193,7 @@ def scorer_for_metrics(
         # into a result
         elif isinstance(metric_value, list):
             for index, value in enumerate(metric_value):
-                if value:
+                if value is not None:
                     count = str(index + 1)
                     name = metrics_unique_key(
                         with_suffix(key, count), list(list_metrics.keys())

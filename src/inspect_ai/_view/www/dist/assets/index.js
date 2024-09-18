@@ -13813,14 +13813,16 @@ const EventPanel = ({
   titleStyle,
   children
 }) => {
-  const arrChildren = Array.isArray(children) ? children : [children];
-  const filteredArrChilden = arrChildren.filter((child) => !!child);
   const hasCollapse = collapse !== void 0;
   const [collapsed, setCollapsed] = h(!!collapse);
   const [selectedNav, setSelectedNav] = h("");
+  const filteredArrChildren = T(() => {
+    const arrChildren = Array.isArray(children) ? children : [children];
+    return arrChildren.filter((child) => !!child);
+  }, [children]);
   y(() => {
     setSelectedNav(pillId(0));
-  }, []);
+  }, [filteredArrChildren]);
   const pillId = (index) => {
     return `${id}-nav-pill-${index}`;
   };
@@ -13835,7 +13837,7 @@ const EventPanel = ({
   gridColumns2.push("auto");
   gridColumns2.push("minmax(0, max-content)");
   gridColumns2.push("minmax(0, max-content)");
-  const titleEl = title || icon || filteredArrChilden.length > 1 ? m$1`<div
+  const titleEl = title || icon || filteredArrChildren.length > 1 ? m$1`<div
           style=${{
     display: "grid",
     gridTemplateColumns: gridColumns2.join(" "),
@@ -13898,8 +13900,8 @@ const EventPanel = ({
     flexDirection: "columns"
   }}
           >
-            ${(!hasCollapse || !collapsed) && filteredArrChilden && filteredArrChilden.length > 1 ? m$1` <${EventNavs}
-                  navs=${filteredArrChilden.map((child, index) => {
+            ${(!hasCollapse || !collapsed) && filteredArrChildren && filteredArrChildren.length > 1 ? m$1` <${EventNavs}
+                  navs=${filteredArrChildren.map((child, index) => {
     var _a;
     const defaultTitle = `Tab ${index}`;
     const title2 = child && typeof child === "object" ? ((_a = child["props"]) == null ? void 0 : _a.name) || defaultTitle : defaultTitle;
@@ -13933,7 +13935,7 @@ const EventPanel = ({
     display: !hasCollapse || !collapsed ? "inherit" : "none"
   }}
     >
-      ${filteredArrChilden == null ? void 0 : filteredArrChilden.map((child, index) => {
+      ${filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index) => {
     const id2 = pillId(index);
     return m$1`<div
           id=${id2}
@@ -16199,13 +16201,15 @@ const APICodeCell = ({ id, contents }) => {
   }
   const sourceCode = JSON.stringify(contents, void 0, 2);
   const codeRef = A();
-  if (codeRef.current) {
-    codeRef.current.innerHTML = Prism$1.highlight(
-      sourceCode,
-      Prism$1.languages.javascript,
-      "javacript"
-    );
-  }
+  y(() => {
+    if (codeRef.current) {
+      codeRef.current.innerHTML = Prism$1.highlight(
+        sourceCode,
+        Prism$1.languages.javascript,
+        "javacript"
+      );
+    }
+  }, [codeRef.current, contents]);
   return m$1`<div>
     <pre
       style=${{
@@ -16238,8 +16242,9 @@ const ToolsConfig = ({ tools }) => {
   return m$1`<div
     style=${{
     display: "grid",
-    gridTemplateColumns: "max-content max-content",
-    columnGap: "1em"
+    gridTemplateColumns: "max-content auto",
+    columnGap: "1em",
+    rowGap: "0.5em"
   }}
   >
     ${toolEls}

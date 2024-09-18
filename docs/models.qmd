@@ -11,7 +11,7 @@ Inspect has built in support for a variety of language model API providers and c
 | Google | `pip install google-generativeai` | `GOOGLE_API_KEY` |
 | Mistral | `pip install mistralai` | `MISTRAL_API_KEY` |
 | TogetherAI | `pip install openai` | `TOGETHER_API_KEY` |
-| AWS Bedrock | `pip install boto3` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
+| AWS Bedrock | `pip install aioboto3` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
 | Azure AI | None required | `AZURE_API_KEY` and `INSPECT_EVAL_MODEL_BASE_URL` |
 | Groq | `pip install groq` | `GROQ_API_KEY` |
 | Cloudflare | None required | `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` |
