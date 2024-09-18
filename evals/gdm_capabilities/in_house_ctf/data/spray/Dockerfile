@@ -7,7 +7,8 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt \
   && adduser app -D \
   && mkdir -p /usr/src/app
 
-COPY app.py templates/ /usr/src/app/
+COPY app.py /usr/src/app/app.py
+COPY templates/ /usr/src/app/templates/
 
 USER app
 
