@@ -1,5 +1,4 @@
 import abc
-import asyncio
 import json
 from typing import Any, cast
 
@@ -118,34 +117,22 @@ class BedrockChatHandler(abc.ABC):
     def __init__(
         self, model_name: str, base_url: str | None, config: GenerateConfig
     ) -> None:
-        # import boto3 on demand
+        # import aioboto3 on demand
         try:
-            import boto3
-            from botocore.config import Config
+            import aioboto3
 
-            verify_required_version("Bedrock API", "boto3", "1.34.0")
+            verify_required_version("Bedrock API", "aioboto3", "13.0.0")
 
+            # properties for the client
             self.model_name = model_name
-            self.client = boto3.client(
-                service_name="bedrock-runtime",
-                endpoint_url=base_url,
-                config=Config(
-                    connect_timeout=(
-                        config.timeout if config.timeout else DEFAULT_TIMEOUT
-                    ),
-                    read_timeout=config.timeout if config.timeout else DEFAULT_TIMEOUT,
-                    retries=dict(
-                        max_attempts=(
-                            config.max_retries
-                            if config.max_retries
-                            else DEFAULT_MAX_RETRIES
-                        ),
-                        mode="adaptive",
-                    ),
-                ),
-            )
+            self.base_url = base_url
+            self.config = config
+
+            # Create a shared session to be used by the handler
+            self.session = aioboto3.Session()
+
         except ImportError:
-            raise pip_dependency_error("Bedrock API", ["boto3"])
+            raise pip_dependency_error("Bedrock API", ["aioboto3"])
 
     async def generate(
         self,
@@ -154,28 +141,41 @@ class BedrockChatHandler(abc.ABC):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> tuple[ModelOutput, ModelCall]:
+        from botocore.config import Config
+
         formatted_input_with_tools: list[ChatAPIMessage] = chat_api_input(
             input, tools, self.chat_api_handler()
         )
-        # create the body
         body = self.request_body(formatted_input_with_tools, config)
+
         if config.temperature is not None:
             body["temperature"] = config.temperature
         if config.top_p is not None:
             body["top_p"] = config.top_p
 
-        # run this in a background thread
-        async def invoke_model() -> Any:
-            return self.client.invoke_model(
+        # Use the session to create the client
+        async with self.session.client(
+            service_name="bedrock-runtime",
+            endpoint_url=self.base_url,
+            config=Config(
+                connect_timeout=config.timeout if config.timeout else DEFAULT_TIMEOUT,
+                read_timeout=config.timeout if config.timeout else DEFAULT_TIMEOUT,
+                retries=dict(
+                    max_attempts=config.max_retries
+                    if config.max_retries
+                    else DEFAULT_MAX_RETRIES,
+                    mode="adaptive",
+                ),
+            ),
+        ) as client:
+            response = await client.invoke_model(
                 body=json.dumps(body),
                 modelId=self.model_name,
                 accept="application/json",
                 contentType="application/json",
             )
+            response_body = json.loads(await response["body"].read())
 
-        loop = asyncio.get_running_loop()
-        response = await loop.run_in_executor(None, invoke_model)
-        response_body = json.loads((await response).get("body").read())
         choice = self.completion_choice(response_body, tools, self.chat_api_handler())
         output = ModelOutput(
             model=self.model_name,
