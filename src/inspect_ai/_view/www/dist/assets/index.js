@@ -17645,13 +17645,15 @@ const APICodeCell = ({ id, contents }) => {
   }
   const sourceCode = JSON.stringify(contents, void 0, 2);
   const codeRef = A();
-  if (codeRef.current) {
-    codeRef.current.innerHTML = Prism$1.highlight(
-      sourceCode,
-      Prism$1.languages.javascript,
-      "javacript"
-    );
-  }
+  y(() => {
+    if (codeRef.current) {
+      codeRef.current.innerHTML = Prism$1.highlight(
+        sourceCode,
+        Prism$1.languages.javascript,
+        "javacript"
+      );
+    }
+  }, [codeRef.current, contents]);
   return m$1`<div>
     <pre
       style=${{
