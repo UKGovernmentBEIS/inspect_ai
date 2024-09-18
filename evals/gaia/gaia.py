@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Any, Callable, Literal
 
 from huggingface_hub import snapshot_download
-from regex import P  # type: ignore
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Dataset, Sample, hf_dataset
