@@ -61,6 +61,7 @@ def gaia_hf_record_to_sample(
                 "level": record["Level"],
                 "Annotator Metadata": record["Annotator Metadata"],
             },
+            setup="mkdir -p /shared_files",
         )
 
         sample.input = input_prompt.format(question=sample.input)
@@ -68,7 +69,11 @@ def gaia_hf_record_to_sample(
         # Setup files into the sample
         files = [file for file in os.listdir(files_location) if str(sample.id) in file]
         if len(files) > 0:
-            sample.files = {"/shared_files/" + files[0]: str((files_location / files[0]))}
+            sample.files = {
+                "/shared_files/" + files[0]: str((files_location / files[0]))
+            }
+            
+        sample.setup
 
         return sample
 
