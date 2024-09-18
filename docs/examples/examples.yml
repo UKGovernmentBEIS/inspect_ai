@@ -31,6 +31,16 @@
   demonstrates: ["Scoring", "Sandbox", "Tools"]
   contributors: ["max-kaufmann"]
 
+- title: "GAIA: A Benchmark for General AI Assistants"
+  description: |
+    GAIA proposes real-world questions that require a set of fundamental abilities such as reasoning, multi-modality handling, web browsing, and generally tool-use proficiency. GAIA questions are conceptually simple for humans yet challenging for most advanced AIs
+  path: evals/gaia
+  arxiv: https://arxiv.org/abs/2311.12983
+  cite: mialon2023gaiabenchmarkgeneralai
+  group: Assistants
+  demonstrates: ["Web Search", "Sandbox", "Tools"]
+  contributors: ["max-kaufmann"]
+
 - title: "InterCode: Capture the Flag"
   description: |
     Measure expertise in coding, cryptography (i.e. binary exploitation, forensics), reverse engineering, and recognizing security vulnerabilities. Demonstrates tool use and sandboxing untrusted model code.
