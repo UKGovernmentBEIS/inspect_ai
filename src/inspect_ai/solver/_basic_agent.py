@@ -1,3 +1,4 @@
+from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._call_tools import call_tools
 from inspect_ai.model._chat_message import ChatMessageTool, ChatMessageUser
 from inspect_ai.model._model import get_model
@@ -38,6 +39,7 @@ def basic_agent(
     *,
     init: Solver | list[Solver] | None = None,
     tools: list[Tool] | Solver | None = None,
+    cache: bool | CachePolicy = False,
     agent_name: str = "basic_agent",
     max_attempts: int = 1,
     score_value: ValueToFloat | None = None,
@@ -68,8 +70,10 @@ def basic_agent(
          (defaults to system_message with basic ReAct prompt)
        tools (list[Tool] | Solver | None): Tools available for the agent. Either a
          list of tools or a Solver that can yield dynamic tools per-sample.
-       max_attempts (int): Maximum number of submissions to accept before terminating.
+       cache: (bool | CachePolicy): Caching behaviour for generate responses
+         (defaults to no caching).
        agent_name (str): Name passed to the Plan constructor (defaults to 'basic_agent')
+       max_attempts (int): Maximum number of submissions to accept before terminating.
        score_value (ValueToFloat): Function used to extract float from scores (defaults
          to standard value_to_float())
        incorrect_message (str): User message reply for an incorrect submission from
@@ -140,7 +144,9 @@ def basic_agent(
                     break
 
                 # generate output and append assistant message
-                state.output = await get_model().generate(state.messages, state.tools)
+                state.output = await get_model().generate(
+                    input=state.messages, tools=state.tools, cache=cache
+                )
                 state.messages.append(state.output.message)
 
                 # resolve tools calls (if any)

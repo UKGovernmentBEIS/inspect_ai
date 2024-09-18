@@ -114,7 +114,7 @@ export function App({ api, pollForLogs = true }) {
         console.log(e);
         setStatus({ loading: false, error: e });
       }
-    } else if (logs.files.length === 0) {
+    } else if (logs.log_dir && logs.files.length === 0) {
       setStatus({
         loading: false,
         error: new Error(

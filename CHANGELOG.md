@@ -7,7 +7,10 @@
 - Fix error when running `inspect info log-types`
 - Improve scorer names imported from modules by not including the the module names.
 - Don't mark messages read from cache with source="cache" (as this breaks the cache key)
+- Add `cache` argument to `basic_agent()` for specifying cache policy for the agent.
 - Add `cache` field to `ModelEvent` to track cache reads and writes.
+- Compatibility with Mistral v1.1 client (now required for Mistral).
+- Catch and propagate Anthropic content filter exceptions as normal "content_filter" responses.
 
 ## v0.3.29 (16 September 2024)
 

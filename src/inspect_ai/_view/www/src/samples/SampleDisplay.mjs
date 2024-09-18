@@ -46,6 +46,7 @@ export const SampleDisplay = ({
   sample,
   sampleDescriptor,
   visible,
+  index,
   context,
 }) => {
   // Tab ids
@@ -86,8 +87,8 @@ export const SampleDisplay = ({
       selectedTab === msgTabId
     }>
       <${ChatView} 
-        key=${`${baseId}-chat`} 
-        id=${`${baseId}-chat`} 
+        key=${`${baseId}-chat-${index}`} 
+        id=${`${baseId}-chat-${index}`} 
         messages=${sample.messages} 
         style=${{ paddingLeft: ".8em", paddingTop: "1em" }}
         indented=${true}
@@ -100,7 +101,7 @@ export const SampleDisplay = ({
       <${TabPanel} id=${transcriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${
         selectedTab === transcriptTabId || selectedTab === undefined
       } scrollable=${false}>
-        <${SampleTranscript} id=${`${baseId}-transcript-display`} evalEvents=${sample.transcript}/>
+        <${SampleTranscript} key=${`${baseId}-transcript-display-${index}`} id=${`${baseId}-transcript-display-${index}`} evalEvents=${sample.transcript}/>
       </${TabPanel}>`);
   }
 
@@ -136,7 +137,11 @@ export const SampleDisplay = ({
     }
   }
 
-  const sampleMetadatas = metadataViewsForSample(baseId, sample, context);
+  const sampleMetadatas = metadataViewsForSample(
+    `${baseId}-${index}`,
+    sample,
+    context,
+  );
   if (sampleMetadatas.length > 0) {
     tabs.push(
       html`
