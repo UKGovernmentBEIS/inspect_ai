@@ -96,7 +96,7 @@ function S(n2, l2, u2, t2, i2, o2, r2, f2, e2, c2, s2) {
 }
 function $(n2, l2, u2) {
   var t2, i2, o2, r2, f2, e2 = l2.length, c2 = u2.length, s2 = c2, a2 = 0;
-  for (n2.__k = [], t2 = 0; t2 < e2; t2++) r2 = t2 + a2, null != (i2 = n2.__k[t2] = null == (i2 = l2[t2]) || "boolean" == typeof i2 || "function" == typeof i2 ? null : "string" == typeof i2 || "number" == typeof i2 || "bigint" == typeof i2 || i2.constructor == String ? g(null, i2, null, null, null) : y$1(i2) ? g(k$1, { children: i2 }, null, null, null) : void 0 === i2.constructor && i2.__b > 0 ? g(i2.type, i2.props, i2.key, i2.ref ? i2.ref : null, i2.__v) : i2) ? (i2.__ = n2, i2.__b = n2.__b + 1, f2 = L(i2, u2, r2, s2), i2.__i = f2, o2 = null, -1 !== f2 && (s2--, (o2 = u2[f2]) && (o2.__u |= 131072)), null == o2 || null === o2.__v ? (-1 == f2 && a2--, "function" != typeof i2.type && (i2.__u |= 65536)) : f2 !== r2 && (f2 == r2 - 1 ? a2 = f2 - r2 : f2 == r2 + 1 ? a2++ : f2 > r2 ? s2 > e2 - r2 ? a2 += f2 - r2 : a2-- : f2 < r2 && a2++, f2 !== t2 + a2 && (i2.__u |= 65536))) : (o2 = u2[r2]) && null == o2.key && o2.__e && 0 == (131072 & o2.__u) && (o2.__e == n2.__d && (n2.__d = x(o2)), V(o2, o2, false), u2[r2] = null, s2--);
+  for (n2.__k = [], t2 = 0; t2 < e2; t2++) r2 = t2 + a2, null != (i2 = n2.__k[t2] = null == (i2 = l2[t2]) || "boolean" == typeof i2 || "function" == typeof i2 ? null : "string" == typeof i2 || "number" == typeof i2 || "bigint" == typeof i2 || i2.constructor == String ? g(null, i2, null, null, null) : y$1(i2) ? g(k$1, { children: i2 }, null, null, null) : void 0 === i2.constructor && i2.__b > 0 ? g(i2.type, i2.props, i2.key, i2.ref ? i2.ref : null, i2.__v) : i2) ? (i2.__ = n2, i2.__b = n2.__b + 1, f2 = L(i2, u2, r2, s2), i2.__i = f2, o2 = null, -1 !== f2 && (s2--, (o2 = u2[f2]) && (o2.__u |= 131072)), null == o2 || null === o2.__v ? (-1 == f2 && a2--, "function" != typeof i2.type && (i2.__u |= 65536)) : f2 !== r2 && (f2 == r2 - 1 ? a2-- : f2 == r2 + 1 ? a2++ : f2 > r2 ? s2 > e2 - r2 ? a2 += f2 - r2 : a2-- : f2 < r2 && (f2 == r2 - a2 ? a2 -= f2 - r2 : a2++), f2 !== t2 + a2 && (i2.__u |= 65536))) : (o2 = u2[r2]) && null == o2.key && o2.__e && 0 == (131072 & o2.__u) && (o2.__e == n2.__d && (n2.__d = x(o2)), V(o2, o2, false), u2[r2] = null, s2--);
   if (s2) for (t2 = 0; t2 < c2; t2++) null != (o2 = u2[t2]) && 0 == (131072 & o2.__u) && (o2.__e == n2.__d && (n2.__d = x(o2)), V(o2, o2));
 }
 function I(n2, l2, u2) {
@@ -15259,14 +15259,16 @@ const EventPanel = ({
   titleStyle,
   children
 }) => {
-  const arrChildren = Array.isArray(children) ? children : [children];
-  const filteredArrChilden = arrChildren.filter((child) => !!child);
   const hasCollapse = collapse !== void 0;
   const [collapsed, setCollapsed] = h(!!collapse);
   const [selectedNav, setSelectedNav] = h("");
+  const filteredArrChildren = T(() => {
+    const arrChildren = Array.isArray(children) ? children : [children];
+    return arrChildren.filter((child) => !!child);
+  }, [children]);
   y(() => {
     setSelectedNav(pillId(0));
-  }, []);
+  }, [filteredArrChildren]);
   const pillId = (index) => {
     return `${id}-nav-pill-${index}`;
   };
@@ -15281,7 +15283,7 @@ const EventPanel = ({
   gridColumns2.push("auto");
   gridColumns2.push("minmax(0, max-content)");
   gridColumns2.push("minmax(0, max-content)");
-  const titleEl = title || icon || filteredArrChilden.length > 1 ? m$1`<div
+  const titleEl = title || icon || filteredArrChildren.length > 1 ? m$1`<div
           style=${{
     display: "grid",
     gridTemplateColumns: gridColumns2.join(" "),
@@ -15344,8 +15346,8 @@ const EventPanel = ({
     flexDirection: "columns"
   }}
           >
-            ${(!hasCollapse || !collapsed) && filteredArrChilden && filteredArrChilden.length > 1 ? m$1` <${EventNavs}
-                  navs=${filteredArrChilden.map((child, index) => {
+            ${(!hasCollapse || !collapsed) && filteredArrChildren && filteredArrChildren.length > 1 ? m$1` <${EventNavs}
+                  navs=${filteredArrChildren.map((child, index) => {
     var _a;
     const defaultTitle = `Tab ${index}`;
     const title2 = child && typeof child === "object" ? ((_a = child["props"]) == null ? void 0 : _a.name) || defaultTitle : defaultTitle;
@@ -15379,7 +15381,7 @@ const EventPanel = ({
     display: !hasCollapse || !collapsed ? "inherit" : "none"
   }}
     >
-      ${filteredArrChilden == null ? void 0 : filteredArrChilden.map((child, index) => {
+      ${filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index) => {
     const id2 = pillId(index);
     return m$1`<div
           id=${id2}
@@ -17645,13 +17647,15 @@ const APICodeCell = ({ id, contents }) => {
   }
   const sourceCode = JSON.stringify(contents, void 0, 2);
   const codeRef = A();
-  if (codeRef.current) {
-    codeRef.current.innerHTML = Prism$1.highlight(
-      sourceCode,
-      Prism$1.languages.javascript,
-      "javacript"
-    );
-  }
+  y(() => {
+    if (codeRef.current) {
+      codeRef.current.innerHTML = Prism$1.highlight(
+        sourceCode,
+        Prism$1.languages.javascript,
+        "javacript"
+      );
+    }
+  }, [codeRef.current, contents]);
   return m$1`<div>
     <pre
       style=${{
@@ -17684,8 +17688,9 @@ const ToolsConfig = ({ tools }) => {
   return m$1`<div
     style=${{
     display: "grid",
-    gridTemplateColumns: "max-content max-content",
-    columnGap: "1em"
+    gridTemplateColumns: "max-content auto",
+    columnGap: "1em",
+    rowGap: "0.5em"
   }}
   >
     ${toolEls}
