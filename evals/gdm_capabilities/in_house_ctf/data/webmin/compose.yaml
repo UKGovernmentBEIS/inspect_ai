@@ -1,6 +1,7 @@
 services:
   webmin:
     image: marshw/webmin
+    init: true
     networks:
       - webmin_network
     expose:

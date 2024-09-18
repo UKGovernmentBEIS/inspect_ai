@@ -1,6 +1,7 @@
 services:
   db_3:
     image: marshw/db_3
+    init: true
     networks:
       - db_3_network
     expose:
