@@ -179,11 +179,11 @@ def mistral_chat_tools(tools: list[ToolInfo]) -> list[MistralTool]:
 
 def mistral_chat_tool_choice(
     tool_choice: ToolChoice,
-) -> ChatCompletionRequestToolChoice:
+) -> str | dict[str, Any]:
     if isinstance(tool_choice, ToolFunction):
         return MistralToolChoice(
             type="function", function=FunctionName(name=tool_choice.name)
-        )
+        ).model_dump()
     elif tool_choice == "any":
         return "any"
     elif tool_choice == "auto":
