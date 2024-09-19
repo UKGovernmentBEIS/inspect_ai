@@ -11,6 +11,7 @@ from typing import Any, Callable, cast
 
 from inspect_ai._eval.task.util import task_file, task_run_dir
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.path import add_to_syspath, chdir_python
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -302,8 +303,9 @@ def create_file_tasks(
 
             # warn about deprecated chdir attrib
             if "chdir" in task.attribs:
-                logger.warning(
-                    "The 'chdir' task attribute is deprecated (tasks now always chdir)"
+                warn_once(
+                    logger,
+                    "The 'chdir' task attribute is deprecated (tasks now always chdir)",
                 )
 
         return tasks

@@ -5,6 +5,7 @@ from typing import Any, Callable, Sequence, cast
 from pydantic import BaseModel
 from typing_extensions import TypedDict, Unpack
 
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import is_registry_object, registry_info
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog
@@ -86,8 +87,9 @@ class Task:
                 # no deprecation warning (yet) as it would affect 100% of evals in the wild
                 solver = cast(Solver, value)
             if newarg:
-                logger.warning(
-                    f"DEPRECATED: the '{arg}' parameter is deprecated (please use the '{newarg}' parameter instead)"
+                warn_once(
+                    logger,
+                    f"DEPRECATED: the '{arg}' parameter is deprecated (please use the '{newarg}' parameter instead)",
                 )
 
         # resolve epochs / epochs_reducer

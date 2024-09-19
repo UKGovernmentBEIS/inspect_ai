@@ -2,7 +2,6 @@ import inspect
 from logging import getLogger
 from typing import Any, Awaitable, Callable, TypeVar, cast
 
-from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import (
     RegistryInfo,
     is_registry_object,
@@ -61,6 +60,8 @@ class Plan(Solver):
         self._name = name
 
         if not internal:
+            from inspect_ai._util.logger import warn_once
+
             warn_once(
                 logger,
                 "Plan is deprecated: use chain() to compose a list of solvers.",
@@ -178,6 +179,8 @@ def plan(*plan: PlanType | None, name: str | None = None, **attribs: Any) -> Any
         return plan_register(
             plan=cast(PlanType, wrapper), name=plan_name, attribs=attribs, params=params
         )
+
+    from inspect_ai._util.logger import warn_once
 
     warn_once(
         logger,

@@ -21,25 +21,25 @@ def chain(*solvers: Solver | list[Solver]) -> Solver:
     Returns:
       Solver that executes the passed solvers as a chain.
     """
-
-    def unroll(solver: Solver | list[Solver]) -> list[Solver]:
-        if isinstance(solver, Solver):
-            if isinstance(solver, Chain):
-                return unroll(solver._solvers)
-            else:
-                return [solver]
-        else:
-            unrolled: list[Solver] = []
-            for s in solver:
-                unrolled.extend(unroll(s))
-            return unrolled
-
     # flatten lists and chains
     all_solvers: list[Solver] = []
     for solver in solvers:
         all_solvers.extend(unroll(solver))
 
     return Chain(all_solvers)
+
+
+def unroll(solver: Solver | list[Solver]) -> list[Solver]:
+    if isinstance(solver, Solver):
+        if isinstance(solver, Chain):
+            return unroll(solver._solvers)
+        else:
+            return [solver]
+    else:
+        unrolled: list[Solver] = []
+        for s in solver:
+            unrolled.extend(unroll(s))
+        return unrolled
 
 
 class Chain(Sequence[Solver], Solver):
