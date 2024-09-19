@@ -3,7 +3,6 @@ import os
 from typing import Any
 
 from mistralai import (
-    ChatCompletionRequestToolChoice,
     FunctionCall,
     FunctionName,
     Mistral,
