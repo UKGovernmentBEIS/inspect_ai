@@ -3,6 +3,7 @@ import { html } from "htm/preact";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { EventPanel } from "./EventPanel.mjs";
 import { JSONPanel } from "../../components/JsonPanel.mjs";
+import { MarkdownDiv } from "../../components/MarkdownDiv.mjs";
 
 /**
  * Renders the InfoEventView component.
@@ -14,8 +15,22 @@ import { JSONPanel } from "../../components/JsonPanel.mjs";
  * @returns {import("preact").JSX.Element} The component.
  */
 export const InfoEventView = ({ id, event, style }) => {
+  const panels = [];
+  if (typeof event.data === "string") {
+    panels.push(
+      html`<${MarkdownDiv}
+        markdown=${event.data}
+        style=${{ margin: "0.5em 0" }}
+      />`,
+    );
+  } else {
+    panels.push(
+      html`<${JSONPanel} data=${event.data} style=${{ margin: "0.5em 0" }} />`,
+    );
+  }
+
   return html`
   <${EventPanel} id=${id} title="Info" icon=${ApplicationIcons.info} style=${style}>
-    <${JSONPanel} data=${event.data} style=${{ margin: "0.5em 0" }}/>
+    ${panels}
   </${EventPanel}>`;
 };
