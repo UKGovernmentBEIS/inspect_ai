@@ -3,7 +3,7 @@ from pathlib import Path
 from uuid import uuid1
 
 from build_images import build_images
-from datasets import load_dataset
+from datasets import load_dataset  # type: ignore
 from swe_bench import swe_bench, swebench_baseline_scorer
 
 from inspect_ai import Task, eval
@@ -25,7 +25,7 @@ MAX_CONCURRENCY = int(os.getenv("INSPECT_MAX_CONCURRENCY", 4))
 
 if not Path(SLOW_TEST_DATASET).exists():
     raise FileNotFoundError(
-        f"Test datasets have not been created. Please run the script at {(RESOURCE_DIR / "tests"/"create_test_repos.py").absolute()} to run the tests."
+        f"Test datasets have not been created. Please run the script at {(RESOURCE_DIR / 'tests'/'create_test_repos.py').absolute()} to run the tests."
     )
 
 if not Path(SWEAGENT_BASELINE).exists():
@@ -78,7 +78,7 @@ def apply_patch_solver(patch: str):
 @solver
 def delete_readme_solver():
     async def _delete_readme_solver(state: TaskState, generate: Generate) -> TaskState:
-        sandbox().exec(["rm", "/testbed/README.md"])
+        await sandbox().exec(["rm", "/testbed/README.md"])
         return state
 
     return _delete_readme_solver
@@ -95,7 +95,7 @@ def test_correct_patch_succeeds() -> None:
     result = eval(test_task, "mockllm/model", max_messages=4, debug_errors=True)[0]
 
     assert (
-        result.results.scores[0].metrics["mean"].value == 1.0
+        result.results and result.results.scores[0].metrics["mean"].value == 1.0
     ), "SWE-bench should mark a correct application successfully."
 
 
@@ -103,13 +103,12 @@ def test_incorrect_patch_fails() -> None:
     dataset = get_dataset_single_instance(GOLDEN_PATCH_TEST_ID)
     build_swebench_images(dataset, "train")
 
-    test_task = swe_bench(dataset, "train")
-    test_task.plan = Plan([delete_readme_solver()])
+    test_task = swe_bench(dataset, "train", solver=delete_readme_solver())
 
     result = eval(test_task, "mockllm/model", max_messages=2, debug_errors=True)[0]
 
     assert (
-        result.results.scores[0].metrics["mean"].value == 0.0
+        result.results and result.results.scores[0].metrics["mean"].value == 0.0
     ), "SWE-bench should mark an incorrect application as a failure."
 
 
@@ -147,7 +146,7 @@ def test_same_scores_for_swe_agent() -> None:
         "mockllm/model",
         max_tasks=MAX_CONCURRENCY,
         max_samples=MAX_CONCURRENCY,
-        max_subprocess=MAX_CONCURRENCY,
+        max_subprocesses=MAX_CONCURRENCY,
         fail_on_error=False,
     )
 
@@ -165,11 +164,12 @@ def test_same_scores_for_swe_agent() -> None:
                     error_str += f"Error occurred while evaluating task. Error:\n\n {sample.error}"
                     continue
 
-        score = result.samples[0].scores["swebench_scorer"]
-        swe_agent_score = result.samples[0].scores["sweagent_baseline"]
+            if result.samples[0].scores:
+                score = result.samples[0].scores["swebench_scorer"]
+                swe_agent_score = result.samples[0].scores["sweagent_baseline"]
 
-        if score.value != swe_agent_score.value:
-            error_str += f"Result of evaluating {result.samples[0].id} did not agree with the swe_bench ground truth. Our score: '{score.value}'. swe-agent score: '{swe_agent_score.value}' Scorer results: {score.explanation}"
+            if score.value != swe_agent_score.value:
+                error_str += f"Result of evaluating {result.samples[0].id} did not agree with the swe_bench ground truth. Our score: '{score.value}'. swe-agent score: '{swe_agent_score.value}' Scorer results: {score.explanation}"
 
     assert error_str == "", error_str
 
