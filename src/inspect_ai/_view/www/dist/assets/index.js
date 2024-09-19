@@ -16327,9 +16327,22 @@ const JSONPanel = ({ data, style }) => {
   </div>`;
 };
 const InfoEventView = ({ id, event, style }) => {
+  const panels = [];
+  if (typeof event.data === "string") {
+    panels.push(
+      m$1`<${MarkdownDiv}
+        markdown=${event.data}
+        style=${{ margin: "0.5em 0" }}
+      />`
+    );
+  } else {
+    panels.push(
+      m$1`<${JSONPanel} data=${event.data} style=${{ margin: "0.5em 0" }} />`
+    );
+  }
   return m$1`
   <${EventPanel} id=${id} title="Info" icon=${ApplicationIcons.info} style=${style}>
-    <${JSONPanel} data=${event.data} style=${{ margin: "0.5em 0" }}/>
+    ${panels}
   </${EventPanel}>`;
 };
 const ScoreEventView = ({ id, event, style }) => {
