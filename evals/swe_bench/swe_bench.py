@@ -128,7 +128,7 @@ def swe_bench(
     return Task(
         name=f"{dataset}_{split}",
         dataset=samples,
-        solver=solver,
+        plan=solver,
         scorer=swebench_scorer(),
         max_messages=max_messages,
     )

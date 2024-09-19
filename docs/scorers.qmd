@@ -435,7 +435,7 @@ def challenge() -> Task:
                 target="hello-world.txt",
             )
         ],
-        solver=[use_tools([bash()]), generate()],
+        plan=[use_tools([bash()]), generate()],
         sandbox="local",
         scorer=check_file_exists(),
     )
