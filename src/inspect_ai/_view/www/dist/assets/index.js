@@ -15718,7 +15718,7 @@ const generatePreview = (changes, resolvedState) => {
     const requiredMatchCount = changeType.signature.remove.length + changeType.signature.replace.length + changeType.signature.add.length;
     let matchingOps = 0;
     for (const change of changes) {
-      if (changeType.signature[change.op].length > 0) {
+      if (changeType.signature[change.op] && changeType.signature[change.op].length > 0) {
         changeType.signature[change.op].forEach((signature) => {
           if (change.path.match(signature)) {
             matchingOps++;
