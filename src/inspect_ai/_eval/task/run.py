@@ -157,7 +157,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         if isinstance(solver, Plan):
             plan = solver
         elif isinstance(solver, Chain):
-            plan = Plan(solver.solvers, internal=True)
+            plan = Plan(list(solver), internal=True)
         else:
             plan = Plan(solver, internal=True)
 

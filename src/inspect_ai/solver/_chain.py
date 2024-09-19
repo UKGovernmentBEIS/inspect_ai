@@ -1,3 +1,7 @@
+from typing import Sequence, overload
+
+from typing_extensions import override
+
 from ._solver import Generate, Solver
 from ._task_state import TaskState
 
@@ -17,20 +21,28 @@ def chain(*solvers: Solver | list[Solver]) -> Solver:
     Returns:
       Solver that executes the passed solvers as a chain.
     """
+
+    def unroll(solver: Solver | list[Solver]) -> list[Solver]:
+        if isinstance(solver, Solver):
+            if isinstance(solver, Chain):
+                return unroll(solver._solvers)
+            else:
+                return [solver]
+        else:
+            unrolled: list[Solver] = []
+            for s in solver:
+                unrolled.extend(unroll(s))
+            return unrolled
+
     # flatten lists and chains
     all_solvers: list[Solver] = []
     for solver in solvers:
-        if isinstance(solver, list):
-            all_solvers.extend(solver)
-        elif isinstance(solver, Chain):
-            all_solvers.extend(solver.solvers)
-        else:
-            all_solvers.append(solver)
+        all_solvers.extend(unroll(solver))
 
     return Chain(all_solvers)
 
 
-class Chain(Solver):
+class Chain(Sequence[Solver], Solver):
     """Solver composed from multiple other solvers.
 
     Args:
@@ -38,14 +50,28 @@ class Chain(Solver):
     """
 
     def __init__(self, solvers: list[Solver]) -> None:
-        self.solvers = solvers
+        self._solvers = solvers
+
+    @overload
+    def __getitem__(self, index: int) -> Solver: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> Sequence[Solver]: ...
+
+    @override
+    def __getitem__(self, index: int | slice) -> Solver | Sequence[Solver]:
+        return self._solvers[index]
+
+    @override
+    def __len__(self) -> int:
+        return len(self._solvers)
 
     async def __call__(
         self,
         state: TaskState,
         generate: Generate,
     ) -> TaskState:
-        for solver in self.solvers:
+        for solver in self._solvers:
             state = await solver(state, generate)
             if state.completed:
                 break

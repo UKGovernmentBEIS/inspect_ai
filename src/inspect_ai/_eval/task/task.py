@@ -97,7 +97,7 @@ class Task:
         self.dataset: Dataset = (
             dataset if isinstance(dataset, Dataset) else MemoryDataset(list(dataset))
         )
-        self.solver = chain(solver) if isinstance(solver, list) else solver
+        self.solver = chain(solver) if isinstance(solver, Solver | list) else solver
         self.scorer = (
             scorer
             if isinstance(scorer, list)
