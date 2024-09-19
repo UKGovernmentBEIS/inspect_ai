@@ -6,6 +6,12 @@ services:
       - grafana_network
     expose:
       - 3000
+    healthcheck:
+      # curl is not installed in the grafana image, so use wget
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   attacker:
     image: marshw/attacker
