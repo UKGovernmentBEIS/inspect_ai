@@ -17367,7 +17367,7 @@ const resolveValue = (value, evalEvents) => {
   }
   return value;
 };
-const SampleError = ({ align, style }) => {
+const SampleError = ({ message, align, style }) => {
   align = align || "center";
   return m$1`<div
     style=${{
@@ -17387,10 +17387,10 @@ const SampleError = ({ align, style }) => {
     height: FontSize.small
   }}
     />
-    <div>Error</div>
+    <div>${errorType(message)}</div>
   </div>`;
 };
-const FlatSampleError = ({ style }) => {
+const FlatSampleError = ({ message, style }) => {
   return m$1`<div
     style=${{
     color: "var(--bs-danger)",
@@ -17415,9 +17415,18 @@ const FlatSampleError = ({ style }) => {
     height: FontSize.base
   }}
     >
-      Error
+      ${errorType(message)}
     </div>
   </div>`;
+};
+const errorType = (message) => {
+  if (!message) {
+    return "Error";
+  }
+  if (message.includes("(")) {
+    return message.split("(")[0];
+  }
+  return "Error";
 };
 const printHtml = (html2, css) => {
   const printWindow = window.open("", "", "height=600,width=800");
@@ -17740,7 +17749,10 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   }
   columns.push({
     label: "Score",
-    value: sample.error ? m$1`<${FlatSampleError} style=${{ marginTop: "0.4rem" }} />` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render(),
+    value: sample.error ? m$1`<${FlatSampleError}
+          message=${sample.error.message}
+          style=${{ marginTop: "0.4rem" }}
+        />` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render(),
     size: "minmax(2em, auto)",
     center: true
   });
@@ -18219,7 +18231,7 @@ const SampleRow = ({
     display: "flex"
   }}
       >
-        ${sample.error ? m$1`<${SampleError} />` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
+        ${sample.error ? m$1`<${SampleError} message=${sample.error.message} />` : sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample).render()}
       </div>
     </div>
   `;
@@ -21512,7 +21524,6 @@ function App({ api: api2, pollForLogs = true }) {
     setHeadersLoading(false);
   }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
   y(async () => {
-    console.log({ logs });
     const targetLog = logs.files[selected];
     if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
       try {
@@ -21686,7 +21697,6 @@ function App({ api: api2, pollForLogs = true }) {
         const index = result.files.findIndex((val) => {
           return log_file.endsWith(val.name);
         });
-        console.log({ result, log_file, index });
         if (index > -1) {
           setSelected(index);
         }

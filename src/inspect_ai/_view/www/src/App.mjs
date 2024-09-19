@@ -94,7 +94,6 @@ export function App({ api, pollForLogs = true }) {
 
   // Load a specific log
   useEffect(async () => {
-    console.log({ logs });
     const targetLog = logs.files[selected];
     if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
       try {
@@ -308,7 +307,6 @@ export function App({ api, pollForLogs = true }) {
         const index = result.files.findIndex((val) => {
           return log_file.endsWith(val.name);
         });
-        console.log({ result, log_file, index });
         if (index > -1) {
           setSelected(index);
         }
