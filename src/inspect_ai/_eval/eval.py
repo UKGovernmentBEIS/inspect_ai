@@ -249,7 +249,7 @@ async def eval_async(
         recorder = JSONRecorder(log_dir, log_buffer=log_buffer)
 
         # resolve solver
-        solver = chain(solver) if isinstance(solver, Solver | list) else solver
+        solver = chain(solver) if isinstance(solver, list) else solver
 
         # resolve epochs
         if isinstance(epochs, int):
