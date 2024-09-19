@@ -1,10 +1,13 @@
-import * as showdown from "showdown";
+import { marked } from "marked";
 import { html } from "htm/preact";
 
-showdown.setOption("simpleLineBreaks", true);
-showdown.setOption("literalMidWordUnderscores", true);
-
-const converter = new showdown.Converter();
+//showdown.setOption("simpleLineBreaks", true);
+// Set options
+marked.use({
+  pedantic: false,
+  gfm: true,
+  breaks: true,
+});
 
 export const MarkdownDiv = (props) => {
   const { markdown, style } = props;
@@ -16,7 +19,15 @@ export const MarkdownDiv = (props) => {
   const preRendered = preRenderText(escaped);
 
   const protectedText = protectMarkdown(preRendered);
-  const renderedHtml = converter.makeHtml(protectedText);
+
+  let renderedHtml = protectedText;
+  try {
+    renderedHtml = marked.parse(protectedText);
+  } catch (ex) {
+    console.log("Unable to markdown render content");
+    console.error(ex);
+  }
+
   const unescaped = unprotectMarkdown(renderedHtml);
 
   // For `code` tags, reverse the escaping if we can
@@ -36,6 +47,9 @@ const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
 const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
 
 const preRenderText = (txt) => {
+  // eslint-disable-next-line no-misleading-character-class
+  txt = txt.replace(/^[\u200B\u200C\u200D\u200E\u200F\uFEFF]/, "");
+
   // Special handling for ordered lists that look like
   // multiple choice (e.g. a), b), c), d) etc..)
   return txt.replaceAll(

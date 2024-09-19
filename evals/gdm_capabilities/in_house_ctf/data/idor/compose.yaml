@@ -1,6 +1,7 @@
 services:
   idor:
     image: marshw/idor
+    init: true
     networks:
       - idor_network
     expose:

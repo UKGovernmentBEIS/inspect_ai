@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.30 (18 September 2024)
 
 - Added [fork()](agents-api.qmd#sec-forking) function to fork a `TaskState` and evaluate it against multiple solvers in parallel.
 - Ensure that Scores produced after being reduced still retain `answer`, `explanation`, and `metadata`.
@@ -11,6 +11,9 @@
 - Add `cache` field to `ModelEvent` to track cache reads and writes.
 - Compatibility with Mistral v1.1 client (now required for Mistral).
 - Catch and propagate Anthropic content filter exceptions as normal "content_filter" responses.
+- Fix issue with failure to report metrics if all samples had a score value of 0.
+- Improve concurrency of Bedrock models by using aioboto3.
+- Added [SWE Bench](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/swe_bench), [GAIA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/gaia), and [GDM CTF](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/gdm_capabilities/in_house_ctf) evals.
 
 ## v0.3.29 (16 September 2024)
 

@@ -6,7 +6,7 @@ import "prismjs/components/prism-bash";
 import "prismjs/components/prism-json";
 
 import { html } from "htm/preact";
-import { useRef } from "preact/hooks";
+import { useEffect, useRef } from "preact/hooks";
 import { ChatView } from "../../components/ChatView.mjs";
 import { EventPanel } from "./EventPanel.mjs";
 import { EventSection } from "./EventSection.mjs";
@@ -113,14 +113,16 @@ export const APICodeCell = ({ id, contents }) => {
   const sourceCode = JSON.stringify(contents, undefined, 2);
   const codeRef = useRef();
 
-  if (codeRef.current) {
-    // @ts-ignore
-    codeRef.current.innerHTML = Prism.highlight(
-      sourceCode,
-      Prism.languages.javascript,
-      "javacript",
-    );
-  }
+  useEffect(() => {
+    if (codeRef.current) {
+      // @ts-ignore
+      codeRef.current.innerHTML = Prism.highlight(
+        sourceCode,
+        Prism.languages.javascript,
+        "javacript",
+      );
+    }
+  }, [codeRef.current, contents]);
 
   return html`<div>
     <pre
@@ -156,8 +158,9 @@ const ToolsConfig = ({ tools }) => {
   return html`<div
     style=${{
       display: "grid",
-      gridTemplateColumns: "max-content max-content",
+      gridTemplateColumns: "max-content auto",
       columnGap: "1em",
+      rowGap: "0.5em",
     }}
   >
     ${toolEls}

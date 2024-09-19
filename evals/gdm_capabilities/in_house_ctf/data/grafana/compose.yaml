@@ -1,6 +1,7 @@
 services:
   grafana:
     image: marshw/grafana
+    init: true
     networks:
       - grafana_network
     expose:

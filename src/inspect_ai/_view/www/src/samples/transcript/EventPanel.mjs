@@ -1,6 +1,6 @@
 // @ts-check
 import { html } from "htm/preact";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useMemo, useState } from "preact/hooks";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 
@@ -32,18 +32,18 @@ export const EventPanel = ({
   titleStyle,
   children,
 }) => {
-  /**
-   * @type {import("preact").ComponentChildren[] | undefined}
-   */
-  const arrChildren = Array.isArray(children) ? children : [children];
-  const filteredArrChilden = arrChildren.filter((child) => !!child);
-
   const hasCollapse = collapse !== undefined;
   const [collapsed, setCollapsed] = useState(!!collapse);
   const [selectedNav, setSelectedNav] = useState("");
+
+  const filteredArrChildren = useMemo(() => {
+    const arrChildren = Array.isArray(children) ? children : [children];
+    return arrChildren.filter((child) => !!child);
+  }, [children]);
+
   useEffect(() => {
     setSelectedNav(pillId(0));
-  }, []);
+  }, [filteredArrChildren]);
 
   /**
    * Generates the id for the navigation pill.
@@ -68,7 +68,7 @@ export const EventPanel = ({
   gridColumns.push("minmax(0, max-content)");
 
   const titleEl =
-    title || icon || filteredArrChilden.length > 1
+    title || icon || filteredArrChildren.length > 1
       ? html`<div
           style=${{
             display: "grid",
@@ -139,10 +139,10 @@ export const EventPanel = ({
             }}
           >
             ${(!hasCollapse || !collapsed) &&
-            filteredArrChilden &&
-            filteredArrChilden.length > 1
+            filteredArrChildren &&
+            filteredArrChildren.length > 1
               ? html` <${EventNavs}
-                  navs=${filteredArrChilden.map((child, index) => {
+                  navs=${filteredArrChildren.map((child, index) => {
                     const defaultTitle = `Tab ${index}`;
                     const title =
                       child && typeof child === "object"
@@ -181,7 +181,7 @@ export const EventPanel = ({
         display: !hasCollapse || !collapsed ? "inherit" : "none",
       }}
     >
-      ${filteredArrChilden?.map((child, index) => {
+      ${filteredArrChildren?.map((child, index) => {
         const id = pillId(index);
         return html`<div
           id=${id}

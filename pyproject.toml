@@ -103,7 +103,7 @@ inspect = "inspect_ai._cli.main:main"
 [project.optional-dependencies]
 dev = [
     "anthropic", 
-    "boto3", 
+    "aioboto3", 
     "google-cloud-aiplatform",
     "google-generativeai", 
     "groq", 
@@ -123,6 +123,7 @@ dev = [
     "types-PyYAML",
     "types-aiofiles",
     "types-beautifulsoup4",
+    "types-aioboto3",
     "types-boto3",
     "types-botocore",
     "types-jsonpatch",

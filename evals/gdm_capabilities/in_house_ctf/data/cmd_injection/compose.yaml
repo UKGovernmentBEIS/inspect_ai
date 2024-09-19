@@ -1,6 +1,7 @@
 services:
   cmd_injection:
     image: marshw/cmd_injection
+    init: true
     networks:
       - cmd_injection_network
     expose:
