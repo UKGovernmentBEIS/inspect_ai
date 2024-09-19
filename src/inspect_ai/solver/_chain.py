@@ -11,7 +11,8 @@ def chain(*solvers: Solver | list[Solver]) -> Solver:
     early.
 
     Args:
-      solvers (*Solver): One or more solvers to chain together.
+      solvers (*Solver | list[Solver]): One or more solvers
+        or lists of solvers to chain together.
 
     Returns:
       Solver that executes the passed solvers as a chain.
