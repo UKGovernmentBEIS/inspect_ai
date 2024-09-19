@@ -12,6 +12,7 @@ from inspect_ai.solver import (
     generate,
     solver,
 )
+from inspect_ai.solver._plan import Plan
 
 
 @skip_if_no_openai
@@ -45,16 +46,19 @@ def test_solvers_termination():
     model = get_model("openai/gpt-4")
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
-        solver=[
-            chain_of_thought(),
-            generate(),
-            user_input("How about multiplying the numbers?"),
-            generate(),
-            complete_task(),
-            user_input("How about subtracting the numbers?"),
-            generate(),
-            finish(),
-        ],
+        solver=Plan(
+            [
+                chain_of_thought(),
+                generate(),
+                user_input("How about multiplying the numbers?"),
+                generate(),
+                complete_task(),
+                user_input("How about subtracting the numbers?"),
+                generate(),
+            ],
+            finish=finish(),
+            internal=True,
+        ),
         scorer=match(),
     )
 

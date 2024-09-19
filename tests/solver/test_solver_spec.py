@@ -41,19 +41,18 @@ def the_task(solver: Solver = generate()):
 
 
 def test_solver_spec():
-    plan_file = f"{os.path.relpath(__file__)}"
+    solver_file = f"{os.path.relpath(__file__)}"
 
     def check_solver_spec(solver_spec: str):
         log = eval(
-            f"{plan_file}@the_task",
+            f"{solver_file}@the_task",
             solver=SolverSpec(solver_spec, {"rate": 1.0}),
             model="mockllm/model",
         )[0]
         check_solver(log, solver_spec)
 
-    check_solver_spec("the_plan")
-    check_solver_spec(plan_file)
-    check_solver_spec(f"{plan_file}@the_plan")
+    check_solver_spec("the_solver")
+    check_solver_spec(f"{solver_file}@the_solver")
 
 
 def test_solver_extension():
@@ -62,18 +61,18 @@ def test_solver_extension():
         the_task(), solver=SolverSpec("inspect_package/cot"), model="mockllm/model"
     )[0]
     assert log.eval.solver == "inspect_package/cot"
-    assert log.plan.steps[0].solver == "chain_of_thought"
+    assert log.plan.steps[0].solver == "inspect_package/cot"
 
 
 def test_solver_retry():
-    log = eval(the_task(), plan=the_solver(1.0), model="mockllm/model")[0]
+    log = eval(the_task(), solver=the_solver(1.0), model="mockllm/model")[0]
     check_solver(log)
 
     log = eval_retry(log)[0]
     check_solver(log)
 
 
-def check_solver(log: EvalLog, solver_name="the_plan"):
+def check_solver(log: EvalLog, solver_name="the_solver"):
     assert log.eval.solver == solver_name
     assert log.eval.solver_args == {"rate": 1.0}
     assert log.plan.steps[0].params["rate"] == 1.0
