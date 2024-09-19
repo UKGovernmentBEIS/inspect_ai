@@ -11,6 +11,7 @@ from inspect_ai.solver import Plan, basic_agent, system_message
 from inspect_ai.tool import bash, web_search
 
 GAIA_DATASET_LOCATION = Path(__file__).parent / "resources" / "GAIA"
+COMPOSE_FILE = Path(__file__).parent / "compose.yaml"
 
 
 @task
@@ -50,7 +51,7 @@ def gaia(
         dataset=dataset,
         plan=plan,
         scorer=scorer,
-        sandbox="docker",
+        sandbox=("docker", str(COMPOSE_FILE)),
         max_messages=max_messages,
     )
 
