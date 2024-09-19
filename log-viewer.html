@@ -318,6 +318,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#filtering-and-sorting" id="toc-filtering-and-sorting" class="nav-link" data-scroll-target="#filtering-and-sorting">Filtering and Sorting</a></li>
   <li><a href="#python-logging" id="toc-python-logging" class="nav-link" data-scroll-target="#python-logging">Python Logging</a>
   <ul class="collapse">
+  <li><a href="#log-levels" id="toc-log-levels" class="nav-link" data-scroll-target="#log-levels">Log Levels</a></li>
   <li><a href="#sec-external-file" id="toc-sec-external-file" class="nav-link" data-scroll-target="#sec-external-file">External File</a></li>
   </ul></li>
   <li><a href="#task-information" id="toc-task-information" class="nav-link" data-scroll-target="#task-information">Task Information</a></li>
@@ -429,11 +430,57 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>logger.info(<span class="ss">f"web query: </span><span class="sc">{</span>query<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can see all of these log entries in the <strong>Logging</strong> tab:</p>
 <p><a href="images/inspect-view-logging.png" class="lightbox" data-gallery="quarto-lightbox-gallery-9"><img src="images/inspect-view-logging.png" class="border img-fluid" alt="The Logging panel of the Inspect log viewer, displaying several info log messages from the web search tool indicating what queries were executed by the tool."></a></p>
-<p>It is important to note that the Inspect View will show all log entries level <code>info</code> or higher. However, printing every <code>info</code> message to the console during an eval might be too distracting, so the default log level for printing is <code>warning</code>. If you change it to <code>info</code> then you’ll also see these log messages in the console:</p>
+<section id="log-levels" class="level3">
+<h3 class="anchored" data-anchor-id="log-levels">Log Levels</h3>
+<p>The log levels and their applicability are described below (in increasing order of severity):</p>
+<table class="caption-top table">
+<caption>Inspect View will show all log entries level <code>info</code> or higher. However, printing every <code>info</code> message to the console during an eval might be too distracting, so the default log level for the console is <code>warning</code>. If you change it to <code>info</code> then you’ll also see these log messages in the console:</caption>
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Level</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>debug</code></td>
+<td>Detailed information, typically of interest only when diagnosing problems.</td>
+</tr>
+<tr class="even">
+<td><code>http</code></td>
+<td>HTTP diagnostics including requests and response statuses</td>
+</tr>
+<tr class="odd">
+<td><code>sandbox</code></td>
+<td>Show commands sent to manage and execute code in sandboxes.</td>
+</tr>
+<tr class="even">
+<td><code>info</code></td>
+<td>Confirmation that things are working as expected.</td>
+</tr>
+<tr class="odd">
+<td><code>warning</code></td>
+<td>or indicative of some problem in the near future (e.g.&nbsp;‘disk space low’). The software is still working as expected.</td>
+</tr>
+<tr class="even">
+<td><code>error</code></td>
+<td>Due to a more serious problem, the software has not been able to perform some function</td>
+</tr>
+<tr class="odd">
+<td><code>critical</code></td>
+<td>A serious error, indicating that the program itself may be unable to continue running.</td>
+</tr>
+</tbody>
+</table>
 <div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval biology_qa.py <span class="at">--log-level</span> info</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p><a href="images/inspect-view-logging-console.png" class="lightbox" data-gallery="quarto-lightbox-gallery-10"><img src="images/inspect-view-logging-console.png" class="img-fluid" alt="This Inspect task display in the terminal, with several info log messages from the web search tool printed above the task display."></a></p>
 <p>A default log level of <code>warning</code> enables you to include many calls to <code>logger.info()</code> in your code without having them show by default, while also making them available in the log viewer should you need them.</p>
 <p>Note that you can also set the log level using the <code>INSPECT_LOG_LEVEL</code> environment variable (which is often included in a <a href="workflow.html#sec-workflow-configuration">.env configuration file</a>).</p>
+</section>
 <section id="sec-external-file" class="level3">
 <h3 class="anchored" data-anchor-id="sec-external-file">External File</h3>
 <p>In addition to seeing the Python logging activity at the end of an eval run in the log viewer, you can also arrange to have Python logger entries written to an external file. Set the <code>INSPECT_PY_LOGGER_FILE</code> environment variable to do this:</p>
@@ -1027,7 +1074,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","openEffect":"zoom","selector":".lightbox","loop":false,"descPosition":"bottom"});
+<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","loop":false,"closeEffect":"zoom","selector":".lightbox","descPosition":"bottom"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {
