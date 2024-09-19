@@ -57,7 +57,7 @@ async def solver_subtask(state: TaskState, solver: Solver) -> TaskState:
     state = deepcopy(state)
 
     # create a subtask so we get an independent store and transcript
-    @subtask(name=registry_log_name(solver), store=state.store)
+    @subtask(name=registry_log_name(solver), store=state.store)  # type: ignore
     async def solve() -> TaskState:
         return await solver(state, generate)
 
