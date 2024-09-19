@@ -3,7 +3,7 @@ from pathlib import Path
 from uuid import uuid1
 
 from build_images import build_images
-from datasets import load_dataset
+from datasets import load_dataset  # type: ignore
 from swe_bench import swe_bench, swebench_baseline_scorer
 
 from inspect_ai import Task, eval
@@ -25,7 +25,7 @@ MAX_CONCURRENCY = int(os.getenv("INSPECT_MAX_CONCURRENCY", 4))
 
 if not Path(SLOW_TEST_DATASET).exists():
     raise FileNotFoundError(
-        f"Test datasets have not been created. Please run the script at {(RESOURCE_DIR / "tests"/"create_test_repos.py").absolute()} to run the tests."
+        f"Test datasets have not been created. Please run the script at {(RESOURCE_DIR / 'tests'/'create_test_repos.py').absolute()} to run the tests."
     )
 
 if not Path(SWEAGENT_BASELINE).exists():
