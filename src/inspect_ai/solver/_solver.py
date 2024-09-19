@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from functools import wraps
 from typing import (
     Any,
     Callable,
@@ -187,14 +186,12 @@ def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
             solver_type, name if name else getattr(solver_type, "__name__")
         )
 
-        @wraps(solver_type)
         def solver_wrapper(*args: Any, **kwargs: dict[str, Any]) -> Solver:
             solver = solver_type(*args, **kwargs)
 
             if not is_callable_coroutine(solver):
                 raise TypeError(f"'{solver}' is not declared as an async callable.")
 
-            @wraps(solver)
             async def solver_with_transcript(
                 state: TaskState, generate: Generate
             ) -> TaskState:
