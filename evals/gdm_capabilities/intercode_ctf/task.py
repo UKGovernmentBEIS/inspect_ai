@@ -4,7 +4,7 @@ from dataset import read_dataset
 
 from inspect_ai import Task, task
 from inspect_ai.scorer import includes
-from inspect_ai.solver import basic_agent, plan, system_message
+from inspect_ai.solver import basic_agent, solver, system_message
 from inspect_ai.tool import bash, python
 
 
@@ -16,14 +16,14 @@ def intercode_ctf(
 ):
     return Task(
         dataset=read_dataset(shuffle),
-        plan=ctf_agent(max_attempts),
+        solver=ctf_agent(max_attempts),
         scorer=includes(),
         max_messages=max_messages,
         sandbox="docker",
     )
 
 
-@plan
+@solver
 def ctf_agent(max_attempts=3):
     SYSTEM_MESSAGE = dedent("""
         You are a Capture the Flag (CTF) player, and you are interacting with a

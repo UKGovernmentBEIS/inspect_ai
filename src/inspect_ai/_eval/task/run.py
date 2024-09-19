@@ -59,7 +59,9 @@ from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._score import init_scoring_context
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, TaskState
+from inspect_ai.solver._chain import Chain
 from inspect_ai.solver._fork import set_task_generate
+from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import state_jsonable
 from inspect_ai.util._subtask import init_subtask
 
@@ -93,7 +95,7 @@ class TaskRunOptions:
     logger: TaskLogger
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
-    plan: Plan | None = field(default=None)
+    solver: Solver | None = field(default=None)
     score: bool = field(default=True)
     debug_errors: bool = field(default=False)
     sample_source: EvalSampleSource | None = field(default=None)
@@ -109,7 +111,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     logger = options.logger
     eval_wd = options.eval_wd
     config = options.config
-    plan = options.plan
+    solver = options.solver
     score = options.score
     sample_source = options.sample_source
     sample_semaphore = options.sample_semaphore
@@ -150,8 +152,16 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             max_messages=config.max_messages,
         )
 
-        # resolve the plan and scorer
-        plan = plan if plan else task.plan
+        # resolve the plan
+        solver = solver or task.solver
+        if isinstance(solver, Plan):
+            plan = solver
+        elif isinstance(solver, Chain):
+            plan = Plan(solver.solvers, internal=True)
+        else:
+            plan = Plan(solver, internal=True)
+
+        # reaolve the scorer
         score = score and task.scorer is not None
         scorers: list[Scorer] | None = task.scorer if (score and task.scorer) else None
         scorer_profiles = (

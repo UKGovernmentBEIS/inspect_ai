@@ -16,14 +16,28 @@ def chain(*solvers: Solver) -> Solver:
     Returns:
       Solver that executes the passed solvers as a chain.
     """
+    return Chain(*solvers)
 
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        for solver in solvers:
+
+class Chain(Solver):
+    """Solver composed from multiple other solvers.
+
+    Args:
+      solvers (*Solver): One or more solvers to chain together.
+    """
+
+    def __init__(self, *solvers: Solver) -> None:
+        self.solvers = list(solvers)
+
+    async def __call__(
+        self,
+        state: TaskState,
+        generate: Generate,
+    ) -> TaskState:
+        for solver in self.solvers:
             state = await solver(state, generate)
             if state.completed:
                 break
 
         # return state
         return state
-
-    return solve

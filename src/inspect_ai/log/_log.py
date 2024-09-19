@@ -330,11 +330,11 @@ class EvalSpec(BaseModel):
     task_args: dict[str, Any] = Field(default={})
     """Arguments used for invoking the task."""
 
-    plan: str | None = Field(default=None)
-    """Plan name."""
+    solver: str | None = Field(default=None)
+    """Solver name."""
 
-    plan_args: dict[str, Any] | None = Field(default=None)
-    """Arguments used for invoking the plan."""
+    solver_args: dict[str, Any] | None = Field(default=None)
+    """Arguments used for invoking the solver."""
 
     dataset: EvalDataset
     """Dataset used for eval."""

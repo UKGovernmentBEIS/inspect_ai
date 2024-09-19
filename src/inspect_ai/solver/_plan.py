@@ -1,5 +1,4 @@
 import inspect
-from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Any, Awaitable, Callable, TypeVar, cast
 
@@ -35,6 +34,7 @@ class Plan(Solver):
         finish: Solver | None = None,
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
         name: str | None = None,
+        internal: bool = False,
     ) -> None:
         """Create a task plan.
 
@@ -47,6 +47,7 @@ class Plan(Solver):
             a `TaskState` but does not return one (it is only for cleanup not for transforming
             the state).
           name (str | None): Optional name for plan (for log files).
+          internal (bool): Internal use of Plan (prevent deprecation warning)
         """
         if isinstance(steps, Solver):
             self.steps = [steps]
@@ -57,6 +58,11 @@ class Plan(Solver):
         self.cleanup = cleanup
         self.progress: Callable[[], None] = lambda: None
         self._name = name
+
+        if not internal:
+            logger.warning(
+                "Plan is deprecated: use chain() to compose a list of solvers."
+            )
 
     @property
     def name(self) -> str:
@@ -125,17 +131,6 @@ class Plan(Solver):
 PlanType = TypeVar("PlanType", bound=Callable[..., Plan])
 
 
-@dataclass(frozen=True)
-class PlanSpec:
-    """Plan specification used to (re-)create plans."""
-
-    plan: str
-    """Plan name (simple name or file@name)."""
-
-    args: dict[str, Any] = field(default_factory=dict)
-    """Plan arguments."""
-
-
 def plan(*plan: PlanType | None, name: str | None = None, **attribs: Any) -> Any:
     r"""Decorator for registering plans.
 
@@ -181,6 +176,10 @@ def plan(*plan: PlanType | None, name: str | None = None, **attribs: Any) -> Any
         return plan_register(
             plan=cast(PlanType, wrapper), name=plan_name, attribs=attribs, params=params
         )
+
+    logger.warning(
+        "@plan is deprecated: use @solver and chain() to compose a list of solvers."
+    )
 
     if plan:
         return create_plan_wrapper(cast(PlanType, plan[0]))

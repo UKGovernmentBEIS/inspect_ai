@@ -7,7 +7,6 @@ from inspect_ai.model import ChatMessageUser, ModelOutput, get_model
 from inspect_ai.scorer import match
 from inspect_ai.solver import (
     Generate,
-    Plan,
     TaskState,
     chain_of_thought,
     generate,
@@ -46,18 +45,16 @@ def test_solvers_termination():
     model = get_model("openai/gpt-4")
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
-        plan=Plan(
-            steps=[
-                chain_of_thought(),
-                generate(),
-                user_input("How about multiplying the numbers?"),
-                generate(),
-                complete_task(),
-                user_input("How about subtracting the numbers?"),
-                generate(),
-            ],
-            finish=finish(),
-        ),
+        solver=[
+            chain_of_thought(),
+            generate(),
+            user_input("How about multiplying the numbers?"),
+            generate(),
+            complete_task(),
+            user_input("How about subtracting the numbers?"),
+            generate(),
+            finish(),
+        ],
         scorer=match(),
     )
 

@@ -21,7 +21,7 @@ from inspect_ai._util.registry import (
     registry_params,
 )
 from inspect_ai.model import Model, ModelName
-from inspect_ai.solver._plan import Plan, PlanSpec
+from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentSpec
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
@@ -395,52 +395,42 @@ def code_has_task(code: str) -> bool:
     return code_has_decorator(code, "task")
 
 
-def as_plan_spec(plan: Plan) -> PlanSpec:
-    if not is_registry_object(plan):
+def as_solver_spec(solver: Solver) -> SolverSpec:
+    if not is_registry_object(solver):
         raise PrerequisiteError(
-            f"The plan {plan.name} was not created by a function decorated with @plan so cannot be recorded."
+            f"The solver {getattr(solver, '__name__', '<unknown>')} was not created by a function decorated with @solver so cannot be recorded."
         )
-    return PlanSpec(plan=registry_info(plan).name, args=registry_params(plan))
+    return SolverSpec(solver=registry_info(solver).name, args=registry_params(solver))
 
 
-def create_plan(spec: PlanSpec) -> Plan:
+def create_solver(spec: SolverSpec) -> Solver:
     # resolve @ reference
-    spec_split = split_spec(spec.plan)
+    spec_split = split_spec(spec.solver)
     if spec_split[1] is not None:
-        plan_file: Path | None = Path(spec_split[0])
-        plan_name: str | None = spec_split[1]
+        solver_file: Path | None = Path(spec_split[0])
+        solver_name: str = spec_split[1]
     elif Path(spec_split[0]).exists():
-        plan_file = Path(spec_split[0])
-        plan_name = None
+        raise PrerequisiteError(
+            f"File name only provided for solver ('{spec_split[0]}'). You must also specify the solver by name with @."
+        )
     else:
-        plan_file = None
-        plan_name = spec_split[0]
+        solver_file = None
+        solver_name = spec_split[0]
 
-    # if we have a file then we need to load it
-    if plan_file is not None:
-        # ensure the module is loaded so we can see the plans
-        with add_to_syspath(plan_file.parent.as_posix()):
-            plan_module = load_module(plan_file)
+    # if we have a file then we need to load it so the registry_create works
+    if solver_file is not None:
+        with add_to_syspath(solver_file.parent.as_posix()):
+            solver_module = load_module(solver_file)
 
-        # if there is no plan_name we need to discover the first plan
-        if plan_name is None:
-            plans = inspect.getmembers(
-                plan_module, lambda m: is_registry_object(m, "plan")
+        # valdiate there is at least 1 solver
+        solvers = inspect.getmembers(
+            solver_module, lambda m: is_registry_object(m, "solver")
+        )
+        if len(solvers) == 0:
+            raise PrerequisiteError(
+                f"The source file {solver_file.as_posix()} does not contain any @solver functions."
             )
-            if len(plans) == 0:
-                raise PrerequisiteError(
-                    f"The source file {plan_file.as_posix()} does not contain any @plan functions."
-                )
-            if len(plans) > 1:
-                raise PrerequisiteError(
-                    f"The source file {plan_file.as_posix()} has more than one @plan function (qualify which plan using file.py@plan)"
-                )
-            plan_name = registry_info(plans[0][1]).name
 
-    # make mypy happy and catch unexpected branching
-    if plan_name is None:
-        raise ValueError(f"Unable to resolve plan name from {spec.plan}")
-
-    # create and return the plan
-    plan = cast(Plan, registry_create("plan", plan_name, **spec.args))
-    return plan
+    # create and return the solver
+    solver = cast(Solver, registry_create("solver", solver_name, **spec.args))
+    return solver

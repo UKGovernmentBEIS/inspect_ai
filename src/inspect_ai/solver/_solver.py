@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from functools import wraps
 from typing import (
     Any,
@@ -56,6 +57,17 @@ class Generate(Protocol):
         cache: bool | CachePolicy = False,
         **kwargs: Unpack[GenerateConfigArgs],
     ) -> TaskState: ...
+
+
+@dataclass(frozen=True)
+class SolverSpec:
+    """Solver specification used to (re-)create solvers."""
+
+    solver: str
+    """Solver name (simple name or file.py@name)."""
+
+    args: dict[str, Any] = field(default_factory=dict)
+    """Solver arguments."""
 
 
 @runtime_checkable
