@@ -14,8 +14,8 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Callable
 
-from docker import DockerClient
-from swebench.harness.constants import (
+from docker import DockerClient  # type: ignore
+from swebench.harness.constants import (  # type: ignore
     APPLY_PATCH_FAIL,
     MAP_REPO_TO_INSTALL,
     MAP_REPO_VERSION_TO_SPECS,
@@ -23,8 +23,8 @@ from swebench.harness.constants import (
     TESTS_ERROR,
     TESTS_TIMEOUT,
 )
-from swebench.harness.log_parsers import MAP_REPO_TO_PARSER
-from swebench.harness.utils import get_test_directives
+from swebench.harness.log_parsers import MAP_REPO_TO_PARSER  # type: ignore
+from swebench.harness.utils import get_test_directives  # type: ignore
 
 from inspect_ai import Task, task  # noqa: E402
 from inspect_ai.dataset import FieldSpec, Sample, hf_dataset
@@ -37,6 +37,7 @@ from inspect_ai.solver import (
 )
 from inspect_ai.tool import bash
 from inspect_ai.util import sandbox
+from inspect_ai.util._subprocess import ExecResult
 
 getLogger().handlers = []  # Swe-bench adds a global logger, which we disable.
 
@@ -102,6 +103,7 @@ def swe_bench(
 
     for sample in samples:
         # Turn the saved strings into list objects
+        sample.metadata = sample.metadata or {}
         sample.metadata["PASS_TO_PASS"] = json.loads(sample.metadata["PASS_TO_PASS"])
         sample.metadata["FAIL_TO_PASS"] = json.loads(sample.metadata["FAIL_TO_PASS"])
 
@@ -109,10 +111,13 @@ def swe_bench(
         samples = samples.filter(filter)
 
     for sample in samples:
+        sample.metadata = sample.metadata or {}
         sample.input = INPUT_PROMPT.format(issue_text=sample.input)
         sample.sandbox = (
             "docker",
-            get_compose_file(sample.metadata["environment_setup_commit"], sample.id),
+            get_compose_file(
+                sample.metadata["environment_setup_commit"], str(sample.id)
+            ),
         )
         sample.setup = get_setup_script(
             sample.metadata["repo"],
@@ -131,6 +136,7 @@ def swe_bench(
 
 def get_setup_script(repo: str, version: str, base_commit: str) -> str:
     """Create a list of bash commands to set up the repository for testing. These are ran at the start of the sample,  clone the repository, and do some extra repository-specific installation steps over and above what is in the environment images."""
+    newline = "\n"
     setup_script = dedent(
         f"""#!/bin/bash
         set -euo pipefail -x
@@ -148,7 +154,7 @@ def get_setup_script(repo: str, version: str, base_commit: str) -> str:
 
         # We then do any repo-specific install scripts
         {MAP_REPO_TO_INSTALL.get(repo,"")}
-        {'\n'.join(MAP_REPO_VERSION_TO_SPECS[repo][version].get('pre_install',[]))}
+        {newline.join(MAP_REPO_VERSION_TO_SPECS[repo][version].get('pre_install',[]))}
         {MAP_REPO_VERSION_TO_SPECS[repo][version].get('install','')}
     """
     )
@@ -181,9 +187,10 @@ def get_eval_script(test_patch: str, repo: str, version: str, base_commit: str) 
     test_patch_files = re.findall(r"--- a/(.*)", test_patch)
 
     # Find all the files which contain tests. Ugly interface is due to swebench
-    test_files = get_test_directives({"repo": repo, "test_patch": test_patch})  # type: ignore
+    test_files = get_test_directives({"repo": repo, "test_patch": test_patch})
 
     # Reset test files to the state they should be in before the patch.
+    newline = "\n"
     eval_script = dedent(
         f"""#!/bin/bash
         set -uo pipefail -x
@@ -196,7 +203,7 @@ def get_eval_script(test_patch: str, repo: str, version: str, base_commit: str) 
         set -x
 
         #We run all of the repo-specific setup commands (If any exist)
-        {"\n".join(repo_specific_setup_command)}
+        {newline.join(repo_specific_setup_command)}
 
         #We make sure we're back in the correct cwd and environment, in case repo setup caused issues.
         cd {repo_directory}
@@ -253,8 +260,11 @@ def swebench_scorer() -> Scorer:
         try:
             agent_patch = await sandbox().exec(["bash", "-c", GET_AGENT_PATCH])
         except UnicodeDecodeError:
-            agent_patch = (
-                "Agent patch could not be decoded due to having a binary input."
+            agent_patch = ExecResult(
+                True,
+                0,
+                "Agent patch could not be decoded due to having a binary input.",
+                "",
             )
 
         # Run the evaluation script
@@ -334,10 +344,10 @@ def swebench_baseline_scorer(path_to_baseline: str, name: str | None = None) -> 
     def _swebench_baseline_scorer() -> Scorer:
         async def scorer(state: TaskState, target: Target) -> Score:
             if state.sample_id in results_per_instance_id:
-                results = results_per_instance_id[state.sample_id]
+                results = results_per_instance_id[str(state.sample_id)]
                 return Score(
                     value=results["resolved"],
-                    explanation=f"Model Patch:\n\n {results["patch"]}",
+                    explanation=f"Model Patch:\n\n {results['patch']}",
                 )
             else:
                 return Score(
@@ -404,8 +414,8 @@ def get_compose_file(environment_commit_id: Sample, instance_id: str) -> str:
         )
 
     # If the image is found, we can now create the compose file.
-    compose_file_path = COMPOSE_FILE_DIR / f"{environment_image_name}.yaml"
-    with compose_file_path.open(mode="w+") as f:
+    image_compose_file = COMPOSE_FILE_DIR / f"{environment_image_name}.yaml"
+    with image_compose_file.open(mode="w+") as f:
         f.write(f"""services:
   default:
     image: {environment_image_name}
@@ -413,4 +423,4 @@ def get_compose_file(environment_commit_id: Sample, instance_id: str) -> str:
     working_dir: /testbed
     x-local: true""")
 
-    return str(compose_file_path)
+    return str(image_compose_file)
