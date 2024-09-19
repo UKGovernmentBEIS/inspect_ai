@@ -185,12 +185,10 @@ def basic_agent(
 
     # return chain
     return chain(
-        *(
-            init
-            + [
-                tools,
-                submit_tool(),
-                basic_agent_loop(),
-            ]
-        )
+        init
+        + [
+            tools,
+            submit_tool(),
+            basic_agent_loop(),
+        ]
     )
