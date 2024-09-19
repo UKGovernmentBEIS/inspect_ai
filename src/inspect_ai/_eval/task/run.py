@@ -59,7 +59,7 @@ from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._score import init_scoring_context
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, TaskState
-from inspect_ai.solver._chain import Chain
+from inspect_ai.solver._chain import Chain, unroll
 from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import state_jsonable
@@ -152,14 +152,14 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             max_messages=config.max_messages,
         )
 
-        # resolve the plan
+        # resolve the plan (unroll chains)
         solver = solver or task.solver
         if isinstance(solver, Plan):
             plan = solver
         elif isinstance(solver, Chain):
             plan = Plan(list(solver), internal=True)
         else:
-            plan = Plan(solver, internal=True)
+            plan = Plan(unroll(solver), internal=True)
 
         # reaolve the scorer
         score = score and task.scorer is not None
