@@ -66,8 +66,7 @@
             {
               "enum": [
                 "input",
-                "generate",
-                "cache"
+                "generate"
               ],
               "type": "string"
             },
@@ -141,8 +140,7 @@
             {
               "enum": [
                 "input",
-                "generate",
-                "cache"
+                "generate"
               ],
               "type": "string"
             },
@@ -200,8 +198,7 @@
             {
               "enum": [
                 "input",
-                "generate",
-                "cache"
+                "generate"
               ],
               "type": "string"
             },
@@ -297,8 +294,7 @@
             {
               "enum": [
                 "input",
-                "generate",
-                "cache"
+                "generate"
               ],
               "type": "string"
             },
@@ -2147,6 +2143,22 @@
         "output": {
           "$ref": "#/$defs/ModelOutput"
         },
+        "cache": {
+          "anyOf": [
+            {
+              "enum": [
+                "read",
+                "write"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cache"
+        },
         "call": {
           "anyOf": [
             {
@@ -2168,6 +2180,7 @@
         "tool_choice",
         "config",
         "output",
+        "cache",
         "call"
       ],
       "title": "ModelEvent",

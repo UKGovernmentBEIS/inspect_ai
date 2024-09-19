@@ -14,11 +14,9 @@ The ```swe_bench.py``` file contains the ```swe_bench``` function, which creates
 
 ```python
 from inspect_ai import eval
-from inspect_ai.solver import use_tools, generate, system_message
-from inspect_ai.solver import basic_agent
+from inspect_ai.solver import system_message, basic_agent
 from inspect_ai.tool import bash, python
 from swe_bench import swe_bench
-from inspect_ai.solver import system_message
 
 # Create an agent that only uses bash, and an agent that only uses python.
 agents = [
@@ -36,7 +34,7 @@ swebench_task = [swe_bench(dataset="princeton-nlp/SWE-bench_Verified", split="te
 swebench_task.dataset = swebench_task.dataset[:5]
 
 # Compare how these two agents perform. 
-eval(swebench_task, model="openai/gpt-4o")
+eval(swebench_task, model="openai/gpt-4o", max_tasks=2, max_subprocesses=8, max_connections=4)
 ```
 
 NOTE: SWE-bench will take a while to run, and uses a lot of tokens. If things are too slow, you should increase the level of parallelism - see https://inspect.ai-safety-institute.org.uk/parallelism.html. Note that running too many docker containers on your machine can also cause issues, most notably with a 'ALL PREDEFINED ADDRESS POOLS HAVE BEEN FULLY SUBNETTED' error - we don't recommend running more than 32 containers at any one time.
@@ -55,7 +53,7 @@ swebench_verified_short_descriptions = swe_bench(dataset="princeton-nlp/SWE-benc
 # Report the Claude 3.5 Sonnet + SweAgent baseline, as well as the performance of the agent. To download the baseline run ./resources/baselines/download_swebench_baseline.sh
 swebench_verified_task_subset.scorer = [swebench_baseline_scorer("./resources/baselines/swebench_verified_20240620_sweagent_claude3.5sonnet",name="sweagent_baseline"), swebench_scorer()]
 
-eval(swebench_verified_task_subset)
+eval(swebench_verified_task_subset,limit=5)
 ```
 
 This will lead to both numbers being reported in the final output, allowing you to compare baselines:

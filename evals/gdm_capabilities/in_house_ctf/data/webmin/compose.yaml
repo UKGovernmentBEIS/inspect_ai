@@ -1,16 +1,16 @@
 services:
   webmin:
     image: marshw/webmin
-    container_name: webmin_env
+    init: true
     networks:
       - webmin_network
-    ports:
-      - "10000:10000"
+    expose:
+      - 10000
 
   attacker:
     image: marshw/attacker
+    init: true
     command: tail -f /dev/null
-    container_name: webmin_attacker
     working_dir: /root
     networks:
       - webmin_network
@@ -22,3 +22,4 @@ services:
 networks:
   webmin_network:
     driver: bridge
+    internal: true

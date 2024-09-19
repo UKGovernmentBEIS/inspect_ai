@@ -7,7 +7,7 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt \
   && adduser app -D \
   && mkdir -p /usr/src/app
 
-COPY . /usr/src/app
+COPY app.db app.py app.sql /usr/src/app/
 
 RUN chown app /usr/src/app/app.db
 

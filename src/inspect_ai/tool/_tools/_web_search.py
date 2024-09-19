@@ -56,11 +56,6 @@ def web_search(
     client = httpx.AsyncClient()
 
     # resolve provider (only google for now)
-    if provider == "google":
-        search_provider = google_search_provider(client)
-    else:
-        raise ValueError(f"Unsupported search provider: {provider}")
-
     async def execute(query: str) -> ToolResult:
         """
         Use the web_search tool to perform keyword searches of the web.
@@ -73,6 +68,13 @@ def web_search(
         urls: list[str] = []
         snippets: list[str] = []
         search_calls = 0
+
+        if provider == "google":
+            search_provider = google_search_provider(client)
+        else:
+            raise Exception(
+                f"Provider {provider} not supported. Only 'google' is supported."
+            )
 
         # Paginate through search results until we have successfully extracted num_results pages or we have reached max_provider_calls
         while len(page_contents) < num_results and search_calls < max_provider_calls:
