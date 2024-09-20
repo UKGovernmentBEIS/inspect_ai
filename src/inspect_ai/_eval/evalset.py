@@ -366,7 +366,7 @@ def eval_set(
         retry=retry_if_not_result(all_evals_succeeded),
         retry_error_callback=return_last_value,
         reraise=True,
-        stop=stop_after_attempt(retry_attempts or 10),
+        stop=stop_after_attempt(10 if retry_attempts is None else retry_attempts),
         wait=wait_exponential(retry_wait or 30, max=(60 * 60)),
         before_sleep=before_sleep,
         before=before,
