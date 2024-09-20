@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from functools import wraps
 from typing import Any, Callable
 
-from ._model import ModelOutput
+from ._model_output import ModelOutput
 
 
 @dataclass
