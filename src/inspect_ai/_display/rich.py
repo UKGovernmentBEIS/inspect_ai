@@ -512,7 +512,7 @@ def task_config(profile: TaskProfile, generate_config: bool = True) -> str:
         config = config | dict(profile.generate_config.model_dump(exclude_none=True))
     config_print: list[str] = []
     for name, value in config.items():
-        if name not in ["limit", "epochs", "model"]:
+        if name not in ["limit", "model"]:
             config_print.append(f"{name}: {value}")
     values = ", ".join(config_print)
     if values:

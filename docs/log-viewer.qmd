@@ -123,7 +123,21 @@ You can see all of these log entries in the **Logging** tab:
 
 ![](images/inspect-view-logging.png){.border .lightbox fig-alt="The Logging panel of the Inspect log viewer, displaying several info log messages from the web search tool indicating what queries were executed by the tool."}
 
-It is important to note that the Inspect View will show all log entries level `info` or higher. However, printing every `info` message to the console during an eval might be too distracting, so the default log level for printing is `warning`. If you change it to `info` then you'll also see these log messages in the console:
+### Log Levels
+
+The log levels and their applicability are described below (in increasing order of severity):
+
+| Level | Description |
+|------------------------------------|------------------------------------|
+| `debug` | Detailed information, typically of interest only when diagnosing problems. |
+| `http` | HTTP diagnostics including requests and response statuses |
+| `sandbox` | Show commands sent to manage and execute code in sandboxes. |
+| `info` | Confirmation that things are working as expected. |
+| `warning` | or indicative of some problem in the near future (e.g. ‘disk space low’). The software is still working as expected. |
+| `error` | Due to a more serious problem, the software has not been able to perform some function |
+| `critical` | A serious error, indicating that the program itself may be unable to continue running. |
+
+: Inspect View will show all log entries level `info` or higher. However, printing every `info` message to the console during an eval might be too distracting, so the default log level for the console is `warning`. If you change it to `info` then you'll also see these log messages in the console:
 
 ``` bash
 $ inspect eval biology_qa.py --log-level info
@@ -180,7 +194,6 @@ By default, an existing output dir will NOT be overwritten. Specify the `--overw
 ``` bash
 $ inspect view bundle --output-dir logs-www --overwrite
 ```
-
 
 Bundling the viewer and logs will produce an output directory with the following structure:
 
