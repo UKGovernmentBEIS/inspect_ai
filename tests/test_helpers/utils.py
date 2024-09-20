@@ -4,6 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 from random import random
+from typing import Sequence
 
 import pytest
 
@@ -165,6 +166,26 @@ def failing_task(rate=0.5, samples=1) -> Task:
         scorer=match(),
     )
 
+@solver
+def failing_solver_det(yay_or_nay: Sequence[bool]):
+    it = iter(yay_or_nay)
+    async def solve(state: TaskState, generate: Generate):
+        if it.__next__():
+            raise ValueError("Eval failed!")
+        return state
+
+    return solve
+
+@task
+def failing_task_det(yay_or_nay: Sequence[bool]) -> Task:
+    dataset: list[Sample] = []
+    for _ in range(0, len(yay_or_nay)):
+        dataset.append(Sample(input="Say hello", target="hello"))
+    return Task(
+        dataset=dataset,
+        plan=[failing_solver_det(yay_or_nay), generate()],
+        scorer=match(),
+    )
 
 def ensure_test_package_installed():
     try:
