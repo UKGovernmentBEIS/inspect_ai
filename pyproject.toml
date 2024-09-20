@@ -8,7 +8,12 @@ dependencies = { file = ["requirements.txt"] }
 [tool.setuptools_scm]
 
 [tool.ruff]
-extend-exclude = ["docs"]
+extend-exclude = [
+    "docs",
+    "evals/cybench/challenges/**/images",
+    "evals/cybench/challenges/**/resources",
+    "evals/cybench/challenges/**/solution"
+]
 src = ["src"]
 
 [tool.ruff.lint]
