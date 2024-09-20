@@ -216,14 +216,6 @@ Note that we don't `await` the subtasks when building up our list of `searches`.
 
 ### Forking {#sec-forking}
 
-::: {.callout-note appearance="simple"}
-Note that the `fork()` feature described below is available only in the development version of Inspect. You can install the development version with:
-
-``` bash
-pip install git+https://github.com/ukgovernmentbeis/inspect_ai
-```
-:::
-
 Inspect's `fork()` function provids a convenient wrapper around a very common use of subtasks: running a `TaskState` against a set of solvers in parallel to explore different trajectories. 
 
 For example, let's say you have a solver named `explore()` that takes `temperature` as a parameter. You might want to try the solver out with multiple temperature values and then continue on with the best result:
