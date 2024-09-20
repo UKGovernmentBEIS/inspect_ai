@@ -2,6 +2,7 @@
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.deprecation import relocated_module_attribute
+from inspect_ai.model._error_handler import LLMCannotAssistError, PromptTooLongError
 
 from ._cache import (
     CachePolicy,
@@ -52,6 +53,7 @@ __all__ = [
     "ChatMessageTool",
     "ChatCompletionChoice",
     "ModelOutput",
+    "LLMCannotAssistError",
     "Logprobs",
     "Logprob",
     "TopLogprob",
@@ -59,6 +61,7 @@ __all__ = [
     "ModelAPI",
     "ModelName",
     "ModelUsage",
+    "PromptTooLongError",
     "StopReason",
     "call_tools",
     "cache_clear",

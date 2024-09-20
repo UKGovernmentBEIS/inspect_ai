@@ -40,6 +40,7 @@ from inspect_ai._util.url import is_data_uri, is_http_url
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
+from .._error_handler import LLMCannotAssistError, handle_model_errors
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
@@ -132,6 +133,7 @@ class OpenAIAPI(ModelAPI):
                 **model_args,
             )
 
+    @handle_model_errors
     async def generate(
         self,
         input: list[ChatMessage],
@@ -418,13 +420,12 @@ async def as_chat_completion_part(
 # does not exhibit this behavior (it just returns the completion
 # "Sorry, but I can't assist with that."
 def handle_content_filter_error(e: APIStatusError) -> tuple[str, object | None]:
-    CANT_ASSIST = "Sorry, but I can't assist with that."
     if e.status_code == 400:
         if isinstance(e.body, dict) and "message" in e.body.keys():
             message = str(e.body.get("message"))
             return message, e.body
         else:
-            return CANT_ASSIST, e.body
+            raise LLMCannotAssistError()
     else:
         raise e
 

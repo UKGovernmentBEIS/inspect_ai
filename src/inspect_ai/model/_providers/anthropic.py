@@ -40,6 +40,11 @@ from .._chat_message import (
     ChatMessageAssistant,
     ChatMessageSystem,
 )
+from .._error_handler import (
+    LLMCannotAssistError,
+    PromptTooLongError,
+    handle_model_errors,
+)
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
@@ -110,6 +115,7 @@ class AnthropicAPI(ModelAPI):
                 **model_args,
             )
 
+    @handle_model_errors
     async def generate(
         self,
         input: list[ChatMessage],
@@ -220,11 +226,9 @@ class AnthropicAPI(ModelAPI):
         stop_reason: StopReason | None = None
 
         if "prompt is too long" in error:
-            content = "Sorry, but your prompt is too long."
-            stop_reason = "length"
+            raise PromptTooLongError(message=content)
         elif "content filtering" in error:
-            content = "Sorry, but I am unable to help with that request."
-            stop_reason = "content_filter"
+            raise LLMCannotAssistError
 
         if content and stop_reason:
             return ModelOutput.from_content(
