@@ -6,7 +6,7 @@ debugpy
 docstring-parser>=0.16
 fsspec
 httpx
-json-stream
+ijson
 jsonlines
 jsonpatch
 jsonschema

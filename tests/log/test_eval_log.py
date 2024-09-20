@@ -62,6 +62,10 @@ def test_fail_version():
     check_log_raises(log_path("log_version_3"))
 
 
+def test_valid_log_header():
+    read_eval_log(log_path("log_valid"), header_only=True)
+
+
 def check_log_raises(log_file):
     with pytest.raises(ValueError):
         read_eval_log(log_file)
