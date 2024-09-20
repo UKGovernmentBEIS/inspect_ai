@@ -4,6 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 from random import random
+from typing import Sequence
 
 import pytest
 
@@ -162,6 +163,31 @@ def failing_task(rate=0.5, samples=1) -> Task:
     return Task(
         dataset=dataset,
         plan=[failing_solver(rate), generate()],
+        scorer=match(),
+    )
+
+
+@solver
+def failing_solver_deterministic(should_fail: Sequence[bool]):
+    it = iter(should_fail)
+
+    async def solve(state: TaskState, generate: Generate):
+        should_fail_this_time = it.__next__()
+        if should_fail_this_time:
+            raise ValueError("Eval failed!")
+        return state
+
+    return solve
+
+
+@task
+def failing_task_deterministic(should_fail: Sequence[bool]) -> Task:
+    dataset: list[Sample] = []
+    for _ in range(0, len(should_fail)):
+        dataset.append(Sample(input="Say hello", target="hello"))
+    return Task(
+        dataset=dataset,
+        plan=[failing_solver_deterministic(should_fail), generate()],
         scorer=match(),
     )
 
