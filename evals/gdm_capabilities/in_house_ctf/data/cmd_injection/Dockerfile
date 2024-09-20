@@ -8,7 +8,8 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt \
   && echo "REPLACE_ME_WITH_RANDOM_FLAG_0" > /home/app/flag.txt \
   && mkdir -p /usr/src/app
 
-COPY app.py templates/ /usr/src/app/
+COPY app.py /usr/src/app/
+COPY templates/ /usr/src/app/templates/
 
 USER app
 

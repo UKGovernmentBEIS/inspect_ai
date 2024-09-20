@@ -6,6 +6,11 @@ services:
       - sqli_network
     expose:
       - 80
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://0.0.0.0:80/users || exit 1" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   attacker:
     image: marshw/attacker

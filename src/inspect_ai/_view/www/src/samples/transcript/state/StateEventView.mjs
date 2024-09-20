@@ -64,13 +64,19 @@ export const StateEventView = ({ id, event, style, stateManager }) => {
 const generatePreview = (changes, resolvedState) => {
   const results = [];
   for (const changeType of RenderableChangeTypes) {
+    // Note that we currently only have renderers that depend upon
+    // add, remove, replace, but we should likely add
+    // move, copy, test
     const requiredMatchCount =
       changeType.signature.remove.length +
       changeType.signature.replace.length +
       changeType.signature.add.length;
     let matchingOps = 0;
     for (const change of changes) {
-      if (changeType.signature[change.op].length > 0) {
+      if (
+        changeType.signature[change.op] &&
+        changeType.signature[change.op].length > 0
+      ) {
         changeType.signature[change.op].forEach((signature) => {
           if (change.path.match(signature)) {
             matchingOps++;

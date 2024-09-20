@@ -562,10 +562,10 @@ Inspect includes several built in reducers which are summarised below.
 | median               | Reduce to the median of all scores                                                                                   |
 | mode             | Reduce to the most common score.                                                             |
 | max              | Reduce to the maximum of all scores.                                                            |
-| pass_at_{k}  | Probability of at least 1 correct sample given `k` epochs. |
+| pass_at_{k}  | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
 | at_least_{k} | `1` if at least `k` samples are correct, else `0`. |
 
-: {tbl-colwidths="\[40,60\]"}
+: {tbl-colwidths="\[30,70\]"}
 
 
 :::{.callout-note}

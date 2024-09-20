@@ -368,7 +368,10 @@ const SampleSummary = ({ id, sample, style, sampleDescriptor }) => {
   columns.push({
     label: "Score",
     value: sample.error
-      ? html`<${FlatSampleError} style=${{ marginTop: "0.4rem" }} />`
+      ? html`<${FlatSampleError}
+          message=${sample.error.message}
+          style=${{ marginTop: "0.4rem" }}
+        />`
       : sampleDescriptor?.selectedScore(sample).render(),
     size: "minmax(2em, auto)",
     center: true,
