@@ -130,15 +130,16 @@ def _get_files(files_dict: dict[str, str], challenge: Path) -> dict[str, str]:
 
 
 def _get_sandbox(challenge_info: dict, challenge: Path) -> str | tuple[str, str | None]:
+    provider, config_file = "docker", "compose.yaml"
+    # If a sandbox is provided, a provider and config_file must be specified.
     if sandbox := challenge_info.get("sandbox"):
         try:
-            provider = sandbox["provider"]
-            if file := sandbox.get("config_file"):
-                config_file = _make_path_absolute(file, challenge)
+            provider, config_file = sandbox["provider"], sandbox["config_file"]
         except KeyError:
-            raise KeyError("Could not find sandbox provider in challenge config.")
-        return (provider, config_file)
-    return "docker"
+            raise KeyError(
+                "Could not find sandbox provider and config_file in challenge config; if a sanbox is provided, both must be specified."
+            )
+    return provider, _make_path_absolute(config_file, challenge)
 
 
 def _make_path_absolute(path_or_content: str, challenge: Path) -> str:
