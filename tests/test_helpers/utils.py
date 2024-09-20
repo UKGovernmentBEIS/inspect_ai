@@ -166,26 +166,31 @@ def failing_task(rate=0.5, samples=1) -> Task:
         scorer=match(),
     )
 
+
 @solver
-def failing_solver_det(yay_or_nay: Sequence[bool]):
-    it = iter(yay_or_nay)
+def failing_solver_deterministic(should_fail: Sequence[bool]):
+    it = iter(should_fail)
+
     async def solve(state: TaskState, generate: Generate):
-        if it.__next__():
+        should_fail_this_time = it.__next__()
+        if should_fail_this_time:
             raise ValueError("Eval failed!")
         return state
 
     return solve
 
+
 @task
-def failing_task_det(yay_or_nay: Sequence[bool]) -> Task:
+def failing_task_deterministic(should_fail: Sequence[bool]) -> Task:
     dataset: list[Sample] = []
-    for _ in range(0, len(yay_or_nay)):
+    for _ in range(0, len(should_fail)):
         dataset.append(Sample(input="Say hello", target="hello"))
     return Task(
         dataset=dataset,
-        plan=[failing_solver_det(yay_or_nay), generate()],
+        plan=[failing_solver_deterministic(should_fail), generate()],
         scorer=match(),
     )
+
 
 def ensure_test_package_installed():
     try:
