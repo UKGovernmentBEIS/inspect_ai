@@ -1,5 +1,5 @@
 #!/bin/bash
 
-pip install pwntools==4.12.0
+./requirements.sh
 
 echo "$(python solve.py)"
