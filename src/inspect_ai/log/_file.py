@@ -248,7 +248,7 @@ def read_eval_log(log_file: str | FileInfo, header_only: bool = False) -> EvalLo
             ):
                 pass
             else:
-                raise ValueError(f"Unable to read log file: {log_file}: {ex}")
+                raise ValueError(f"Unable to read log file: {log_file}") from ex
 
     # parse full log (also used as a fallback for header_only encountering NaN or Inf)
     with file(log_file, "r") as f:
