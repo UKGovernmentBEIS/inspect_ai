@@ -1,6 +1,5 @@
 import ast
 import contextlib
-import inspect
 import os
 from dataclasses import dataclass, field
 from importlib.machinery import SourceFileLoader
@@ -271,9 +270,9 @@ def create_tasks(
     return tasks
 
 
-def load_file_tasks(file: Path) -> list[RegistryInfo]:
+def load_file_tasks(file: Path) -> None:
     with chdir_python(file.parent.as_posix()):
-        return _load_task_specs(file)
+        _load_task_specs(file)
 
 
 def create_file_tasks(
@@ -317,13 +316,13 @@ def create_file_tasks(
 # higher level loading functions above (those functions
 # change the working directory, this one does not b/c it is
 # intended as a helper function)
-def _load_task_specs(task_path: Path) -> list[RegistryInfo]:
+def _load_task_specs(task_path: Path) -> list[str]:
     # load the module
     module = load_module(task_path, code_has_task)
     if module:
         # find the tasks in the module
-        tasks = inspect.getmembers(module, lambda m: is_registry_object(m, "task"))
-        return [registry_info(task[1]) for task in tasks]
+        tasks = parse_decorators(task_path, "task")
+        return [task[0] for task in tasks]
     else:
         return []
 
