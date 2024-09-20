@@ -1,4 +1,5 @@
 import ast
+import contextlib
 import inspect
 import os
 from dataclasses import dataclass, field
@@ -10,9 +11,10 @@ from types import ModuleType
 from typing import Any, Callable, cast
 
 from inspect_ai._eval.task.util import task_file, task_run_dir
+from inspect_ai._util.decorator import parse_decorators
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
-from inspect_ai._util.path import add_to_syspath, chdir_python
+from inspect_ai._util.path import chdir_python
 from inspect_ai._util.registry import (
     RegistryInfo,
     is_registry_object,
@@ -405,34 +407,48 @@ def as_solver_spec(solver: Solver) -> SolverSpec:
     return SolverSpec(solver=registry_info(solver).name, args=registry_params(solver))
 
 
-def create_solver(spec: SolverSpec) -> Solver:
+def solver_from_spec(spec: SolverSpec) -> Solver:
     # resolve @ reference
     spec_split = split_spec(spec.solver)
     if spec_split[1] is not None:
-        solver_file: Path | None = Path(spec_split[0])
-        solver_name: str = spec_split[1]
+        solver_file: Path | None = Path(spec_split[0]).resolve()
+        solver_name: str | None = spec_split[1]
     elif Path(spec_split[0]).exists():
-        raise PrerequisiteError(
-            f"File name only provided for solver ('{spec_split[0]}'). You must also specify the solver by name with @."
-        )
+        solver_file = Path(spec_split[0]).resolve()
+        solver_name = None
     else:
         solver_file = None
         solver_name = spec_split[0]
 
-    # if we have a file then we need to load it so the registry_create works
-    if solver_file is not None:
-        with add_to_syspath(solver_file.parent.as_posix()):
-            solver_module = load_module(solver_file)
+    # switch contexts if we are loading from a file
+    create_cm = (
+        chdir_python(solver_file.parent.as_posix())
+        if solver_file is not None
+        else contextlib.nullcontext()
+    )
 
-        # valdiate there is at least 1 solver
-        solvers = inspect.getmembers(
-            solver_module, lambda m: is_registry_object(m, "solver")
-        )
-        if len(solvers) == 0:
-            raise PrerequisiteError(
-                f"The source file {solver_file.as_posix()} does not contain any @solver functions."
-            )
+    with create_cm:
+        # if we have a file then we need to load it and (if required) determine the solver name
+        if solver_file is not None:
+            # load the module so that registry_create works
+            load_module(solver_file)
 
-    # create and return the solver
-    solver = cast(Solver, registry_create("solver", solver_name, **spec.args))
-    return solver
+            # if there is no solver_name we need to discover the first @solver
+            if solver_name is None:
+                solvers = parse_decorators(solver_file, "solver")
+                if len(solvers) == 0:
+                    raise PrerequisiteError(
+                        f"The source file {solver_file.as_posix()} does not contain any @solver functions."
+                    )
+                if len(solvers) > 1:
+                    raise PrerequisiteError(
+                        f"The source file {solver_file.as_posix()} has more than one @solver function (qualify which plan using file.py@solver)"
+                    )
+                solver_name = solvers[0][0]
+
+        # make mypy happy and catch unexpected branching
+        if solver_name is None:
+            raise ValueError(f"Unable to resolve solver name from {spec.solver}")
+
+        solver = cast(Solver, registry_create("solver", solver_name, **spec.args))
+        return solver

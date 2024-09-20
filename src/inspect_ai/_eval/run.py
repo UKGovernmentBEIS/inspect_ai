@@ -21,7 +21,7 @@ from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 from .loader import (
     ResolvedTask,
     as_solver_spec,
-    create_solver,
+    solver_from_spec,
 )
 from .task.log import TaskLogger
 from .task.run import TaskRunOptions, create_sample_semaphore, task_run
@@ -74,7 +74,7 @@ async def eval_run(
         eval_solver = solver
         eval_solver_spec = as_solver_spec(solver)
     elif isinstance(solver, SolverSpec):
-        eval_solver = create_solver(solver)
+        eval_solver = solver_from_spec(solver)
         eval_solver_spec = solver
     else:
         eval_solver = None

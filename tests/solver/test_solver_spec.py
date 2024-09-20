@@ -18,17 +18,16 @@ from inspect_ai.solver._solver import Solver
 
 
 @solver
-def failing_solver(rate=1.0):
-    async def solve(state: TaskState, generate: Generate):
-        if random() <= rate:
-            raise ValueError("Eval failed!")
-        return state
-
-    return solve
-
-
-@solver
 def the_solver(rate=1.0):
+    @solver
+    def failing_solver(rate=1.0):
+        async def solve(state: TaskState, generate: Generate):
+            if random() <= rate:
+                raise ValueError("Eval failed!")
+            return state
+
+        return solve
+
     return chain(failing_solver(rate), generate())
 
 
@@ -52,6 +51,7 @@ def test_solver_spec():
         check_solver(log, solver_spec)
 
     check_solver_spec("the_solver")
+    check_solver_spec(solver_file)
     check_solver_spec(f"{solver_file}@the_solver")
 
 
