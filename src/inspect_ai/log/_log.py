@@ -420,6 +420,10 @@ class EvalStats(BaseModel):
 
 
 class EvalLog(BaseModel):
+    # WARNING: The order of these fields is important for the log file format.
+    # Do not change the order of these fields without incrementing the version number,
+    # updating the log file read/write functionality (such as read_eval_log),
+    # and updating the tests.
     version: int = Field(default=2)
     """Eval log file format version."""
 
