@@ -192,33 +192,15 @@ def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
             if not is_callable_coroutine(solver):
                 raise TypeError(f"'{solver}' is not declared as an async callable.")
 
-            async def solver_with_transcript(
-                state: TaskState, generate: Generate
-            ) -> TaskState:
-                from ._transcript import solver_transcript
-
-                with solver_transcript(solver, state, solver_name) as st:  # type: ignore
-                    state = await solver(state, generate)
-                    st.complete(state)
-                return state
-
-            # don't wrap transcript around compound solver types
-            from ._chain import Chain
-            from ._plan import Plan
-
-            target_solver = (
-                solver if isinstance(solver, Chain | Plan) else solver_with_transcript
-            )
-
             registry_tag(
                 solver_type,
-                target_solver,
+                solver,
                 RegistryInfo(type="solver", name=solver_name),
                 *args,
                 **kwargs,
             )
 
-            return target_solver
+            return solver
 
         return solver_register(cast(SolverType, solver_wrapper), solver_name)
 

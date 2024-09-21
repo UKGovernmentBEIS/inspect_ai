@@ -95,11 +95,15 @@ class Plan(Solver):
         state: TaskState,
         generate: Generate,
     ) -> TaskState:
+        from ._transcript import solver_transcript
+
         try:
             # execute steps
             for index, solver in enumerate(self.steps):
                 # run solver
-                state = await solver(state, generate)
+                with solver_transcript(solver, state) as st:
+                    state = await solver(state, generate)
+                    st.complete(state)
 
                 # tick progress
                 self.progress()
@@ -114,7 +118,9 @@ class Plan(Solver):
 
             # execute finish
             if self.finish:
-                state = await self.finish(state, generate)
+                with solver_transcript(self.finish, state) as st:
+                    state = await self.finish(state, generate)
+                    st.complete(state)
                 self.progress()
 
             # mark completed
