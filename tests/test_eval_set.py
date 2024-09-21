@@ -3,7 +3,7 @@ import tempfile
 from copy import deepcopy
 from pathlib import Path
 
-from test_helpers.utils import failing_solver, failing_task
+from test_helpers.utils import failing_solver, failing_task, failing_task_deterministic
 
 from inspect_ai import Task, task
 from inspect_ai._eval.evalset import (
@@ -219,3 +219,15 @@ def test_eval_set_s3(mock_s3) -> None:
     )
     assert success
     assert logs[0].status == "success"
+
+
+def test_eval_zero_retries() -> None:
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=failing_task_deterministic([True, False]),
+            log_dir=log_dir,
+            retry_attempts=0,
+            retry_wait=0.1,
+            model="mockllm/model",
+        )
+        assert not success
