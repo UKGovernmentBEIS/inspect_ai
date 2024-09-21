@@ -15666,7 +15666,7 @@ function format(delta, left2) {
 }
 const StateDiffView = ({ starting, ending, style }) => {
   const changes = diff(starting, ending);
-  const html_result = format(changes);
+  const html_result = format(changes) || "Unable to render differences";
   return m$1`<div
     dangerouslySetInnerHTML=${{ __html: unescapeNewlines(html_result) }}
     style=${{ ...style }}
@@ -17106,11 +17106,25 @@ const initStateManager = (scope) => {
      * @param {import("../../types/log").Changes} changes - The new state object to update with.
      */
     applyChanges: (changes) => {
-      state = applyPatch(
-        structuredClone(state),
-        structuredClone(changes).map(ensureValidChange),
-        true
-      ).newDocument;
+      try {
+        state = applyPatch(
+          structuredClone(state),
+          structuredClone(changes).map(ensureValidChange),
+          true
+        ).newDocument;
+      } catch (ex) {
+        const ops = changes.reduce((prev, change) => {
+          if (!Object.keys(prev).includes(change.op)) {
+            prev[change.op] = [];
+          }
+          prev[change.op].push(change.path);
+          return prev;
+        }, {});
+        const message = `${ex.name}
+Failed to apply patch:
+${JSON.stringify(ops, void 0, 2)}`;
+        console.error(message);
+      }
     }
   };
 };
