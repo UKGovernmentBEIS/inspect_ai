@@ -202,15 +202,23 @@ def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
                     st.complete(state)
                 return state
 
+            # don't wrap transcript around compound solver types
+            from ._chain import Chain
+            from ._plan import Plan
+
+            target_solver = (
+                solver if isinstance(solver, Chain | Plan) else solver_with_transcript
+            )
+
             registry_tag(
                 solver_type,
-                solver_with_transcript,
+                target_solver,
                 RegistryInfo(type="solver", name=solver_name),
                 *args,
                 **kwargs,
             )
 
-            return solver_with_transcript
+            return target_solver
 
         return solver_register(cast(SolverType, solver_wrapper), solver_name)
 
