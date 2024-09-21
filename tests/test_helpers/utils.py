@@ -162,7 +162,7 @@ def failing_task(rate=0.5, samples=1) -> Task:
         dataset.append(Sample(input="Say hello", target="hello"))
     return Task(
         dataset=dataset,
-        plan=[failing_solver(rate), generate()],
+        solver=[failing_solver(rate), generate()],
         scorer=match(),
     )
 

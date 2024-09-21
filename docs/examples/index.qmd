@@ -14,6 +14,7 @@ aliases:
 <nav id="TOC" role="doc-toc">
 <ul>
 <li><a href="#coding" id="toc-coding">Coding</a></li>
+<li><a href="#assistants" id="toc-coding">Assistants</a></li>
 <li><a href="#cybersecurity" id="toc-coding">Cybersecurity</a></li>
 <li><a href="#mathematics" id="toc-mathematics">Mathematics</a></li>
 <li><a href="#reasoning" id="toc-reasoning">Reasoning</a></li>

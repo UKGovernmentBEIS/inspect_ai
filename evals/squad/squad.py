@@ -20,7 +20,7 @@ def squad():
 
     return Task(
         dataset=dataset,
-        plan=[system_message(SYSTEM_MESSAGE), generate()],
+        solver=[system_message(SYSTEM_MESSAGE), generate()],
         scorer=[f1(), exact()],
     )
 

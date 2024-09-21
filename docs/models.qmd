@@ -144,7 +144,7 @@ def popularity(model):
 
     return Task(
         dataset=json_dataset("popularity.jsonl"),
-        plan=[system_message(SYSTEM_MESSAGE), generate()],
+        solver=[system_message(SYSTEM_MESSAGE), generate()],
         scorer=match(),
         config=config,
     )
@@ -412,7 +412,7 @@ def theory_of_mind():
 
   return Task(
      dataset=json_dataset("theory_of_mind.jsonl"),
-     plan=[
+     solver=[
          chain_of_thought(),
          generate(),
          self_critique(model = critique_model)

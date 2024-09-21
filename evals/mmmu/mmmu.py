@@ -42,7 +42,7 @@ def mmmu_task_multiple_choice(dataset):
 
     return Task(
         dataset=multiple_choice_questions_inspect,
-        plan=[prompt_template(MULT_CHOICE_PROMPT), multiple_choice()],
+        solver=[prompt_template(MULT_CHOICE_PROMPT), multiple_choice()],
         scorer=choice(),
         config=GenerateConfig(temperature=0),
     )
@@ -66,7 +66,7 @@ def mmmu_task_open(dataset):
 
     return Task(
         dataset=open_ended_questions_inspect,
-        plan=[prompt_template(OPEN_PROMPT), generate()],
+        solver=[prompt_template(OPEN_PROMPT), generate()],
         scorer=model_graded_fact(),
         config=GenerateConfig(temperature=0),
     )

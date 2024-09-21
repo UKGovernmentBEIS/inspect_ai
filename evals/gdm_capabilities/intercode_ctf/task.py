@@ -16,7 +16,7 @@ def intercode_ctf(
 ):
     return Task(
         dataset=read_dataset(shuffle),
-        plan=ctf_agent(max_attempts),
+        solver=ctf_agent(max_attempts),
         scorer=includes(),
         max_messages=max_messages,
         sandbox="docker",

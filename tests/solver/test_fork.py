@@ -44,7 +44,7 @@ def test_forking_solver():
         return solve
 
     task = Task(
-        dataset=[Sample(input="Say Hello", target="Hello")], plan=forking_solver()
+        dataset=[Sample(input="Say Hello", target="Hello")], solver=forking_solver()
     )
 
     eval(task, model="mockllm/model")

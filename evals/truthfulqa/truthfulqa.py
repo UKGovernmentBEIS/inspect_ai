@@ -44,7 +44,7 @@ def truthfulqa(target="mc1"):
 
     return Task(
         dataset=dataset,
-        plan=[multiple_choice(multiple_correct=multiple_correct, shuffle=True)],
+        solver=[multiple_choice(multiple_correct=multiple_correct, shuffle=True)],
         scorer=choice(),
     )
 

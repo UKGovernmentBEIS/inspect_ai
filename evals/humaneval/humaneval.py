@@ -56,7 +56,7 @@ def humaneval():
             path="openai_humaneval", split="test", sample_fields=record_to_sample
         ),
         epochs=Epochs(NUM_EPOCHS, ["mean", "pass_at_1", "pass_at_2", "pass_at_5"]),
-        plan=[generate()],
+        solver=[generate()],
         scorer=verify(),
         sandbox="docker",
     )

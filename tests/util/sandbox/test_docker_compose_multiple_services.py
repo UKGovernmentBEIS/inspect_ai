@@ -99,7 +99,7 @@ def test_docker_compose_multiple_services_write_file():
     ]
     task = Task(
         dataset=dataset,
-        plan=[
+        solver=[
             use_tools(
                 [
                     write_file_service_1(),

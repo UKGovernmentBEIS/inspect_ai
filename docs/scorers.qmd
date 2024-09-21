@@ -63,7 +63,7 @@ Scorers provide one or more built-in metrics (each of the scorers above provides
 ``` python
 Task(
     dataset=dataset,
-    plan=[
+    solver=[
         system_message(SYSTEM_MESSAGE),
         multiple_choice()
     ],
@@ -290,7 +290,7 @@ There are several ways to use multiple scorers in an evaluation:
 ``` python
 Task(
     dataset=dataset,
-    plan=[
+    solver=[
         system_message(SYSTEM_MESSAGE),
         generate()
     ],
@@ -435,7 +435,7 @@ def challenge() -> Task:
                 target="hello-world.txt",
             )
         ],
-        plan=[use_tools([bash()]), generate()],
+        solver=[use_tools([bash()]), generate()],
         sandbox="local",
         scorer=check_file_exists(),
     )
@@ -453,7 +453,7 @@ You can override scorer's built-in metrics by passing an alternate list of `metr
 ``` python
 Task(
     dataset=dataset,
-    plan=[
+    solver=[
         system_message(SYSTEM_MESSAGE),
         multiple_choice()
     ],
@@ -527,7 +527,7 @@ By default, this is done by taking the mean of all sample scores, but you may sp
 def gpqa():
     return Task(
         dataset=read_gpqa_dataset("gpqa_main.csv"),
-        plan=[
+        solver=[
             system_message(SYSTEM_MESSAGE),
             multiple_choice(),
         ],

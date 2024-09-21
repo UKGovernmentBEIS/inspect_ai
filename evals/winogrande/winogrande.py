@@ -24,6 +24,7 @@ from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.model import GenerateConfig
 from inspect_ai.scorer import choice
 from inspect_ai.solver import (
+    Solver,
     multiple_choice,
     system_message,
 )
@@ -68,7 +69,7 @@ def winogrande(
             trust=True,
             sample_fields=record_to_sample,
         ),
-        plan=build_plan(
+        solver=winogrande_solver(
             dataset_name=dataset_name, fewshot=fewshot, fewshot_seed=fewshot_seed
         ),
         scorer=choice(),
@@ -76,12 +77,12 @@ def winogrande(
     )
 
 
-def build_plan(
+def winogrande_solver(
     dataset_name: str,
     fewshot: int,
     fewshot_seed: int,
-) -> list:
-    plan = [multiple_choice(template=USER_PROMPT_TEMPLATE, shuffle=False)]
+) -> list[Solver]:
+    solver = [multiple_choice(template=USER_PROMPT_TEMPLATE, shuffle=False)]
 
     if fewshot:
         fewshot_samples = hf_dataset(
@@ -94,7 +95,7 @@ def build_plan(
             seed=fewshot_seed,
             limit=fewshot,
         )
-        plan.insert(
+        solver.insert(
             0,
             system_message(
                 SYSTEM_W_EXAMPLES_PROMPT_TEMPLATE.format(
@@ -105,7 +106,7 @@ def build_plan(
             ),
         )
 
-    return plan
+    return solver
 
 
 def record_to_sample(record: Dict) -> Sample:

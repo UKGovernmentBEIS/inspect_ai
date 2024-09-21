@@ -34,7 +34,7 @@ def gpqa_diamond():
             csv_file="https://openaipublic.blob.core.windows.net/simple-evals/gpqa_diamond.csv",
             sample_fields=record_to_sample,
         ),
-        plan=[
+        solver=[
             multiple_choice(shuffle=True),
         ],
         scorer=choice(),
