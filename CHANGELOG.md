@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Deprecated `Plan` in favor of `Solver` (with `chain()` function to compose multiple solvers).
+- Improve performance of `header_only` log reading (switch from json-stream to ijson).
+- Add support for 0 retries to `eval-set` (run a single `eval` then stop).
+- Tool calling fixes for update to Mistral v1.1. client.
+- Always show `epochs` in task status (formerly wasn't included for multiple task display)
+- Render transcript `info()` strings as markdown
+- Eliminate log spam from spurious grpc fork message.
+
 ## v0.3.30 (18 September 2024)
 
 - Added [fork()](agents-api.qmd#sec-forking) function to fork a `TaskState` and evaluate it against multiple solvers in parallel.
