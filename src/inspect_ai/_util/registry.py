@@ -250,7 +250,7 @@ def registry_params(o: object) -> dict[str, Any]:
         raise ValueError("Object does not have registry info")
 
 
-def registry_log_name(o: object) -> str:
+def registry_log_name(o: str | object) -> str:
     r"""Name of object for logging.
 
     Registry objects defined by the inspect_ai package have their
@@ -258,12 +258,12 @@ def registry_log_name(o: object) -> str:
     be created/referenced without the prefix).
 
     Args:
-        o (object): Object to get name for
+        o (str | object): Name or object to get name for
 
     Returns:
         Name of object for logging.
     """
-    name = registry_info(o).name
+    name = o if isinstance(o, str) else registry_info(o).name
     return name.replace(f"{PKG_NAME}/", "", 1)
 
 

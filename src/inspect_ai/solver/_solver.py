@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from typing import (
     Any,
     Callable,
@@ -55,6 +56,17 @@ class Generate(Protocol):
         cache: bool | CachePolicy = False,
         **kwargs: Unpack[GenerateConfigArgs],
     ) -> TaskState: ...
+
+
+@dataclass(frozen=True)
+class SolverSpec:
+    """Solver specification used to (re-)create solvers."""
+
+    solver: str
+    """Solver name (simple name or file.py@name)."""
+
+    args: dict[str, Any] = field(default_factory=dict)
+    """Solver arguments."""
 
 
 @runtime_checkable
@@ -180,15 +192,25 @@ def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
             if not is_callable_coroutine(solver):
                 raise TypeError(f"'{solver}' is not declared as an async callable.")
 
+            async def solver_with_transcript(
+                state: TaskState, generate: Generate
+            ) -> TaskState:
+                from ._transcript import solver_transcript
+
+                with solver_transcript(solver, state, solver_name) as st:  # type: ignore
+                    state = await solver(state, generate)
+                    st.complete(state)
+                return state
+
             registry_tag(
                 solver_type,
-                solver,
+                solver_with_transcript,
                 RegistryInfo(type="solver", name=solver_name),
                 *args,
                 **kwargs,
             )
 
-            return solver
+            return solver_with_transcript
 
         return solver_register(cast(SolverType, solver_wrapper), solver_name)
 

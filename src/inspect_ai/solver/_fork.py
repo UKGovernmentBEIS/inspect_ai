@@ -3,6 +3,8 @@ from contextvars import ContextVar
 from copy import deepcopy
 from typing import cast
 
+from typing_extensions import overload
+
 from inspect_ai._util.registry import registry_log_name
 from inspect_ai.util._subtask import subtask
 
@@ -10,7 +12,17 @@ from ._solver import Generate, Solver
 from ._task_state import TaskState
 
 
-async def fork(state: TaskState, solvers: list[Solver]) -> list[TaskState]:
+@overload
+async def fork(state: TaskState, solvers: Solver) -> TaskState: ...
+
+
+@overload
+async def fork(state: TaskState, solvers: list[Solver]) -> list[TaskState]: ...
+
+
+async def fork(
+    state: TaskState, solvers: Solver | list[Solver]
+) -> TaskState | list[TaskState]:
     """Fork the TaskState and evaluate it against multiple solvers in parallel.
 
     Run several solvers against independent copies of a TaskState. Each
@@ -20,15 +32,19 @@ async def fork(state: TaskState, solvers: list[Solver]) -> list[TaskState]:
 
     Args:
       state (TaskState): Beginning TaskState
-      solvers (list[Solver]): Solvers to apply on the TaskState.
+      solvers (Solver | list[Solver]): Solvers to apply on the TaskState.
         Each Solver will get a standalone copy of the TaskState.
 
     Returns:
-      List of TaskState with the results of applying each
-      of the pass Solvers to a forked copy of the TaskState.
+      Single TaskState or list of TaskState (depending on the input)
+      with the results of applying the solver(s) to a forked copy
+      of the TaskState.
     """
-    subtasks = [solver_subtask(state, solver) for solver in solvers]
-    return await asyncio.gather(*subtasks)
+    if isinstance(solvers, Solver):
+        return await solver_subtask(state, solvers)
+    else:
+        subtasks = [solver_subtask(state, solver) for solver in solvers]
+        return await asyncio.gather(*subtasks)
 
 
 async def solver_subtask(state: TaskState, solver: Solver) -> TaskState:
@@ -41,7 +57,7 @@ async def solver_subtask(state: TaskState, solver: Solver) -> TaskState:
     state = deepcopy(state)
 
     # create a subtask so we get an independent store and transcript
-    @subtask(name=registry_log_name(solver), store=state.store)
+    @subtask(name=registry_log_name(solver), store=state.store)  # type: ignore
     async def solve() -> TaskState:
         return await solver(state, generate)
 

@@ -15,11 +15,9 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.solver import (
     Generate,
-    Plan,
     Solver,
     TaskState,
     basic_agent,
-    plan,
     solver,
     system_message,
 )
@@ -29,14 +27,14 @@ from inspect_ai.util import sandbox
 
 @task
 def in_house_ctf(
-    plan: Plan | None = None,
+    agent: Solver | None = None,
     challenges: str | list[str] | None = None,
     max_attempts: int = 1,
     max_messages: int = 50,
 ) -> Task:
     return Task(
         dataset=read_dataset(challenges=challenges),
-        plan=plan or default_plan(max_attempts=max_attempts),
+        plan=agent or default_agent(max_attempts=max_attempts),
         scorer=check_flag(),
         max_messages=max_messages,
         epochs=Epochs(1, "at_least_1"),
@@ -44,10 +42,8 @@ def in_house_ctf(
     )
 
 
-@plan
-def default_plan(
-    init: Solver | list[Solver] | None = None, max_attempts: int = 1
-) -> Plan:
+@solver
+def default_agent(init: Solver | list[Solver] | None = None, max_attempts: int = 1):
     return basic_agent(
         init=init or system_message(default_system_message()),
         tools=agent_bash_tool(),

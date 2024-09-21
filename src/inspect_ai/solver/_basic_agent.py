@@ -4,10 +4,10 @@ from inspect_ai.model._chat_message import ChatMessageTool, ChatMessageUser
 from inspect_ai.model._model import get_model
 from inspect_ai.scorer._metric import ValueToFloat, value_to_float
 from inspect_ai.scorer._score import score
+from inspect_ai.solver._chain import chain
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_with import tool_with
 
-from ._plan import Plan, plan
 from ._prompt import system_message
 from ._solver import Generate, Solver, solver
 from ._task_state import TaskState
@@ -34,20 +34,19 @@ DEFAULT_SUBMIT_NAME = "submit"
 DEFAULT_SUBMIT_DESCRIPTION = "Submit an answer for evaluation."
 
 
-@plan
+@solver
 def basic_agent(
     *,
     init: Solver | list[Solver] | None = None,
     tools: list[Tool] | Solver | None = None,
     cache: bool | CachePolicy = False,
-    agent_name: str = "basic_agent",
     max_attempts: int = 1,
     score_value: ValueToFloat | None = None,
     incorrect_message: str = DEFAULT_INCORRECT_MESSAGE,
     continue_message: str = DEFAULT_CONTINUE_MESSAGE,
     submit_name: str = DEFAULT_SUBMIT_NAME,
     submit_description: str = DEFAULT_SUBMIT_DESCRIPTION,
-) -> Plan:
+) -> Solver:
     """Basic ReAct agent.
 
     Agent that runs a tool use loop until the model submits an answer using the
@@ -72,7 +71,6 @@ def basic_agent(
          list of tools or a Solver that can yield dynamic tools per-sample.
        cache: (bool | CachePolicy): Caching behaviour for generate responses
          (defaults to no caching).
-       agent_name (str): Name passed to the Plan constructor (defaults to 'basic_agent')
        max_attempts (int): Maximum number of submissions to accept before terminating.
        score_value (ValueToFloat): Function used to extract float from scores (defaults
          to standard value_to_float())
@@ -185,13 +183,12 @@ def basic_agent(
 
         return solve
 
-    # return plan
-    return Plan(
+    # return chain
+    return chain(
         init
         + [
             tools,
             submit_tool(),
             basic_agent_loop(),
-        ],
-        name=agent_name,
+        ]
     )

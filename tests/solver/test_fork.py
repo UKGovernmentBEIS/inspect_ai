@@ -35,6 +35,10 @@ def test_forking_solver():
             results = await fork(state, [forked_solver("foo"), forked_solver("bar")])
             check_state(results[0], "foo")
             check_state(results[1], "bar")
+
+            state = await fork(state, forked_solver("foo"))
+            check_state(state, "foo")
+
             return state
 
         return solve

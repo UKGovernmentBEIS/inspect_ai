@@ -1,5 +1,5 @@
 import inspect
-from dataclasses import dataclass, field
+from logging import getLogger
 from typing import Any, Awaitable, Callable, TypeVar, cast
 
 from inspect_ai._util.registry import (
@@ -12,11 +12,13 @@ from inspect_ai._util.registry import (
     registry_tag,
 )
 
-from ._solver import Solver
+from ._solver import Generate, Solver
 from ._task_state import TaskState
 
+logger = getLogger(__name__)
 
-class Plan:
+
+class Plan(Solver):
     """Task plan: List of solvers with an optional finishing solver.
 
     The optional `finish` solver is called after executing the steps (including in the case
@@ -32,6 +34,7 @@ class Plan:
         finish: Solver | None = None,
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
         name: str | None = None,
+        internal: bool = False,
     ) -> None:
         """Create a task plan.
 
@@ -44,6 +47,7 @@ class Plan:
             a `TaskState` but does not return one (it is only for cleanup not for transforming
             the state).
           name (str | None): Optional name for plan (for log files).
+          internal (bool): Internal use of Plan (prevent deprecation warning)
         """
         if isinstance(steps, Solver):
             self.steps = [steps]
@@ -52,7 +56,16 @@ class Plan:
 
         self.finish = finish
         self.cleanup = cleanup
+        self.progress: Callable[[], None] = lambda: None
         self._name = name
+
+        if not internal:
+            from inspect_ai._util.logger import warn_once
+
+            warn_once(
+                logger,
+                "Plan is deprecated: use chain() to compose a list of solvers.",
+            )
 
     @property
     def name(self) -> str:
@@ -77,19 +90,48 @@ class Plan:
     this function should be declared `async`.
     """
 
+    async def __call__(
+        self,
+        state: TaskState,
+        generate: Generate,
+    ) -> TaskState:
+        try:
+            # execute steps
+            for index, solver in enumerate(self.steps):
+                # run solver
+                state = await solver(state, generate)
+
+                # tick progress
+                self.progress()
+
+                # check for completed
+                if state.completed:
+                    # tick rest of progress
+                    for _ in range(index + 1, len(self.steps)):
+                        self.progress()
+                    # exit loop
+                    break
+
+            # execute finish
+            if self.finish:
+                state = await self.finish(state, generate)
+                self.progress()
+
+            # mark completed
+            state.completed = True
+
+        finally:
+            # always do cleanup if we have one
+            if self.cleanup:
+                try:
+                    await self.cleanup(state)
+                except Exception as ex:
+                    logger.warning(f"Exception occurred during plan cleanup: {ex}")
+
+        return state
+
 
 PlanType = TypeVar("PlanType", bound=Callable[..., Plan])
-
-
-@dataclass(frozen=True)
-class PlanSpec:
-    """Plan specification used to (re-)create plans."""
-
-    plan: str
-    """Plan name (simple name or file@name)."""
-
-    args: dict[str, Any] = field(default_factory=dict)
-    """Plan arguments."""
 
 
 def plan(*plan: PlanType | None, name: str | None = None, **attribs: Any) -> Any:
@@ -137,6 +179,13 @@ def plan(*plan: PlanType | None, name: str | None = None, **attribs: Any) -> Any
         return plan_register(
             plan=cast(PlanType, wrapper), name=plan_name, attribs=attribs, params=params
         )
+
+    from inspect_ai._util.logger import warn_once
+
+    warn_once(
+        logger,
+        "@plan is deprecated: use @solver and chain() to compose a list of solvers.",
+    )
 
     if plan:
         return create_plan_wrapper(cast(PlanType, plan[0]))

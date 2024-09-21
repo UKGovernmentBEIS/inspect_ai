@@ -59,7 +59,9 @@ from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._score import init_scoring_context
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, TaskState
+from inspect_ai.solver._chain import Chain, unroll
 from inspect_ai.solver._fork import set_task_generate
+from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import state_jsonable
 from inspect_ai.util._subtask import init_subtask
 
@@ -77,7 +79,6 @@ from .log import TaskLogger, collect_eval_data, log_plan
 from .results import eval_results
 from .rundir import set_task_run_dir
 from .sandbox import sandboxenv_context
-from .transcript import solver_transcript
 from .util import sample_messages, task_run_dir
 
 py_logger = getLogger(__name__)
@@ -94,7 +95,7 @@ class TaskRunOptions:
     logger: TaskLogger
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
-    plan: Plan | None = field(default=None)
+    solver: Solver | None = field(default=None)
     score: bool = field(default=True)
     debug_errors: bool = field(default=False)
     sample_source: EvalSampleSource | None = field(default=None)
@@ -110,7 +111,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     logger = options.logger
     eval_wd = options.eval_wd
     config = options.config
-    plan = options.plan
+    solver = options.solver
     score = options.score
     sample_source = options.sample_source
     sample_semaphore = options.sample_semaphore
@@ -151,8 +152,16 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             max_messages=config.max_messages,
         )
 
-        # resolve the plan and scorer
-        plan = plan if plan else task.plan
+        # resolve the plan (unroll chains)
+        solver = solver or task.solver
+        if isinstance(solver, Plan):
+            plan = solver
+        elif isinstance(solver, Chain):
+            plan = Plan(list(solver), internal=True)
+        else:
+            plan = Plan(unroll(solver), internal=True)
+
+        # reaolve the scorer
         score = score and task.scorer is not None
         scorers: list[Scorer] | None = task.scorer if (score and task.scorer) else None
         scorer_profiles = (
@@ -401,31 +410,9 @@ async def task_run_sample(
                 SampleInitEvent(sample=event_sample, state=state_jsonable(state))
             )
 
-            # run plan steps (checking for early termination)
-            for index, solver in enumerate(plan.steps):
-                # run the solver
-                with solver_transcript(solver, state) as st:
-                    state = await solver(state, generate)
-                    if state is None:
-                        raise RuntimeError(
-                            f"Solver '{st.name}' did not return a TaskState"
-                        )
-                    st.complete(state)
-                progress()
-
-                # check for early termination (tick remaining progress)
-                if state.completed:
-                    for _ in range(index + 1, len(plan.steps)):
-                        progress()
-                    break
-
-            # run finishing step them mark completed
-            if plan.finish:
-                with solver_transcript(plan.finish, state) as st:
-                    state = await plan.finish(state, generate)
-                    st.complete(state)
-                progress()
-            state.completed = True
+            # set progress for plan then run it
+            plan.progress = progress
+            state = await plan(state, generate)
 
         except asyncio.CancelledError:
             # allow cancelled error to propagate
@@ -437,17 +424,6 @@ async def task_run_sample(
 
             # fire error event
             transcript()._event(ErrorEvent(error=error))
-
-        finally:
-            # safely run cleanup function if there is one
-            if plan.cleanup:
-                try:
-                    await plan.cleanup(state)
-                except Exception as ex:
-                    py_logger.warning(
-                        f"Exception occurred during plan cleanup for task {task_name}: "
-                        + f"{exception_message(ex)}"
-                    )
 
         # score it
         results: dict[str, SampleScore] = {}

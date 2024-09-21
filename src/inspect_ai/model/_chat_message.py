@@ -99,8 +99,11 @@ class ChatMessageTool(ChatMessageBase):
     @property
     def tool_error(self) -> str | None:
         """Tool error (deprecated)."""
-        logger.warning(
-            "The 'tool_error' field is deprecated. Access error information via 'error' instead."
+        from inspect_ai._util.logger import warn_once
+
+        warn_once(
+            logger,
+            "The 'tool_error' field is deprecated. Access error information via 'error' instead.",
         )
         if self.error:
             return self.error.message
