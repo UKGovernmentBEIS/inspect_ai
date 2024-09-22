@@ -2,11 +2,15 @@
 
 There are a variety of ways to run evaluations that range from interactive work in a notebook or REPL all the way up to running large evaluation suites. We'll start with the basics, then cover exploratory workflows, and finally discuss how to compose evals together into a suite.
 
+::: {.callout-note appearance="simple"}
+If you are using VS Code, we recommend installing the VS Code Extension, which includes tools for running, tuning, debugging, and visualising evals. See the article on the [VS Code Extension](#sec-vscode) for more details on installing and using the extension.
+:::
+
 ## Eval Basics
 
 To create an evaluation, write a function that returns a `Task`. This task will bring together the dataset, solvers, scorer, and configuration required for the evaluation. Here's the example used in the introduction:
 
-``` python
+``` {.python filename="theory.py"}
 from inspect_ai import Task, task
 from inspect_ai.dataset import example_dataset
 from inspect_ai.scorer import model_graded_fact
@@ -56,9 +60,11 @@ $ inspect eval theory.py --model openai/gpt-4
 
 Immediately after an evaluation completes, a link to the log for the evaluation is written to the terminal.
 
-::: {.callout-note title="VS Code Extension"}
-If you are using VS Code, we also recommend installing the VS Code Extension, which includes tools for running, tuning, debugging, and visualising evals. See the article on the [VS Code Extension](#sec-vscode) for more details on installing and using the extension.
-:::
+Note that we have two solvers: `critique` (the default) and `tree_of_thought`. We can evaluate using the tree of thought solver with:
+
+``` bash
+$ inspect eval theory.py --solver tree_of_thought --model openai/gpt-4
+```
 
 ### Models
 
@@ -105,7 +111,7 @@ You can very the solver used for a task using the `--solver` flag. For example:
 $ inspect eval theory.py --solver=tree_of_thought --model=openai/gpt-4o
 ```
 
-Solvers can additional have their own parameters which you can also specify using the CLI. For example, here we extend the `tree_of_thought` solver to take a depth parameter (which we forward on to `generate_tree()`):
+Solvers can additionally have their own parameters which you can also specify using the CLI. For example, here we extend the `tree_of_thought` solver to take a depth parameter (which we forward on to `generate_tree()`):
 
 ``` python
 @solver
