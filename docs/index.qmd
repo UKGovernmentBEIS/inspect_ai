@@ -169,15 +169,15 @@ While tasks always include a *default* solver, you can also vary the solver to e
 
 In the example above we combined together several solvers into a composite solver. This illustrates the fact that there are two distinct roles that solvers can play in the system:
 
-(1) As a _component_ that is chained together with other solvers to create a composite solver;
+1. As a _composite_ end-to-end specification of how to solve a task.
 
-(2) As a _composite_ end-to-end specification of how to solve a task.
+2. As a _component_ that is chained together with other solvers to create a composite solver;
 
 Some solvers are capable of playing both roles. For example, `generate()` is a complete end-to-end solver (albeit a simple one) but is often also used as a _component_ within other solvers.
 
 ### Solver Functions
 
-The most convenient way to create an end to end solver is to create a `@solver` decorated function that returns a chain of other solvers. For example, imagine we have written a `tree_of_thought` module that we want to use to create an additional solver. We can re-write the task to have multiple solver functions (where `critique` is used as the default):
+The most convenient way to create a composite solver is to define a `@solver` decorated function that returns a chain of other solvers. For example, imagine we have written a `tree_of_thought` module that we want to use to create an additional solver. We can re-write the task to have multiple solver functions (where `critique` is used as the default):
 
 ```{.python filename="theory.py"}
 from inspect_ai import Task, task
@@ -226,6 +226,9 @@ $ inspect eval theory.py --model=openai/gpt-4
 # run with the tree of thought solver
 $ inspect eval theory.py --solver=tree_of_thought --model=openai/gpt-4
 ```
+
+Composite solvers by no means need to be implemented using chains. While chains are frequently used in more straightforward knowledge and reasoning evaluations, fully custom solver functions are often used for multi-turn dialog and agent evaluations.
+
 
 ## Eval from Python
 
