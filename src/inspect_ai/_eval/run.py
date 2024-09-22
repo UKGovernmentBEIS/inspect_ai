@@ -14,6 +14,7 @@ from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._log import Recorder
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
+from inspect_ai.scorer._reducer.registry import validate_reducer
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util._sandbox.environment import TaskCleanup, TaskInit
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
@@ -106,6 +107,11 @@ async def eval_run(
                     task_eval_config.epochs_reducer = reducer_log_names(
                         task.epochs_reducer
                     )
+
+                # validate task epochs
+                if task.epochs and task.epochs_reducer:
+                    for reducer in task.epochs_reducer:
+                        validate_reducer(task.epochs, reducer)
 
                 # max messages
                 if task_eval_config.max_messages is None:
