@@ -82,7 +82,10 @@ def task_create(name: str, model: ModelName, **kwargs: Any) -> Task:
         if param in task_params:
             task_args[param] = kwargs[param]
         elif param != MODEL_PARAM:
-            logger.warning(f"param '{param}' not used by task '{name}'")
+            if "kwargs" in task_params:
+                task_args[param] = kwargs[param]
+            else:
+                logger.warning(f"param '{param}' not used by task '{name}'")
 
     return cast(Task, registry_create("task", name, **task_args))
 

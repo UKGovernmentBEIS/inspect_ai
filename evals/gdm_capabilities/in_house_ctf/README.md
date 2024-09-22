@@ -11,20 +11,42 @@ Each task runs using the task-specific `compose.yaml` files, which pulls the rem
 Evaluate all 13 challenges against any model with:
 
 ``` bash
-$ inspect eval task.py --model google/gemini-1.5-pro
+$ inspect eval challenges.py --model google/gemini-1.5-pro
 ```
 
 You can also evaluate multiple models at once:
 
 ``` bash
-$ inspect eval task.py --model openai/gpt-4o,google/gemini-1.5-pro
+$ inspect eval challenges.py --model openai/gpt-4o,google/gemini-1.5-pro
 ```
 
-To evaluate a subset of challenges use the `challenges` task parameter
+To evaluate individual challenges specify them with \@:
 
 ``` bash
-$ inspect eval task.py -T challenges=db_3 --model google/gemini-1.5-pro
-$ inspect eval task.py -T challenges=idor,spray --model openai/gpt-4o 
+$ inspect eval challenges.py@db_3 --model google/gemini-1.5-pro
+$ inspect eval challenges.py@idor --model openai/gpt-4o 
+```
+
+### Agent
+
+The challenges are by default evaluated using a basic ReAct agent that implements a tool use loop with encouragement for the model to keep going if its gives up. The default agent can be customised using the following task options:
+
+| Option | Description |
+|------------------------------------|------------------------------------|
+| `max_attempts` | The number of incorrect submissions to allow before ending the challenges (defaults to 1). |
+| `max_messages` | The maximum number of messages allowed in the conversation before ending the challenges (defaults to 50). |
+
+For example:
+
+``` bash
+$ inspect eval challenges.py --model openai/gpt-4o \
+    -T max_attempts=2 -T max_messages=75
+```
+
+You can also run the task with an entirely different solver agent suing the `--solver` option. For example, if you have defined a solver agent in the source file `myagent.py`:
+
+```bash
+$ inspect eval challenges.py --solver myagent.py --model google/gemini-1.5-pro
 ```
 
 ### Epochs
@@ -32,71 +54,11 @@ $ inspect eval task.py -T challenges=idor,spray --model openai/gpt-4o
 The GDM paper evaluated each challenge 10 times, reporting success if at least 1 challenge of the 10 was successful. The same default number of epochs (10) is used here, however you can modify this with the `--epochs` option:
 
 ``` bash
-$ inspect eval task.py --epochs=5 --model openai/gpt-4o 
+$ inspect eval challenges.py --epochs=5 --model openai/gpt-4o 
 ```
 
-### Options
 
-There are two other optional task parameters:
-
-| Option | Description |
-|----|----|
-| `max_attempts` | The number of incorrect submissions to allow before ending the challenges (defaults to 1). |
-| `max_messages` | The maximum number of messages allowed in the conversation before ending the challenges (defaults to 50). |
-
-For example:
-
-``` bash
-$ inspect eval task.py --model openai/gpt-4o \
-    -T max_attempts=2 -T max_messages=75
-```
-
-## Eval Sets
-
-The best way to run groups of evaluation tasks is to use the `eval_set()` function (or `inspect eval-set` command), which provides automatic retries and recovery of samples from failed runs. For example, here we run each task against two models with an eval set:
-
-``` python
-from inspect_ai import eval_set
-
-success, logs = eval_set(
-  "task.py", 
-  log_dir="logs-in-house-ctf",
-  model=["openai/gpt-4o", "google/gemini-1.5-pro"]
-)
-```
-
-Or equivalently:
-
-``` bash
-$ inspect eval-set task.py \
-    --log-dir=logs-in-house-ctf \
-    --model=openai/gpt-4o,google/gemini-1.5-pro \
-```
-
-Retries will occur automatically, and if the retry limit is exceeded you can re-run the eval set on the same log directory and it will pickup where it left off (note that each distinct run of eval set should have a dedicated log directory). See the article on [Eval Sets](https://inspect.ai-safety-institute.org.uk/eval-sets.html) to learn more.
-
-## Log per Challenge
-
-To run the entire suite as individual challenges (so that each challenge has its own log file), use `eval_set()` with a task dynamically created for each challenge:
-
-``` python
-from inspect_ai import eval_set
-from task import in_house_ctf
-
-challenges = [
-  "cmd_injection", "db_3", "grafana", "idor", "privesc_7z", "privesc_bash",
-  "privesc_find", "privesc_sed", "pw_reuse", "spray", "sqli", "ssh", "webmin"
-]
-tasks = [in_house_ctf(challenges=challenge) for challenge in challenges]
-
-success, logs = eval_set(
-  tasks,
-  log_dir="logs-in-house-ctf-gemini",
-  model="google/gemini-1.5-pro"
-)
-```
-
-## Docker Images {#docker-images}
+## Docker Images
 
 Each task runs using the task-specific `compose.yaml` files, which pulls the remote Docker images for the attacker and victim environments. The Dockerfiles used to build these images have been provided as well (adapted from the original repository with minor modifications).
 
