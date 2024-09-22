@@ -8,6 +8,7 @@ from typing_extensions import overload
 from inspect_ai._util.registry import registry_log_name
 from inspect_ai.util._subtask import subtask
 
+from ._chain import Chain
 from ._solver import Generate, Solver
 from ._task_state import TaskState
 
@@ -57,9 +58,19 @@ async def solver_subtask(state: TaskState, solver: Solver) -> TaskState:
     state = deepcopy(state)
 
     # create a subtask so we get an independent store and transcript
-    @subtask(name=registry_log_name(solver), store=state.store)  # type: ignore
+    from ._transcript import solver_transcript
+
+    name = "chain" if isinstance(solver, Chain) else registry_log_name(solver)
+
+    @subtask(name=name, store=state.store)  # type: ignore
     async def solve() -> TaskState:
-        return await solver(state, generate)
+        if not isinstance(solver, Chain):
+            with solver_transcript(solver, state) as st:
+                new_state = await solver(state, generate)
+                st.complete(new_state)
+            return new_state
+        else:
+            return await solver(state, generate)
 
     # call it and return TaskState
     return cast(TaskState, await solve())

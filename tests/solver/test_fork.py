@@ -1,4 +1,4 @@
-from inspect_ai import Task, eval
+from inspect_ai import Task, eval, task
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import (
     Generate,
@@ -6,10 +6,16 @@ from inspect_ai.solver import (
     fork,
     solver,
 )
+from inspect_ai.solver._chain import chain
 from inspect_ai.util import store
 
 
 def test_forking_solver():
+    eval(forking_solver_task(), model="mockllm/model")
+
+
+@task
+def forking_solver_task():
     COOKIE = "cookie"
     MONSTER = "monster"
 
@@ -39,12 +45,16 @@ def test_forking_solver():
             state = await fork(state, forked_solver("foo"))
             check_state(state, "foo")
 
+            state = await fork(
+                state,
+                chain(forked_solver("a"), forked_solver("b"), forked_solver("c")),
+            )
+            check_state(state, "c")
+
             return state
 
         return solve
 
-    task = Task(
+    return Task(
         dataset=[Sample(input="Say Hello", target="Hello")], plan=forking_solver()
     )
-
-    eval(task, model="mockllm/model")
