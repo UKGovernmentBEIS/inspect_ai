@@ -10,24 +10,36 @@ Note that the flag values in the Dockerfiles have been replaced with placeholder
 
 ## Evaluation
 
-The GDM paper evaluated each challenge 10 times, scoring a success if at least one was successful. In this implementation the default is 1 epoch, however you can change this with `--epochs`. To evaluate all of the challenges against a model for 5 epochs:
+Evaluate all 13 challenges against any model with:
 
 ``` bash
-$ inspect eval task.py --epochs 5 --model openai/gpt-4o 
+$ inspect eval task.py --model google/gemini-1.5-pro
 ```
 
 You can also evaluate multiple models at once:
 
 ``` bash
-$ inspect eval task.py --epochs 5 --model openai/gpt-4o,google/gemini-1.5-pro
+$ inspect eval task.py --model openai/gpt-4o,google/gemini-1.5-pro
 ```
 
 To evaluate a subset of challenges use the `challenges` task parameter
 
 ``` bash
-$ inspect eval task.py -T challenges=db_3 --epochs 5 --model google/gemini-1.5-pro
-$ inspect eval task.py -T challenges=idor,spray --epochs 5 --model openai/gpt-4o 
+$ inspect eval task.py -T challenges=db_3 --model google/gemini-1.5-pro
+$ inspect eval task.py -T challenges=idor,spray --model openai/gpt-4o 
 ```
+
+### Epochs
+
+The GDM paper evaluated each challenge 10 times (10 epochs), which is also the defualt for this implementation. Epochs are reduced using `pass_at_k`, which is the probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>). You can change the number of epochs as well as the pass_at computations as follows:
+
+``` bash
+$ inspect eval task.py \
+     --epochs=5 --epochs-reducer=pass_at_1,pass_at_5 \
+     --model openai/gpt-4o 
+```
+
+Note that you can compute multiple epoch reductions by passing a comma separated list.
 
 ### Options
 
@@ -45,7 +57,7 @@ $ inspect eval task.py --epochs 5 --model openai/gpt-4o \
 
 ## Eval Sets
 
-The best way to run groups of evaluation tasks is to use the `eval_set()` function (or `inspect eval-set` command), which provides automatic retries and recovery of samples from failed runs. For example, to run the entire challenge suite for 5 epochs against three models:
+The best way to run groups of evaluation tasks is to use the `eval_set()` function (or `inspect eval-set` command), which provides automatic retries and recovery of samples from failed runs. For example:
 
 ``` python
 from inspect_ai import eval_set
@@ -53,8 +65,7 @@ from inspect_ai import eval_set
 success, logs = eval_set(
   "task.py", 
   log_dir="logs-in-house-ctf",
-  model=["openai/gpt-4o", "google/gemini-1.5-pro"],
-  epochs=5
+  model=["openai/gpt-4o", "google/gemini-1.5-pro"]
 )
 ```
 
@@ -64,10 +75,9 @@ Or equivalently:
 $ inspect eval-set task.py \
     --log-dir=logs-in-house-ctf \
     --model=openai/gpt-4o,google/gemini-1.5-pro \
-    --epochs=5
 ```
 
-Retries will occur automatically, and if the retry limit is exceeded you can re-run the eval set on the same log directory and it will pickup where it left off (note that each distinct run of eval set should have a dedicated log directory). See the article on [Eval Sets](eval-sets.qmd) to learn more.
+Retries will occur automatically, and if the retry limit is exceeded you can re-run the eval set on the same log directory and it will pickup where it left off (note that each distinct run of eval set should have a dedicated log directory). See the article on [Eval Sets](https://inspect.ai-safety-institute.org.uk/eval-sets.html) to learn more.
 
 ## Log per Challenge
 
@@ -85,8 +95,7 @@ tasks = [in_house_ctf(challenges=challenge) for challenge in challenges]
 
 success, logs = eval_set(
   tasks,
-  log_dir="logs-in-house-ctf",
-  model=["anthropic/claude-3-opus-20240229", "google/gemini-1.5-pro"],
-  epochs=5
+  log_dir="logs-in-house-ctf-gemini",
+  model="google/gemini-1.5-pro"
 )
 ```

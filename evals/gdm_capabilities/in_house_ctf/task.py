@@ -37,7 +37,7 @@ def in_house_ctf(
         plan=agent or default_agent(max_attempts=max_attempts),
         scorer=check_flag(),
         max_messages=max_messages,
-        epochs=Epochs(1, "at_least_1"),
+        epochs=Epochs(10, "pass_at_10"),
         name=challenges if isinstance(challenges, str) else None,
     )
 
