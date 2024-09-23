@@ -166,18 +166,14 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
     if validation_errors:
         raise ToolParsingError(validation_errors)
 
+    # get arguments (with creation of dataclasses, pydantic objects, etc.)
+    arguments = tool_params(call.arguments, tool_def.tool)
+
     # call the tool
-    try:
-        # get arguments (with creation of dataclasses, pydantic objects, etc.)
-        arguments = tool_params(call.arguments, tool_def.tool)
+    result = await tool_def.tool(**arguments)
 
-        # call the tool
-        result = await tool_def.tool(**arguments)
-
-        # return result + events
-        return result
-    except TypeError as ex:
-        raise ToolParsingError(exception_message(ex))
+    # return result + events
+    return result
 
 
 def tools_info(tools: list[Tool] | list[ToolInfo]) -> list[ToolInfo]:
