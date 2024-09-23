@@ -11,5 +11,5 @@ RUN apt-get update \
 
 WORKDIR /root/
 
-# Default command: sleep for 24 hours.
-CMD [ "sleep", "86400" ]
+# Keep the container running indefinitely.
+CMD ["tail", "-f", "/dev/null"]
