@@ -110,11 +110,21 @@ async def call_tools(
                 content = str(result)
 
             # output limit/truncation
-            if isinstance(content, str) and max_output:
+            def truncate(output: str) -> str:
                 if callable(max_output):
-                    content = max_output(content)
+                    return max_output(output)
+                elif isinstance(max_output, int):
+                    return truncate_string_to_bytes(output, max_output)
                 else:
-                    content = truncate_string_to_bytes(content, max_output)
+                    return output
+
+            # truncate text but not images
+            if isinstance(content, str):
+                content = truncate(content)
+            else:
+                for c in content:
+                    if isinstance(c, ContentText):
+                        c.text = truncate(c.text)
 
             # create event
             event = ToolEvent(
