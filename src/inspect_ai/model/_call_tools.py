@@ -6,6 +6,7 @@ from typing import (
     Callable,
     Dict,
     List,
+    NamedTuple,
     Type,
     cast,
     get_args,
@@ -32,21 +33,22 @@ from inspect_ai.tool._tool_info import (
 from inspect_ai.tool._tool_with import tool_description
 
 from ._chat_message import ChatMessageAssistant, ChatMessageTool
+from ._generate_config import active_generate_config
 
 
 async def call_tools(
     message: ChatMessageAssistant,
     tools: list[Tool],
-    max_output: int | Callable[[str], str] | None,
+    max_output: int | None,
 ) -> list[ChatMessageTool]:
     """Perform tool calls in assistant message.
 
     Args:
        message: Assistant message
        tools: Available tools
-       max_output: Maximum output length (in bytes). May also be
-          a function that implements a custom truncation strategy.
-          Defaults to current GenerateConfig if not specified.
+       max_output: Maximum output length (in bytes).
+          Defaults to max_tool_output from active GenerateConfig
+          if not specified (16 * 1024 by default)
 
     Returns:
        List of tool calls
@@ -102,6 +104,7 @@ async def call_tools(
 
             # massage result, leave list[Content] alone, convert all other
             # types to string as that is what the model APIs accept
+            truncated: tuple[int, int] | None = None
             if isinstance(result, list) and (
                 isinstance(result[0], ContentText | ContentImage)
             ):
@@ -109,22 +112,14 @@ async def call_tools(
             else:
                 content = str(result)
 
-            # output limit/truncation
-            def truncate(output: str) -> str:
-                if callable(max_output):
-                    return max_output(output)
-                elif isinstance(max_output, int):
-                    return truncate_string_to_bytes(output, max_output)
-                else:
-                    return output
-
-            # truncate text but not images
-            if isinstance(content, str):
-                content = truncate(content)
-            else:
-                for c in content:
-                    if isinstance(c, ContentText):
-                        c.text = truncate(c.text)
+                # truncate if necessary
+                truncated_output = truncate_tool_output(content, max_output)
+                if truncated_output:
+                    content = truncated_output.output
+                    truncated = (
+                        truncated_output.raw_bytes,
+                        truncated_output.truncated_bytes,
+                    )
 
             # create event
             event = ToolEvent(
@@ -132,6 +127,7 @@ async def call_tools(
                 function=call.function,
                 arguments=call.arguments,
                 result=content,
+                truncated=truncated,
                 error=tool_error,
                 events=transcript().events,
             )
@@ -376,5 +372,31 @@ def validate_tool_input(input: dict[str, Any], parameters: ToolParams) -> str | 
             + [f"- {error.message}" for error in errors]
         )
         return message
+    else:
+        return None
+
+
+class TruncatedToolOutput(NamedTuple):
+    output: str
+    raw_bytes: int
+    truncated_bytes: int
+
+
+def truncate_tool_output(
+    output: str, max_output: int | None
+) -> TruncatedToolOutput | None:
+    # determine active max output
+    active_max_output = max_output
+    if active_max_output is None:
+        active_max_output = active_generate_config().max_tool_output
+        if active_max_output is None:
+            active_max_output = 16 * 1024
+
+    # truncate if required
+    truncated = truncate_string_to_bytes(output, active_max_output)
+    if truncated:
+        return TruncatedToolOutput(
+            truncated.output, truncated.original_bytes, active_max_output
+        )
     else:
         return None

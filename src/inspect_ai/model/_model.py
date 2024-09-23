@@ -39,7 +39,11 @@ from ._chat_message import (
     ChatMessageSystem,
     ChatMessageUser,
 )
-from ._generate_config import GenerateConfig
+from ._generate_config import (
+    GenerateConfig,
+    active_generate_config,
+    set_active_generate_config,
+)
 from ._model_call import ModelCall
 from ._model_output import ModelOutput, ModelUsage
 
@@ -693,7 +697,7 @@ def combine_messages(
 
 def init_active_model(model: Model, config: GenerateConfig) -> None:
     active_model_context_var.set(model)
-    active_generate_config_context_var.set(config)
+    set_active_generate_config(config)
 
 
 def active_model() -> Model | None:
@@ -705,15 +709,8 @@ def active_model() -> Model | None:
     return active_model_context_var.get(None)
 
 
-def active_generate_config() -> GenerateConfig:
-    return active_generate_config_context_var.get()
-
-
 # shared contexts for asyncio tasks
 active_model_context_var: ContextVar[Model] = ContextVar("active_model")
-active_generate_config_context_var: ContextVar[GenerateConfig] = ContextVar(
-    "generate_config", default=GenerateConfig()
-)
 
 
 def init_model_usage() -> None:
