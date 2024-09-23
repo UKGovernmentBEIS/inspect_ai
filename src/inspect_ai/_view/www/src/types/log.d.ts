@@ -13,8 +13,8 @@ export type Task = string;
 export type TaskId = string;
 export type TaskVersion = number;
 export type TaskFile = string | null;
-export type Plan = string | null;
-export type PlanArgs = {} | null;
+export type Solver = string | null;
+export type SolverArgs = {} | null;
 export type Name = string | null;
 export type Location = string | null;
 export type Samples = number | null;
@@ -39,7 +39,7 @@ export type Origin = string;
 export type Commit = string;
 export type Metadata = {} | null;
 export type Name1 = string;
-export type Solver = string;
+export type Solver1 = string;
 export type Steps = EvalPlanStep[];
 export type MaxRetries = number | null;
 export type Timeout = number | null;
@@ -350,8 +350,8 @@ export interface EvalSpec {
   task_file: TaskFile;
   task_attribs: TaskAttribs;
   task_args: TaskArgs;
-  plan: Plan;
-  plan_args: PlanArgs;
+  solver: Solver;
+  solver_args: SolverArgs;
   dataset: EvalDataset;
   sandbox: Sandbox;
   model: Model;
@@ -400,7 +400,7 @@ export interface EvalPlan {
   config: GenerateConfig;
 }
 export interface EvalPlanStep {
-  solver: Solver;
+  solver: Solver1;
   params: Params;
 }
 export interface Params {}
@@ -662,7 +662,9 @@ export interface JsonChange {
   op: Op;
   path: Path;
   from: From;
-  value: unknown;
+  value: {
+    [k: string]: unknown;
+  };
 }
 /**
  * Change to data within the current `Store`.
@@ -682,7 +684,7 @@ export interface ModelEvent {
   input: Input2;
   tools: Tools;
   tool_choice: ToolChoice;
-  config: GenerateConfig;
+  config: GenerateConfig1;
   output: ModelOutput;
   cache: Cache;
   call: ModelCall | null;
@@ -748,6 +750,31 @@ export interface Default {
 }
 export interface ToolFunction {
   name: Name5;
+}
+/**
+ * Base class for model generation configs.
+ */
+export interface GenerateConfig1 {
+  max_retries: MaxRetries;
+  timeout: Timeout;
+  max_connections: MaxConnections;
+  system_message: SystemMessage;
+  max_tokens: MaxTokens;
+  top_p: TopP;
+  temperature: Temperature;
+  stop_seqs: StopSeqs;
+  best_of: BestOf;
+  frequency_penalty: FrequencyPenalty;
+  presence_penalty: PresencePenalty;
+  logit_bias: LogitBias;
+  seed: Seed;
+  suffix: Suffix;
+  top_k: TopK;
+  num_choices: NumChoices;
+  logprobs: Logprobs;
+  top_logprobs: TopLogprobs;
+  parallel_tool_calls: ParallelToolCalls;
+  cache_prompt: CachePrompt;
 }
 /**
  * Model call (raw request/response data).

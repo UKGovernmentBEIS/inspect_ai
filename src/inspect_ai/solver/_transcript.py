@@ -2,12 +2,10 @@ import contextlib
 from typing import Iterator
 
 from inspect_ai._util.json import json_changes
-from inspect_ai._util.registry import (
-    registry_log_name,
-)
-from inspect_ai.log._transcript import StateEvent, transcript
-from inspect_ai.solver import Solver, TaskState
-from inspect_ai.solver._task_state import set_sample_state, state_jsonable
+from inspect_ai._util.registry import registry_log_name
+
+from ._solver import Solver
+from ._task_state import TaskState, set_sample_state, state_jsonable
 
 
 class SolverTranscript:
@@ -16,6 +14,8 @@ class SolverTranscript:
         self.before = state_jsonable(before_state)
 
     def complete(self, after_state: TaskState) -> None:
+        from inspect_ai.log._transcript import StateEvent, transcript
+
         after = state_jsonable(after_state)
         changes = json_changes(self.before, after)
         if changes:
@@ -23,8 +23,12 @@ class SolverTranscript:
 
 
 @contextlib.contextmanager
-def solver_transcript(solver: Solver, state: TaskState) -> Iterator[SolverTranscript]:
+def solver_transcript(
+    solver: Solver, state: TaskState, name: str | None = None
+) -> Iterator[SolverTranscript]:
+    from inspect_ai.log._transcript import transcript
+
     set_sample_state(state)
-    name = registry_log_name(solver)
+    name = registry_log_name(name or solver)
     with transcript().step(name=name, type="solver"):
         yield SolverTranscript(name, state)

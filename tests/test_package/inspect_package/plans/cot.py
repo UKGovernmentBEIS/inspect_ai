@@ -1,6 +1,6 @@
-from inspect_ai.solver import Plan, chain_of_thought, generate, plan
+from inspect_ai.solver import Solver, chain, chain_of_thought, generate, solver
 
 
-@plan
-def cot() -> Plan:
-    return Plan([chain_of_thought(), generate()])
+@solver
+def cot() -> Solver:
+    return chain(chain_of_thought(), generate())

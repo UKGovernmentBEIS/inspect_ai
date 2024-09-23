@@ -128,7 +128,9 @@ def deprecation_warning(
             return
         _emitted_warnings.add(msg)
 
-    logger.warning(msg)
+    from inspect_ai._util.logger import warn_once
+
+    warn_once(logger, msg)
 
 
 _emitted_warnings: Set[str] = set()

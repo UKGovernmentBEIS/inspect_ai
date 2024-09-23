@@ -5,6 +5,7 @@ from typing import Any, Callable, Sequence, cast
 from pydantic import BaseModel
 from typing_extensions import TypedDict, Unpack
 
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import is_registry_object, registry_info
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog
@@ -12,6 +13,7 @@ from inspect_ai.model import GenerateConfig
 from inspect_ai.scorer import Metric, Scorer
 from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
 from inspect_ai.solver import Plan, Solver, generate
+from inspect_ai.solver._chain import chain
 
 from .epochs import Epochs
 
@@ -19,6 +21,7 @@ logger = getLogger(__name__)
 
 
 class TaskDeprecatedArgs(TypedDict, total=False):
+    plan: Plan | Solver | list[Solver]
     tool_environment: str | tuple[str, str] | None
     epochs_reducer: ScoreReducers | None
 
@@ -26,14 +29,12 @@ class TaskDeprecatedArgs(TypedDict, total=False):
 class Task:
     r"""Evaluation task.
 
-    Tasks are the basis for defining and running evaluations. Tasks
-    are parameterized with a dataset, a scorer, and metrics. Tasks
-    also may optionally provide a default plan for execution.
+    Tasks are the basis for defining and running evaluations.
 
     Args:
         dataset (Dataset | Sequence[Sample]): Dataset to evaluate
-        plan: (Plan | Solver | list[Solver]): Default plan. If not specified
-          defaults to generate(), a normal call to the model.
+        solver: (Solver | list[Solver]): Solver or list of solvers.
+          Defaults to generate(), a normal call to the model.
         scorer: (Scorer | list[Scorer] | None): Scorer used to evaluate model output.
         metrics (list[Metric] | dict[str, list[Metric]] | None):
           Alternative metrics (overrides the metrics provided by the specified scorer).
@@ -58,7 +59,7 @@ class Task:
     def __init__(
         self,
         dataset: Dataset | Sequence[Sample],
-        plan: Plan | Solver | list[Solver] = generate(),
+        solver: Solver | list[Solver] = generate(),
         scorer: Scorer | list[Scorer] | None = None,
         metrics: list[Metric] | dict[str, list[Metric]] | None = None,
         config: GenerateConfig = GenerateConfig(),
@@ -82,9 +83,13 @@ class Task:
                     epochs = Epochs(
                         epochs, create_reducers(cast(ScoreReducers | None, value))
                     )
+            elif arg == "plan":
+                # no deprecation warning (yet) as it would affect 100% of evals in the wild
+                solver = cast(Solver, value)
             if newarg:
-                logger.warning(
-                    f"DEPRECATED: the '{arg}' parameter is deprecated (please use the '{newarg}' parameter instead)"
+                warn_once(
+                    logger,
+                    f"DEPRECATED: the '{arg}' parameter is deprecated (please use the '{newarg}' parameter instead)",
                 )
 
         # resolve epochs / epochs_reducer
@@ -94,7 +99,7 @@ class Task:
         self.dataset: Dataset = (
             dataset if isinstance(dataset, Dataset) else MemoryDataset(list(dataset))
         )
-        self.plan = plan if isinstance(plan, Plan) else Plan(plan)
+        self.solver = chain(solver) if isinstance(solver, list) else solver
         self.scorer = (
             scorer
             if isinstance(scorer, list)

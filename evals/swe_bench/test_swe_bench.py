@@ -8,7 +8,7 @@ from swe_bench import swe_bench, swebench_baseline_scorer
 
 from inspect_ai import Task, eval
 from inspect_ai.log import EvalLog
-from inspect_ai.solver import Generate, Plan, TaskState, solver
+from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.util import sandbox
 
 RESOURCE_DIR = Path(__file__).parent / "resources"
@@ -90,7 +90,7 @@ def test_correct_patch_succeeds() -> None:
 
     test_task = swe_bench(dataset, "train")
     golden_patch = test_task.dataset[0].metadata["patch"]
-    test_task.plan = Plan([apply_patch_solver(golden_patch)])
+    test_task.solver = apply_patch_solver(golden_patch)
 
     result = eval(test_task, "mockllm/model", max_messages=4, debug_errors=True)[0]
 

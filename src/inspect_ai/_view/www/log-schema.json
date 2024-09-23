@@ -816,11 +816,7 @@
           "default": null
         },
         "config": {
-          "allOf": [
-            {
-              "$ref": "#/$defs/GenerateConfig"
-            }
-          ],
+          "$ref": "#/$defs/GenerateConfig",
           "default": {
             "max_retries": null,
             "timeout": null,
@@ -1316,7 +1312,7 @@
           "title": "Task Args",
           "type": "object"
         },
-        "plan": {
+        "solver": {
           "anyOf": [
             {
               "type": "string"
@@ -1326,9 +1322,9 @@
             }
           ],
           "default": null,
-          "title": "Plan"
+          "title": "Solver"
         },
-        "plan_args": {
+        "solver_args": {
           "anyOf": [
             {
               "type": "object"
@@ -1338,7 +1334,7 @@
             }
           ],
           "default": null,
-          "title": "Plan Args"
+          "title": "Solver Args"
         },
         "dataset": {
           "$ref": "#/$defs/EvalDataset"
@@ -1437,8 +1433,8 @@
         "task_file",
         "task_attribs",
         "task_args",
-        "plan",
-        "plan_args",
+        "solver",
+        "solver_args",
         "dataset",
         "sandbox",
         "model",
@@ -1864,11 +1860,7 @@
           "title": "From"
         },
         "value": {
-          "allOf": [
-            {
-              "$ref": "#/$defs/JsonValue"
-            }
-          ],
+          "$ref": "#/$defs/JsonValue",
           "default": null
         }
       },
@@ -3425,11 +3417,7 @@
       "$ref": "#/$defs/EvalSpec"
     },
     "plan": {
-      "allOf": [
-        {
-          "$ref": "#/$defs/EvalPlan"
-        }
-      ],
+      "$ref": "#/$defs/EvalPlan",
       "default": {
         "name": "plan",
         "steps": [],
@@ -3470,11 +3458,7 @@
       "default": null
     },
     "stats": {
-      "allOf": [
-        {
-          "$ref": "#/$defs/EvalStats"
-        }
-      ],
+      "$ref": "#/$defs/EvalStats",
       "default": {
         "started_at": "",
         "completed_at": "",

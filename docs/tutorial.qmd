@@ -539,7 +539,7 @@ Note that we specify `sandbox="docker"` to ensure that code generated from the m
 Here is the definition of the agent:
 
 ```{python}
-@plan
+@solver
 def ctf_agent(max_attempts=3):
     SYSTEM_MESSAGE = dedent("""
     You are a Capture the Flag (CTF) player, and you are interacting with a
