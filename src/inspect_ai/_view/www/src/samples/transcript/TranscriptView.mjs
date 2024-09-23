@@ -21,7 +21,7 @@ import { initStateManager } from "./TranscriptState.mjs";
  * @param {Object} params - The parameters for the component.
  * @param {string} params.id - The identifier for this view
  * @param {import("../../types/log").Events} params.events - The transcript events to display.
- * @param {import("./Types.mjs").StateManager} params.stateManager - A function that updates the state with a new state object.
+ * @param {import("./Types.mjs").StateManagerContext} params.stateManagerContext - A function that updates the state with a new state object.
  * @param {import("./Types.mjs").StateManager} params.storeManager - A function that updates the state with a new state object.
  * @param {number} params.depth - The base depth for this transcript view
  * @returns {import("preact").JSX.Element} The TranscriptView component.
@@ -29,7 +29,7 @@ import { initStateManager } from "./TranscriptState.mjs";
 export const TranscriptView = ({
   id,
   events,
-  stateManager,
+  stateManagerContext,
   storeManager,
   depth = 0,
 }) => {
@@ -40,7 +40,7 @@ export const TranscriptView = ({
     <${TranscriptComponent}
       id=${id}
       eventNodes=${eventNodes}
-      stateManager=${stateManager}
+      stateManagerContext=${stateManagerContext}
       storeManager=${storeManager}
     />
   `;
@@ -53,7 +53,7 @@ export const TranscriptView = ({
  * @param {string} params.id - The identifier for this view
  * @param {EventNode[]} params.eventNodes - The transcript events nodes to display.
  * @param {Object} params.style - The transcript style to display.
- * @param {import("./Types.mjs").StateManager} params.stateManager - A function that updates the state with a new state object.
+ * @param {import("./Types.mjs").StateManagerContext} params.stateManagerContext - A function that updates the state with a new state object.
  * @param {import("./Types.mjs").StateManager} params.storeManager - A function that updates the state with a new state object.
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
@@ -61,7 +61,7 @@ export const TranscriptComponent = ({
   id,
   eventNodes,
   style,
-  stateManager,
+  stateManagerContext,
   storeManager,
 }) => {
   const rows = eventNodes.map((eventNode, index) => {
@@ -76,12 +76,11 @@ export const TranscriptComponent = ({
     } else if (eventNode.depth === 0) {
       toggleStyle.marginBottom = "1.5em";
     }
-
     const row = html`
       <${RenderedEventNode}
         id=${`${id}-event${index}`}
         node=${eventNode}
-        stateManager=${stateManager}
+        stateManagerContext=${stateManagerContext}
         storeManager=${storeManager}
         style=${{
           ...toggleStyle,
@@ -113,7 +112,7 @@ export const TranscriptComponent = ({
  * @param {string} props.id - The id for this event.
  * @param { EventNode } props.node - This event.
  * @param { Object } props.style - The style for this node.
- * @param {import("./Types.mjs").StateManager} props.stateManager State manager to track state as diffs are applied
+ * @param {import("./Types.mjs").StateManagerContext} props.stateManagerContext State manager to track state as diffs are applied
  * @param {import("./Types.mjs").StateManager} props.storeManager State manager to track state as diffs are applied
  * @returns {import("preact").JSX.Element} The rendered event.
  */
@@ -121,18 +120,19 @@ export const RenderedEventNode = ({
   id,
   node,
   style,
-  stateManager,
+  stateManagerContext,
   storeManager,
 }) => {
   switch (node.event.event) {
-    case "sample_init":
+    case "sample_init": {
+      const stateManager = stateManagerContext.get(node.depth);
       return html`<${SampleInitEventView}
         id=${id}
         event=${node.event}
         stateManager=${stateManager}
         style=${style}
       />`;
-
+    }
     case "info":
       return html`<${InfoEventView}
         id=${id}
@@ -161,20 +161,21 @@ export const RenderedEventNode = ({
         style=${style}
       />`;
 
-    case "state":
+    case "state": {
+      const stateManager = stateManagerContext.get(node.depth);
       return html`<${StateEventView}
         id=${id}
         event=${node.event}
         stateManager=${stateManager}
         style=${style}
       />`;
-
+    }
     case "step":
       return html`<${StepEventView}
         id=${id}
         event=${node.event}
         children=${node.children}
-        stateManager=${stateManager}
+        stateManagerContext=${stateManagerContext}
         storeManager=${storeManager}
         style=${style}
       />`;
@@ -191,7 +192,7 @@ export const RenderedEventNode = ({
       return html`<${SubtaskEventView}
         id=${id}
         event=${node.event}
-        stateManager=${stateManager}
+        stateManagerContext=${stateManagerContext}
         storeManager=${initStateManager(`${node.event.name}`)}
         style=${style}
         depth=${node.depth}
@@ -201,7 +202,7 @@ export const RenderedEventNode = ({
       return html`<${ToolEventView}
         id=${id}
         event=${node.event}
-        stateManager=${stateManager}
+        stateManagerContext=${stateManagerContext}
         storeManager=${storeManager}
         style=${style}
         depth=${node.depth}

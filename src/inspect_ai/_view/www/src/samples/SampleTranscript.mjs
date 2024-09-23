@@ -1,7 +1,10 @@
 // @ts-check
 import { html } from "htm/preact";
 import { TranscriptView } from "./transcript/TranscriptView.mjs";
-import { initStateManager } from "./transcript/TranscriptState.mjs";
+import {
+  initStateManager,
+  initStateManagerContext,
+} from "./transcript/TranscriptState.mjs";
 
 const kContentProtocol = "tc://";
 
@@ -14,8 +17,8 @@ const kContentProtocol = "tc://";
  * @returns {import("preact").JSX.Element} The SampleTranscript component.
  */
 export const SampleTranscript = ({ id, evalEvents }) => {
-  const stateManager = initStateManager("global_state");
   const storeManager = initStateManager("global_storage");
+  const stateManagerContext = initStateManagerContext();
 
   // Resolve content Uris (content may be stored separately to avoid
   // repetition - it will be address with a uri)
@@ -24,7 +27,7 @@ export const SampleTranscript = ({ id, evalEvents }) => {
   return html`<${TranscriptView}
     id=${id}
     events=${denormalizedEvents}
-    stateManager=${stateManager}
+    stateManagerContext=${stateManagerContext}
     storeManager=${storeManager}
   />`;
 };

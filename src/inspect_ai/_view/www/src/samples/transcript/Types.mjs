@@ -7,6 +7,15 @@
  */
 
 /**
+ * A state manager context for handling multiple state managers, each associated with a depth level.
+ * It initializes and retrieves state managers, ensuring that each state manager's state is based on
+ * the state of the previous one (if available).
+ *
+ * @typedef {Object} StateManagerContext
+ * @property {(depth: number) => StateManager} get - Retrieves or initializes the state manager for the given depth.
+ */
+
+/**
  * Class representing a node for an event in a tree.
  */
 export class EventNode {

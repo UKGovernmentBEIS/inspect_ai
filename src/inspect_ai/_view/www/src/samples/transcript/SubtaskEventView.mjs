@@ -13,7 +13,7 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  * @param { string  } props.id - The id of this event.
  * @param { Object } props.style - The style of this event.
  * @param {import("../../types/log").SubtaskEvent} props.event - The event object to display.
- * @param {import("./Types.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
+ * @param {import("./Types.mjs").StateManagerContext} props.stateManagerContext - A function that updates the state with a new state object.
  * @param {import("./Types.mjs").StateManager} props.storeManager - A function that updates the state with a new state object.
  * @param { Object } props.depth - The depth of this event.
  * @returns {import("preact").JSX.Element} The component.
@@ -22,7 +22,7 @@ export const SubtaskEventView = ({
   id,
   event,
   style,
-  stateManager,
+  stateManagerContext,
   storeManager,
   depth,
 }) => {
@@ -35,7 +35,7 @@ export const SubtaskEventView = ({
               id="${id}-subtask"
               name="Transcript"
               events=${event.events}
-              stateManager=${stateManager}
+              stateManagerContext=${stateManagerContext}
               storeManager=${storeManager}
               depth=${depth + 1}
             />`

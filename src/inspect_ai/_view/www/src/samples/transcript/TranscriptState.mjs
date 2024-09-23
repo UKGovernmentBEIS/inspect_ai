@@ -1,6 +1,37 @@
 import { applyPatch } from "fast-json-patch";
 
 /**
+ * Initializes a state manager context that manages an array of state managers at different depth levels.
+ * If a state manager doesn't exist at the specified depth, it initializes one and links its state
+ * with the previous state manager (if available).
+ *
+ * @returns {import("./Types.mjs").StateManagerContext} The context object that allows access to state managers by depth.
+ */
+export const initStateManagerContext = () => {
+  const stateManagers = [];
+  return {
+    get: (depth) => {
+      const mgr = stateManagers[depth - 1];
+      if (!mgr) {
+        const sm = initStateManager(`${depth}`);
+        let previousSm;
+        for (var i = depth - 1; i >= 0; i--) {
+          if (stateManagers[i]) {
+            previousSm = stateManagers[i];
+            break;
+          }
+        }
+        const previousState = previousSm ? previousSm.getState() : {};
+        sm.initializeState(structuredClone(previousState));
+        stateManagers[depth - 1] = sm;
+      }
+
+      return stateManagers[depth - 1];
+    },
+  };
+};
+
+/**
  * Manages the state, providing methods to retrieve and update it.
  *
  * @param {string} scope - The name identifier for the state manager.
