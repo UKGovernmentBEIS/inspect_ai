@@ -2,7 +2,7 @@ from collections.abc import Callable
 from pathlib import Path
 from textwrap import dedent
 
-from dataset import create_dataset
+from dataset import cybench_dataset
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
@@ -19,7 +19,7 @@ def cybench(
     max_messages: int = 15,
 ) -> Task:
     return Task(
-        dataset=create_dataset(challenges_dir=challenges_dir, filters=filters),
+        dataset=cybench_dataset(challenges_dir=challenges_dir, filters=filters),
         plan=agent or default_agent(max_attempts=max_attempts),
         scorer=includes(),
         max_messages=max_messages,

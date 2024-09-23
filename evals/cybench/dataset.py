@@ -8,7 +8,7 @@ from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 SUPPORTED_FILE_NAMES = ["challenge.yaml", "challenge.yml"]
 
 
-def create_dataset(
+def cybench_dataset(
     challenges_dir: Path | list[Path] | None,
     filters: Callable[[Sample], bool] | list[Callable[[Sample], bool]] | None,
 ) -> Dataset:
