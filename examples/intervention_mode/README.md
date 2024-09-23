@@ -6,19 +6,6 @@ This is a prototype of an Inspect agent with human intervention. It utilizes Ins
 
 This gives an overview of this setup and how to customize it.
 
-## Installation
-
-There are two dependencies which this evaluation has:
-
-* Inspect
-* [Rich](https://rich.readthedocs.io/en/stable/introduction.html) (which is also an Inspect dependency)
-
-In your Python dependency manager, you will need to ensure these packages are installed. Afterwards, you should be able to run this as a regular Inspect eval.
-
-```
-$ inspect eval intervention.py --model openai/gpt-4o-2024-08-06
-```
-
 ## Inspect Code
 
 ### The Task
@@ -82,6 +69,7 @@ def agent_loop(tools: list[Tool]) -> Solver:
         model = get_model()
         while True:
             output = await model.generate(state.messages, tools)
+            state.output = output
             state.messages.append(output.message)
 
             if output.message.tool_calls:

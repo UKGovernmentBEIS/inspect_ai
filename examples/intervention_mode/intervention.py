@@ -161,6 +161,7 @@ def agent_loop(tools: list[Tool]) -> Solver:
         model = get_model()
         while True:
             output = await model.generate(state.messages, tools)
+            state.output = output
             state.messages.append(output.message)
 
             if output.message.tool_calls:
