@@ -110,14 +110,16 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
             yield environment_response
 
     def _validate_settings(self, settings, valid_settings):
-        """"Validate the provided settings with list of valid setting keys."""
+        """ "Validate the provided settings with list of valid setting keys."""
         unrecognized_settings = [
             setting for setting in settings if setting not in valid_settings
         ]
 
         if unrecognized_settings:
-          raise ValueError('Unrecognized settings provided! Invalid settings:'
-                           f' {unrecognized_settings}')
+            raise ValueError(
+                "Unrecognized settings provided! Invalid settings:"
+                f" {unrecognized_settings}"
+            )
 
     def _add_spec_to_response(self, response: dm_env_rpc_pb2.EnvironmentResponse):
         """Modifies given respose to include action/observation specifications."""
@@ -145,7 +147,9 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
         response = dm_env_rpc_pb2.JoinWorldResponse()
         with self._lock:
             if request.world_name != _WORLD_NAME:
-                raise ValueError(f"Joining with the wrong world_name {request.world_name}")
+                raise ValueError(
+                    f"Joining with the wrong world_name {request.world_name}"
+                )
             if self._has_joined_client:
                 raise ValueError("Only one client can join the environment at a time.")
             self._has_joined_client = True
@@ -165,7 +169,7 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
         return response
 
     def _handle_destroy_world_request(
-      self, request: dm_env_rpc_pb2.DestroyWorldRequest
+        self, request: dm_env_rpc_pb2.DestroyWorldRequest
     ) -> dm_env_rpc_pb2.DestroyWorldResponse:
         """Handles destroy_world requests."""
         del request
@@ -178,7 +182,6 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
             self._env = None
         response = dm_env_rpc_pb2.DestroyWorldResponse()
         return response
-
 
     def _handle_reset_request(
         self, request: dm_env_rpc_pb2.ResetRequest
@@ -206,7 +209,6 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
           KeyError: If the requested observation is not in the list of available
             observations.
         """
-        
         with self._lock:
             assert self._has_joined_client, "Please join world before calling step."
 
