@@ -20816,7 +20816,9 @@ function simpleHttpAPI(logInfo) {
   };
 }
 async function fetchFile(url, parse3, handleError) {
-  const response = await fetch(`${url}`, { method: "GET" });
+  const safe_url = encodePathParts(url);
+  const response = await fetch(`${safe_url}`, { method: "GET" });
+  console.log({ response });
   if (response.ok) {
     const text = await response.text();
     return {
@@ -20892,6 +20894,20 @@ const log_file_cache = (log_file) => {
     }
   };
 };
+function encodePathParts(url) {
+  if (!url) return url;
+  try {
+    const fullUrl = new URL(url);
+    fullUrl.pathname = fullUrl.pathname.split("/").map(
+      (segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : ""
+    ).join("/");
+    return fullUrl.toString();
+  } catch {
+    return url.split("/").map(
+      (segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : ""
+    ).join("/");
+  }
+}
 const resolveApi = () => {
   if (window.acquireVsCodeApi) {
     return vscodeApi$1;
