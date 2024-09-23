@@ -48,7 +48,7 @@ async def call_tools(
        tools (list[Tool]): Available tools
        max_output (int | None): Maximum output length (in bytes).
           Defaults to max_tool_output from active GenerateConfig
-          if not specified (16 * 1024 by default)
+          (16 * 1024 by default).
 
     Returns:
        List of tool calls
