@@ -18,7 +18,6 @@ from jsonschema import Draft7Validator
 from pydantic import BaseModel
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
-from inspect_ai._util.error import exception_message
 from inspect_ai._util.registry import registry_info
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
 from inspect_ai.tool._tool import TOOL_PROMPT, ToolParsingError
