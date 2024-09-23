@@ -837,6 +837,7 @@
             "logprobs": null,
             "top_logprobs": null,
             "parallel_tool_calls": null,
+            "max_tool_output": null,
             "cache_prompt": null
           }
         }
@@ -1716,6 +1717,18 @@
           "default": null,
           "title": "Parallel Tool Calls"
         },
+        "max_tool_output": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Tool Output"
+        },
         "cache_prompt": {
           "anyOf": [
             {
@@ -1758,6 +1771,7 @@
         "logprobs",
         "top_logprobs",
         "parallel_tool_calls",
+        "max_tool_output",
         "cache_prompt"
       ],
       "additionalProperties": false
@@ -3089,6 +3103,28 @@
           ],
           "title": "Result"
         },
+        "truncated": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Truncated"
+        },
         "error": {
           "anyOf": [
             {
@@ -3153,6 +3189,7 @@
         "function",
         "arguments",
         "result",
+        "truncated",
         "error",
         "events"
       ],
@@ -3431,6 +3468,7 @@
           "max_connections": null,
           "max_retries": null,
           "max_tokens": null,
+          "max_tool_output": null,
           "num_choices": null,
           "parallel_tool_calls": null,
           "presence_penalty": null,
