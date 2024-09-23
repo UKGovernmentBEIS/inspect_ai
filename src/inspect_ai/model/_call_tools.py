@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.registry import registry_info
+from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
 from inspect_ai.tool._tool import TOOL_PROMPT, ToolParsingError
 from inspect_ai.tool._tool_call import ToolCallError
@@ -34,13 +35,18 @@ from ._chat_message import ChatMessageAssistant, ChatMessageTool
 
 
 async def call_tools(
-    message: ChatMessageAssistant, tools: list[Tool]
+    message: ChatMessageAssistant,
+    tools: list[Tool],
+    max_output: int | Callable[[str], str] | None,
 ) -> list[ChatMessageTool]:
     """Perform tool calls in assistant message.
 
     Args:
        message: Assistant message
        tools: Available tools
+       max_output: Maximum output length (in bytes). May also be
+          a function that implements a custom truncation strategy.
+          Defaults to current GenerateConfig if not specified.
 
     Returns:
        List of tool calls
@@ -102,6 +108,13 @@ async def call_tools(
                 content: str | list[Content] = result
             else:
                 content = str(result)
+
+            # output limit/truncation
+            if isinstance(content, str) and max_output:
+                if callable(max_output):
+                    content = max_output(content)
+                else:
+                    content = truncate_string_to_bytes(content, max_output)
 
             # create event
             event = ToolEvent(
