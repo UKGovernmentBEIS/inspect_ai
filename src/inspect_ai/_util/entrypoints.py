@@ -1,4 +1,7 @@
 from importlib.metadata import EntryPoints, entry_points
+from logging import getLogger
+
+logger = getLogger(__name__)
 
 
 def ensure_entry_points() -> None:
@@ -7,7 +10,13 @@ def ensure_entry_points() -> None:
     global _inspect_ai_eps
     if not _inspect_ai_eps:
         _inspect_ai_eps = entry_points(group="inspect_ai")
-        [ep.load() for ep in _inspect_ai_eps]
+        for ep in _inspect_ai_eps:
+            try:
+                ep.load()
+            except Exception as ex:
+                logger.warning(
+                    f"Unexpected exception loading entrypoints from '{ep.value}': {ex}"
+                )
 
 
 # inspect extension entry points

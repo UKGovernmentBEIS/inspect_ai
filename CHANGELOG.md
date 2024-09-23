@@ -10,6 +10,7 @@
 - Render transcript `info()` strings as markdown
 - Eliminate log spam from spurious grpc fork message.
 - Fix issue with hf_dataset shuffle=True not actually shuffling.
+- Improved error handling when loading invalid setuptools entrypoints.
 
 ## v0.3.30 (18 September 2024)
 

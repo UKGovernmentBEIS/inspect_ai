@@ -146,7 +146,9 @@ def registry_lookup(type: RegistryType, name: str) -> object | None:
             return None
 
     o = _lookup()
-    if o is None:
+    # if if appears to be package scoped (/ with no .) then don't
+    # load entry points
+    if o is None and name.find("/") != -1 and name.find(".") == -1:
         ensure_entry_points()
         return _lookup()
     else:
