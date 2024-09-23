@@ -1,6 +1,73 @@
 from typing import Literal
 
+from test_helpers.tool_call_utils import get_tool_call, get_tool_response
+
+from inspect_ai import Task, eval
 from inspect_ai._util.text import TruncatedOutput, truncate_string_to_bytes
+from inspect_ai.dataset._dataset import Sample
+from inspect_ai.log._log import EvalLog
+from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model import get_model
+from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.solver._solver import generate
+from inspect_ai.solver._use_tools import use_tools
+from inspect_ai.tool._tool import tool
+
+
+def test_max_tool_output():
+    @tool
+    def output(size: int):
+        async def execute():
+            """
+            Generate some output
+
+            Returns:
+                The output
+            """
+            return "x" * size
+
+        return execute
+
+    def mock_model():
+        return get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="output",
+                    tool_arguments={},
+                ),
+                ModelOutput.from_content(model="mockllm/model", content="content"),
+            ],
+        )
+
+    task = Task(
+        dataset=[
+            Sample(
+                input="Please call the output tool and then reply with its output in a normal assistant message."
+            )
+        ],
+        solver=[use_tools(output(10)), generate()],
+        config=GenerateConfig(max_tool_output=5),
+    )
+
+    def check_log(log: EvalLog, count: int):
+        assert log.samples
+        messages = log.samples[0].messages
+        output_call = get_tool_call(messages, "output")
+        assert output_call
+        output_result = get_tool_response(messages, output_call)
+        assert output_result
+        assert output_result.content == "x" * count
+
+    log = eval(task, mock_model())[0]
+    check_log(log, 5)
+
+    log = eval(task, mock_model(), max_tool_output=7)[0]
+    check_log(log, 7)
+
+    log = eval(task, mock_model(), max_tool_output=0)[0]
+    check_log(log, 10)
 
 
 def test_text_truncation():
