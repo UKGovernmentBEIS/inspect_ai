@@ -39,14 +39,14 @@ from ._generate_config import active_generate_config
 async def call_tools(
     message: ChatMessageAssistant,
     tools: list[Tool],
-    max_output: int | None,
+    max_output: int | None = None,
 ) -> list[ChatMessageTool]:
     """Perform tool calls in assistant message.
 
     Args:
-       message: Assistant message
-       tools: Available tools
-       max_output: Maximum output length (in bytes).
+       message (ChatMessageAssistant): Assistant message
+       tools (list[Tool]): Available tools
+       max_output (int | None): Maximum output length (in bytes).
           Defaults to max_tool_output from active GenerateConfig
           if not specified (16 * 1024 by default)
 
