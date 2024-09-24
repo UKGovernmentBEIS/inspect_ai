@@ -305,6 +305,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#welcome" id="toc-welcome" class="nav-link active" data-scroll-target="#welcome">Welcome</a></li>
   <li><a href="#getting-started" id="toc-getting-started" class="nav-link" data-scroll-target="#getting-started">Getting Started</a></li>
   <li><a href="#sec-hello-inspect" id="toc-sec-hello-inspect" class="nav-link" data-scroll-target="#sec-hello-inspect">Hello, Inspect</a></li>
+  <li><a href="#evaluation-logs" id="toc-evaluation-logs" class="nav-link" data-scroll-target="#evaluation-logs">Evaluation Logs</a></li>
+  <li><a href="#tasks-and-solvers" id="toc-tasks-and-solvers" class="nav-link" data-scroll-target="#tasks-and-solvers">Tasks and Solvers</a>
+  <ul class="collapse">
+  <li><a href="#solver-roles" id="toc-solver-roles" class="nav-link" data-scroll-target="#solver-roles">Solver Roles</a></li>
+  <li><a href="#solver-functions" id="toc-solver-functions" class="nav-link" data-scroll-target="#solver-functions">Solver Functions</a></li>
+  </ul></li>
+  <li><a href="#eval-from-python" id="toc-eval-from-python" class="nav-link" data-scroll-target="#eval-from-python">Eval from Python</a></li>
   <li><a href="#learning-more" id="toc-learning-more" class="nav-link" data-scroll-target="#learning-more">Learning More</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -390,8 +397,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="sec-hello-inspect">Hello, Inspect</h2>
 <p>Inspect evaluations have three main components:</p>
 <ol type="1">
-<li><p><strong>Datasets</strong> contain a set of labeled samples. Datasets are typically just a table with <code>input</code> and <code>target</code> columns, where <code>input</code> is a prompt and <code>target</code> is either literal value(s) or grading guidance.</p></li>
-<li><p><strong>Solvers</strong> are composed together in a <em>plan</em> to evaluate the <code>input</code> in the dataset. The most elemental solver, <code>generate()</code>, just calls the model with a prompt and collects the output. Other solvers might do prompt engineering, multi-turn dialog, critique, etc.</p></li>
+<li><p><strong>Datasets</strong> contain a set of labelled samples. Datasets are typically just a table with <code>input</code> and <code>target</code> columns, where <code>input</code> is a prompt and <code>target</code> is either literal value(s) or grading guidance.</p></li>
+<li><p><strong>Solvers</strong> are chained together to evaluate the <code>input</code> in the dataset and produce a final result. The most elemental solver, <code>generate()</code>, just calls the model with a prompt and collects the output. Other solvers might do prompt engineering, multi-turn dialog, critique, or provide an agent scaffold.</p></li>
 <li><p><strong>Scorers</strong> evaluate the final output of solvers. They may use text comparisons, model grading, or other custom schemes</p></li>
 </ol>
 <p>Let’s take a look at a simple evaluation that aims to see how models perform on the <a href="https://en.wikipedia.org/wiki/Sally%E2%80%93Anne_test">Sally-Anne</a> test, which assesses the ability of a person to infer false beliefs in others. Here are some samples from the dataset:</p>
@@ -418,47 +425,49 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>Here’s the code for the evaluation<span>&nbsp;(click on the numbers at right for further explanation)</span>:</p>
-<div class="sourceCode" id="annotated-cell-2"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-2-1"><a href="#annotated-cell-2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, <span class="bu">eval</span>, task</span>
+<div class="code-with-filename">
+<div class="code-with-filename-file">
+<pre><strong>theory.py</strong></pre>
+</div>
+<div class="sourceCode" id="annotated-cell-2" data-filename="theory.py"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-2-1"><a href="#annotated-cell-2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
 <span id="annotated-cell-2-2"><a href="#annotated-cell-2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> example_dataset</span>
 <span id="annotated-cell-2-3"><a href="#annotated-cell-2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
 <span id="annotated-cell-2-4"><a href="#annotated-cell-2-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> (               </span>
-<span id="annotated-cell-2-5"><a href="#annotated-cell-2-5" aria-hidden="true" tabindex="-1"></a>  chain_of_thought, generate, self_critique   </span>
+<span id="annotated-cell-2-5"><a href="#annotated-cell-2-5" aria-hidden="true" tabindex="-1"></a>  prompt_template, generate, self_critique   </span>
 <span id="annotated-cell-2-6"><a href="#annotated-cell-2-6" aria-hidden="true" tabindex="-1"></a>)                                             </span>
 <span id="annotated-cell-2-7"><a href="#annotated-cell-2-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-2-8"><a href="#annotated-cell-2-8" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="annotated-cell-2-9"><a href="#annotated-cell-2-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> theory_of_mind():</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="1">1</button><span id="annotated-cell-2-10" class="code-annotation-target"><a href="#annotated-cell-2-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
-<span id="annotated-cell-2-11"><a href="#annotated-cell-2-11" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>example_dataset(<span class="st">"theory_of_mind"</span>),</span>
-<span id="annotated-cell-2-12"><a href="#annotated-cell-2-12" aria-hidden="true" tabindex="-1"></a>        plan<span class="op">=</span>[</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="2">2</button><span id="annotated-cell-2-13" class="code-annotation-target"><a href="#annotated-cell-2-13" aria-hidden="true" tabindex="-1"></a>          chain_of_thought(),</span>
-<span id="annotated-cell-2-14"><a href="#annotated-cell-2-14" aria-hidden="true" tabindex="-1"></a>          generate(),</span>
-<span id="annotated-cell-2-15"><a href="#annotated-cell-2-15" aria-hidden="true" tabindex="-1"></a>          self_critique()</span>
-<span id="annotated-cell-2-16"><a href="#annotated-cell-2-16" aria-hidden="true" tabindex="-1"></a>        ],</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="3">3</button><span id="annotated-cell-2-17" class="code-annotation-target"><a href="#annotated-cell-2-17" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>model_graded_fact()</span>
-<span id="annotated-cell-2-18"><a href="#annotated-cell-2-18" aria-hidden="true" tabindex="-1"></a>    )</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="annotated-cell-2-8"><a href="#annotated-cell-2-8" aria-hidden="true" tabindex="-1"></a>DEFAULT_PROMPT<span class="op">=</span><span class="st">"&lt;prompt&gt;"</span></span>
+<span id="annotated-cell-2-9"><a href="#annotated-cell-2-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="annotated-cell-2-10"><a href="#annotated-cell-2-10" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="annotated-cell-2-11"><a href="#annotated-cell-2-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> theory_of_mind():</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="1">1</button><span id="annotated-cell-2-12" class="code-annotation-target"><a href="#annotated-cell-2-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
+<span id="annotated-cell-2-13"><a href="#annotated-cell-2-13" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>example_dataset(<span class="st">"theory_of_mind"</span>),</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="2">2</button><span id="annotated-cell-2-14" class="code-annotation-target"><a href="#annotated-cell-2-14" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>[</span>
+<span id="annotated-cell-2-15"><a href="#annotated-cell-2-15" aria-hidden="true" tabindex="-1"></a>          prompt_template(DEFAULT_PROMPT),</span>
+<span id="annotated-cell-2-16"><a href="#annotated-cell-2-16" aria-hidden="true" tabindex="-1"></a>          generate(),</span>
+<span id="annotated-cell-2-17"><a href="#annotated-cell-2-17" aria-hidden="true" tabindex="-1"></a>          self_critique()</span>
+<span id="annotated-cell-2-18"><a href="#annotated-cell-2-18" aria-hidden="true" tabindex="-1"></a>        ],</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="3">3</button><span id="annotated-cell-2-19" class="code-annotation-target"><a href="#annotated-cell-2-19" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>model_graded_fact()</span>
+<span id="annotated-cell-2-20"><a href="#annotated-cell-2-20" aria-hidden="true" tabindex="-1"></a>    )</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
 <dl class="code-annotation-container-hidden code-annotation-container-grid">
 <dt data-target-cell="annotated-cell-2" data-target-annotation="1">1</dt>
 <dd>
-<span data-code-cell="annotated-cell-2" data-code-lines="10" data-code-annotation="1">The <code>Task</code> object brings together the dataset, solvers, and scorer, and is then evaluated using a model.</span>
+<span data-code-cell="annotated-cell-2" data-code-lines="12" data-code-annotation="1">The <code>Task</code> object brings together the dataset, solvers, and scorer, and is then evaluated using a model.</span>
 </dd>
 <dt data-target-cell="annotated-cell-2" data-target-annotation="2">2</dt>
 <dd>
-<span data-code-cell="annotated-cell-2" data-code-lines="13,14,15" data-code-annotation="2">In this example we are chaining together three standard solver components. It’s also possible to create a more complex custom solver that manages state and interactions internally.</span>
+<span data-code-cell="annotated-cell-2" data-code-lines="14,15,16,17" data-code-annotation="2">In this example we are chaining together three standard solver components. It’s also possible to create a more complex custom solver that manages state and interactions internally.</span>
 </dd>
 <dt data-target-cell="annotated-cell-2" data-target-annotation="3">3</dt>
 <dd>
-<span data-code-cell="annotated-cell-2" data-code-lines="17" data-code-annotation="3">Since the output is likely to have pretty involved language, we use a model for scoring.</span>
+<span data-code-cell="annotated-cell-2" data-code-lines="19" data-code-annotation="3">Since the output is likely to have pretty involved language, we use a model for scoring.</span>
 </dd>
 </dl>
-<p>Note that this is a purposely over-simplified example! The templates used for prompting, critique, and grading can all be customised, and in a more rigorous evaluation we’d explore improving them in the context of this specific dataset.</p>
+<p>Note that you can provide a <em>single</em> solver or multiple solvers chained together as we did here.</p>
 <p>The <code>@task</code> decorator applied to the <code>theory_of_mind()</code> function is what enables <code>inspect eval</code> to find and run the eval in the source file passed to it. For example, here we run the eval against GPT-4:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval theory_of_mind.py <span class="at">--model</span> openai/gpt-4</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval theory.py <span class="at">--model</span> openai/gpt-4</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p><img src="images/running-theory.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. A progress bar indicates that the evaluation is about 60% complete."></p>
-<p>By default, eval logs are written to the <code>./logs</code> sub-directory of the current working directory. When the eval is complete you will find a link to the log at the bottom of the task results summary.</p>
-<p>You can also explore eval results using the Inspect log viewer. Run <code>inspect view</code> to open the viewer (you only need to do this once as the viewer will automatically updated when new evals are run):</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect view</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><a href="images/inspect-view-home.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-view-home.png" class="border img-fluid" alt="The Inspect log viewer, displaying a summary of results for the task as well as 7 individual samples."></a></p>
-<p>See the <a href="log-viewer.html">Log Viewer</a> section for additional details on using Inspect View.</p>
 <div class="callout callout-style-simple callout-note">
 <div class="callout-body d-flex">
 <div class="callout-icon-container">
@@ -469,6 +478,85 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 </div>
+</section>
+<section id="evaluation-logs" class="level2">
+<h2 class="anchored" data-anchor-id="evaluation-logs">Evaluation Logs</h2>
+<p>By default, eval logs are written to the <code>./logs</code> sub-directory of the current working directory. When the eval is complete you will find a link to the log at the bottom of the task results summary.</p>
+<p>You can also explore eval results using the Inspect log viewer. Run <code>inspect view</code> to open the viewer (you only need to do this once as the viewer will automatically updated when new evals are run):</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect view</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><a href="images/inspect-view-home.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-view-home.png" class="border img-fluid" alt="The Inspect log viewer, displaying a summary of results for the task as well as 7 individual samples."></a></p>
+<p>See the <a href="log-viewer.html">Log Viewer</a> section for additional details on using Inspect View.</p>
+</section>
+<section id="tasks-and-solvers" class="level2">
+<h2 class="anchored" data-anchor-id="tasks-and-solvers">Tasks and Solvers</h2>
+<p>While tasks always include a <em>default</em> solver, you can also vary the solver to explore other strategies and elicitation techniques.</p>
+<section id="solver-roles" class="level3">
+<h3 class="anchored" data-anchor-id="solver-roles">Solver Roles</h3>
+<p>In the example above we combined together several solvers into a composite solver. This illustrates the fact that there are two distinct roles that solvers can play in the system:</p>
+<ol type="1">
+<li><p>As a <em>composite</em> end-to-end specification of how to solve a task.</p></li>
+<li><p>As a <em>component</em> that is chained together with other solvers to create a composite solver;</p></li>
+</ol>
+<p>Some solvers are capable of playing both roles. For example, <code>generate()</code> is a complete end-to-end solver (albeit a simple one) but is often also used as a <em>component</em> within other solvers.</p>
+</section>
+<section id="solver-functions" class="level3">
+<h3 class="anchored" data-anchor-id="solver-functions">Solver Functions</h3>
+<p>The most convenient way to create a composite solver is to define a <code>@solver</code> decorated function that returns a chain of other solvers. For example, imagine we have written a <code>tree_of_thought</code> module that we want to use to create an additional solver. We can re-write the task to have multiple solver functions (where <code>critique</code> is used as the default):</p>
+<div class="code-with-filename">
+<div class="code-with-filename-file">
+<pre><strong>theory.py</strong></pre>
+</div>
+<div class="sourceCode" id="cb11" data-filename="theory.py"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> example_dataset</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> (               </span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>  chain, prompt_template, generate, self_critique   </span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>) </span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>DEFAULT_PROMPT<span class="op">=</span><span class="st">"&lt;prompt&gt;"</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> tree_of_thought imoprt TREE_PROMPT, generate_tree</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span> </span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> critique():</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> chain(</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>        prompt_template(DEFAULT_PROMPT), </span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>        generate(), </span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>        self_critique()</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tree_of_thought():</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> chain(</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>        prompt_template(TREE_PROMPT), </span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>        generate_tree()</span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> theory_of_mind():</span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(  </span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>example_dataset(<span class="st">"theory_of_mind"</span>),</span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>critique(),</span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>model_graded_fact()</span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Note that we use the <code>chain()</code> function to combine mutliple solvers into a composite one.</p>
+<p>You can switch between solvers when running the evaluation:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># run with the default solver (critique)</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval theory.py <span class="at">--model</span><span class="op">=</span>openai/gpt-4</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="co"># run with the tree of thought solver</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval theory.py <span class="at">--solver</span><span class="op">=</span>tree_of_thought <span class="at">--model</span><span class="op">=</span>openai/gpt-4</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Composite solvers by no means need to be implemented using chains. While chains are frequently used in more straightforward knowledge and reasoning evaluations, fully custom solver functions are often used for multi-turn dialog and agent evaluations.</p>
+</section>
+</section>
+<section id="eval-from-python" class="level2">
+<h2 class="anchored" data-anchor-id="eval-from-python">Eval from Python</h2>
+<p>Above we demonstrated using <code>inspect eval</code> from CLI to run evaluations—you can perform all of the same operations from directly within Python using the <code>eval()</code> function. For example:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(theory_of_mind(), model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>)</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(theory_of_mind(), solver<span class="op">=</span>tree_of_thought(), model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="learning-more" class="level2">
 <h2 class="anchored" data-anchor-id="learning-more">Learning More</h2>
@@ -1026,7 +1114,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"descPosition":"bottom","selector":".lightbox","closeEffect":"zoom","openEffect":"zoom","loop":false});
+<script>var lightboxQuarto = GLightbox({"loop":false,"selector":".lightbox","descPosition":"bottom","openEffect":"zoom","closeEffect":"zoom"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {

@@ -493,8 +493,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="task-information" class="level2">
 <h2 class="anchored" data-anchor-id="task-information">Task Information</h2>
-<p>The <strong>Info</strong> panel of the log viewer provides additional meta-information about evaluation tasks, including dataset, plan, and scorer details, git revision, and model token usage:</p>
-<p><a href="images/inspect-view-info.png" class="lightbox" data-gallery="quarto-lightbox-gallery-11"><img src="images/inspect-view-info.png" class="border img-fluid" alt="The Info panel of the Inspect log viewer, displaying various details about the evaluation including dataset, plan, and scorer details, git revision, and model token usage."></a></p>
+<p>The <strong>Info</strong> panel of the log viewer provides additional meta-information about evaluation tasks, including dataset, solver, and scorer details, git revision, and model token usage:</p>
+<p><a href="images/inspect-view-info.png" class="lightbox" data-gallery="quarto-lightbox-gallery-11"><img src="images/inspect-view-info.png" class="border img-fluid" alt="The Info panel of the Inspect log viewer, displaying various details about the evaluation including dataset, solver, and scorer details, git revision, and model token usage."></a></p>
 </section>
 <section id="sec-publishing" class="level2">
 <h2 class="anchored" data-anchor-id="sec-publishing">Publishing</h2>
@@ -1074,7 +1074,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","loop":false,"closeEffect":"zoom","selector":".lightbox","descPosition":"bottom"});
+<script>var lightboxQuarto = GLightbox({"selector":".lightbox","openEffect":"zoom","descPosition":"bottom","loop":false,"closeEffect":"zoom"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {
