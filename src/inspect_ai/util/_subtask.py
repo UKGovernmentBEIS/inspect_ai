@@ -96,10 +96,7 @@ def subtask(
             # create coroutine so we can provision a subtask contextvars
             async def run() -> tuple[RT, SubtaskEvent]:
                 # initialise subtask (provisions store and transcript)
-                nonlocal store
-                if store is None:
-                    store = Store()
-                init_subtask(subtask_name, store)
+                init_subtask(subtask_name, store if store else Store())
 
                 # run the subtask
                 with track_store_changes():  # type: ignore
