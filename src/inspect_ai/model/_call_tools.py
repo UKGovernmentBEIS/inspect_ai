@@ -20,7 +20,6 @@ from jsonschema import Draft7Validator
 from pydantic import BaseModel
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
-from inspect_ai._util.error import exception_message
 from inspect_ai._util.registry import registry_info
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
@@ -188,18 +187,14 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
     if validation_errors:
         raise ToolParsingError(validation_errors)
 
+    # get arguments (with creation of dataclasses, pydantic objects, etc.)
+    arguments = tool_params(call.arguments, tool_def.tool)
+
     # call the tool
-    try:
-        # get arguments (with creation of dataclasses, pydantic objects, etc.)
-        arguments = tool_params(call.arguments, tool_def.tool)
+    result = await tool_def.tool(**arguments)
 
-        # call the tool
-        result = await tool_def.tool(**arguments)
-
-        # return result + events
-        return result
-    except TypeError as ex:
-        raise ToolParsingError(exception_message(ex))
+    # return result + events
+    return result
 
 
 def tools_info(tools: list[Tool] | list[ToolInfo]) -> list[ToolInfo]:
