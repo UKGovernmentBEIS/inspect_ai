@@ -218,10 +218,13 @@ class SubtaskEvent(BaseEvent):
     name: str
     """Name of subtask function."""
 
+    type: str | None = Field(default=None)
+    """Type of subtask"""
+
     input: dict[str, Any]
     """Subtask function inputs."""
 
-    result: Any
+    result: Any = Field(default=None)
     """Subtask function result."""
 
     events: list["Event"]

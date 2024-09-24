@@ -40,15 +40,19 @@ class Subtask(Protocol):
 
 
 @overload
-def subtask(name: str, store: Store | None = None) -> Callable[..., Subtask]: ...
+def subtask(
+    name: str, store: Store | None = None, type: str | None = None
+) -> Callable[..., Subtask]: ...
 
 
 @overload
-def subtask(name: Subtask, store: Store | None = None) -> Subtask: ...
+def subtask(
+    name: Subtask, store: Store | None = None, type: str | None = None
+) -> Subtask: ...
 
 
 def subtask(
-    name: str | Subtask, store: Store | None = None
+    name: str | Subtask, store: Store | None = None, type: str | None = None
 ) -> Callable[..., Subtask] | Subtask:
     r"""Decorator for subtasks.
 
@@ -56,6 +60,7 @@ def subtask(
         func (Subtask): Subtask implementation.
         name (str | None): Name for subtask (defaults to function name)
         store (store | None): Store to use for subtask
+        type (str | None): Type to use for subtask
 
     Returns:
         Function which runs the Subtask, providing an isolated
@@ -108,6 +113,7 @@ def subtask(
                     input=input,
                     result=result,
                     events=transcript().events,
+                    type=type,
                 )
 
                 # return result and event

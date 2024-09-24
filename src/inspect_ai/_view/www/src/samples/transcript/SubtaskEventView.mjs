@@ -27,7 +27,7 @@ export const SubtaskEventView = ({
   depth,
 }) => {
   return html`
-    <${EventPanel} id=${id} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask} style=${style}>
+    <${EventPanel} id=${id} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask} style=${style} collapse=${false}>
       <${SubtaskSummary} name="Summary"  input=${event.input} result=${event.result}/>
       ${
         event.events.length > 0

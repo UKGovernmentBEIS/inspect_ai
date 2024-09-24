@@ -15893,7 +15893,7 @@ const SubtaskEventView = ({
   depth
 }) => {
   return m$1`
-    <${EventPanel} id=${id} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask} style=${style}>
+    <${EventPanel} id=${id} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask} style=${style} collapse=${false}>
       <${SubtaskSummary} name="Summary"  input=${event.input} result=${event.result}/>
       ${event.events.length > 0 ? m$1`<${TranscriptView}
               id="${id}-subtask"
