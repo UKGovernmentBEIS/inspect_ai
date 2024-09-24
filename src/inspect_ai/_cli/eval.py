@@ -574,7 +574,7 @@ def eval_exec(
     bundle_overwrite: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
-    # parse task, plan, and model args
+    # parse task, solver, and model args
     task_args = parse_cli_args(t)
     solver_args = parse_cli_args(s)
     model_args = parse_cli_args(m)

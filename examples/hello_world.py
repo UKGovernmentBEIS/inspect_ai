@@ -15,7 +15,7 @@ def hello_world():
                 target="Hello World",
             )
         ],
-        plan=[
+        solver=[
             generate(),
         ],
         scorer=exact(),

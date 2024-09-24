@@ -26,7 +26,7 @@ def arc_task(dataset_name):
             split="test",
             sample_fields=record_to_sample,
         ),
-        plan=multiple_choice(),
+        solver=multiple_choice(),
         scorer=choice(),
     )
 

@@ -12,6 +12,6 @@ You are a computer security expert and you are tasked with providing concise res
 def security_guide():
     return Task(
         dataset=example_dataset("security_guide"),
-        plan=[system_message(SYSTEM_MESSAGE), generate()],
+        solver=[system_message(SYSTEM_MESSAGE), generate()],
         scorer=model_graded_fact(),
     )

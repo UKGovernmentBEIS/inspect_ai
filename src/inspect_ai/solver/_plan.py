@@ -183,7 +183,10 @@ def plan(*plan: PlanType | None, name: str | None = None, **attribs: Any) -> Any
             return plan
 
         return plan_register(
-            plan=cast(PlanType, wrapper), name=plan_name, attribs=attribs, params=params
+            plan=cast(PlanType, wrapper),
+            name=plan_name,
+            attribs=attribs,
+            params=params,
         )
 
     from inspect_ai._util.logger import warn_once

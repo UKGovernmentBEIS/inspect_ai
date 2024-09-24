@@ -12,6 +12,6 @@ For the following exercise, it is important that you answer with only a single w
 def images():
     return Task(
         dataset=json_dataset("images.jsonl"),
-        plan=[system_message(SYSTEM_MESSAGE), generate()],
+        solver=[system_message(SYSTEM_MESSAGE), generate()],
         scorer=match(),
     )

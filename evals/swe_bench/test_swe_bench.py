@@ -128,7 +128,7 @@ def test_same_scores_for_swe_agent() -> None:
         swebench_baseline_scorer(SWEAGENT_BASELINE, name="sweagent_baseline"),
     ]
 
-    # Make plans which apply the swe-agent's patch for each  swebench instance
+    # Make solvers which apply the swe-agent's patch for each  swebench instance
     test_tasks = []
     for test_sample, swe_agent_patch in zip(
         test_task.dataset, test_dataset["swe_agent_patch"]
@@ -136,7 +136,7 @@ def test_same_scores_for_swe_agent() -> None:
         test_tasks.append(
             Task(
                 dataset=[test_sample],
-                plan=apply_patch_solver(swe_agent_patch),
+                solver=apply_patch_solver(swe_agent_patch),
                 scorer=scorers,
             )
         )

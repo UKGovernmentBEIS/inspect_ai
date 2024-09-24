@@ -6,10 +6,9 @@ toc: true
 
 Welcome to Inspect, a framework for large language model evaluations created by the [UK AI Safety Institute](https://www.gov.uk/government/organisations/ai-safety-institute).
 
-Inspect provides many built-in components, including facilities for prompt engineering, tool usage, multi-turn dialog, and model graded evaluations. Extensions to Inspect (e.g. to support new elicitation and scoring techniques) can be provided by other Python packages. 
+Inspect provides many built-in components, including facilities for prompt engineering, tool usage, multi-turn dialog, and model graded evaluations. Extensions to Inspect (e.g. to support new elicitation and scoring techniques) can be provided by other Python packages.
 
 ![](images/inspect.png){.lightbox .border fig-alt="Inspect running inside Visual Studio Code. The editor shows the ARC evaluation and the log viewer at right shows results from the evaluation."}
-
 
 We'll walk through a fairly trivial "Hello, Inspect" example below. Read on to learn the basics, then read the documentation on [Workflow](#sec-workflow), [Solvers](#sec-solvers), [Tools](#sec-tools), [Scorers](#sec-scorers), [Datasets](#sec-datasets), and [Models](#sec-models) to learn how to create more advanced evaluations.
 
@@ -88,37 +87,39 @@ In addition to the model providers shown above, Inspect also supports models hos
 
 Inspect evaluations have three main components:
 
-1.  **Datasets** contain a set of labeled samples. Datasets are typically just a table with `input` and `target` columns, where `input` is a prompt and `target` is either literal value(s) or grading guidance.
+1.  **Datasets** contain a set of labelled samples. Datasets are typically just a table with `input` and `target` columns, where `input` is a prompt and `target` is either literal value(s) or grading guidance.
 
-2.  **Solvers** are composed together in a *plan* to evaluate the `input` in the dataset. The most elemental solver, `generate()`, just calls the model with a prompt and collects the output. Other solvers might do prompt engineering, multi-turn dialog, critique, etc.
+2.  **Solvers** are chained together to evaluate the `input` in the dataset and produce a final result. The most elemental solver, `generate()`, just calls the model with a prompt and collects the output. Other solvers might do prompt engineering, multi-turn dialog, critique, or provide an agent scaffold.
 
 3.  **Scorers** evaluate the final output of solvers. They may use text comparisons, model grading, or other custom schemes
 
 Let's take a look at a simple evaluation that aims to see how models perform on the [Sally-Anne](https://en.wikipedia.org/wiki/Sally%E2%80%93Anne_test) test, which assesses the ability of a person to infer false beliefs in others. Here are some samples from the dataset:
 
-| input                                                                                                                                                                                                                                   | target  |
+| input | target |
 |---------------------------------------------|---------------------------|
-| Jackson entered the hall. Chloe entered the hall. The boots is in the bathtub. Jackson exited the hall. Jackson entered the dining_room. Chloe moved the boots to the pantry. Where was the boots at the beginning?                     | bathtub |
-| Hannah entered the patio. Noah entered the patio. The sweater is in the bucket. Noah exited the patio. Ethan entered the study. Ethan exited the study. Hannah moved the sweater to the pantry. Where will Hannah look for the sweater? | pantry  |
+| Jackson entered the hall. Chloe entered the hall. The boots is in the bathtub. Jackson exited the hall. Jackson entered the dining_room. Chloe moved the boots to the pantry. Where was the boots at the beginning? | bathtub |
+| Hannah entered the patio. Noah entered the patio. The sweater is in the bucket. Noah exited the patio. Ethan entered the study. Ethan exited the study. Hannah moved the sweater to the pantry. Where will Hannah look for the sweater? | pantry |
 
-Here's the code for the evaluation[&nbsp;(click on the numbers at right for further explanation)]{.content-visible when-format="html"}:
+Here's the code for the evaluation[ (click on the numbers at right for further explanation)]{.content-visible when-format="html"}:
 
-``` python
-from inspect_ai import Task, eval, task
+``` {.python filename="theory.py"}
+from inspect_ai import Task, task
 from inspect_ai.dataset import example_dataset
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import (               
-  chain_of_thought, generate, self_critique   
+  prompt_template, generate, self_critique   
 )                                             
+
+DEFAULT_PROMPT="<prompt>"
 
 @task
 def theory_of_mind():
     return Task(  # <1>
         dataset=example_dataset("theory_of_mind"),
-        plan=[
-          chain_of_thought(), # <2>
-          generate(),         # <2>
-          self_critique()     # <2>
+        solver=[                      # <2>
+          prompt_template(DEFAULT_PROMPT), # <2>
+          generate(),                      # <2>
+          self_critique()                  # <2>
         ],
         scorer=model_graded_fact() # <3>
     )
@@ -130,21 +131,28 @@ def theory_of_mind():
 
 3.  Since the output is likely to have pretty involved language, we use a model for scoring.
 
-Note that this is a purposely over-simplified example! The templates used for prompting, critique, and grading can all be customised, and in a more rigorous evaluation we'd explore improving them in the context of this specific dataset.
+Note that you can provide a *single* solver or multiple solvers chained together as we did here.
 
 The `@task` decorator applied to the `theory_of_mind()` function is what enables `inspect eval` to find and run the eval in the source file passed to it. For example, here we run the eval against GPT-4:
 
 ``` bash
-$ inspect eval theory_of_mind.py --model openai/gpt-4
+$ inspect eval theory.py --model openai/gpt-4
 ```
 
 ![](images/running-theory.png){fig-alt="The Inspect task results displayed in the terminal. A progress bar indicates that the evaluation is about 60% complete."}
+
+
+::: {.callout-note appearance="simple"}
+This example demonstrates evals being run from the terminal with the `inspect eval` command. There is also an `eval()` function which can be used for exploratory work---this is covered further in [Workflow](#sec-workflow).
+:::
+
+## Evaluation Logs
 
 By default, eval logs are written to the `./logs` sub-directory of the current working directory. When the eval is complete you will find a link to the log at the bottom of the task results summary.
 
 You can also explore eval results using the Inspect log viewer. Run `inspect view` to open the viewer (you only need to do this once as the viewer will automatically updated when new evals are run):
 
-```bash
+``` bash
 $ inspect view
 ```
 
@@ -152,9 +160,87 @@ $ inspect view
 
 See the [Log Viewer](#sec-log-viewer) section for additional details on using Inspect View.
 
-::: {.callout-note appearance="simple"}
-This example demonstrates evals being run from the terminal with the `inspect eval` command. There is also an `eval()` function which can be used for exploratory work---this is covered further in [Workflow](#sec-workflow).
-:::
+
+## Tasks and Solvers
+
+While tasks always include a *default* solver, you can also vary the solver to explore other strategies and elicitation techniques.
+
+### Solver Roles
+
+In the example above we combined together several solvers into a composite solver. This illustrates the fact that there are two distinct roles that solvers can play in the system:
+
+1. As a _composite_ end-to-end specification of how to solve a task.
+
+2. As a _component_ that is chained together with other solvers to create a composite solver;
+
+Some solvers are capable of playing both roles. For example, `generate()` is a complete end-to-end solver (albeit a simple one) but is often also used as a _component_ within other solvers.
+
+### Solver Functions
+
+The most convenient way to create a composite solver is to define a `@solver` decorated function that returns a chain of other solvers. For example, imagine we have written a `tree_of_thought` module that we want to use to create an additional solver. We can re-write the task to have multiple solver functions (where `critique` is used as the default):
+
+```{.python filename="theory.py"}
+from inspect_ai import Task, task
+from inspect_ai.dataset import example_dataset
+from inspect_ai.scorer import model_graded_fact
+from inspect_ai.solver import (               
+  chain, prompt_template, generate, self_critique   
+) 
+
+DEFAULT_PROMPT="<prompt>"
+
+from tree_of_thought imoprt TREE_PROMPT, generate_tree
+
+@solver 
+def critique():
+    return chain(
+        prompt_template(DEFAULT_PROMPT), 
+        generate(), 
+        self_critique()
+    )
+
+@solver
+def tree_of_thought():
+    return chain(
+        prompt_template(TREE_PROMPT), 
+        generate_tree()
+    )
+
+@task
+def theory_of_mind():
+    return Task(  
+        dataset=example_dataset("theory_of_mind"),
+        solver=critique(),
+        scorer=model_graded_fact()
+    )
+```
+
+Note that we use the `chain()` function to combine mutliple solvers into a composite one.
+
+You can switch between solvers when running the evaluation:
+
+``` bash
+# run with the default solver (critique)
+$ inspect eval theory.py --model=openai/gpt-4
+
+# run with the tree of thought solver
+$ inspect eval theory.py --solver=tree_of_thought --model=openai/gpt-4
+```
+
+Composite solvers by no means need to be implemented using chains. While chains are frequently used in more straightforward knowledge and reasoning evaluations, fully custom solver functions are often used for multi-turn dialog and agent evaluations.
+
+
+## Eval from Python
+
+Above we demonstrated using `inspect eval` from CLI to run evaluations—you can perform all of the same operations from directly within Python using the `eval()` function. For example:
+
+``` python
+from inspect_ai import eval
+
+eval(theory_of_mind(), model="openai/gpt-4o")
+eval(theory_of_mind(), solver=tree_of_thought(), model="openai/gpt-4o")
+```
+
 
 ## Learning More
 

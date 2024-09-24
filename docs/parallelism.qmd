@@ -95,7 +95,7 @@ Another common scenario is running the same task with variations of hyperparamet
 tasks = [
     Task(
         dataset=csv_dataset("dataset.csv"),
-        plan=[system_message(SYSTEM_MESSAGE), generate()],
+        solver=[system_message(SYSTEM_MESSAGE), generate()],
         scorer=match(),
         config=GenerateConfig(temperature=temperature),
     )

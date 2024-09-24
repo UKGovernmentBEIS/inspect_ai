@@ -16,7 +16,7 @@ def test_mock_model_eval():
                 target=MockLLM.default_output,
             ),
         ],
-        plan=[generate()],
+        solver=[generate()],
         scorer=includes(),
     )
 

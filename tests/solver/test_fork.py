@@ -56,5 +56,5 @@ def forking_solver_task():
         return solve
 
     return Task(
-        dataset=[Sample(input="Say Hello", target="Hello")], plan=forking_solver()
+        dataset=[Sample(input="Say Hello", target="Hello")], solver=forking_solver()
     )

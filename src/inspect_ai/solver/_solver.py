@@ -226,7 +226,7 @@ def generate(
 ) -> Solver:
     r"""Generate output from the model and append it to task message history.
 
-    generate() is the default plan/solver if none is specified for a given task.
+    generate() is the default solver if none is specified for a given task.
 
     Args:
       tool_calls (Literal["loop", "single", "none"]): Resolve tool calls:

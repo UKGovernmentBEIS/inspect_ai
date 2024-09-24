@@ -44,7 +44,7 @@ def mathvista() -> Task:
 
     return Task(
         dataset=dataset,
-        plan=[mathvista_solver()],
+        solver=[mathvista_solver()],
         scorer=mathvista_scorer(),
     )
 

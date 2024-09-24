@@ -39,7 +39,13 @@ from inspect_ai.scorer import (
     scorer,
     stderr,
 )
-from inspect_ai.solver import TaskState, generate, prompt_template, system_message
+from inspect_ai.solver import (
+    Solver,
+    TaskState,
+    generate,
+    prompt_template,
+    system_message,
+)
 
 # Few-shot prompt template partially based on https://arxiv.org/pdf/2206.14858 - Appendix D.2
 SYSTEM_W_EXAMPLES_PROMPT_TEMPLATE = """
@@ -78,7 +84,7 @@ def math(
 
     return Task(
         dataset=dataset,
-        plan=build_plan(fewshot=fewshot, fewshot_seed=fewshot_seed),
+        solver=math_solver(fewshot=fewshot, fewshot_seed=fewshot_seed),
         scorer=[
             expression_equivalance(model=grader_model),
             expression_exact_match(),
@@ -130,17 +136,17 @@ def expression_exact_match():
     return score
 
 
-def build_plan(
+def math_solver(
     fewshot: int,
     fewshot_seed: int,
-) -> list:
-    """Builds plan using various solvers for the MATH task.
+) -> list[Solver]:
+    """Build solver for MATH task.
 
     Arguments:
         fewshot (int): Number of few shot examples to use.
         fewshot_seed (int): Random seed for sampling few shot examples.
     """
-    plan = [prompt_template(USER_PROMPT_TEMPLATE), generate()]
+    solver = [prompt_template(USER_PROMPT_TEMPLATE), generate()]
 
     if fewshot:
         fewshot_samples = hf_dataset(
@@ -152,7 +158,7 @@ def build_plan(
             seed=fewshot_seed,
             limit=fewshot,
         )
-        plan.insert(
+        solver.insert(
             0,
             system_message(
                 SYSTEM_W_EXAMPLES_PROMPT_TEMPLATE.format(
@@ -163,4 +169,4 @@ def build_plan(
             ),
         )
 
-    return plan
+    return solver

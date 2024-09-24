@@ -56,6 +56,6 @@ def wikipedia_search(
 def wikipedia() -> Task:
     return Task(
         dataset=json_dataset("wikipedia.jsonl"),
-        plan=wikipedia_search(),
+        solver=wikipedia_search(),
         scorer=model_graded_fact(),
     )

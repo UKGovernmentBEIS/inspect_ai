@@ -31,7 +31,7 @@ def test_subtask():
         dataset=[
             Sample(input="1", target="2"),
         ],
-        plan=[generate(), subtask_solver()],
+        solver=[generate(), subtask_solver()],
         scorer=match(),
     )
 

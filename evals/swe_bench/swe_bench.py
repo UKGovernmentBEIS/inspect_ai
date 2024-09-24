@@ -75,8 +75,8 @@ def swe_bench(
             The dataset to use. This should  either be the name of a dataset in the HF hub, or a path to a dataset on disk.
         split : str
             The split of the dataset to load.
-        plan : Plan
-            The plan to use when creating the task. If None, uses the default pkan.
+        solver : Solver
+            The solver to use when creating the task. If None, uses the default solver.
         max_messages : int
             The maximum number of messages to generate for each sample.
         filter : Callable[[Sample],bool]
@@ -128,7 +128,7 @@ def swe_bench(
     return Task(
         name=f"{dataset}_{split}",
         dataset=samples,
-        plan=solver,
+        solver=solver,
         scorer=swebench_scorer(),
         max_messages=max_messages,
     )
