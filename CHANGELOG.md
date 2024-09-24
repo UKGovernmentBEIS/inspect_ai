@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Deprecated `Plan` in favor of `Solver` (with `chain()` function to compose multiple solvers).
+- Added `max_tool_output` generation option (defaults to 16KB).
 - Improve performance of `header_only` log reading (switch from json-stream to ijson).
 - Add support for 0 retries to `eval-set` (run a single `eval` then stop).
 - Tool calling fixes for update to Mistral v1.1. client.
