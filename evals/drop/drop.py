@@ -15,6 +15,7 @@ inspect eval drop/drop.py -T fewshot=5
 inspect eval drop/drop.py -T fewshot=false
 """
 
+import hashlib
 import re
 from typing import Dict, List
 
@@ -124,6 +125,7 @@ def record_to_sample(record: Dict) -> Sample:
         input=format_input(record),
         target=get_answers(record),
         id=record["query_id"],
+        metadata={"passage_hash": hashlib.md5(record["passage"].encode()).hexdigest()},
     )
 
 
