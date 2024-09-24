@@ -62,7 +62,7 @@ async def solver_subtask(state: TaskState, solver: Solver) -> TaskState:
 
     name = "chain" if isinstance(solver, Chain) else registry_log_name(solver)
 
-    @subtask(name=name, store=state.store)  # type: ignore
+    @subtask(name=name, store=state.store, type="fork")  # type: ignore
     async def solve() -> TaskState:
         if not isinstance(solver, Chain):
             with solver_transcript(solver, state) as st:
