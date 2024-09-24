@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Fix issue w/ subtasks not getting a fresh store() (regression from introduction of `fork()` in v0.3.30)
+- Fix issue w/ subtasks that return None invalidating the log file.
+- Make subtasks collapsable in Inspect View.
 - Improved error reporting for missing `web_search()` provider environment variables. 
 
 ## v0.3.31 (24 September 2024)
