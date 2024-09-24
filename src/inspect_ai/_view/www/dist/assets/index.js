@@ -15892,9 +15892,10 @@ const SubtaskEventView = ({
   storeManager,
   depth
 }) => {
+  const type = event.type === "fork" ? "Fork" : "Subtask";
   return m$1`
-    <${EventPanel} id=${id} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask} style=${style} collapse=${false}>
-      <${SubtaskSummary} name="Summary"  input=${event.input} result=${event.result}/>
+    <${EventPanel} id=${id} title="${type}: ${event.name}" icon=${ApplicationIcons.subtask} style=${style} collapse=${false}>
+      ${event.type === "fork" ? "" : m$1`<${SubtaskSummary} name="Summary" input=${event.input} result=${event.result} />`}
       ${event.events.length > 0 ? m$1`<${TranscriptView}
               id="${id}-subtask"
               name="Transcript"
