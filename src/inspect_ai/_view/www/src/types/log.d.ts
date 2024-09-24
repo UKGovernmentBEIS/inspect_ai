@@ -290,6 +290,7 @@ export type Name7 = string;
 export type Timestamp11 = string;
 export type Event11 = "subtask";
 export type Name8 = string;
+export type Type9 = string | null;
 export type Events2 = (
   | SampleInitEvent
   | StateEvent
@@ -878,6 +879,7 @@ export interface SubtaskEvent {
   timestamp: Timestamp11;
   event: Event11;
   name: Name8;
+  type: Type9;
   input: Input4;
   result: Result1;
   events: Events2;
