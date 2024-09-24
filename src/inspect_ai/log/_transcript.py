@@ -130,6 +130,9 @@ class ToolEvent(BaseEvent):
     result: ToolResult
     """Function return value."""
 
+    truncated: tuple[int, int] | None = Field(default=None)
+    """Bytes truncated (from,to) if truncation occurred"""
+
     error: ToolCallError | None = Field(default=None)
     """Error that occurred during tool call."""
 
