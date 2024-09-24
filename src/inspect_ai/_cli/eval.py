@@ -288,6 +288,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_PARALLEL_TOOL_CALLS",
     )
     @click.option(
+        "--max-tool-output",
+        type=int,
+        help="Maximum size of tool output (in bytes). Defaults to 16 * 1024.",
+        envvar="INSPECT_EVAL_MAX_TOOL_OUTPUT",
+    )
+    @click.option(
         "--cache-prompt",
         type=click.Choice(["auto", "true", "false"]),
         help='Cache prompt prefix (Anthropic only). Defaults to "auto", which will enable caching for requests with tools.',
@@ -336,6 +342,7 @@ def eval_command(
     logprobs: bool | None,
     top_logprobs: int | None,
     parallel_tool_calls: bool | None,
+    max_tool_output: int | None,
     cache_prompt: str | None,
     max_messages: int | None,
     max_samples: int | None,
@@ -468,6 +475,7 @@ def eval_set_command(
     logprobs: bool | None,
     top_logprobs: int | None,
     parallel_tool_calls: bool | None,
+    max_tool_output: int | None,
     cache_prompt: str | None,
     max_messages: int | None,
     max_samples: int | None,

@@ -1,3 +1,4 @@
+from contextvars import ContextVar
 from copy import deepcopy
 from typing import Literal, Union
 
@@ -65,6 +66,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     parallel_tool_calls: bool | None
     """Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only."""
 
+    max_tool_output: int | None
+    """Maximum tool output (in bytes). Defaults to 16 * 1024."""
+
     cache_prompt: Literal["auto"] | bool | None
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
 
@@ -129,6 +133,9 @@ class GenerateConfig(BaseModel):
     parallel_tool_calls: bool | None = Field(default=None)
     """Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only."""
 
+    max_tool_output: int | None = Field(default=None)
+    """Maximum tool output (in bytes). Defaults to 16 * 1024."""
+
     cache_prompt: Literal["auto"] | bool | None = Field(default=None)
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
 
@@ -153,3 +160,16 @@ class GenerateConfig(BaseModel):
             if value is not None:
                 setattr(config, key, value)
         return config
+
+
+def active_generate_config() -> GenerateConfig:
+    return active_generate_config_context_var.get()
+
+
+def set_active_generate_config(config: GenerateConfig) -> None:
+    active_generate_config_context_var.set(config)
+
+
+active_generate_config_context_var: ContextVar[GenerateConfig] = ContextVar(
+    "generate_config", default=GenerateConfig()
+)

@@ -15666,7 +15666,7 @@ function format(delta, left2) {
 }
 const StateDiffView = ({ starting, ending, style }) => {
   const changes = diff(starting, ending);
-  const html_result = format(changes);
+  const html_result = format(changes) || "Unable to render differences";
   return m$1`<div
     dangerouslySetInnerHTML=${{ __html: unescapeNewlines(html_result) }}
     style=${{ ...style }}
@@ -17106,11 +17106,25 @@ const initStateManager = (scope) => {
      * @param {import("../../types/log").Changes} changes - The new state object to update with.
      */
     applyChanges: (changes) => {
-      state = applyPatch(
-        structuredClone(state),
-        structuredClone(changes).map(ensureValidChange),
-        true
-      ).newDocument;
+      try {
+        state = applyPatch(
+          structuredClone(state),
+          structuredClone(changes).map(ensureValidChange),
+          true
+        ).newDocument;
+      } catch (ex) {
+        const ops = changes.reduce((prev, change) => {
+          if (!Object.keys(prev).includes(change.op)) {
+            prev[change.op] = [];
+          }
+          prev[change.op].push(change.path);
+          return prev;
+        }, {});
+        const message = `${ex.name}
+Failed to apply patch:
+${JSON.stringify(ops, void 0, 2)}`;
+        console.error(message);
+      }
     }
   };
 };
@@ -20802,7 +20816,9 @@ function simpleHttpAPI(logInfo) {
   };
 }
 async function fetchFile(url, parse3, handleError) {
-  const response = await fetch(`${url}`, { method: "GET" });
+  const safe_url = encodePathParts(url);
+  const response = await fetch(`${safe_url}`, { method: "GET" });
+  console.log({ response });
   if (response.ok) {
     const text = await response.text();
     return {
@@ -20878,6 +20894,20 @@ const log_file_cache = (log_file) => {
     }
   };
 };
+function encodePathParts(url) {
+  if (!url) return url;
+  try {
+    const fullUrl = new URL(url);
+    fullUrl.pathname = fullUrl.pathname.split("/").map(
+      (segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : ""
+    ).join("/");
+    return fullUrl.toString();
+  } catch {
+    return url.split("/").map(
+      (segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : ""
+    ).join("/");
+  }
+}
 const resolveApi = () => {
   if (window.acquireVsCodeApi) {
     return vscodeApi$1;
