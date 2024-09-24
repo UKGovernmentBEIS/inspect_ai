@@ -23,7 +23,7 @@ def images():
         dataset=json_dataset(
             os.path.join("tests", "util", "test_images", "images.jsonl")
         ),
-        plan=[system_message(SYSTEM_MESSAGE), generate()],
+        solver=[system_message(SYSTEM_MESSAGE), generate()],
         scorer=match(),
     )
 

@@ -23,6 +23,7 @@ def save_image(record, image_number, subject_dir, question_number):
         image_filename = f"question_{question_number}_image_{image_number}.png"
         image_path = os.path.join(subject_dir, image_filename)
         image = record[f"image_{image_number}"]
+        image.thumbnail((1024, 1024))
         image.save(image_path, format="PNG")
         return image_path
     return None

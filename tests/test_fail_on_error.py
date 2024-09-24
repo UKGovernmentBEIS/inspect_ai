@@ -29,7 +29,7 @@ def create_failing_task(
 
     return Task(
         dataset=dataset,
-        plan=[failing_solver(fail), generate()],
+        solver=[failing_solver(fail), generate()],
         fail_on_error=fail_on_error,
     )
 
@@ -93,7 +93,7 @@ def fail_on_error_failing_task():
             Sample(input="Say hello", target="hello"),
             Sample(input="Say hello", target="hello"),
         ],
-        plan=[failing_solver(lambda _s: random() > 0.33), generate()],
+        solver=[failing_solver(lambda _s: random() > 0.33), generate()],
         fail_on_error=False,
         scorer=includes(),
     )

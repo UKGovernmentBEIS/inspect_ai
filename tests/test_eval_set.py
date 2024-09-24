@@ -56,13 +56,13 @@ def test_eval_set_dynamic() -> None:
         task1 = Task(
             name="task1",
             dataset=deepcopy(dataset),
-            plan=[failing_solver(0.2), generate()],
+            solver=[failing_solver(0.2), generate()],
             scorer=includes(),
         )
         task2 = Task(
             name="task2",
             dataset=deepcopy(dataset),
-            plan=[failing_solver(0.2), generate()],
+            solver=[failing_solver(0.2), generate()],
             scorer=includes(),
         )
         success, logs = eval_set(
@@ -85,7 +85,7 @@ def test_eval_set_identifiers() -> None:
     def make_task(param="param"):
         return Task(
             dataset=deepcopy(dataset),
-            plan=[failing_solver(0.2), generate()],
+            solver=[failing_solver(0.2), generate()],
             scorer=includes(),
         )
 

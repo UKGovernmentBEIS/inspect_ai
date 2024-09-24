@@ -62,6 +62,7 @@ export type NumChoices = number | null;
 export type Logprobs = boolean | null;
 export type TopLogprobs = number | null;
 export type ParallelToolCalls = boolean | null;
+export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
 export type TotalSamples = number;
 export type CompletedSamples = number;
@@ -254,6 +255,7 @@ export type Type7 = "function";
 export type Id3 = string;
 export type Function2 = string;
 export type Result = string | number | boolean | (ContentText | ContentImage)[];
+export type Truncated = [unknown, unknown] | null;
 export type Timestamp5 = string;
 export type Event5 = "input";
 export type Input3 = string;
@@ -427,6 +429,7 @@ export interface GenerateConfig {
   logprobs: Logprobs;
   top_logprobs: TopLogprobs;
   parallel_tool_calls: ParallelToolCalls;
+  max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
 }
 export interface EvalResults {
@@ -774,6 +777,7 @@ export interface GenerateConfig1 {
   logprobs: Logprobs;
   top_logprobs: TopLogprobs;
   parallel_tool_calls: ParallelToolCalls;
+  max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
 }
 /**
@@ -800,6 +804,7 @@ export interface ToolEvent {
   function: Function2;
   arguments: Arguments1;
   result: Result;
+  truncated: Truncated;
   error: ToolCallError | null;
   events: Events1;
 }

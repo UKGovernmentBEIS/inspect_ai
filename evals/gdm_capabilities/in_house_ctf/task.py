@@ -34,7 +34,7 @@ def in_house_ctf(
 ) -> Task:
     return Task(
         dataset=read_dataset(challenges=challenges),
-        plan=agent or default_agent(max_attempts=max_attempts),
+        solver=agent or default_agent(max_attempts=max_attempts),
         scorer=check_flag(),
         max_messages=max_messages,
         epochs=Epochs(10, "at_least_1"),
@@ -43,7 +43,9 @@ def in_house_ctf(
 
 
 @solver
-def default_agent(init: Solver | list[Solver] | None = None, max_attempts: int = 1):
+def default_agent(
+    init: Solver | list[Solver] | None = None, max_attempts: int = 1
+) -> Solver:
     return basic_agent(
         init=init or system_message(default_system_message()),
         tools=agent_bash_tool(),

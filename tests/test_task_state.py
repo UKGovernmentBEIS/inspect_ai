@@ -22,7 +22,7 @@ def test_max_messages_complete():
     max_messages = randint(1, 3) * 2
     task = Task(
         dataset=[Sample(input="Say Hello", target="Hello")],
-        plan=max_messages_solver(),
+        solver=max_messages_solver(),
         scorer=match(),
         max_messages=max_messages,
     )

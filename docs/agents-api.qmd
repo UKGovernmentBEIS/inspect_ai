@@ -11,13 +11,13 @@ This article describes advanced Inspect APIs available for creating evaluations 
 5.  Delegating work to sub-tasks
 6.  Sandboxing arbitrary code execution
 
-We'll assume that you already understand Inspect [Solvers](solvers.qmd) and [Tools](tools.qmd) (please review those articles as required before proceeding).
+We'll assume that you have already covered the basics of [Solvers](solvers.qmd), [Tools](tools.qmd), and [Agents](agents.qmd) (please review those articles as required before proceeding).
 
 ## Use of `metadata`
 
 Before proceeding, it's important to point that some of the features described below were previously approximated by using the `metadata` field of `TaskState`, specifically `metadata` was often used as a catch-all storage location for:
 
--   Carrying state between solvers and sometimes tools.
+-   Sharing state between solvers.
 -   Providing a place to log additional structured data.
 -   Recording calls to "helper" models used for elicitation or scoring.
 
@@ -138,7 +138,7 @@ from inspect_ai.log import transcript
 transcript().info("here is some custom info")
 ```
 
-You can pass arbitrary JSON serialisable objects to `info()`.
+Strings passed to `info()` will be rendered as markdown. In addition to strings you can also pass arbitrary JSON serialisable objects to `info()`.
 
 ### Grouping with Steps
 
@@ -216,11 +216,11 @@ Note that we don't `await` the subtasks when building up our list of `searches`.
 
 ### Forking {#sec-forking}
 
-Inspect's `fork()` function provids a convenient wrapper around a very common use of subtasks: running a `TaskState` against a set of solvers in parallel to explore different trajectories. 
+Inspect's `fork()` function provids a convenient wrapper around a very common use of subtasks: running a `TaskState` against a set of solvers in parallel to explore different trajectories.
 
 For example, let's say you have a solver named `explore()` that takes `temperature` as a parameter. You might want to try the solver out with multiple temperature values and then continue on with the best result:
 
-```python
+``` python
 from inspect_ai.solver import fork
 
 results = await fork(state, [
@@ -241,7 +241,7 @@ Many agents provide models with the ability to execute arbitrary code. It's impo
 def file_probe()
     return Task(
         dataset=dataset,
-        plan=[
+        solver=[
             use_tools([list_files()]), 
             generate()
         ],

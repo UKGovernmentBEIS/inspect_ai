@@ -171,9 +171,9 @@ tail --follow /tmp/inspect.log
 
 ## Task Information
 
-The **Info** panel of the log viewer provides additional meta-information about evaluation tasks, including dataset, plan, and scorer details, git revision, and model token usage:
+The **Info** panel of the log viewer provides additional meta-information about evaluation tasks, including dataset, solver, and scorer details, git revision, and model token usage:
 
-![](images/inspect-view-info.png){.border .lightbox fig-alt="The Info panel of the Inspect log viewer, displaying various details about the evaluation including dataset, plan, and scorer details, git revision, and model token usage."}
+![](images/inspect-view-info.png){.border .lightbox fig-alt="The Info panel of the Inspect log viewer, displaying various details about the evaluation including dataset, solver, and scorer details, git revision, and model token usage."}
 
 ## Publishing {#sec-publishing}
 

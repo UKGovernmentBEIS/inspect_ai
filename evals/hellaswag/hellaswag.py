@@ -29,7 +29,7 @@ def hellaswag():
     # define task
     return Task(
         dataset=dataset,
-        plan=[system_message(SYSTEM_MESSAGE), multiple_choice()],
+        solver=[system_message(SYSTEM_MESSAGE), multiple_choice()],
         scorer=choice(),
     )
 

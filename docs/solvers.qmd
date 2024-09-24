@@ -15,16 +15,24 @@ Solvers are the heart of Inspect evaluations and can serve a wide variety of pur
 5.  Multi-turn dialog
 6.  Running an agent scaffold
 
-Here's an example task definition that composes a few standard solvers into a plan:
+Tasks have a single top-level solver that defines an execution plan. This solver could be implemented with arbitrary Python code (calling the model as required) or could consist of a set of other sovlers composed together. Solvers can therefore play two differnet roles: 
+
+1. _Composite_ specifications for task execution; and
+
+2. _Components_ that can be chained together.
+
+### Example
+
+Here's an example task definition that composes a few standard solver components:
 
 ``` python
 @task
 def theory_of_mind():
     return Task(
         dataset=json_dataset("theory_of_mind.jsonl"),
-        plan=[
+        solver=[
             system_message("system.txt"),
-            chain_of_thought(),
+            prompt_template("prompt.txt"),
             generate(),
             self_critique()
         ],
@@ -32,11 +40,33 @@ def theory_of_mind():
     )
 ```
 
-Typically, a call to `generate()` is included in the list of solvers (this solver is just a simple call to the model). You can also create a more sophisticated solver that calls `generate()` internally, perhaps even more than once (this is often required for more complex evaluations). Next, we'll describe how solvers operate on *task states* to do their work.
+In this example we pass a list of solver components directly to the `Task`. More often, though we'll wrap our solvers in an `@solver` decorated function to create a composite solver:
 
-::: {.callout-note appearance="simple"}
-The concept of using solvers and task states for evals was originally introduced in [OpenAI Evals](https://github.com/openai/evals/blob/main/evals/solvers/README.md). Inspect solvers are an evolution of this core design.
-:::
+``` python
+@solver
+def critique(
+    system_prompt = "system.txt",
+    user_prompt = "prompt.txt",
+):
+    return chain(
+        system_message(system_prompt),
+        prompt_template(user_prompt),
+        generate(),
+        self_critique()
+    )
+
+@task
+def theory_of_mind():
+    return Task(
+        dataset=json_dataset("theory_of_mind.jsonl"),
+        solver=critique(),
+        scorer=model_graded_fact(),
+    )
+```
+
+Composite solvers by no means need to be implemented using chains. While chains are frequently used in more straightforward knowledge and reasoning evaluations, fully custom solver functions are often used for multi-turn dialog and agent evaluations.
+
+This section covers mostly solvers as components (both built in and creating your own). The [Agents](agents.qmd) section describes fully custom sovlers in more depth.
 
 ## Task States
 
@@ -66,7 +96,7 @@ async def solve(state: TaskState, generate: Generate):
     return state
 ```
 
-The `generate` function passed to solvers is a convenience function that takes a `TaskState`, calls the model with it, appends the assistant message, and sets the model output. This is never used by prompt engineering solvers and nearly always used by more complex solvers that want to have multiple model interactions.
+The `generate` function passed to solvers is a convenience function that takes a `TaskState`, calls the model with it, appends the assistant message, and sets the model output. This is never used by prompt engineering solvers and often used by more complex solvers that want to have multiple model interactions.
 
 Here are what some of the built-in solvers do with the `TaskState`:
 
@@ -107,7 +137,7 @@ Inspect has a number of built-in solvers, each of which can be customised in som
 
 -   `generate()`
 
-    As illustrated above, just a simple call to `generate(state)`. This is the default solver if no `plan` is specified.
+    As illustrated above, just a simple call to `generate(state)`. This is the default solver if no `solver` is specified.
 
 -   `self_critique()`
 
@@ -136,7 +166,7 @@ We'll present an example and then discuss the various options below (in most cas
 1.  The `Sample` must include the available `choices`. Choices should not include letters (as they are automatically included when presenting the choices to the model).
 2.  The `Sample` `target` should be a capital letter (e.g. A, B, C, D, etc.)
 3.  You should always pair it with the `choice()` scorer in your task definition.
-4.  It calls `generate()` internally, so you should not include `generate()` in your plan.
+4.  It calls `generate()` internally, so you do need to separately include the `generate()` solver.
 
 ### Example
 
@@ -163,7 +193,7 @@ def mmlu():
     # task with multiple choice() and choice() scorer
     return Task(
         dataset=task_dataset,
-        plan=multiple_choice(),
+        solver=multiple_choice(),
         scorer=choice(),
     )
 
@@ -242,7 +272,7 @@ There are two additional fields that solvers might modify (but they are typicall
 | Member | Type | Description |
 |-------------------|-------------------|----------------------------------|
 | `metadata` | dict | Original metadata from `Sample`, as well as any other custom metadata that solvers choose to write (typically used to coordinate between solvers and/or for custom logging). |
-| `completed` | bool | Solvers can set `completed = True` to cause the task to exit the plan immediately. |
+| `completed` | bool | Solvers can set `completed = True` to cause the task to exit the sample immediately. |
 
 Sometimes its import to have access to the *original* prompt input for the task (as other solvers may have re-written or even removed it entirely). This is available using the `input` and `input_text` properties:
 
@@ -391,9 +421,8 @@ Note that calls to `generate()` (for both the critique model and the model being
 
 In some cases it is useful for a solver to score a task directly to assist in deciding whether or how to continue. You can do this using the `score()` function:
 
-```python
+``` python
 from inspect_ai.scorer import score
-
 
 def solver_that_scores() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -414,7 +443,7 @@ When creating custom solvers, it's critical that you understand Inspect's concur
 
 ## Early Termination
 
-In some cases a solver has the context available to request an early termination of the plan (i.e. don't call the rest of the solvers). In this case, setting the `TaskState.completed` field will result in forgoing remaining solvers in the plan. For example, here's a simple solver that terminates the plan early:
+In some cases a solver has the context available to request an early termination of the sample (i.e. don't call the rest of the solvers). In this case, setting the `TaskState.completed` field will result in forgoing remaining solvers. For example, here's a simple solver that terminates the smaple early:
 
 ``` python
 @solver

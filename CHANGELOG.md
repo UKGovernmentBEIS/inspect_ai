@@ -2,7 +2,12 @@
 
 ## Unreleased
 
+- Fix issue w/ subtasks not getting a fresh store() (regression from introduction of `fork()` in v0.3.30)
+
+## v0.3.31 (24 September 2024)
+
 - Deprecated `Plan` in favor of `Solver` (with `chain()` function to compose multiple solvers).
+- Added `max_tool_output` generation option (defaults to 16KB).
 - Improve performance of `header_only` log reading (switch from json-stream to ijson).
 - Add support for 0 retries to `eval-set` (run a single `eval` then stop).
 - Tool calling fixes for update to Mistral v1.1. client.
@@ -11,6 +16,7 @@
 - Eliminate log spam from spurious grpc fork message.
 - Fix issue with hf_dataset shuffle=True not actually shuffling.
 - Improved error handling when loading invalid setuptools entrypoints.
+- Don't catch TypeError when calling tools (we now handle this in other ways)
 
 ## v0.3.30 (18 September 2024)
 

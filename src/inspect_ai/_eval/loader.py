@@ -441,7 +441,7 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
                     )
                 if len(solvers) > 1:
                     raise PrerequisiteError(
-                        f"The source file {solver_file.as_posix()} has more than one @solver function (qualify which plan using file.py@solver)"
+                        f"The source file {solver_file.as_posix()} has more than one @solver function (qualify which solver using file.py@solver)"
                     )
                 solver_name = solvers[0][0]
 

@@ -115,7 +115,7 @@ def check_point(model: str, tool: Tool, function_name: str) -> None:
                 )
             ]
         ),
-        plan=[
+        solver=[
             use_tools([tool], tool_choice=ToolFunction(function_name)),
             generate(),
         ],
@@ -143,7 +143,7 @@ def check_list_of_numbers(model: str) -> None:
                 )
             ]
         ),
-        plan=[
+        solver=[
             use_tools([mean()], tool_choice=ToolFunction("mean")),
             generate(),
         ],
@@ -162,7 +162,7 @@ def check_list_of_objects(model: str) -> None:
                 )
             ]
         ),
-        plan=[
+        solver=[
             use_tools([extract_words()], tool_choice=ToolFunction("extract_words")),
             generate(),
         ],
