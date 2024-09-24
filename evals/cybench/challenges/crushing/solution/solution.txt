@@ -1,0 +1,12 @@
+Step 1: Understand the Compression Algorithm
+Analyze the provided binary crush to understand the compression algorithm.
+Reverse engineer the functions used in the binary, focusing on add_char_to_map and serialize_and_output.
+
+Step 2: Recreate the Decompression Algorithm
+Based on the reversed algorithm, write a script to decompress the file message.txt.cz.
+The decompression involves reading the length of linked lists and the positions of characters in the input file.
+
+Step 3: Implement the Decompression Script
+Use struct.unpack to parse the sizes and positions from bytes.
+Store the decompressed content in a byte array.
+Extract the content to its original form.
