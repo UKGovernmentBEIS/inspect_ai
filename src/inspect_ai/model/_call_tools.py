@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 from dataclasses import dataclass, is_dataclass
+from textwrap import dedent
 from typing import (
     Any,
     Callable,
@@ -113,7 +114,9 @@ async def call_tools(
                 content = str(result)
 
                 # truncate if necessary
-                truncated_output = truncate_tool_output(content, max_output)
+                truncated_output = truncate_tool_output(
+                    call.function, content, max_output
+                )
                 if truncated_output:
                     content = truncated_output.output
                     truncated = (
@@ -383,7 +386,7 @@ class TruncatedToolOutput(NamedTuple):
 
 
 def truncate_tool_output(
-    output: str, max_output: int | None
+    tool_name: str, output: str, max_output: int | None
 ) -> TruncatedToolOutput | None:
     # determine active max output
     active_max_output = max_output
@@ -395,8 +398,14 @@ def truncate_tool_output(
     # truncate if required
     truncated = truncate_string_to_bytes(output, active_max_output)
     if truncated:
+        truncated_output = dedent(f"""
+            The output of your call to {tool_name} was too long to be displayed.
+            Here is a truncated version:
+            <START_TOOL_OUTPUT>
+            {truncated.output}
+            <END_TOOL_OUTPUT>""")
         return TruncatedToolOutput(
-            truncated.output, truncated.original_bytes, active_max_output
+            truncated_output, truncated.original_bytes, active_max_output
         )
     else:
         return None

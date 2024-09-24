@@ -51,14 +51,18 @@ def test_max_tool_output():
         config=GenerateConfig(max_tool_output=5),
     )
 
-    def check_log(log: EvalLog, count: int):
+    def check_log(log: EvalLog, count: int, overflow=True):
         assert log.samples
         messages = log.samples[0].messages
         output_call = get_tool_call(messages, "output")
         assert output_call
         output_result = get_tool_response(messages, output_call)
         assert output_result
-        assert output_result.content == "x" * count
+        if overflow:
+            newline = "\n"
+            assert f"{newline}{'x' * count}{newline}" in output_result.content
+        else:
+            assert "x" * count == output_result.content
 
     log = eval(task, mock_model())[0]
     check_log(log, 5)
@@ -67,7 +71,7 @@ def test_max_tool_output():
     check_log(log, 7)
 
     log = eval(task, mock_model(), max_tool_output=0)[0]
-    check_log(log, 10)
+    check_log(log, 10, False)
 
 
 def test_text_truncation():
