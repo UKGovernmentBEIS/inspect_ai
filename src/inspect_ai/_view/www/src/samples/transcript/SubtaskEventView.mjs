@@ -29,7 +29,7 @@ export const SubtaskEventView = ({
   // Is this a traditional subtask or a fork?
   const type = event.type === "fork" ? "Fork" : "Subtask";
   return html`
-    <${EventPanel} id=${id} title="${type}: ${event.name}" icon=${ApplicationIcons.subtask} style=${style} collapse=${false}>
+    <${EventPanel} id=${id} title="${type}: ${event.name}" style=${style} collapse=${false}>
       ${event.type === "fork" ? "" : html`<${SubtaskSummary} name="Summary" input=${event.input} result=${event.result} />`}
       ${
         event.events.length > 0
