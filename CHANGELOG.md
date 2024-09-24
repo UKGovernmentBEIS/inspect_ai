@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fix issue w/ subtasks not getting a fresh store() (regression from introduction of `fork()` in v0.3.30)
+
 ## v0.3.31 (24 September 2024)
 
 - Deprecated `Plan` in favor of `Solver` (with `chain()` function to compose multiple solvers).
