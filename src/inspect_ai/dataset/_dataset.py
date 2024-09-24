@@ -34,7 +34,7 @@ class Sample(BaseModel):
         metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.
         sandbox (SandboxEnvironmentSpec | None): Optional. Sandbox environment
           type and optional config file.
-        files (dict[str, str] | None): Optional. Files that go along with the sample (copied to
+        files (dict[str, str | bytes] | None): Optional. Files that go along with the sample (copied to
           SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
         setup (str | None): Optional. Setup script to run for sample (run
           within default SandboxEnvironment).
@@ -58,7 +58,7 @@ class Sample(BaseModel):
     sandbox: SandboxEnvironmentSpec | None = Field(default=None)
     """Sandbox environment type and optional config file."""
 
-    files: dict[str, str] | None = Field(default=None)
+    files: dict[str, str | bytes] | None = Field(default=None)
     """Files that go along with the sample (copied to SandboxEnvironment)"""
 
     setup: str | None = Field(default=None)
