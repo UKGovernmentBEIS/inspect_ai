@@ -2894,11 +2894,24 @@
           "title": "Name",
           "type": "string"
         },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
+        },
         "input": {
           "title": "Input",
           "type": "object"
         },
         "result": {
+          "default": null,
           "title": "Result"
         },
         "events": {
@@ -2950,6 +2963,7 @@
         "timestamp",
         "event",
         "name",
+        "type",
         "input",
         "result",
         "events"
