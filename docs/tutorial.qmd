@@ -329,7 +329,7 @@ def math(shuffle=True):
         dataset=hf_dataset(
             "hendrycks/competition_math",
             split="test",
-            sample_fields=sample_fields=FieldSpec(
+            sample_fields=FieldSpec(
                 input="problem", 
                 target="solution"
             ),
