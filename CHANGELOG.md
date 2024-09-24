@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.31 (24 September 2024)
 
 - Deprecated `Plan` in favor of `Solver` (with `chain()` function to compose multiple solvers).
 - Added `max_tool_output` generation option (defaults to 16KB).
