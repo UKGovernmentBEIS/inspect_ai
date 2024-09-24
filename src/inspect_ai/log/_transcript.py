@@ -221,7 +221,7 @@ class SubtaskEvent(BaseEvent):
     input: dict[str, Any]
     """Subtask function inputs."""
 
-    result: Any
+    result: Any = Field(default=None)
     """Subtask function result."""
 
     events: list["Event"]
