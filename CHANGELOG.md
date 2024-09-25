@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.32 (25 September 2024)
 
 - Fix issue w/ subtasks not getting a fresh store() (regression from introduction of `fork()` in v0.3.30)
 - Fix issue w/ subtasks that return None invalidating the log file.
