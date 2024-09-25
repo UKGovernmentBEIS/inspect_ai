@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html data-theme="dark">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Blog Application</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@3.5.0/dist/full.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@100..900&display=swap" rel="stylesheet">
+</head>
+<body class="container box-border flex flex-col items-center justify-center h-screen px-4 mx-auto font-['Archivo']">
+    <nav>
+        <ul class="menu menu-horizontal bg-base-200 rounded-box">
+            <li><a href="/">Home</a></li>
+            {% if 'user_id' in session %}
+                <li><a href="/create_post">Create Post</a></li>
+                <li><a href="/logout">Logout</a></li>
+            {% else %}
+                <li><a href="/signup">Sign Up</a></li>
+                <li><a href="/login">Login</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+    <br>
+    {{ message }}
+    <br>
+    {% block content %}
+    {% endblock %}
+</body>
+</html>

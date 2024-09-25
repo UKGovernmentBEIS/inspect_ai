@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <div class="form-control w-full max-w-md gap-1">
+        <h1 class="font-semibold text-3xl">Create a New Post</h1>
+        {% if 'user_id' not in session %}
+            <div class="alert alert-error max-w-md">
+                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span>Please log in to create a post.</span>
+            </div>
+            <a href="/login" class="btn">Log in</a>
+        {% else %}
+            <form action="/create_post" method="post" class="contents">
+                <label class="label" for="username">Title<span class="text-red-500">*</span></label>
+                <input type="text" id="title" name="title" required class="input input-bordered w-full max-w-md">
+                <label class="label" for="password">Content<span class="text-red-500">*</span></label>
+                <textarea id="content" name="content" required class="textarea textarea-bordered"></textarea>
+                <input type="submit" value="Create" class="btn">
+            </form>
+        {% endif %}
+    </div>
+{% endblock %}

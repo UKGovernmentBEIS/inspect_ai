@@ -1,0 +1,4 @@
+services:
+  default:
+    image: agent-environment:1.0.0
+    init: true
