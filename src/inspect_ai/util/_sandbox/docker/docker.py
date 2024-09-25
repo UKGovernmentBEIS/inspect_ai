@@ -123,6 +123,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             await compose_check_running(list(services.keys()), project=project)
 
             # create sandbox environments
+            default_service: str | None = None
             environments: dict[str, SandboxEnvironment] = {}
             for service, service_info in services.items():
                 # update the project w/ the working directory
@@ -131,18 +132,27 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 # create the docker sandbox environemnt
                 docker_env = DockerSandboxEnvironment(service, project, working_dir)
 
-                # save reference to environment (mark as default if requested)
-                is_default = service_info.get("x-default", False) is True
-                key = "default" if is_default else service
-                environments[key] = docker_env
+                # save reference to default service if requested
+                if service_info.get("x-default", False):
+                    default_service = service
+
+                # record service => environment
+                environments[service] = docker_env
 
             # confirm that we have a 'default' environemnt
-            if environments.get("default", None) is None:
+            if environments.get("default", None) is None and default_service is None:
                 raise RuntimeError(
                     "No 'default' service found in Docker compose file. "
                     + "You should either name a service 'default' or add "
                     + "'x-default: true' to one of your service definitions."
                 )
+
+            # ensure that the default service is first in the dictionary
+            default_service = default_service or "default"
+            default_environment = environments[default_service]
+            del environments[default_service]
+            environments = {default_service: default_environment} | environments
+
         except BaseException as ex:
             await project_cleanup(project, True)
             raise ex
