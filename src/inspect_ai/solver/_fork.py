@@ -1,11 +1,11 @@
 import asyncio
 from contextvars import ContextVar
 from copy import deepcopy
-from typing import cast
+from typing import Any, cast
 
 from typing_extensions import overload
 
-from inspect_ai._util.registry import registry_log_name
+from inspect_ai._util.registry import registry_log_name, registry_params
 from inspect_ai.util._subtask import subtask
 
 from ._chain import Chain
@@ -60,9 +60,15 @@ async def solver_subtask(state: TaskState, solver: Solver) -> TaskState:
     # create a subtask so we get an independent store and transcript
     from ._transcript import solver_transcript
 
-    name = "chain" if isinstance(solver, Chain) else registry_log_name(solver)
+    # derive name and input
+    if isinstance(solver, Chain):
+        name = "chain"
+        input: dict[str, Any] = {}
+    else:
+        name = registry_log_name(solver)
+        input = registry_params(solver)
 
-    @subtask(name=name, store=state.store, type="fork")  # type: ignore
+    @subtask(name=name, store=state.store, type="fork", input=input)  # type: ignore
     async def solve() -> TaskState:
         if not isinstance(solver, Chain):
             with solver_transcript(solver, state) as st:
