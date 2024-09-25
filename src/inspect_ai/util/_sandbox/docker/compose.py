@@ -261,8 +261,6 @@ async def compose_command(
     # build final command
     compose_command = compose_command + command
 
-    print(compose_command)
-
     # Execute the command
     sandbox_log(f"compose command: {compose_command}")
     result = await subprocess(
