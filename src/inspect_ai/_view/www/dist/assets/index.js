@@ -7757,6 +7757,7 @@ const ApplicationIcons = {
   error: "bi bi-exclamation-circle",
   "expand-all": "bi bi-arrows-expand",
   "expand-down": "bi bi-chevron-down",
+  fork: "bi bi-signpost-split",
   info: "bi bi-info-circle",
   input: "bi bi-terminal",
   inspect: "bi bi-gear",
@@ -15949,16 +15950,39 @@ const stepDescriptor = (event) => {
     }
   }
 };
-const SubtaskEventView = ({ id, event, style, depth }) => {
+const SubtaskEventView = ({
+  id,
+  event,
+  style,
+  depth
+}) => {
+  const transcript = event.events.length > 0 ? m$1`<${TranscriptView}
+          id="${id}-subtask"
+          name="Transcript"
+          events=${event.events}
+          depth=${depth + 1}
+        />` : "";
+  const body = event.type === "fork" ? m$1`
+          <div title="Summary" style=${{ width: "100%", margin: "0.5em 0em" }}>
+            <div style=${{ ...TextStyle.label }}>Inputs</div>
+            <div style=${{ marginBottom: "1em" }}>
+              <${Rendered} values=${event.input} />
+            </div>
+            <div style=${{ ...TextStyle.label }}>Transcript</div>
+            ${transcript}
+          </div>
+        ` : m$1`
+          <${SubtaskSummary}
+            name="Summary"
+            input=${event.input}
+            result=${event.result}
+          />
+          ${transcript}
+        `;
+  const type = event.type === "fork" ? "Fork" : "Subtask";
   return m$1`
-    <${EventPanel} id=${id} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask} style=${style} collapse=${false}>
-      <${SubtaskSummary} name="Summary"  input=${event.input} result=${event.result}/>
-      ${event.events.length > 0 ? m$1`<${TranscriptView}
-              id="${id}-subtask"
-              name="Transcript"
-              events=${event.events}
-              depth=${depth + 1}
-            />` : ""}
+    <${EventPanel} id=${id} title="${type}: ${event.name}" style=${style} collapse=${false}>
+      ${body}
     </${EventPanel}>`;
 };
 const SubtaskSummary = ({ input, result }) => {

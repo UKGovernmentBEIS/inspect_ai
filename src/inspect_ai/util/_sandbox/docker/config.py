@@ -15,7 +15,7 @@ CONFIG_FILES = [
 ]
 
 
-async def resolve_compose_file(parent: str = "") -> str | None:
+async def resolve_compose_file(parent: str = "") -> str:
     # existing compose file provides all the config we need
     compose = find_compose_file(parent)
     if compose is not None:
