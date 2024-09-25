@@ -12,20 +12,18 @@ import { StateDiffView } from "./StateDiffView.mjs";
  * @param { string  } props.id - The id of this event.
  * @param {import("../../../types/log").StateEvent } props.event - The event object to display.
  * @param { Object } props.style - The style of this event.
- * @param {import("../Types.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const StateEventView = ({ id, event, style, stateManager }) => {
-  const startingState = stateManager.getState();
-  stateManager.applyChanges(event.changes);
-  const resolvedState = stateManager.getState();
-
+export const StateEventView = ({ id, event, style }) => {
   const summary = summarizeChanges(event.changes);
+
+  // Synthesize objects for comparison
+  const [before, after] = synthesizeComparable(event.changes);
 
   const tabs = [
     html`<${StateDiffView}
-      starting=${startingState}
-      ending=${resolvedState}
+      before=${before}
+      after=${after}
       name="Diff"
       style=${{ margin: "1em 0em" }}
     />`,
@@ -33,10 +31,7 @@ export const StateEventView = ({ id, event, style, stateManager }) => {
   // This clone is important since the state is used by preact as potential values that are rendered
   // and as a result may be decorated with additional properties, etc..., resulting in DOM elements
   // appearing attached to state.
-  const changePreview = generatePreview(
-    event.changes,
-    structuredClone(resolvedState),
-  );
+  const changePreview = generatePreview(event.changes, structuredClone(after));
   if (changePreview) {
     tabs.unshift(
       html`<div name="Summary" style=${{ margin: "1em 0em", width: "100%" }}>
@@ -136,3 +131,146 @@ const summarizeChanges = (changes) => {
   }
   return changeList.join(", ");
 };
+
+/**
+ * Renders a view displaying a list of state changes.
+ *
+ * @param {import("../../../types/log").Changes} changes - The list of changes to be displayed.
+ * @returns {[Object, Object]} The before and after objects
+ */
+const synthesizeComparable = (changes) => {
+  const before = {};
+  const after = {};
+
+  for (const change of changes) {
+    switch (change.op) {
+      case "add":
+        // 'Fill in' arrays with empty strings to ensure there is no unnecessary diff
+        initializeArrays(before, change.path);
+        initializeArrays(after, change.path);
+        setPath(after, change.path, change.value);
+        break;
+      case "copy":
+        setPath(before, change.path, change.value);
+        setPath(after, change.path, change.value);
+        break;
+      case "move":
+        setPath(before, change.from, change.value);
+        setPath(after, change.path, change.value);
+        break;
+      case "remove":
+        setPath(before, change.path, change.value);
+        break;
+      case "replace":
+        setPath(before, change.path, change.replaced);
+        setPath(after, change.path, change.value);
+        break;
+      case "test":
+        break;
+    }
+  }
+  return [before, after];
+};
+
+/**
+ * Sets a value at a path in an object
+ *
+ * @param {Object} target - The object into which to set the path
+ * @param {string} path - The path of the value to set
+ * @param {unknown} value - The value to set
+ * @returns {Object} The mutated object
+ */
+function setPath(target, path, value) {
+  const keys = parsePath(path);
+  let current = target;
+
+  for (let i = 0; i < keys.length - 1; i++) {
+    const key = keys[i];
+    if (!(key in current)) {
+      // If the next key is a number, create an array, otherwise an object
+      current[key] = isArrayIndex(keys[i + 1]) ? [] : {};
+    }
+    current = current[key];
+  }
+
+  const lastKey = keys[keys.length - 1];
+  current[lastKey] = value;
+}
+
+/**
+ * Places structure in an object (without placing values)
+ *
+ * @param {Object} target - The object into which to initialize the path
+ * @param {string} path - The path of the value to set
+ * @returns {Object} The mutated object
+ */
+function initializeArrays(target, path) {
+  const keys = parsePath(path);
+  let current = target;
+
+  for (let i = 0; i < keys.length - 1; i++) {
+    const key = keys[i];
+    const nextKey = keys[i + 1];
+
+    if (isArrayIndex(nextKey)) {
+      current[key] = initializeArray(current[key], nextKey);
+    } else {
+      current[key] = initializeObject(current[key]);
+    }
+
+    current = current[key];
+  }
+
+  const lastKey = keys[keys.length - 1];
+  if (isArrayIndex(lastKey)) {
+    initializeArray(current, lastKey);
+  }
+}
+
+/**
+ * Parses a path into an array of keys
+ *
+ * @param {string} path - The path to split
+ * @returns {string[]} Array of keys
+ */
+function parsePath(path) {
+  return path.split("/").filter(Boolean);
+}
+
+/**
+ * Checks if a key represents an array index
+ *
+ * @param {string} key - The key to check
+ * @returns {boolean} True if the key is a number
+ */
+function isArrayIndex(key) {
+  return /^\d+$/.test(key);
+}
+
+/**
+ * Initializes an array at a given key, ensuring it is large enough
+ *
+ * @param {Array|undefined} current - The current array or undefined
+ * @param {string} nextKey - The key of the next array index
+ * @returns {Array} Initialized array
+ */
+function initializeArray(current, nextKey) {
+  if (!Array.isArray(current)) {
+    current = [];
+  }
+  const nextKeyIndex = parseInt(nextKey, 10);
+  while (current.length < nextKeyIndex) {
+    current.push("");
+  }
+  return current;
+}
+
+/**
+ * Initializes an object at a given key if it doesn't exist
+ *
+ * @param {Object|undefined} current - The current object or undefined
+ * @returns {Object} Initialized object
+ */
+function initializeObject(current) {
+  return current ?? {};
+}

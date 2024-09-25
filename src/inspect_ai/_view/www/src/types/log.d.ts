@@ -669,6 +669,9 @@ export interface JsonChange {
   value: {
     [k: string]: unknown;
   };
+  replaced: {
+    [k: string]: unknown;
+  };
 }
 /**
  * Change to data within the current `Store`.

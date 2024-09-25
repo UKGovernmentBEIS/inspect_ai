@@ -424,7 +424,7 @@ var prism = { exports: {} };
          * @returns {T}
          * @template T
          */
-        clone: function deepClone2(o2, visited) {
+        clone: function deepClone(o2, visited) {
           visited = visited || {};
           var clone2;
           var id;
@@ -439,7 +439,7 @@ var prism = { exports: {} };
               visited[id] = clone2;
               for (var key2 in o2) {
                 if (o2.hasOwnProperty(key2)) {
-                  clone2[key2] = deepClone2(o2[key2], visited);
+                  clone2[key2] = deepClone(o2[key2], visited);
                 }
               }
               return (
@@ -456,7 +456,7 @@ var prism = { exports: {} };
               /** @type {Array} */
               /** @type {any} */
               o2.forEach(function(v2, i2) {
-                clone2[i2] = deepClone2(v2, visited);
+                clone2[i2] = deepClone(v2, visited);
               });
               return (
                 /** @type {any} */
@@ -14086,9 +14086,8 @@ const EventSection = ({ title, style, children }) => {
     ${children}
   </div>`;
 };
-const SampleInitEventView = ({ id, event, style, stateManager }) => {
+const SampleInitEventView = ({ id, event, style }) => {
   const stateObj = event.state;
-  stateManager.initializeState(stateObj);
   const sections = [];
   if (event.sample.files && Object.keys(event.sample.files).length > 0) {
     sections.push(m$1`<${EventSection} title="Files">
@@ -14961,7 +14960,7 @@ const diffFilter$2 = function arraysDiffFilter(context) {
   context.setResult(result).exit();
 };
 diffFilter$2.filterName = "arrays";
-const compare$1 = {
+const compare = {
   numerically(a2, b2) {
     return a2 - b2;
   },
@@ -15009,7 +15008,7 @@ const patchFilter$1 = function nestedPatchFilter2(context) {
       }
     }
   }
-  toRemove = toRemove.sort(compare$1.numerically);
+  toRemove = toRemove.sort(compare.numerically);
   for (index = toRemove.length - 1; index >= 0; index--) {
     index1 = toRemove[index];
     const indexDiff = delta[`_${index1}`];
@@ -15021,7 +15020,7 @@ const patchFilter$1 = function nestedPatchFilter2(context) {
       });
     }
   }
-  toInsert = toInsert.sort(compare$1.numericallyBy("index"));
+  toInsert = toInsert.sort(compare.numericallyBy("index"));
   const toInsertLength = toInsert.length;
   for (index = 0; index < toInsertLength; index++) {
     const insertion = toInsert[index];
@@ -15665,9 +15664,9 @@ function format(delta, left2) {
   }
   return defaultInstance.format(delta, left2);
 }
-const StateDiffView = ({ starting, ending, style }) => {
-  const changes = diff(starting, ending);
-  const html_result = format(changes) || "Unable to render differences";
+const StateDiffView = ({ before, after, style }) => {
+  const state_diff = diff(before, after);
+  const html_result = format(state_diff) || "Unable to render differences";
   return m$1`<div
     dangerouslySetInnerHTML=${{ __html: unescapeNewlines(html_result) }}
     style=${{ ...style }}
@@ -15683,23 +15682,18 @@ function unescapeNewlines(obj) {
   }
   return obj;
 }
-const StateEventView = ({ id, event, style, stateManager }) => {
-  const startingState = stateManager.getState();
-  stateManager.applyChanges(event.changes);
-  const resolvedState = stateManager.getState();
+const StateEventView = ({ id, event, style }) => {
   const summary = summarizeChanges(event.changes);
+  const [before, after] = synthesizeComparable(event.changes);
   const tabs = [
     m$1`<${StateDiffView}
-      starting=${startingState}
-      ending=${resolvedState}
+      before=${before}
+      after=${after}
       name="Diff"
       style=${{ margin: "1em 0em" }}
     />`
   ];
-  const changePreview = generatePreview(
-    event.changes,
-    structuredClone(resolvedState)
-  );
+  const changePreview = generatePreview(event.changes, structuredClone(after));
   if (changePreview) {
     tabs.unshift(
       m$1`<div name="Summary" style=${{ margin: "1em 0em", width: "100%" }}>
@@ -15767,13 +15761,86 @@ const summarizeChanges = (changes) => {
   }
   return changeList.join(", ");
 };
-const StepEventView = ({
-  event,
-  children,
-  style,
-  stateManager,
-  storeManager
-}) => {
+const synthesizeComparable = (changes) => {
+  const before = {};
+  const after = {};
+  for (const change of changes) {
+    switch (change.op) {
+      case "add":
+        initializeArrays(before, change.path);
+        initializeArrays(after, change.path);
+        setPath(after, change.path, change.value);
+        break;
+      case "copy":
+        setPath(before, change.path, change.value);
+        setPath(after, change.path, change.value);
+        break;
+      case "move":
+        setPath(before, change.from, change.value);
+        setPath(after, change.path, change.value);
+        break;
+      case "remove":
+        setPath(before, change.path, change.value);
+        break;
+      case "replace":
+        setPath(before, change.path, change.replaced);
+        setPath(after, change.path, change.value);
+        break;
+    }
+  }
+  return [before, after];
+};
+function setPath(target, path, value) {
+  const keys = parsePath(path);
+  let current = target;
+  for (let i2 = 0; i2 < keys.length - 1; i2++) {
+    const key2 = keys[i2];
+    if (!(key2 in current)) {
+      current[key2] = isArrayIndex(keys[i2 + 1]) ? [] : {};
+    }
+    current = current[key2];
+  }
+  const lastKey = keys[keys.length - 1];
+  current[lastKey] = value;
+}
+function initializeArrays(target, path) {
+  const keys = parsePath(path);
+  let current = target;
+  for (let i2 = 0; i2 < keys.length - 1; i2++) {
+    const key2 = keys[i2];
+    const nextKey = keys[i2 + 1];
+    if (isArrayIndex(nextKey)) {
+      current[key2] = initializeArray(current[key2], nextKey);
+    } else {
+      current[key2] = initializeObject(current[key2]);
+    }
+    current = current[key2];
+  }
+  const lastKey = keys[keys.length - 1];
+  if (isArrayIndex(lastKey)) {
+    initializeArray(current, lastKey);
+  }
+}
+function parsePath(path) {
+  return path.split("/").filter(Boolean);
+}
+function isArrayIndex(key2) {
+  return /^\d+$/.test(key2);
+}
+function initializeArray(current, nextKey) {
+  if (!Array.isArray(current)) {
+    current = [];
+  }
+  const nextKeyIndex = parseInt(nextKey, 10);
+  while (current.length < nextKeyIndex) {
+    current.push("");
+  }
+  return current;
+}
+function initializeObject(current) {
+  return current ?? {};
+}
+const StepEventView = ({ event, children, style }) => {
   const descriptor = stepDescriptor(event);
   const title = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
   const text = summarize(children);
@@ -15790,8 +15857,6 @@ const StepEventView = ({
     <${TranscriptComponent}
       id=${`step-${event.name}-transcript`}
       eventNodes=${children}
-      stateManager=${stateManager}
-      storeManager=${storeManager}
     />
   </EventPanel>
   `;
@@ -15889,16 +15954,12 @@ const SubtaskEventView = ({
   id,
   event,
   style,
-  stateManager,
-  storeManager,
   depth
 }) => {
   const transcript = event.events.length > 0 ? m$1`<${TranscriptView}
           id="${id}-subtask"
           name="Transcript"
           events=${event.events}
-          stateManager=${stateManager}
-          storeManager=${storeManager}
           depth=${depth + 1}
         />` : "";
   const body = event.type === "fork" ? m$1`
@@ -16394,14 +16455,7 @@ const ScoreEventView = ({ id, event, style }) => {
 
   </${EventPanel}>`;
 };
-const ToolEventView = ({
-  id,
-  event,
-  style,
-  stateManager,
-  storeManager,
-  depth
-}) => {
+const ToolEventView = ({ id, event, style, depth }) => {
   var _a;
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
@@ -16433,8 +16487,6 @@ const ToolEventView = ({
                 id="${id}-subtask"
                 name="Transcript"
                 events=${event.events}
-                stateManager=${stateManager}
-                storeManager=${storeManager}
                 depth=${depth + 1}
               />` : ""}
 
@@ -16465,719 +16517,12 @@ class EventNode {
     this.depth = depth;
   }
 }
-/*!
- * https://github.com/Starcounter-Jack/JSON-Patch
- * (c) 2017-2022 Joachim Wester
- * MIT licensed
- */
-var __extends = /* @__PURE__ */ function() {
-  var extendStatics = function(d2, b2) {
-    extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d3, b3) {
-      d3.__proto__ = b3;
-    } || function(d3, b3) {
-      for (var p2 in b3) if (b3.hasOwnProperty(p2)) d3[p2] = b3[p2];
-    };
-    return extendStatics(d2, b2);
-  };
-  return function(d2, b2) {
-    extendStatics(d2, b2);
-    function __() {
-      this.constructor = d2;
-    }
-    d2.prototype = b2 === null ? Object.create(b2) : (__.prototype = b2.prototype, new __());
-  };
-}();
-var _hasOwnProperty = Object.prototype.hasOwnProperty;
-function hasOwnProperty(obj, key2) {
-  return _hasOwnProperty.call(obj, key2);
-}
-function _objectKeys(obj) {
-  if (Array.isArray(obj)) {
-    var keys_1 = new Array(obj.length);
-    for (var k2 = 0; k2 < keys_1.length; k2++) {
-      keys_1[k2] = "" + k2;
-    }
-    return keys_1;
-  }
-  if (Object.keys) {
-    return Object.keys(obj);
-  }
-  var keys = [];
-  for (var i2 in obj) {
-    if (hasOwnProperty(obj, i2)) {
-      keys.push(i2);
-    }
-  }
-  return keys;
-}
-function _deepClone(obj) {
-  switch (typeof obj) {
-    case "object":
-      return JSON.parse(JSON.stringify(obj));
-    case "undefined":
-      return null;
-    default:
-      return obj;
-  }
-}
-function isInteger(str) {
-  var i2 = 0;
-  var len = str.length;
-  var charCode;
-  while (i2 < len) {
-    charCode = str.charCodeAt(i2);
-    if (charCode >= 48 && charCode <= 57) {
-      i2++;
-      continue;
-    }
-    return false;
-  }
-  return true;
-}
-function escapePathComponent(path) {
-  if (path.indexOf("/") === -1 && path.indexOf("~") === -1)
-    return path;
-  return path.replace(/~/g, "~0").replace(/\//g, "~1");
-}
-function unescapePathComponent(path) {
-  return path.replace(/~1/g, "/").replace(/~0/g, "~");
-}
-function hasUndefined(obj) {
-  if (obj === void 0) {
-    return true;
-  }
-  if (obj) {
-    if (Array.isArray(obj)) {
-      for (var i_1 = 0, len = obj.length; i_1 < len; i_1++) {
-        if (hasUndefined(obj[i_1])) {
-          return true;
-        }
-      }
-    } else if (typeof obj === "object") {
-      var objKeys = _objectKeys(obj);
-      var objKeysLength = objKeys.length;
-      for (var i2 = 0; i2 < objKeysLength; i2++) {
-        if (hasUndefined(obj[objKeys[i2]])) {
-          return true;
-        }
-      }
-    }
-  }
-  return false;
-}
-function patchErrorMessageFormatter(message, args) {
-  var messageParts = [message];
-  for (var key2 in args) {
-    var value = typeof args[key2] === "object" ? JSON.stringify(args[key2], null, 2) : args[key2];
-    if (typeof value !== "undefined") {
-      messageParts.push(key2 + ": " + value);
-    }
-  }
-  return messageParts.join("\n");
-}
-var PatchError = (
-  /** @class */
-  function(_super) {
-    __extends(PatchError2, _super);
-    function PatchError2(message, name, index, operation, tree) {
-      var _newTarget = this.constructor;
-      var _this = _super.call(this, patchErrorMessageFormatter(message, { name, index, operation, tree })) || this;
-      _this.name = name;
-      _this.index = index;
-      _this.operation = operation;
-      _this.tree = tree;
-      Object.setPrototypeOf(_this, _newTarget.prototype);
-      _this.message = patchErrorMessageFormatter(message, { name, index, operation, tree });
-      return _this;
-    }
-    return PatchError2;
-  }(Error)
-);
-var JsonPatchError = PatchError;
-var deepClone = _deepClone;
-var objOps = {
-  add: function(obj, key2, document2) {
-    obj[key2] = this.value;
-    return { newDocument: document2 };
-  },
-  remove: function(obj, key2, document2) {
-    var removed = obj[key2];
-    delete obj[key2];
-    return { newDocument: document2, removed };
-  },
-  replace: function(obj, key2, document2) {
-    var removed = obj[key2];
-    obj[key2] = this.value;
-    return { newDocument: document2, removed };
-  },
-  move: function(obj, key2, document2) {
-    var removed = getValueByPointer(document2, this.path);
-    if (removed) {
-      removed = _deepClone(removed);
-    }
-    var originalValue = applyOperation(document2, { op: "remove", path: this.from }).removed;
-    applyOperation(document2, { op: "add", path: this.path, value: originalValue });
-    return { newDocument: document2, removed };
-  },
-  copy: function(obj, key2, document2) {
-    var valueToCopy = getValueByPointer(document2, this.from);
-    applyOperation(document2, { op: "add", path: this.path, value: _deepClone(valueToCopy) });
-    return { newDocument: document2 };
-  },
-  test: function(obj, key2, document2) {
-    return { newDocument: document2, test: _areEquals(obj[key2], this.value) };
-  },
-  _get: function(obj, key2, document2) {
-    this.value = obj[key2];
-    return { newDocument: document2 };
-  }
-};
-var arrOps = {
-  add: function(arr, i2, document2) {
-    if (isInteger(i2)) {
-      arr.splice(i2, 0, this.value);
-    } else {
-      arr[i2] = this.value;
-    }
-    return { newDocument: document2, index: i2 };
-  },
-  remove: function(arr, i2, document2) {
-    var removedList = arr.splice(i2, 1);
-    return { newDocument: document2, removed: removedList[0] };
-  },
-  replace: function(arr, i2, document2) {
-    var removed = arr[i2];
-    arr[i2] = this.value;
-    return { newDocument: document2, removed };
-  },
-  move: objOps.move,
-  copy: objOps.copy,
-  test: objOps.test,
-  _get: objOps._get
-};
-function getValueByPointer(document2, pointer) {
-  if (pointer == "") {
-    return document2;
-  }
-  var getOriginalDestination = { op: "_get", path: pointer };
-  applyOperation(document2, getOriginalDestination);
-  return getOriginalDestination.value;
-}
-function applyOperation(document2, operation, validateOperation, mutateDocument, banPrototypeModifications, index) {
-  if (validateOperation === void 0) {
-    validateOperation = false;
-  }
-  if (mutateDocument === void 0) {
-    mutateDocument = true;
-  }
-  if (banPrototypeModifications === void 0) {
-    banPrototypeModifications = true;
-  }
-  if (index === void 0) {
-    index = 0;
-  }
-  if (validateOperation) {
-    if (typeof validateOperation == "function") {
-      validateOperation(operation, 0, document2, operation.path);
-    } else {
-      validator(operation, 0);
-    }
-  }
-  if (operation.path === "") {
-    var returnValue = { newDocument: document2 };
-    if (operation.op === "add") {
-      returnValue.newDocument = operation.value;
-      return returnValue;
-    } else if (operation.op === "replace") {
-      returnValue.newDocument = operation.value;
-      returnValue.removed = document2;
-      return returnValue;
-    } else if (operation.op === "move" || operation.op === "copy") {
-      returnValue.newDocument = getValueByPointer(document2, operation.from);
-      if (operation.op === "move") {
-        returnValue.removed = document2;
-      }
-      return returnValue;
-    } else if (operation.op === "test") {
-      returnValue.test = _areEquals(document2, operation.value);
-      if (returnValue.test === false) {
-        throw new JsonPatchError("Test operation failed", "TEST_OPERATION_FAILED", index, operation, document2);
-      }
-      returnValue.newDocument = document2;
-      return returnValue;
-    } else if (operation.op === "remove") {
-      returnValue.removed = document2;
-      returnValue.newDocument = null;
-      return returnValue;
-    } else if (operation.op === "_get") {
-      operation.value = document2;
-      return returnValue;
-    } else {
-      if (validateOperation) {
-        throw new JsonPatchError("Operation `op` property is not one of operations defined in RFC-6902", "OPERATION_OP_INVALID", index, operation, document2);
-      } else {
-        return returnValue;
-      }
-    }
-  } else {
-    if (!mutateDocument) {
-      document2 = _deepClone(document2);
-    }
-    var path = operation.path || "";
-    var keys = path.split("/");
-    var obj = document2;
-    var t2 = 1;
-    var len = keys.length;
-    var existingPathFragment = void 0;
-    var key2 = void 0;
-    var validateFunction = void 0;
-    if (typeof validateOperation == "function") {
-      validateFunction = validateOperation;
-    } else {
-      validateFunction = validator;
-    }
-    while (true) {
-      key2 = keys[t2];
-      if (key2 && key2.indexOf("~") != -1) {
-        key2 = unescapePathComponent(key2);
-      }
-      if (banPrototypeModifications && (key2 == "__proto__" || key2 == "prototype" && t2 > 0 && keys[t2 - 1] == "constructor")) {
-        throw new TypeError("JSON-Patch: modifying `__proto__` or `constructor/prototype` prop is banned for security reasons, if this was on purpose, please set `banPrototypeModifications` flag false and pass it to this function. More info in fast-json-patch README");
-      }
-      if (validateOperation) {
-        if (existingPathFragment === void 0) {
-          if (obj[key2] === void 0) {
-            existingPathFragment = keys.slice(0, t2).join("/");
-          } else if (t2 == len - 1) {
-            existingPathFragment = operation.path;
-          }
-          if (existingPathFragment !== void 0) {
-            validateFunction(operation, 0, document2, existingPathFragment);
-          }
-        }
-      }
-      t2++;
-      if (Array.isArray(obj)) {
-        if (key2 === "-") {
-          key2 = obj.length;
-        } else {
-          if (validateOperation && !isInteger(key2)) {
-            throw new JsonPatchError("Expected an unsigned base-10 integer value, making the new referenced value the array element with the zero-based index", "OPERATION_PATH_ILLEGAL_ARRAY_INDEX", index, operation, document2);
-          } else if (isInteger(key2)) {
-            key2 = ~~key2;
-          }
-        }
-        if (t2 >= len) {
-          if (validateOperation && operation.op === "add" && key2 > obj.length) {
-            throw new JsonPatchError("The specified index MUST NOT be greater than the number of elements in the array", "OPERATION_VALUE_OUT_OF_BOUNDS", index, operation, document2);
-          }
-          var returnValue = arrOps[operation.op].call(operation, obj, key2, document2);
-          if (returnValue.test === false) {
-            throw new JsonPatchError("Test operation failed", "TEST_OPERATION_FAILED", index, operation, document2);
-          }
-          return returnValue;
-        }
-      } else {
-        if (t2 >= len) {
-          var returnValue = objOps[operation.op].call(operation, obj, key2, document2);
-          if (returnValue.test === false) {
-            throw new JsonPatchError("Test operation failed", "TEST_OPERATION_FAILED", index, operation, document2);
-          }
-          return returnValue;
-        }
-      }
-      obj = obj[key2];
-      if (validateOperation && t2 < len && (!obj || typeof obj !== "object")) {
-        throw new JsonPatchError("Cannot perform operation at the desired path", "OPERATION_PATH_UNRESOLVABLE", index, operation, document2);
-      }
-    }
-  }
-}
-function applyPatch(document2, patch, validateOperation, mutateDocument, banPrototypeModifications) {
-  if (mutateDocument === void 0) {
-    mutateDocument = true;
-  }
-  if (banPrototypeModifications === void 0) {
-    banPrototypeModifications = true;
-  }
-  if (validateOperation) {
-    if (!Array.isArray(patch)) {
-      throw new JsonPatchError("Patch sequence must be an array", "SEQUENCE_NOT_AN_ARRAY");
-    }
-  }
-  if (!mutateDocument) {
-    document2 = _deepClone(document2);
-  }
-  var results = new Array(patch.length);
-  for (var i2 = 0, length_1 = patch.length; i2 < length_1; i2++) {
-    results[i2] = applyOperation(document2, patch[i2], validateOperation, true, banPrototypeModifications, i2);
-    document2 = results[i2].newDocument;
-  }
-  results.newDocument = document2;
-  return results;
-}
-function applyReducer(document2, operation, index) {
-  var operationResult = applyOperation(document2, operation);
-  if (operationResult.test === false) {
-    throw new JsonPatchError("Test operation failed", "TEST_OPERATION_FAILED", index, operation, document2);
-  }
-  return operationResult.newDocument;
-}
-function validator(operation, index, document2, existingPathFragment) {
-  if (typeof operation !== "object" || operation === null || Array.isArray(operation)) {
-    throw new JsonPatchError("Operation is not an object", "OPERATION_NOT_AN_OBJECT", index, operation, document2);
-  } else if (!objOps[operation.op]) {
-    throw new JsonPatchError("Operation `op` property is not one of operations defined in RFC-6902", "OPERATION_OP_INVALID", index, operation, document2);
-  } else if (typeof operation.path !== "string") {
-    throw new JsonPatchError("Operation `path` property is not a string", "OPERATION_PATH_INVALID", index, operation, document2);
-  } else if (operation.path.indexOf("/") !== 0 && operation.path.length > 0) {
-    throw new JsonPatchError('Operation `path` property must start with "/"', "OPERATION_PATH_INVALID", index, operation, document2);
-  } else if ((operation.op === "move" || operation.op === "copy") && typeof operation.from !== "string") {
-    throw new JsonPatchError("Operation `from` property is not present (applicable in `move` and `copy` operations)", "OPERATION_FROM_REQUIRED", index, operation, document2);
-  } else if ((operation.op === "add" || operation.op === "replace" || operation.op === "test") && operation.value === void 0) {
-    throw new JsonPatchError("Operation `value` property is not present (applicable in `add`, `replace` and `test` operations)", "OPERATION_VALUE_REQUIRED", index, operation, document2);
-  } else if ((operation.op === "add" || operation.op === "replace" || operation.op === "test") && hasUndefined(operation.value)) {
-    throw new JsonPatchError("Operation `value` property is not present (applicable in `add`, `replace` and `test` operations)", "OPERATION_VALUE_CANNOT_CONTAIN_UNDEFINED", index, operation, document2);
-  } else if (document2) {
-    if (operation.op == "add") {
-      var pathLen = operation.path.split("/").length;
-      var existingPathLen = existingPathFragment.split("/").length;
-      if (pathLen !== existingPathLen + 1 && pathLen !== existingPathLen) {
-        throw new JsonPatchError("Cannot perform an `add` operation at the desired path", "OPERATION_PATH_CANNOT_ADD", index, operation, document2);
-      }
-    } else if (operation.op === "replace" || operation.op === "remove" || operation.op === "_get") {
-      if (operation.path !== existingPathFragment) {
-        throw new JsonPatchError("Cannot perform the operation at a path that does not exist", "OPERATION_PATH_UNRESOLVABLE", index, operation, document2);
-      }
-    } else if (operation.op === "move" || operation.op === "copy") {
-      var existingValue = { op: "_get", path: operation.from, value: void 0 };
-      var error = validate([existingValue], document2);
-      if (error && error.name === "OPERATION_PATH_UNRESOLVABLE") {
-        throw new JsonPatchError("Cannot perform the operation from a path that does not exist", "OPERATION_FROM_UNRESOLVABLE", index, operation, document2);
-      }
-    }
-  }
-}
-function validate(sequence, document2, externalValidator) {
-  try {
-    if (!Array.isArray(sequence)) {
-      throw new JsonPatchError("Patch sequence must be an array", "SEQUENCE_NOT_AN_ARRAY");
-    }
-    if (document2) {
-      applyPatch(_deepClone(document2), _deepClone(sequence), externalValidator || true);
-    } else {
-      externalValidator = externalValidator || validator;
-      for (var i2 = 0; i2 < sequence.length; i2++) {
-        externalValidator(sequence[i2], i2, document2, void 0);
-      }
-    }
-  } catch (e2) {
-    if (e2 instanceof JsonPatchError) {
-      return e2;
-    } else {
-      throw e2;
-    }
-  }
-}
-function _areEquals(a2, b2) {
-  if (a2 === b2)
-    return true;
-  if (a2 && b2 && typeof a2 == "object" && typeof b2 == "object") {
-    var arrA = Array.isArray(a2), arrB = Array.isArray(b2), i2, length, key2;
-    if (arrA && arrB) {
-      length = a2.length;
-      if (length != b2.length)
-        return false;
-      for (i2 = length; i2-- !== 0; )
-        if (!_areEquals(a2[i2], b2[i2]))
-          return false;
-      return true;
-    }
-    if (arrA != arrB)
-      return false;
-    var keys = Object.keys(a2);
-    length = keys.length;
-    if (length !== Object.keys(b2).length)
-      return false;
-    for (i2 = length; i2-- !== 0; )
-      if (!b2.hasOwnProperty(keys[i2]))
-        return false;
-    for (i2 = length; i2-- !== 0; ) {
-      key2 = keys[i2];
-      if (!_areEquals(a2[key2], b2[key2]))
-        return false;
-    }
-    return true;
-  }
-  return a2 !== a2 && b2 !== b2;
-}
-const core = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-  __proto__: null,
-  JsonPatchError,
-  _areEquals,
-  applyOperation,
-  applyPatch,
-  applyReducer,
-  deepClone,
-  getValueByPointer,
-  validate,
-  validator
-}, Symbol.toStringTag, { value: "Module" }));
-/*!
- * https://github.com/Starcounter-Jack/JSON-Patch
- * (c) 2017-2021 Joachim Wester
- * MIT license
- */
-var beforeDict = /* @__PURE__ */ new WeakMap();
-var Mirror = (
-  /** @class */
-  /* @__PURE__ */ function() {
-    function Mirror2(obj) {
-      this.observers = /* @__PURE__ */ new Map();
-      this.obj = obj;
-    }
-    return Mirror2;
-  }()
-);
-var ObserverInfo = (
-  /** @class */
-  /* @__PURE__ */ function() {
-    function ObserverInfo2(callback, observer) {
-      this.callback = callback;
-      this.observer = observer;
-    }
-    return ObserverInfo2;
-  }()
-);
-function getMirror(obj) {
-  return beforeDict.get(obj);
-}
-function getObserverFromMirror(mirror, callback) {
-  return mirror.observers.get(callback);
-}
-function removeObserverFromMirror(mirror, observer) {
-  mirror.observers.delete(observer.callback);
-}
-function unobserve(root2, observer) {
-  observer.unobserve();
-}
-function observe(obj, callback) {
-  var patches = [];
-  var observer;
-  var mirror = getMirror(obj);
-  if (!mirror) {
-    mirror = new Mirror(obj);
-    beforeDict.set(obj, mirror);
-  } else {
-    var observerInfo = getObserverFromMirror(mirror, callback);
-    observer = observerInfo && observerInfo.observer;
-  }
-  if (observer) {
-    return observer;
-  }
-  observer = {};
-  mirror.value = _deepClone(obj);
-  if (callback) {
-    observer.callback = callback;
-    observer.next = null;
-    var dirtyCheck = function() {
-      generate(observer);
-    };
-    var fastCheck = function() {
-      clearTimeout(observer.next);
-      observer.next = setTimeout(dirtyCheck);
-    };
-    if (typeof window !== "undefined") {
-      window.addEventListener("mouseup", fastCheck);
-      window.addEventListener("keyup", fastCheck);
-      window.addEventListener("mousedown", fastCheck);
-      window.addEventListener("keydown", fastCheck);
-      window.addEventListener("change", fastCheck);
-    }
-  }
-  observer.patches = patches;
-  observer.object = obj;
-  observer.unobserve = function() {
-    generate(observer);
-    clearTimeout(observer.next);
-    removeObserverFromMirror(mirror, observer);
-    if (typeof window !== "undefined") {
-      window.removeEventListener("mouseup", fastCheck);
-      window.removeEventListener("keyup", fastCheck);
-      window.removeEventListener("mousedown", fastCheck);
-      window.removeEventListener("keydown", fastCheck);
-      window.removeEventListener("change", fastCheck);
-    }
-  };
-  mirror.observers.set(callback, new ObserverInfo(callback, observer));
-  return observer;
-}
-function generate(observer, invertible) {
-  if (invertible === void 0) {
-    invertible = false;
-  }
-  var mirror = beforeDict.get(observer.object);
-  _generate(mirror.value, observer.object, observer.patches, "", invertible);
-  if (observer.patches.length) {
-    applyPatch(mirror.value, observer.patches);
-  }
-  var temp = observer.patches;
-  if (temp.length > 0) {
-    observer.patches = [];
-    if (observer.callback) {
-      observer.callback(temp);
-    }
-  }
-  return temp;
-}
-function _generate(mirror, obj, patches, path, invertible) {
-  if (obj === mirror) {
-    return;
-  }
-  if (typeof obj.toJSON === "function") {
-    obj = obj.toJSON();
-  }
-  var newKeys = _objectKeys(obj);
-  var oldKeys = _objectKeys(mirror);
-  var deleted = false;
-  for (var t2 = oldKeys.length - 1; t2 >= 0; t2--) {
-    var key2 = oldKeys[t2];
-    var oldVal = mirror[key2];
-    if (hasOwnProperty(obj, key2) && !(obj[key2] === void 0 && oldVal !== void 0 && Array.isArray(obj) === false)) {
-      var newVal = obj[key2];
-      if (typeof oldVal == "object" && oldVal != null && typeof newVal == "object" && newVal != null && Array.isArray(oldVal) === Array.isArray(newVal)) {
-        _generate(oldVal, newVal, patches, path + "/" + escapePathComponent(key2), invertible);
-      } else {
-        if (oldVal !== newVal) {
-          if (invertible) {
-            patches.push({ op: "test", path: path + "/" + escapePathComponent(key2), value: _deepClone(oldVal) });
-          }
-          patches.push({ op: "replace", path: path + "/" + escapePathComponent(key2), value: _deepClone(newVal) });
-        }
-      }
-    } else if (Array.isArray(mirror) === Array.isArray(obj)) {
-      if (invertible) {
-        patches.push({ op: "test", path: path + "/" + escapePathComponent(key2), value: _deepClone(oldVal) });
-      }
-      patches.push({ op: "remove", path: path + "/" + escapePathComponent(key2) });
-      deleted = true;
-    } else {
-      if (invertible) {
-        patches.push({ op: "test", path, value: mirror });
-      }
-      patches.push({ op: "replace", path, value: obj });
-    }
-  }
-  if (!deleted && newKeys.length == oldKeys.length) {
-    return;
-  }
-  for (var t2 = 0; t2 < newKeys.length; t2++) {
-    var key2 = newKeys[t2];
-    if (!hasOwnProperty(mirror, key2) && obj[key2] !== void 0) {
-      patches.push({ op: "add", path: path + "/" + escapePathComponent(key2), value: _deepClone(obj[key2]) });
-    }
-  }
-}
-function compare(tree1, tree2, invertible) {
-  if (invertible === void 0) {
-    invertible = false;
-  }
-  var patches = [];
-  _generate(tree1, tree2, patches, "", invertible);
-  return patches;
-}
-const duplex = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-  __proto__: null,
-  compare,
-  generate,
-  observe,
-  unobserve
-}, Symbol.toStringTag, { value: "Module" }));
-Object.assign({}, core, duplex, {
-  JsonPatchError: PatchError,
-  deepClone: _deepClone,
-  escapePathComponent,
-  unescapePathComponent
-});
-const initStateManager = (scope) => {
-  let state = {};
-  return {
-    scope,
-    /**
-     * Retrieves the current state object.
-     *
-     * @returns {Object} The current state object.
-     */
-    getState: () => {
-      return state;
-    },
-    /**
-     * Updates the current state with a new state object.
-     *
-     * @param {Object} newState - The new state object to update with.
-     */
-    initializeState: (newState) => {
-      state = newState;
-    },
-    /**
-     * Updates the current state with a new state object.
-     *
-     * @param {import("../../types/log").Changes} changes - The new state object to update with.
-     */
-    applyChanges: (changes) => {
-      try {
-        state = applyPatch(
-          structuredClone(state),
-          structuredClone(changes).map(ensureValidChange),
-          true
-        ).newDocument;
-      } catch (ex) {
-        const ops = changes.reduce((prev, change) => {
-          if (!Object.keys(prev).includes(change.op)) {
-            prev[change.op] = [];
-          }
-          prev[change.op].push(change.path);
-          return prev;
-        }, {});
-        const message = `${ex.name}
-Failed to apply patch:
-${JSON.stringify(ops, void 0, 2)}`;
-        console.error(message);
-      }
-    }
-  };
-};
-const ensureValidChange = (change) => {
-  if (change.op === "add" && !change.value) {
-    change.value = null;
-  }
-  return change;
-};
-const TranscriptView = ({
-  id,
-  events,
-  stateManager,
-  storeManager,
-  depth = 0
-}) => {
+const TranscriptView = ({ id, events, depth = 0 }) => {
   const resolvedEvents = fixupEventStream(events);
   const eventNodes = treeifyEvents(resolvedEvents, depth);
-  return m$1`
-    <${TranscriptComponent}
-      id=${id}
-      eventNodes=${eventNodes}
-      stateManager=${stateManager}
-      storeManager=${storeManager}
-    />
-  `;
+  return m$1` <${TranscriptComponent} id=${id} eventNodes=${eventNodes} /> `;
 };
-const TranscriptComponent = ({
-  id,
-  eventNodes,
-  style,
-  stateManager,
-  storeManager
-}) => {
+const TranscriptComponent = ({ id, eventNodes, style }) => {
   const rows = eventNodes.map((eventNode, index) => {
     const toggleStyle = {};
     if (eventNode.depth % 2 == 0) {
@@ -17194,8 +16539,6 @@ const TranscriptComponent = ({
       <${RenderedEventNode}
         id=${`${id}-event${index}`}
         node=${eventNode}
-        stateManager=${stateManager}
-        storeManager=${storeManager}
         style=${{
       ...toggleStyle,
       ...style
@@ -17217,19 +16560,12 @@ const TranscriptComponent = ({
     ${rows}
   </div>`;
 };
-const RenderedEventNode = ({
-  id,
-  node,
-  style,
-  stateManager,
-  storeManager
-}) => {
+const RenderedEventNode = ({ id, node, style }) => {
   switch (node.event.event) {
     case "sample_init":
       return m$1`<${SampleInitEventView}
         id=${id}
         event=${node.event}
-        stateManager=${stateManager}
         style=${style}
       />`;
     case "info":
@@ -17260,7 +16596,6 @@ const RenderedEventNode = ({
       return m$1`<${StateEventView}
         id=${id}
         event=${node.event}
-        stateManager=${stateManager}
         style=${style}
       />`;
     case "step":
@@ -17268,23 +16603,18 @@ const RenderedEventNode = ({
         id=${id}
         event=${node.event}
         children=${node.children}
-        stateManager=${stateManager}
-        storeManager=${storeManager}
         style=${style}
       />`;
     case "store":
       return m$1`<${StateEventView}
         id=${id}
         event=${node.event}
-        stateManager=${storeManager}
         style=${style}
       />`;
     case "subtask":
       return m$1`<${SubtaskEventView}
         id=${id}
         event=${node.event}
-        stateManager=${stateManager}
-        storeManager=${initStateManager(`${node.event.name}`)}
         style=${style}
         depth=${node.depth}
       />`;
@@ -17292,8 +16622,6 @@ const RenderedEventNode = ({
       return m$1`<${ToolEventView}
         id=${id}
         event=${node.event}
-        stateManager=${stateManager}
-        storeManager=${storeManager}
         style=${style}
         depth=${node.depth}
       />`;
@@ -17366,15 +16694,8 @@ function treeifyEvents(events, depth) {
 }
 const kContentProtocol = "tc://";
 const SampleTranscript = ({ id, evalEvents }) => {
-  const stateManager = initStateManager("global_state");
-  const storeManager = initStateManager("global_storage");
   const denormalizedEvents = resolveEventContent(evalEvents);
-  return m$1`<${TranscriptView}
-    id=${id}
-    events=${denormalizedEvents}
-    stateManager=${stateManager}
-    storeManager=${storeManager}
-  />`;
+  return m$1`<${TranscriptView} id=${id} events=${denormalizedEvents} />`;
 };
 const resolveEventContent = (evalEvents) => {
   return (
