@@ -194,20 +194,22 @@ def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
                 raise TypeError(f"'{solver}' is not declared as an async callable.")
 
             @wraps(solver)
-            async def solver_wrapper(state: TaskState, generate: Generate) -> TaskState:
+            async def solver_with_state(
+                state: TaskState, generate: Generate
+            ) -> TaskState:
                 state = await solver(state, generate)
                 set_sample_state(state)
                 return state
 
             registry_tag(
                 solver_type,
-                solver_wrapper,
+                solver_with_state,
                 RegistryInfo(type="solver", name=solver_name),
                 *args,
                 **kwargs,
             )
 
-            return solver
+            return solver_with_state
 
         return solver_register(cast(SolverType, solver_wrapper), solver_name)
 
