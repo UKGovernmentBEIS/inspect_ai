@@ -1,12 +1,11 @@
 import asyncio
 from contextvars import ContextVar
+from pathlib import Path
 from typing import Awaitable, Callable, Set
 
 from rich import box, print
 from rich.panel import Panel
 from rich.table import Table
-
-from inspect_ai._util.error import exception_message
 
 from .compose import compose_down, compose_ls, compose_ps
 from .config import is_auto_compose_file, safe_cleanup_auto_compose
@@ -96,7 +95,7 @@ async def cleanup_projects(
     # report errors
     for result in results:
         if result is not None:
-            print(f"Error cleaning up Docker environment: {exception_message(result)}")
+            print(f"Error cleaning up Docker environment: {result}")
 
 
 async def cli_cleanup(project_name: str | None) -> None:
@@ -106,6 +105,11 @@ async def cli_cleanup(project_name: str | None) -> None:
     # filter by project name
     if project_name:
         projects = list(filter(lambda p: p.Name == project_name, projects))
+
+    # if the config files are missing then blank them out so we get auto-compose
+    for project in projects:
+        if project.ConfigFiles and not Path(project.ConfigFiles).exists():
+            project.ConfigFiles = None
 
     # clean them up
     if len(projects) > 0:
@@ -119,8 +123,8 @@ async def cli_cleanup(project_name: str | None) -> None:
         await cleanup_projects(compose_projects, cleanup_fn=compose_down)
 
         # remove auto compose files
-        for project in projects:
-            safe_cleanup_auto_compose(project.ConfigFiles)
+        for compose_project in compose_projects:
+            safe_cleanup_auto_compose(compose_project.config)
 
 
 def running_projects() -> list[ComposeProject]:
