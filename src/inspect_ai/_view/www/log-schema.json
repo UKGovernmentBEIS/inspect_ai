@@ -9,7 +9,8 @@
           "default": "unknown",
           "enum": [
             "stop",
-            "length",
+            "max_tokens",
+            "model_length",
             "tool_calls",
             "content_filter",
             "unknown"

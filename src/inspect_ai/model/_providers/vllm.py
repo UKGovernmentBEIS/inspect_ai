@@ -341,7 +341,7 @@ def get_stop_reason(finish_reason: str | None) -> StopReason:
     if finish_reason == "stop":
         return "stop"
     elif finish_reason == "length":
-        return "length"
+        return "max_tokens"
     elif finish_reason == "abort":
         return "unknown"
     else:

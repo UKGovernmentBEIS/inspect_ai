@@ -159,7 +159,8 @@ export type Messages = (
 export type Model1 = string;
 export type StopReason =
   | "stop"
-  | "length"
+  | "max_tokens"
+  | "model_length"
   | "tool_calls"
   | "content_filter"
   | "unknown";

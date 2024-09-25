@@ -221,7 +221,7 @@ class AnthropicAPI(ModelAPI):
 
         if "prompt is too long" in error:
             content = "Sorry, but your prompt is too long."
-            stop_reason = "length"
+            stop_reason = "model_length"
         elif "content filtering" in error:
             content = "Sorry, but I am unable to help with that request."
             stop_reason = "content_filter"
@@ -529,10 +529,10 @@ def message_stop_reason(message: Message) -> StopReason:
     match message.stop_reason:
         case "end_turn" | "stop_sequence":
             return "stop"
-        case "max_tokens":
-            return "length"
         case "tool_use":
             return "tool_calls"
+        case "max_tokens":
+            return message.stop_reason
         case _:
             return "unknown"
 

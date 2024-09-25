@@ -245,9 +245,9 @@ def together_stop_reason(reason: str) -> StopReason:
         case "stop" | "eos":
             return "stop"
         case "length":
-            return "length"
-        case "tool_calls":
-            return "tool_calls"
+            return "max_tokens"
+        case "tool_calls" | "max_tokens":
+            return reason
         case _:
             return "unknown"
 
