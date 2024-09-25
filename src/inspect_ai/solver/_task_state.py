@@ -250,6 +250,11 @@ class TaskState:
             raise ValueError("user_prompt requested from TaskState but none available")
 
     @property
+    def max_messages(self) -> int | None:
+        """max_messages before task is marked completed."""
+        return self._max_messages
+
+    @property
     def completed(self) -> bool:
         """Is the task completed."""
         if self._completed:
