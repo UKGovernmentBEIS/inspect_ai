@@ -125,10 +125,10 @@ def value_to_float(
     representations (e.g. 'yes', 'no', 'true', 'false') are
     mapped to 1 and 0. In addition, the specified correct,
     incorrect, partial, and noanswer values (by default "C"
-    "I", "P", are mapped to "N" to 1, 0, 0.5, and 0. Note that
+    "I", "P", and "N") are mapped to 1, 0, 0.5, and 0. Note that
     those are the default literal values, but they can be
     customized. Strings with only numbers are converted, and
-    numeric values are cast to float. Arrays and dictionarie
+    numeric values are cast to float. Arrays and dictionaries
     give a warning and return 0.
 
     Args:

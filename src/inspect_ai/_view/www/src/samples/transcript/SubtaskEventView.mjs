@@ -26,23 +26,46 @@ export const SubtaskEventView = ({
   storeManager,
   depth,
 }) => {
+  // Render Forks specially
+
+  const transcript =
+    event.events.length > 0
+      ? html`<${TranscriptView}
+          id="${id}-subtask"
+          name="Transcript"
+          events=${event.events}
+          stateManager=${stateManager}
+          storeManager=${storeManager}
+          depth=${depth + 1}
+        />`
+      : "";
+
+  const body =
+    event.type === "fork"
+      ? html`
+          <div title="Summary" style=${{ width: "100%", margin: "0.5em 0em" }}>
+            <div style=${{ ...TextStyle.label }}>Inputs</div>
+            <div style=${{ marginBottom: "1em" }}>
+              <${Rendered} values=${event.input} />
+            </div>
+            <div style=${{ ...TextStyle.label }}>Transcript</div>
+            ${transcript}
+          </div>
+        `
+      : html`
+          <${SubtaskSummary}
+            name="Summary"
+            input=${event.input}
+            result=${event.result}
+          />
+          ${transcript}
+        `;
+
   // Is this a traditional subtask or a fork?
   const type = event.type === "fork" ? "Fork" : "Subtask";
   return html`
     <${EventPanel} id=${id} title="${type}: ${event.name}" style=${style} collapse=${false}>
-      ${event.type === "fork" ? "" : html`<${SubtaskSummary} name="Summary" input=${event.input} result=${event.result} />`}
-      ${
-        event.events.length > 0
-          ? html`<${TranscriptView}
-              id="${id}-subtask"
-              name="Transcript"
-              events=${event.events}
-              stateManager=${stateManager}
-              storeManager=${storeManager}
-              depth=${depth + 1}
-            />`
-          : ""
-      }
+      ${body}
     </${EventPanel}>`;
 };
 

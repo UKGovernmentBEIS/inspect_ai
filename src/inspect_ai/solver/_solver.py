@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from functools import wraps
 from typing import (
     Any,
     Callable,
@@ -22,7 +23,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.model import CachePolicy, GenerateConfigArgs
 
-from ._task_state import TaskState
+from ._task_state import TaskState, set_sample_state
 
 
 @runtime_checkable
@@ -192,15 +193,23 @@ def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
             if not is_callable_coroutine(solver):
                 raise TypeError(f"'{solver}' is not declared as an async callable.")
 
+            @wraps(solver)
+            async def solver_with_state(
+                state: TaskState, generate: Generate
+            ) -> TaskState:
+                state = await solver(state, generate)
+                set_sample_state(state)
+                return state
+
             registry_tag(
                 solver_type,
-                solver,
+                solver_with_state,
                 RegistryInfo(type="solver", name=solver_name),
                 *args,
                 **kwargs,
             )
 
-            return solver
+            return solver_with_state
 
         return solver_register(cast(SolverType, solver_wrapper), solver_name)
 
