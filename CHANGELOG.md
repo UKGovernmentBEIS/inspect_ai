@@ -7,6 +7,7 @@
 - Allow Docker sandboxes configured with `x-default` to be referred to by their declared service name.
 - Track sample task state in solver decorator rather than solver transcript.
 - Display solver input parameters for forked subtasks.
+- Improvements to docker compose down cleanup: timeout, survive missing compose files.
 
 ## v0.3.32 (25 September 2024)
 

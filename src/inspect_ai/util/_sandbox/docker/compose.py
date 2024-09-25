@@ -36,19 +36,35 @@ async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
     # set cwd to config file directory
     cwd = os.path.dirname(project.config) if project.config else None
 
-    # shut down docker containers
-    result = await compose_command(
-        ["down", "--volumes"],
-        project=project,
-        cwd=cwd,
-        capture_output=quiet,
-        ansi="never",
-    )
-    if not result.success:
-        msg = f"Failed to stop docker service {result.stderr}"
-        logger.warning(msg)
+    # shut down docker containers. default internal timeout is 10 seconds
+    # but we've seen reports of this handing, so add a proess timeout
+    # of 60 seconds for belt and suspenders
+    TIMEOUT = 60
+    try:
+        result = await compose_command(
+            ["down", "--volumes"],
+            project=project,
+            cwd=cwd,
+            timeout=TIMEOUT,
+            capture_output=quiet,
+            ansi="never",
+        )
 
-    await compose_cleanup_images(project=project, cwd=cwd)
+        if not result.success:
+            msg = f"Failed to stop docker service {result.stderr}"
+            logger.warning(msg)
+
+    except TimeoutError:
+        logger.warning(
+            f"Docker compose down for project '{project.name}' timed out after {TIMEOUT} seconds."
+        )
+
+    try:
+        await compose_cleanup_images(project=project, cwd=cwd, timeout=TIMEOUT)
+    except TimeoutError:
+        logger.warning(
+            f"Docker image cleanup for project '{project.name}' timed out after {TIMEOUT} seconds."
+        )
 
 
 async def compose_cp(
@@ -161,7 +177,7 @@ async def compose_services(project: ComposeProject) -> dict[str, ComposeService]
 class Project(BaseModel):
     Name: str
     Status: str
-    ConfigFiles: str
+    ConfigFiles: str | None
 
 
 async def compose_ls() -> list[Project]:
@@ -243,6 +259,8 @@ async def compose_command(
 
     # build final command
     compose_command = compose_command + command
+
+    print(compose_command)
 
     # Execute the command
     sandbox_log(f"compose command: {compose_command}")
