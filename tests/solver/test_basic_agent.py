@@ -104,6 +104,7 @@ def test_basic_agent_retries():
             dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
             solver=basic_agent(tools=[addition()], max_attempts=max_attempts),
             scorer=includes(),
+            max_messages=30,
         )
 
     def mockllm_model(answers: list[str]):
