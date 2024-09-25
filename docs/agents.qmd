@@ -357,7 +357,7 @@ There are two sandbox environments built in to Inspect:
 
 Sandbox environment definitions can be bound at the `Sample`, `Task`, or `eval()` level. Binding precedence goes from `eval()`, to `Task` to `Sample`, however sandbox config files defined on the `Sample` always take precedence when the sandbox type for the `Sample` is the same as the enclosing `Task` or `eval()`.
 
-Here is a `Task` that defines a `sandbox` and corresponding sandbox config file:
+Here is a `Task` that defines a `sandbox`:
 
 ``` python
 Task(
@@ -367,15 +367,17 @@ Task(
         generate()
     ]),
     scorer=match(),
-    sandbox=("docker", "compose.yaml")
+    sandbox="docker"
 )
 ```
 
-In this example there is a `compose.yaml` file in the task directory that will be used to provision Docker services (if there is no config file specified then the Docker default Python 3.12 image will be used). For example:
+By default, any `Dockerfile` and/or `compose.yaml` file within the task directory will be automatically discovered and used. If your compose file has a different name then you can provide an override specification as follows:
 
-``` python
-sandbox="docker"
+```python
+sandbox=("docker", "attacker-compose.yaml")
 ```
+
+The configuration file added to the `sandbox` spec should always be a compose file (rather than a `Dockerfile`, which is always discovered automatically). 
 
 ### Per Sample Setup
 

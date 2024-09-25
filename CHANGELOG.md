@@ -3,8 +3,12 @@
 ## Unreleased
 
 - StopReason: Added "model_length" for exceeding token window and renamed "length" to "max_tokens"
+- Capture solver input params for subtasks created by `fork()`.
 - Option to disable ANSI terminal output with `--no-ansi` or `INSPECT_NO_ANSI`
 - Allow Docker sandboxes configured with `x-default` to be referred to by their declared service name.
+- Track sample task state in solver decorator rather than solver transcript.
+- Display solver input parameters for forked subtasks.
+- Improvements to docker compose down cleanup: timeout, survive missing compose files.
 
 ## v0.3.32 (25 September 2024)
 
