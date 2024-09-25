@@ -688,11 +688,11 @@ def combine_messages(
     elif isinstance(a.content, list) and isinstance(b.content, list):
         return message_type(content=a.content + b.content)
     elif isinstance(a.content, str) and isinstance(b.content, list):
-        return message_type(content=b.content + [ContentText(text=a.content)])
+        return message_type(content=[ContentText(text=a.content)] + b.content)
+    elif isinstance(a.content, list) and isinstance(b.content, str):
+        return message_type(content=a.content + [ContentText(text=b.content)])
     else:
-        content: list[Content] = [ContentText(text=a.text)]
-        content.extend(cast(list[Content], b.content))
-        return message_type(content=content)
+        raise TypeError(f"Cannot combine messages with invalid content types: {a.content!r}, {b.content!r}")
 
 
 def init_active_model(model: Model, config: GenerateConfig) -> None:
