@@ -38,7 +38,9 @@ AGENT_SUBMIT_TOOL_NAME = "agent_submit"
 AGENT_SUBMIT_TOOL_DESCRIPTION = "Submit an answer."
 
 
-def run_basic_agent(tools: list[Tool] | Solver) -> EvalLog:
+def run_basic_agent(
+    tools: list[Tool] | Solver, max_messages: int | None = 30
+) -> EvalLog:
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
         solver=basic_agent(
@@ -48,6 +50,7 @@ def run_basic_agent(tools: list[Tool] | Solver) -> EvalLog:
             submit_description=AGENT_SUBMIT_TOOL_DESCRIPTION,
         ),
         scorer=includes(),
+        max_messages=max_messages,
     )
 
     model = get_model(
@@ -101,6 +104,7 @@ def test_basic_agent_retries():
             dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
             solver=basic_agent(tools=[addition()], max_attempts=max_attempts),
             scorer=includes(),
+            max_messages=30,
         )
 
     def mockllm_model(answers: list[str]):
@@ -127,3 +131,11 @@ def test_basic_agent_retries():
         1 for event in log.samples[0].transcript.events if event.event == "model"
     )
     assert model_events == 3
+
+
+def test_basic_agent_requires_max_messages():
+    try:
+        run_basic_agent([addition()], max_messages=None)[0]
+        assert False
+    except Exception:
+        pass
