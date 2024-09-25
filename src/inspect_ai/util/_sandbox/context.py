@@ -42,6 +42,7 @@ def sandbox(name: str | None = None) -> SandboxEnvironment:
             )
         return environment
 
+
 async def init_sandbox_environments_sample(
     type: str,
     task_name: str,
