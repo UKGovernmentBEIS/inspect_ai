@@ -2,7 +2,6 @@ import re
 from pathlib import Path
 
 from inspect_ai import Task, task
-from inspect_ai._util.images import is_image_png
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.model import ChatMessage, ChatMessageUser, ContentImage, ContentText
 from inspect_ai.scorer import (
@@ -119,7 +118,7 @@ def record_to_sample(record: dict) -> Sample:
 
     # images are a mix of jpg and png but all have a file extension of .jpg
     image_bytes = record["decoded_image"]["bytes"]
-    if (is_image_png(image_bytes)):
+    if is_image_png(image_bytes):
         image = image.with_suffix(".png")
 
     if not image.exists():
@@ -134,7 +133,7 @@ def record_to_sample(record: dict) -> Sample:
                 ContentText(text=record["question"])
                 if record["question_type"] == "multi_choice"
                 else ContentText(text=record["query"]),
-                ContentImage(image=record["image"]),
+                ContentImage(image=image.as_posix()),
             ]
         )
     ]
@@ -178,3 +177,7 @@ def get_multi_choice_as_letter(record: dict) -> str:
     answer = record["answer"]
     target = list(choices.values()).index(answer)
     return chr(ord("A") + int(target))
+
+
+def is_image_png(image_bytes: bytes) -> bool:
+    return image_bytes[:8] == b"\x89\x50\x4e\x47\x0d\x0a\x1a\x0a"
