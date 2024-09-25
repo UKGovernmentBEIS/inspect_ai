@@ -2,6 +2,7 @@ import re
 from pathlib import Path
 
 from inspect_ai import Task, task
+from inspect_ai._util.images import is_image_png
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.model import ChatMessage, ChatMessageUser, ContentImage, ContentText
 from inspect_ai.scorer import (
@@ -115,11 +116,17 @@ def mathvista_solver() -> Solver:
 def record_to_sample(record: dict) -> Sample:
     # extract image
     image = Path(record["image"])
+
+    # images are a mix of jpg and png but all have a file extension of .jpg
+    image_bytes = record["decoded_image"]["bytes"]
+    if (is_image_png(image_bytes)):
+        image = image.with_suffix(".png")
+
     if not image.exists():
         print(f"Extracting {image}")
         image.parent.mkdir(exist_ok=True)
         with open(image, "wb") as file:
-            file.write(record["decoded_image"]["bytes"])
+            file.write(image_bytes)
 
     message: list[ChatMessage] = [
         ChatMessageUser(

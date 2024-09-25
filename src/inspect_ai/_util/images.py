@@ -43,3 +43,7 @@ async def image_as_data_uri(image: str) -> str:
     base64_image = base64.b64encode(bytes).decode("utf-8")
     image = f"data:{mime_type};base64,{base64_image}"
     return image
+
+
+def is_image_png(image_bytes: bytes) -> bool:
+    return image_bytes[:8] == b"\x89\x50\x4E\x47\x0D\x0A\x1A\x0A"
