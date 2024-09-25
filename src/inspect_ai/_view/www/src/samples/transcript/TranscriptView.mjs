@@ -13,7 +13,6 @@ import { ErrorEventView } from "./ErrorEventView.mjs";
 import { InputEventView } from "./InputEventView.mjs";
 import { FontSize } from "../../appearance/Fonts.mjs";
 import { EventNode } from "./Types.mjs";
-import { initStateManager } from "./TranscriptState.mjs";
 
 /**
  * Renders the TranscriptView component.
@@ -26,24 +25,11 @@ import { initStateManager } from "./TranscriptState.mjs";
  * @param {number} params.depth - The base depth for this transcript view
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
-export const TranscriptView = ({
-  id,
-  events,
-  stateManager,
-  storeManager,
-  depth = 0,
-}) => {
+export const TranscriptView = ({ id, events, depth = 0 }) => {
   // Normalize Events themselves
   const resolvedEvents = fixupEventStream(events);
   const eventNodes = treeifyEvents(resolvedEvents, depth);
-  return html`
-    <${TranscriptComponent}
-      id=${id}
-      eventNodes=${eventNodes}
-      stateManager=${stateManager}
-      storeManager=${storeManager}
-    />
-  `;
+  return html` <${TranscriptComponent} id=${id} eventNodes=${eventNodes} /> `;
 };
 
 /**
@@ -53,17 +39,9 @@ export const TranscriptView = ({
  * @param {string} params.id - The identifier for this view
  * @param {EventNode[]} params.eventNodes - The transcript events nodes to display.
  * @param {Object} params.style - The transcript style to display.
- * @param {import("./Types.mjs").StateManager} params.stateManager - A function that updates the state with a new state object.
- * @param {import("./Types.mjs").StateManager} params.storeManager - A function that updates the state with a new state object.
  * @returns {import("preact").JSX.Element} The TranscriptView component.
  */
-export const TranscriptComponent = ({
-  id,
-  eventNodes,
-  style,
-  stateManager,
-  storeManager,
-}) => {
+export const TranscriptComponent = ({ id, eventNodes, style }) => {
   const rows = eventNodes.map((eventNode, index) => {
     const toggleStyle = {};
     if (eventNode.depth % 2 == 0) {
@@ -81,8 +59,6 @@ export const TranscriptComponent = ({
       <${RenderedEventNode}
         id=${`${id}-event${index}`}
         node=${eventNode}
-        stateManager=${stateManager}
-        storeManager=${storeManager}
         style=${{
           ...toggleStyle,
           ...style,
@@ -113,23 +89,14 @@ export const TranscriptComponent = ({
  * @param {string} props.id - The id for this event.
  * @param { EventNode } props.node - This event.
  * @param { Object } props.style - The style for this node.
- * @param {import("./Types.mjs").StateManager} props.stateManager State manager to track state as diffs are applied
- * @param {import("./Types.mjs").StateManager} props.storeManager State manager to track state as diffs are applied
  * @returns {import("preact").JSX.Element} The rendered event.
  */
-export const RenderedEventNode = ({
-  id,
-  node,
-  style,
-  stateManager,
-  storeManager,
-}) => {
+export const RenderedEventNode = ({ id, node, style }) => {
   switch (node.event.event) {
     case "sample_init":
       return html`<${SampleInitEventView}
         id=${id}
         event=${node.event}
-        stateManager=${stateManager}
         style=${style}
       />`;
 
@@ -165,7 +132,6 @@ export const RenderedEventNode = ({
       return html`<${StateEventView}
         id=${id}
         event=${node.event}
-        stateManager=${stateManager}
         style=${style}
       />`;
 
@@ -174,8 +140,6 @@ export const RenderedEventNode = ({
         id=${id}
         event=${node.event}
         children=${node.children}
-        stateManager=${stateManager}
-        storeManager=${storeManager}
         style=${style}
       />`;
 
@@ -183,7 +147,6 @@ export const RenderedEventNode = ({
       return html`<${StateEventView}
         id=${id}
         event=${node.event}
-        stateManager=${storeManager}
         style=${style}
       />`;
 
@@ -191,8 +154,6 @@ export const RenderedEventNode = ({
       return html`<${SubtaskEventView}
         id=${id}
         event=${node.event}
-        stateManager=${stateManager}
-        storeManager=${initStateManager(`${node.event.name}`)}
         style=${style}
         depth=${node.depth}
       />`;
@@ -201,8 +162,6 @@ export const RenderedEventNode = ({
       return html`<${ToolEventView}
         id=${id}
         event=${node.event}
-        stateManager=${stateManager}
-        storeManager=${storeManager}
         style=${style}
         depth=${node.depth}
       />`;
