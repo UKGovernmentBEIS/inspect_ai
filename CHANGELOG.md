@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Option to disable ANSI terminal output with `--no-ansi` or `INSPECT_NO_ANSI`
+- Allow Docker sandboxes configured with `x-default` to be referred to by their declared service name.
+
 ## v0.3.32 (25 September 2024)
 
 - Fix issue w/ subtasks not getting a fresh store() (regression from introduction of `fork()` in v0.3.30)

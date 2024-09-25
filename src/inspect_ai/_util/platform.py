@@ -18,6 +18,11 @@ def running_in_notebook() -> bool:
 
 
 def platform_init() -> None:
+    # initialise rich
+    from inspect_ai._display.rich import rich_initialise
+
+    rich_initialise()
+
     # set exception hook if we haven't already
     set_exception_hook()
 
