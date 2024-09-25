@@ -497,7 +497,7 @@ sandbox("victim")  # named sandbox environment
 ```
 
 ::: {.callout-note apperance="simple"}
-If you define multiple sandbox environments you are *required* to name one of them "default" so that Inspect knows which environment to copy samples files to and resolve for calls to `sandbox()` without an argument.
+If you define multiple sandbox environments you are *required* to name one of them "default" so that Inspect knows which environment to resolve for calls to `sandbox()` without an argument. Alternatively, you can add the `x-default` key to a service not named "default" to designate it as the default sandbox.
 :::
 
 #### Infrastructure

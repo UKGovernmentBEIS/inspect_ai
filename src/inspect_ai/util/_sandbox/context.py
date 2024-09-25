@@ -14,7 +14,7 @@ from .registry import registry_find_sandboxenv
 logger = getLogger(__name__)
 
 
-def sandbox(name: str = "default") -> SandboxEnvironment:
+def sandbox(name: str | None = None) -> SandboxEnvironment:
     """Get the SandboxEnvironment for the current sample.
 
     Args:
@@ -31,18 +31,16 @@ def sandbox(name: str = "default") -> SandboxEnvironment:
             + "Please specify a sandbox for the sample or a global default sandbox for the task"
         )
 
-    # short circuit for 1 environment (allows single environment to not sweat 'default')
-    if len(environments) == 1:
+    # if there is no name specified take the first environment
+    if name is None:
         return list(environments.values())[0]
-
-    # lookup the environment by name
-    environment = environments.get(name, None)
-    if not environment:
-        raise ValueError(
-            f"SandboxEnvironment '{name}' is not a recoginized environment name."
-        )
-
-    return environment
+    else:
+        environment = environments.get(name, None)
+        if not environment:
+            raise ValueError(
+                f"SandboxEnvironment '{name}' is not a recoginized environment name."
+            )
+        return environment
 
 
 async def init_sandbox_environments_sample(
@@ -143,11 +141,7 @@ async def setup_sandbox_environment(
 def default_sandbox_environment(
     environments: dict[str, SandboxEnvironment],
 ) -> SandboxEnvironment:
-    return (
-        list(environments.values())[0]
-        if len(environments) == 1
-        else environments["default"]
-    )
+    return list(environments.values())[0]
 
 
 def validate_sandbox_environments(
@@ -159,9 +153,6 @@ def validate_sandbox_environments(
             + f"of '{type.__name__}'. Did you provide an implementation "
             + "of the sample_init() class method? "
         )
-
-    if environments.get("default", None) is None:
-        raise RuntimeError(f"No 'default' service provided for {type.__name__}")
 
 
 sandbox_environments_context_var = ContextVar[dict[str, SandboxEnvironment]](
