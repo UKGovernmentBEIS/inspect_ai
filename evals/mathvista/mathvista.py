@@ -16,14 +16,7 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.scorer._pattern import match_first
 from inspect_ai.solver import Generate, Solver, TaskState, solver
-
-SINGLE_ANSWER_TEMPLATE = r"""
-Answer the following multiple choice question. The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}.
-
-{question}
-
-{choices}
-""".strip()
+from inspect_ai.solver._multiple_choice import SINGLE_ANSWER_TEMPLATE
 
 FREEFORM_TEMPLATE = r"""
 Answer the following question. The entire content of your response should be of the following format: 'ANSWER: $ANSWER' (without quotes) where $ANSWER is your answer.

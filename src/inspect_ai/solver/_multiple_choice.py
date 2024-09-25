@@ -19,6 +19,15 @@ Answer the following multiple choice question. The entire content of your respon
 {choices}
 """.strip()
 
+SINGLE_ANSWER_TEMPLATE_COT = r"""
+Answer the following multiple choice question. The last line of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}. Think step by step before answering.
+
+{question}
+
+{choices}
+""".strip()
+
+
 MULTIPLE_ANSWER_TEMPLATE = r"""
 Answer the following multiple choice question where multiple answers may be correct. The entire content of your response should be of the following format: 'ANSWER: $LETTERS' (without quotes) where LETTERS is one or more of {letters}.
 
@@ -166,6 +175,7 @@ def multiple_choice(
     template: str | None = None,
     multiple_correct: bool = False,
     shuffle: bool | Random = False,
+    cot: bool = False,
 ) -> Solver:
     """Multiple choice question solver.
 
@@ -205,6 +215,8 @@ def multiple_choice(
       shuffle (bool | Random): Default `False`. Whether to shuffle the choices
         in the multiple.  Passing a `Random` instance will use that for shuffling,
         if `True` a new `Random` instance will be created.
+      cot (bool): Default `False`. Whether the solver should perform chain-of-thought
+        reasoning before answering.
     """
     if template and not valid_template(template):
         raise ValueError(
@@ -213,9 +225,14 @@ def multiple_choice(
 
     if template is None:
         if multiple_correct:
+            if cot:
+                raise ValueError("multiple_correct=True is incompatible with cot=True")
             template = MULTIPLE_ANSWER_TEMPLATE
         else:
-            template = SINGLE_ANSWER_TEMPLATE
+            if cot:
+                template = SINGLE_ANSWER_TEMPLATE_COT
+            else:
+                template = SINGLE_ANSWER_TEMPLATE
 
     template = resource(template)
 
