@@ -7,6 +7,7 @@ from typing import Any, Literal, TypedDict, cast
 import yaml
 from pydantic import BaseModel
 
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
 from .prereqs import (
@@ -126,7 +127,7 @@ async def compose_build(project: ComposeProject, capture_output: bool = False) -
     )
     if not result.success:
         msg = "Failed to build docker containers"
-        raise RuntimeError(msg)
+        raise PrerequisiteError(msg)
 
 
 async def compose_pull(
