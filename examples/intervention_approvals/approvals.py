@@ -15,24 +15,61 @@ import sys
 import shlex
 
 class ApprovalDecision(Enum):
+    """
+    Enum representing possible decisions for an approval request.
+    """
     APPROVE = "approve"
     REJECT = "reject"
     ESCALATE = "escalate"
     TERMINATE = "terminate"
 
 class Approver(ABC):
+    """
+    Abstract base class for approvers.
+    """
     @abstractmethod
     def approve(self, tool_call: ToolCall, state: Optional[TaskState] = None) -> Tuple[ApprovalDecision, str]:
+        """
+        Abstract method to approve or reject a tool call.
+
+        Args:
+            tool_call (ToolCall): The tool call to be approved.
+            state (Optional[TaskState]): The current task state, if available.
+
+        Returns:
+            Tuple[ApprovalDecision, str]: A tuple containing the approval decision and a message explaining the decision.
+        """
         pass
 
 class AllowListApprover(Approver):
+    """
+    An approver that checks if a bash command is in an allowed list.
+    """
     def __init__(self, allowed_commands: List[str], allow_sudo: bool = False, command_specific_rules: Optional[Dict[str, List[str]]] = None):
+        """
+        Initialize the AllowListApprover.
+
+        Args:
+            allowed_commands (List[str]): List of allowed bash commands.
+            allow_sudo (bool, optional): Whether to allow sudo commands. Defaults to False.
+            command_specific_rules (Optional[Dict[str, List[str]]], optional): Dictionary of command-specific rules. Defaults to None.
+        """
         self.allowed_commands = set(allowed_commands)
         self.allow_sudo = allow_sudo
         self.command_specific_rules = command_specific_rules or {}
         self.dangerous_chars = ['&', '|', ';', '>', '<', '`', '$', '(', ')']
 
     def approve(self, tool_call: ToolCall, state: Optional[TaskState] = None) -> Tuple[ApprovalDecision, str]:
+        """
+        Approve or reject a bash command based on the allowed list and rules.
+
+        Args:
+            tool_call (ToolCall): The tool call to be approved.
+            state (Optional[TaskState]): The current task state (not used in this approver).
+
+        Returns:
+            Tuple[ApprovalDecision, str]: A tuple containing the approval decision and a message explaining the decision.
+        """
         if tool_call.function != "bash":
             return ApprovalDecision.ESCALATE, f"AllowListApprover only handles bash commands, got {tool_call.function}"
 
@@ -71,7 +108,20 @@ class AllowListApprover(Approver):
         return ApprovalDecision.APPROVE, f"Command '{command}' is approved."
 
 class HumanApprover(Approver):
+    """
+    An approver that prompts a human user for approval decisions.
+    """
     def approve(self, tool_call: ToolCall, state: Optional[TaskState] = None) -> Tuple[ApprovalDecision, str]:
+        """
+        Prompt a human user for approval of a tool call.
+
+        Args:
+            tool_call (ToolCall): The tool call to be approved.
+            state (Optional[TaskState]): The current task state, if available.
+
+        Returns:
+            Tuple[ApprovalDecision, str]: A tuple containing the approval decision and a message explaining the decision.
+        """
         with input_screen() as console:
             console.print(Panel.fit(
                 f"Tool: {tool_call.function}\nArguments: {tool_call.arguments}",
@@ -102,10 +152,28 @@ class HumanApprover(Approver):
         return ApprovalDecision.ESCALATE, "Invalid input from human approver, escalating."
 
 class ApprovalManager:
+    """
+    Manages the approval process using multiple approvers.
+    """
     def __init__(self, approvers: List[Approver]):
+        """
+        Initialize the ApprovalManager.
+
+        Args:
+            approvers (List[Approver]): A list of approvers to use in the approval process.
+        """
         self.approvers = approvers
 
     def get_approval(self, tool_call: ToolCall) -> Tuple[bool, str]:
+        """
+        Get approval for a tool call using the list of approvers.
+
+        Args:
+            tool_call (ToolCall): The tool call to be approved.
+
+        Returns:
+            Tuple[bool, str]: A tuple containing a boolean indicating approval status and a message explaining the decision.
+        """
         state = sample_state()
         for approver in self.approvers:
             decision, message = approver.approve(tool_call, state)
@@ -128,6 +196,13 @@ class ApprovalManager:
         return False, final_message
 
     def print_approval_message(self, tool_call: ToolCall, reason: str):
+        """
+        Print an approval message for a tool call.
+
+        Args:
+            tool_call (ToolCall): The approved tool call.
+            reason (str): The reason for approval.
+        """
         with input_screen() as console:
             console.print(Panel.fit(
                 f"Tool call approved:\nFunction: {tool_call.function}\nArguments: {tool_call.arguments}\nReason: {reason}",
@@ -136,6 +211,13 @@ class ApprovalManager:
             ))
 
     def print_rejection_message(self, tool_call: ToolCall, reason: str):
+        """
+        Print a rejection message for a tool call.
+
+        Args:
+            tool_call (ToolCall): The rejected tool call.
+            reason (str): The reason for rejection.
+        """
         with input_screen() as console:
             console.print(Panel.fit(
                 f"Tool call rejected:\nFunction: {tool_call.function}\nArguments: {tool_call.arguments}\nReason: {reason}",
@@ -144,6 +226,13 @@ class ApprovalManager:
             ))
 
     def print_escalation_message(self, tool_call: ToolCall, reason: str):
+        """
+        Print an escalation message for a tool call.
+
+        Args:
+            tool_call (ToolCall): The escalated tool call.
+            reason (str): The reason for escalation.
+        """
         with input_screen() as console:
             console.print(Panel.fit(
                 f"Tool call escalated:\nFunction: {tool_call.function}\nArguments: {tool_call.arguments}\nReason: {reason}",
@@ -152,6 +241,12 @@ class ApprovalManager:
             ))
 
     def print_termination_message(self, reason: str):
+        """
+        Print a termination message.
+
+        Args:
+            reason (str): The reason for termination.
+        """
         with input_screen() as console:
             console.print(Panel.fit(
                 f"Execution terminated.\nReason: {reason}",
@@ -160,6 +255,15 @@ class ApprovalManager:
             ))
             
     def print_tool_response_and_get_authorization(self, output: ModelOutput) -> bool:
+        """
+        Print the model's response and tool calls, and ask for user authorization.
+
+        Args:
+            output (ModelOutput): The model's output containing the response and tool calls.
+
+        Returns:
+            bool: True if the user authorizes the execution, False otherwise.
+        """
         renderables: list[RenderableType] = []
         if output.message.content != "":
             renderables.append(
@@ -186,6 +290,15 @@ class ApprovalManager:
 
     @staticmethod
     def format_human_readable_tool_calls(tool_calls: list[ToolCall]) -> list[RenderableType]:
+        """
+        Format tool calls into human-readable renderable objects.
+
+        Args:
+            tool_calls (list[ToolCall]): List of tool calls to format.
+
+        Returns:
+            list[RenderableType]: A list of renderable objects representing the formatted tool calls.
+        """
         output_renderables: list[RenderableType] = []
         for i, tool_call in enumerate(tool_calls):
             panel_contents = []
