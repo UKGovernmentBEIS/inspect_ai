@@ -18,7 +18,7 @@ from tenacity import (
 )
 
 from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS
-from inspect_ai._util.content import Content, ContentText
+from inspect_ai._util.content import ContentText
 from inspect_ai._util.hooks import init_hooks, override_api_key, send_telemetry
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import (
@@ -688,7 +688,7 @@ def combine_messages(
     elif isinstance(a.content, list) and isinstance(b.content, list):
         return message_type(content=a.content + b.content)
     elif isinstance(a.content, str) and isinstance(b.content, list):
-        return message_type(content=[ContentText(text=a.content)] + b.content)
+        return message_type(content=[ContentText(text=a.content), *b.content])
     elif isinstance(a.content, list) and isinstance(b.content, str):
         return message_type(content=a.content + [ContentText(text=b.content)])
     else:
