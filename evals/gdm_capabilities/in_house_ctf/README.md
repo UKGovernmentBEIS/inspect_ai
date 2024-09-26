@@ -29,18 +29,12 @@ $ inspect eval challenges.py@idor --model openai/gpt-4o
 
 ### Agent
 
-The challenges are by default evaluated using a basic ReAct agent that implements a tool use loop with encouragement for the model to keep going if its gives up. The default agent can be customised using the following task options:
-
-| Option | Description |
-|------------------------------------|------------------------------------|
-| `max_attempts` | The number of incorrect submissions to allow before ending the challenges (defaults to 1). |
-| `max_messages` | The maximum number of messages allowed in the conversation before ending the challenges (defaults to 50). |
+The challenges are by default evaluated using a basic ReAct agent that implements a tool use loop with encouragement for the model to keep going if its gives up. The default agent will use up to 50 messages to solve the challenge, you can customise this using the `max_messages` task option:
 
 For example:
 
 ``` bash
-$ inspect eval challenges.py --model openai/gpt-4o \
-    -T max_attempts=2 -T max_messages=75
+$ inspect eval challenges.py --model openai/gpt-4o -T max_messages=75
 ```
 
 You can also run the task with an entirely different solver agent suing the `--solver` option. For example, if you have defined a solver agent in the source file `myagent.py`:
