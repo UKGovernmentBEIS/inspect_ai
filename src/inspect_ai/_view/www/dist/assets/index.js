@@ -17016,7 +17016,7 @@ const SampleDisplay = ({
     tabs: {
       fontSize: FontSize.base
     },
-    tabBody: {}
+    tabBody: { paddingBottom: "1em" }
   }}
     tools=${tools}>
     ${tabs}
