@@ -4,7 +4,7 @@ from ._basic_agent import basic_agent
 from ._chain import chain
 from ._critique import self_critique
 from ._fork import fork
-from ._multiple_choice import multiple_choice
+from ._multiple_choice import MultipleChoiceTemplate, multiple_choice
 from ._plan import Plan, plan
 from ._prompt import (
     chain_of_thought,
@@ -35,6 +35,7 @@ __all__ = [
     "Choices",
     "TaskState",
     "Generate",
+    "MultipleChoiceTemplate",
 ]
 
 

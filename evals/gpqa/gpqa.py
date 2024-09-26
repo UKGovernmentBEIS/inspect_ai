@@ -28,14 +28,14 @@ DEFAULT_EPOCHS = 4
 
 
 @task
-def gpqa_diamond():
+def gpqa_diamond(cot=True):
     return Task(
         dataset=csv_dataset(
             csv_file="https://openaipublic.blob.core.windows.net/simple-evals/gpqa_diamond.csv",
             sample_fields=record_to_sample,
         ),
         solver=[
-            multiple_choice(shuffle=True),
+            multiple_choice(shuffle=True, cot=cot),
         ],
         scorer=choice(),
         config=GenerateConfig(temperature=0.5),
