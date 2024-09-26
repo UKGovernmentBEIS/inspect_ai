@@ -12132,34 +12132,40 @@ const messageRenderers = {
   }
 };
 const ChatView = ({ id, messages, style, indented }) => {
-  const toolMessages = {};
-  const nonToolMessages = [];
+  const resolvedMessages = [];
   for (const message of messages) {
     if (message.role === "tool") {
-      toolMessages[message.tool_call_id] = message;
+      if (resolvedMessages.length > 0) {
+        const msg = resolvedMessages[resolvedMessages.length - 1];
+        msg.toolOutput = message;
+      } else {
+        console.warn("Received a tool message without a preceding message.");
+      }
     } else {
-      nonToolMessages.push(message);
+      resolvedMessages.push({ message });
     }
   }
   const systemMessages = [];
-  const collapsedMessages = nonToolMessages.map((msg) => {
-    if (msg.role === "system") {
-      systemMessages.push(msg);
+  const collapsedMessages = resolvedMessages.map((resolved) => {
+    if (resolved.message.role === "system") {
+      systemMessages.push(resolved.message);
     }
-    return msg;
-  }).filter((msg) => {
-    return msg.role !== "system";
+    return resolved;
+  }).filter((resolved) => {
+    return resolved.message.role !== "system";
   });
-  const systemMessage = systemMessages.reduce(
-    (reduced, message) => {
-      const systemContents = Array.isArray(message.content) ? message.content : [message.content];
-      reduced.content.push(...systemContents.map(normalizeContent));
-      return reduced;
-    },
-    { role: "system", content: [] }
-  );
+  const systemContent = [];
+  for (const systemMessage2 of systemMessages) {
+    const contents = Array.isArray(systemMessage2.content) ? systemMessage2.content : [systemMessage2.content];
+    systemContent.push(...contents.map(normalizeContent));
+  }
+  const systemMessage = {
+    role: "system",
+    content: systemContent,
+    source: "input"
+  };
   if (systemMessage && systemMessage.content.length > 0) {
-    collapsedMessages.unshift(systemMessage);
+    collapsedMessages.unshift({ message: systemMessage });
   }
   const result = m$1`
     <div style=${style}>
@@ -12183,16 +12189,16 @@ const ChatView = ({ id, messages, style, indented }) => {
             </div>
             <${ChatMessage}
               id=${`${id}-chat-messages`}
-              message=${msg}
-              toolMessages=${toolMessages}
+              message=${msg.message}
+              toolMessage=${msg.toolOutput}
               indented=${indented}
             />
           </div>`;
     } else {
       return m$1` <${ChatMessage}
             id=${`${id}-chat-messages`}
-            message=${msg}
-            toolMessages=${toolMessages}
+            message=${msg.message}
+            toolMessage=${msg.toolOutput}
             indented=${indented}
           />`;
     }
@@ -12211,7 +12217,7 @@ const normalizeContent = (content) => {
     return content;
   }
 };
-const ChatMessage = ({ id, message, toolMessages, indented }) => {
+const ChatMessage = ({ id, message, toolMessage, indented }) => {
   const collapse = message.role === "system";
   return m$1`
     <div
@@ -12242,14 +12248,14 @@ const ChatMessage = ({ id, message, toolMessages, indented }) => {
         <${MessageContents}
           key=${`${id}-contents`}
           message=${message}
-          toolMessages=${toolMessages}
+          toolMessage=${toolMessage}
         />
       </${ExpandablePanel}>
       </div>
     </div>
   `;
 };
-const MessageContents = ({ message, toolMessages }) => {
+const MessageContents = ({ message, toolMessage }) => {
   if (message.tool_calls && message.tool_calls.length) {
     const result = [];
     if (message.content) {
@@ -12260,7 +12266,6 @@ const MessageContents = ({ message, toolMessages }) => {
       );
     }
     const toolCalls = message.tool_calls.map((tool_call) => {
-      const toolMessage = toolMessages[tool_call.id];
       const { input, functionCall, inputType } = resolveToolInput(
         tool_call.function,
         tool_call.arguments
