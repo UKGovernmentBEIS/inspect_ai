@@ -183,21 +183,30 @@ def agent_loop(tools: list[Tool], approvers: Optional[list[Approver]] = None) ->
             state.messages.append(output.message)
 
             if output.message.tool_calls:
-                # If approvers are provided, use them to approve tool calls
-                if approvers:
-                    for tool_call in output.message.tool_calls:
+                tool_outputs = []
+                for tool_call in output.message.tool_calls:
+                    if approvers:
                         approved, reason = get_approval(approvers, tool_call, state)
                         if not approved:
                             # If not approved, add a message to inform the model
-                            state.messages.append(ChatMessageTool(
+                            tool_outputs.append(ChatMessageTool(
                                 tool_call_id=tool_call.id,
                                 content=f"Command rejected by the approval system. Reason: {reason}"
                             ))
                             continue  # Skip to the next tool call
-
-                tool_output = await call_tools(output.message, tools)
-                state.messages.extend(tool_output)
-                print_tool_output(tool_output)
+                    
+                    # Execute the approved tool call
+                    single_tool_output = await call_tools(
+                        ChatMessageAssistant(
+                            content=output.message.content,
+                            tool_calls=[tool_call]
+                        ),
+                        tools
+                    )
+                    tool_outputs.extend(single_tool_output)
+                
+                state.messages.extend(tool_outputs)
+                print_tool_output(tool_outputs)
             else:
                 next_action = print_no_tool_response_and_ask_for_next_action(output)
                 with input_screen() as console:
@@ -262,7 +271,7 @@ def tool_call_intervention():
         plan=[
             system_message(SYSTEM_PROMPT),
             get_user_prompt(),
-            agent_loop(tools, approvers),
+            agent_loop(tools),
         ],
         sandbox="docker",
     )
