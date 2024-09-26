@@ -1,8 +1,7 @@
-from abc import ABC, abstractmethod
-from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Protocol, Optional, Literal
+from pydantic import BaseModel
 from rich.panel import Panel
-from rich.console import Console, Group, RenderableType
+from rich.console import Group, RenderableType
 from rich.markdown import Markdown
 from rich.syntax import Syntax
 from rich.prompt import Confirm, Prompt
@@ -14,114 +13,91 @@ from inspect_ai.tool import ToolCall
 import sys
 import shlex
 
-class ApprovalDecision(Enum):
-    """
-    Enum representing possible decisions for an approval request.
-    """
-    APPROVE = "approve"
-    REJECT = "reject"
-    ESCALATE = "escalate"
-    TERMINATE = "terminate"
+class Approval(BaseModel):
+    decision: Literal["approve", "reject", "escalate", "terminate"]
+    explanation: str
 
-class Approver(ABC):
+class Approver(Protocol):
     """
-    Abstract base class for approvers.
+    Protocol for approvers.
     """
-    @abstractmethod
-    def approve(self, tool_call: ToolCall, state: Optional[TaskState] = None) -> Tuple[ApprovalDecision, str]:
+    def __call__(self, tool_call: ToolCall, state: Optional[TaskState] = None) -> Approval:
         """
-        Abstract method to approve or reject a tool call.
+        Approve or reject a tool call.
 
         Args:
             tool_call (ToolCall): The tool call to be approved.
             state (Optional[TaskState]): The current task state, if available.
 
         Returns:
-            Tuple[ApprovalDecision, str]: A tuple containing the approval decision and a message explaining the decision.
+            Approval: An Approval object containing the decision and explanation.
         """
-        pass
+        ...
 
-class AllowListApprover(Approver):
+def allow_list_approver(allowed_commands: list[str], allow_sudo: bool = False, command_specific_rules: Optional[dict[str, list[str]]] = None) -> Approver:
     """
-    An approver that checks if a bash command is in an allowed list.
+    Create an approver that checks if a bash command is in an allowed list.
+
+    Args:
+        allowed_commands (List[str]): List of allowed bash commands.
+        allow_sudo (bool, optional): Whether to allow sudo commands. Defaults to False.
+        command_specific_rules (Optional[Dict[str, List[str]]], optional): Dictionary of command-specific rules. Defaults to None.
+
+    Returns:
+        Approver: A function that approves or rejects bash commands based on the allowed list and rules.
     """
-    def __init__(self, allowed_commands: List[str], allow_sudo: bool = False, command_specific_rules: Optional[Dict[str, List[str]]] = None):
-        """
-        Initialize the AllowListApprover.
+    allowed_commands_set = set(allowed_commands)
+    command_specific_rules = command_specific_rules or {}
+    dangerous_chars = ['&', '|', ';', '>', '<', '`', '$', '(', ')']
 
-        Args:
-            allowed_commands (List[str]): List of allowed bash commands.
-            allow_sudo (bool, optional): Whether to allow sudo commands. Defaults to False.
-            command_specific_rules (Optional[Dict[str, List[str]]], optional): Dictionary of command-specific rules. Defaults to None.
-        """
-        self.allowed_commands = set(allowed_commands)
-        self.allow_sudo = allow_sudo
-        self.command_specific_rules = command_specific_rules or {}
-        self.dangerous_chars = ['&', '|', ';', '>', '<', '`', '$', '(', ')']
-
-    def approve(self, tool_call: ToolCall, state: Optional[TaskState] = None) -> Tuple[ApprovalDecision, str]:
-        """
-        Approve or reject a bash command based on the allowed list and rules.
-
-        Args:
-            tool_call (ToolCall): The tool call to be approved.
-            state (Optional[TaskState]): The current task state (not used in this approver).
-
-        Returns:
-            Tuple[ApprovalDecision, str]: A tuple containing the approval decision and a message explaining the decision.
-        """
+    def approve(tool_call: ToolCall, state: Optional[TaskState] = None) -> Approval:
         if tool_call.function != "bash":
-            return ApprovalDecision.ESCALATE, f"AllowListApprover only handles bash commands, got {tool_call.function}"
+            return Approval(decision="escalate", explanation=f"AllowListApprover only handles bash commands, got {tool_call.function}")
 
         command = tool_call.arguments.get("cmd", "").strip()
         if not command:
-            return ApprovalDecision.REJECT, "Empty command"
+            return Approval(decision="reject", explanation="Empty command")
 
         try:
             tokens = shlex.split(command)
         except ValueError as e:
-            return ApprovalDecision.REJECT, f"Invalid command syntax: {str(e)}"
+            return Approval(decision="reject", explanation=f"Invalid command syntax: {str(e)}")
 
-        if any(char in command for char in self.dangerous_chars):
-            return ApprovalDecision.REJECT, f"Command contains potentially dangerous characters: {', '.join(char for char in self.dangerous_chars if char in command)}"
+        if any(char in command for char in dangerous_chars):
+            return Approval(decision="reject", explanation=f"Command contains potentially dangerous characters: {', '.join(char for char in dangerous_chars if char in command)}")
 
         base_command = tokens[0]
         
         # Handle sudo
         if base_command == "sudo":
-            if not self.allow_sudo:
-                return ApprovalDecision.REJECT, "sudo is not allowed"
+            if not allow_sudo:
+                return Approval(decision="reject", explanation="sudo is not allowed")
             if len(tokens) < 2:
-                return ApprovalDecision.REJECT, "Invalid sudo command"
+                return Approval(decision="reject", explanation="Invalid sudo command")
             base_command = tokens[1]
             tokens = tokens[1:]
 
-        if base_command not in self.allowed_commands:
-            return ApprovalDecision.ESCALATE, f"Command '{base_command}' is not in the allowed list. Allowed commands: {', '.join(self.allowed_commands)}"
+        if base_command not in allowed_commands_set:
+            return Approval(decision="escalate", explanation=f"Command '{base_command}' is not in the allowed list. Allowed commands: {', '.join(allowed_commands_set)}")
 
         # Check command-specific rules
-        if base_command in self.command_specific_rules:
-            allowed_subcommands = self.command_specific_rules[base_command]
+        if base_command in command_specific_rules:
+            allowed_subcommands = command_specific_rules[base_command]
             if len(tokens) > 1 and tokens[1] not in allowed_subcommands:
-                return ApprovalDecision.ESCALATE, f"{base_command} subcommand '{tokens[1]}' is not allowed. Allowed subcommands: {', '.join(allowed_subcommands)}"
+                return Approval(decision="escalate", explanation=f"{base_command} subcommand '{tokens[1]}' is not allowed. Allowed subcommands: {', '.join(allowed_subcommands)}")
 
-        return ApprovalDecision.APPROVE, f"Command '{command}' is approved."
+        return Approval(decision="approve", explanation=f"Command '{command}' is approved.")
 
-class HumanApprover(Approver):
+    return approve
+
+def human_approver() -> Approver:
     """
-    An approver that prompts a human user for approval decisions.
+    Create an approver that prompts a human user for approval decisions.
+
+    Returns:
+        Approver: A function that prompts a human user for approval of a tool call.
     """
-    def approve(self, tool_call: ToolCall, state: Optional[TaskState] = None) -> Tuple[ApprovalDecision, str]:
-        """
-        Prompt a human user for approval of a tool call.
-
-        Args:
-            tool_call (ToolCall): The tool call to be approved.
-            state (Optional[TaskState]): The current task state, if available.
-
-        Returns:
-            Tuple[ApprovalDecision, str]: A tuple containing the approval decision and a message explaining the decision.
-        """
+    def approve(tool_call: ToolCall, state: Optional[TaskState] = None) -> Approval:
         with input_screen() as console:
             console.print(Panel.fit(
                 f"Tool: {tool_call.function}\nArguments: {tool_call.arguments}",
@@ -142,194 +118,181 @@ class HumanApprover(Approver):
             )
         
         if decision == 'y':
-            return ApprovalDecision.APPROVE, "Approved by human approver."
+            return Approval(decision="approve", explanation="Approved by human approver.")
         elif decision == 'r':
-            return ApprovalDecision.REJECT, "Rejected by human approver."
+            return Approval(decision="reject", explanation="Rejected by human approver.")
         elif decision == 'e':
-            return ApprovalDecision.ESCALATE, "Escalated by human approver."
+            return Approval(decision="escalate", explanation="Escalated by human approver.")
         elif decision == 't':
-            return ApprovalDecision.TERMINATE, "Terminated by human approver."
-        return ApprovalDecision.ESCALATE, "Invalid input from human approver, escalating."
+            return Approval(decision="terminate", explanation="Terminated by human approver.")
+        return Approval(decision="escalate", explanation="Invalid input from human approver, escalating.")
 
-class ApprovalManager:
+    return approve
+
+def get_approval(approvers: list[Approver], tool_call: ToolCall, state: Optional[TaskState] = None) -> tuple[bool, str]:
     """
-    Manages the approval process using multiple approvers.
+    Get approval for a tool call using the list of approvers.
+
+    Args:
+        approvers (List[Approver]): A list of approvers to use in the approval process.
+        tool_call (ToolCall): The tool call to be approved.
+        state (Optional[TaskState]): The current task state, if available.
+
+    Returns:
+        Tuple[bool, str]: A tuple containing a boolean indicating approval status and a message explaining the decision.
     """
-    def __init__(self, approvers: List[Approver]):
-        """
-        Initialize the ApprovalManager.
+    state = state or sample_state()
+    for approver in approvers:
+        approval = approver(tool_call, state)
+        if approval.decision == "approve":
+            print_approval_message(tool_call, approval.explanation)
+            return True, approval.explanation
+        elif approval.decision == "reject":
+            print_rejection_message(tool_call, approval.explanation)
+        elif approval.decision == "terminate":
+            print_termination_message(approval.explanation)
+            sys.exit(1)
+        elif approval.decision == "escalate":
+            print_escalation_message(tool_call, approval.explanation)
+    
+    final_message = "Rejected: No approver approved the tool call"
+    print_rejection_message(tool_call, final_message)
+    return False, final_message
 
-        Args:
-            approvers (List[Approver]): A list of approvers to use in the approval process.
-        """
-        self.approvers = approvers
+def print_approval_message(tool_call: ToolCall, reason: str):
+    """
+    Print an approval message for a tool call.
 
-    def get_approval(self, tool_call: ToolCall) -> Tuple[bool, str]:
-        """
-        Get approval for a tool call using the list of approvers.
+    Args:
+        tool_call (ToolCall): The approved tool call.
+        reason (str): The reason for approval.
+    """
+    with input_screen() as console:
+        console.print(Panel.fit(
+            f"Tool call approved:\nFunction: {tool_call.function}\nArguments: {tool_call.arguments}\nReason: {reason}",
+            title="Tool Execution",
+            subtitle="Approved"
+        ))
 
-        Args:
-            tool_call (ToolCall): The tool call to be approved.
+def print_rejection_message(tool_call: ToolCall, reason: str):
+    """
+    Print a rejection message for a tool call.
 
-        Returns:
-            Tuple[bool, str]: A tuple containing a boolean indicating approval status and a message explaining the decision.
-        """
-        state = sample_state()
-        for approver in self.approvers:
-            decision, message = approver.approve(tool_call, state)
-            if decision == ApprovalDecision.APPROVE:
-                self.print_approval_message(tool_call, message)
-                return True, message
-            elif decision == ApprovalDecision.REJECT:
-                self.print_rejection_message(tool_call, message)
-                # Continue to the next approver instead of returning
-            elif decision == ApprovalDecision.TERMINATE:
-                self.print_termination_message(message)
-                sys.exit(1)
-            elif decision == ApprovalDecision.ESCALATE:
-                self.print_escalation_message(tool_call, message)
-            # If REJECT or ESCALATE, continue to the next approver
-        
-        # If we've gone through all approvers without an APPROVE decision, treat it as a rejection
-        final_message = "Rejected: No approver approved the tool call"
-        self.print_rejection_message(tool_call, final_message)
-        return False, final_message
+    Args:
+        tool_call (ToolCall): The rejected tool call.
+        reason (str): The reason for rejection.
+    """
+    with input_screen() as console:
+        console.print(Panel.fit(
+            f"Tool call rejected:\nFunction: {tool_call.function}\nArguments: {tool_call.arguments}\nReason: {reason}",
+            title="Tool Execution",
+            subtitle="Rejected"
+        ))
 
-    def print_approval_message(self, tool_call: ToolCall, reason: str):
-        """
-        Print an approval message for a tool call.
+def print_escalation_message(tool_call: ToolCall, reason: str):
+    """
+    Print an escalation message for a tool call.
 
-        Args:
-            tool_call (ToolCall): The approved tool call.
-            reason (str): The reason for approval.
-        """
-        with input_screen() as console:
-            console.print(Panel.fit(
-                f"Tool call approved:\nFunction: {tool_call.function}\nArguments: {tool_call.arguments}\nReason: {reason}",
-                title="Tool Execution",
-                subtitle="Approved"
-            ))
+    Args:
+        tool_call (ToolCall): The escalated tool call.
+        reason (str): The reason for escalation.
+    """
+    with input_screen() as console:
+        console.print(Panel.fit(
+            f"Tool call escalated:\nFunction: {tool_call.function}\nArguments: {tool_call.arguments}\nReason: {reason}",
+            title="Tool Execution",
+            subtitle="Escalated"
+        ))
 
-    def print_rejection_message(self, tool_call: ToolCall, reason: str):
-        """
-        Print a rejection message for a tool call.
+def print_termination_message(reason: str):
+    """
+    Print a termination message.
 
-        Args:
-            tool_call (ToolCall): The rejected tool call.
-            reason (str): The reason for rejection.
-        """
-        with input_screen() as console:
-            console.print(Panel.fit(
-                f"Tool call rejected:\nFunction: {tool_call.function}\nArguments: {tool_call.arguments}\nReason: {reason}",
-                title="Tool Execution",
-                subtitle="Rejected"
-            ))
-
-    def print_escalation_message(self, tool_call: ToolCall, reason: str):
-        """
-        Print an escalation message for a tool call.
-
-        Args:
-            tool_call (ToolCall): The escalated tool call.
-            reason (str): The reason for escalation.
-        """
-        with input_screen() as console:
-            console.print(Panel.fit(
-                f"Tool call escalated:\nFunction: {tool_call.function}\nArguments: {tool_call.arguments}\nReason: {reason}",
-                title="Tool Execution",
-                subtitle="Escalated"
-            ))
-
-    def print_termination_message(self, reason: str):
-        """
-        Print a termination message.
-
-        Args:
-            reason (str): The reason for termination.
-        """
-        with input_screen() as console:
-            console.print(Panel.fit(
-                f"Execution terminated.\nReason: {reason}",
-                title="Execution Terminated",
-                subtitle="System Shutdown"
-            ))
+    Args:
+        reason (str): The reason for termination.
+    """
+    with input_screen() as console:
+        console.print(Panel.fit(
+            f"Execution terminated.\nReason: {reason}",
+            title="Execution Terminated",
+            subtitle="System Shutdown"
+        ))
             
-    def print_tool_response_and_get_authorization(self, output: ModelOutput) -> bool:
-        """
-        Print the model's response and tool calls, and ask for user authorization.
+def print_tool_response_and_get_authorization(output: ModelOutput) -> bool:
+    """
+    Print the model's response and tool calls, and ask for user authorization.
 
-        Args:
-            output (ModelOutput): The model's output containing the response and tool calls.
+    Args:
+        output (ModelOutput): The model's output containing the response and tool calls.
 
-        Returns:
-            bool: True if the user authorizes the execution, False otherwise.
-        """
-        renderables: list[RenderableType] = []
-        if output.message.content != "":
-            renderables.append(
-                Panel.fit(
-                    Markdown(str(output.message.content)), title="Textual Response"
-                )
-            )
-
+    Returns:
+        bool: True if the user authorizes the execution, False otherwise.
+    """
+    renderables: list[RenderableType] = []
+    if output.message.content != "":
         renderables.append(
             Panel.fit(
-                Group(
-                    *self.format_human_readable_tool_calls(output.message.tool_calls or []),
-                    fit=True,
-                ),
-                title="Tool Calls",
+                Markdown(str(output.message.content)), title="Textual Response"
             )
         )
-        with input_screen() as console:
-            console.print(Panel.fit(Group(*renderables, fit=True), title="Model Response"))
 
-            return Confirm.ask(
-                "Do you FULLY understand these tool calls and approve their execution?"
-            )
+    renderables.append(
+        Panel.fit(
+            Group(
+                *format_human_readable_tool_calls(output.message.tool_calls or []),
+                fit=True,
+            ),
+            title="Tool Calls",
+        )
+    )
+    with input_screen() as console:
+        console.print(Panel.fit(Group(*renderables, fit=True), title="Model Response"))
 
-    @staticmethod
-    def format_human_readable_tool_calls(tool_calls: list[ToolCall]) -> list[RenderableType]:
-        """
-        Format tool calls into human-readable renderable objects.
+        return Confirm.ask(
+            "Do you FULLY understand these tool calls and approve their execution?"
+        )
 
-        Args:
-            tool_calls (list[ToolCall]): List of tool calls to format.
+def format_human_readable_tool_calls(tool_calls: list[ToolCall]) -> list[RenderableType]:
+    """
+    Format tool calls into human-readable renderable objects.
 
-        Returns:
-            list[RenderableType]: A list of renderable objects representing the formatted tool calls.
-        """
-        output_renderables: list[RenderableType] = []
-        for i, tool_call in enumerate(tool_calls):
-            panel_contents = []
-            for i, (argument, value) in enumerate(tool_call.arguments.items()):
-                argument_contents = []
-                match (tool_call.function, argument):
-                    case ("python", "code"):
-                        argument_contents.append(
-                            Syntax(
-                                value,
-                                "python",
-                                theme="monokai",
-                                line_numbers=True,
-                            )
+    Args:
+        tool_calls (list[ToolCall]): List of tool calls to format.
+
+    Returns:
+        list[RenderableType]: A list of renderable objects representing the formatted tool calls.
+    """
+    output_renderables: list[RenderableType] = []
+    for i, tool_call in enumerate(tool_calls):
+        panel_contents = []
+        for i, (argument, value) in enumerate(tool_call.arguments.items()):
+            argument_contents = []
+            match (tool_call.function, argument):
+                case ("python", "code"):
+                    argument_contents.append(
+                        Syntax(
+                            value,
+                            "python",
+                            theme="monokai",
+                            line_numbers=True,
                         )
-                    case ("bash", "cmd"):
-                        argument_contents.append(Syntax(value, "bash", theme="monokai"))
-                    case _:
-                        argument_contents.append(value)
-                panel_contents.append(
-                    Panel.fit(
-                        Group(*argument_contents, fit=True),
-                        title=f"Argument #{i}: [bold]{argument}[/bold]",
                     )
-                )
-            if tool_call.parse_error is not None:
-                output_renderables.append(f"Parse error: {tool_call.parse_error}")
-            output_renderables.append(
+                case ("bash", "cmd"):
+                    argument_contents.append(Syntax(value, "bash", theme="monokai"))
+                case _:
+                    argument_contents.append(value)
+            panel_contents.append(
                 Panel.fit(
-                    Group(*panel_contents, fit=True),
-                    title=f"Tool Call #{i}: [bold]{tool_call.function}[/bold]",
+                    Group(*argument_contents, fit=True),
+                    title=f"Argument #{i}: [bold]{argument}[/bold]",
                 )
             )
-        return output_renderables
+        if tool_call.parse_error is not None:
+            output_renderables.append(f"Parse error: {tool_call.parse_error}")
+        output_renderables.append(
+            Panel.fit(
+                Group(*panel_contents, fit=True),
+                title=f"Tool Call #{i}: [bold]{tool_call.function}[/bold]",
+            )
+        )
+    return output_renderables

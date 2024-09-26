@@ -1,7 +1,5 @@
-from rich.console import Group, RenderableType, Console
-
+from rich.console import Group, RenderableType
 from inspect_ai.model._chat_message import ChatMessageAssistant
-console = Console()
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.prompt import Prompt
@@ -25,12 +23,17 @@ from inspect_ai.solver import (
 from inspect_ai.tool import Tool, ToolCall, python, tool
 from inspect_ai.util import input_screen
 from inspect_ai.util import sandbox
-from approvals import ApprovalManager, AllowListApprover, HumanApprover
+from approvals import (
+    get_approval,
+    Approver,
+    allow_list_approver,
+    human_approver,
+)
 from typing import Optional, List
 
 
 @tool
-def bash(timeout: int | None = None, user: str | None = None, approval_manager: Optional[ApprovalManager] = None) -> Tool:
+def bash(timeout: int | None = None, user: str | None = None, approvers: Optional[list[Approver]] = None) -> Tool:
     """Bash shell command execution tool.
 
     Execute bash shell commands using a sandbox environment (e.g. "docker").
@@ -38,7 +41,7 @@ def bash(timeout: int | None = None, user: str | None = None, approval_manager: 
     Args:
       timeout (int | None): Timeout (in seconds) for command.
       user (str | None): User to execute commands as.
-      approval_manager (Optional[ApprovalManager]): The approval manager to use.
+      approvers (Optional[list[Approver]]): The list of approvers to use.
 
     Returns:
       String with command output (stdout) or command error (stderr).
@@ -56,7 +59,7 @@ def bash(timeout: int | None = None, user: str | None = None, approval_manager: 
         """
         function_name = bash.__name__
 
-        if approval_manager:
+        if approvers:
             state = sample_state()
             if state is None:
                 return "Error: No state found."
@@ -69,7 +72,7 @@ def bash(timeout: int | None = None, user: str | None = None, approval_manager: 
             tool_call = next((tc for tc in tool_calls if tc.function == function_name), None)
             
             if tool_call:
-                approved, reason = approval_manager.get_approval(tool_call)
+                approved, reason = get_approval(approvers, tool_call, state)
             else:
                 return f"Error: No {function_name} tool call found in the current state."
             
@@ -171,7 +174,7 @@ def get_user_prompt() -> Solver:
     return solve
 
 @solver
-def agent_loop(tools: list[Tool], approval_manager: Optional[ApprovalManager] = None) -> Solver:
+def agent_loop(tools: list[Tool], approvers: Optional[list[Approver]] = None) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         model = get_model()
         while True:
@@ -180,10 +183,10 @@ def agent_loop(tools: list[Tool], approval_manager: Optional[ApprovalManager] = 
             state.messages.append(output.message)
 
             if output.message.tool_calls:
-                # If approval_manager is provided, use it to approve tool calls
-                if approval_manager:
+                # If approvers are provided, use them to approve tool calls
+                if approvers:
                     for tool_call in output.message.tool_calls:
-                        approved, reason = approval_manager.get_approval(tool_call)
+                        approved, reason = get_approval(approvers, tool_call, state)
                         if not approved:
                             # If not approved, add a message to inform the model
                             state.messages.append(ChatMessageTool(
@@ -247,19 +250,19 @@ Please reflect on what actions to take before you take them."""
 @task
 def tool_call_intervention():
     """
-    This is the intervention mode where you can intervene in the conversation and approve or reject tool calls.
+    This is the intervention mode where you set approvers on tool call level.
     """
-    allow_list_approver = AllowListApprover(["ls"])
-    human_approver = HumanApprover()
-    bash_approval_manager = ApprovalManager([allow_list_approver, human_approver])
+    allow_list_approver_func = allow_list_approver(["ls"])
+    human_approver_func = human_approver()
+    approvers = [allow_list_approver_func, human_approver_func]
     
-    tools = [bash(approval_manager=bash_approval_manager), python()]
+    tools = [bash(approvers=approvers), python()]
     return Task(
         dataset=MemoryDataset([Sample(input="Unused in interactive mode")]),
         plan=[
             system_message(SYSTEM_PROMPT),
             get_user_prompt(),
-            agent_loop(tools),
+            agent_loop(tools, approvers),
         ],
         sandbox="docker",
     )
@@ -267,10 +270,10 @@ def tool_call_intervention():
 @task
 def agent_loop_intervention():
     """
-    This is the intervention mode where you can intervene in the conversation and approve on agent level.
+    This is the intervention mode where you set approvers on agent level.
     """
-    human_approver = HumanApprover()
-    approval_manager = ApprovalManager([human_approver])
+    human_approver_func = human_approver()
+    approvers = [human_approver_func]
     
     tools = [bash(), python()]
     return Task(
@@ -278,13 +281,7 @@ def agent_loop_intervention():
         plan=[
             system_message(SYSTEM_PROMPT),
             get_user_prompt(),
-            agent_loop(tools, approval_manager),
+            agent_loop(tools, approvers),
         ],
         sandbox="docker",
     )
-
-
-if __name__ == "__main__":
-    from inspect_ai import eval
-    tasks = [tool_call_intervention()]
-    eval(tasks=tasks, model='openai/gpt-4o-mini', limit=1, log_buffer=1)
