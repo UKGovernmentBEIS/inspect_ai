@@ -692,7 +692,9 @@ def combine_messages(
     elif isinstance(a.content, list) and isinstance(b.content, str):
         return message_type(content=a.content + [ContentText(text=b.content)])
     else:
-        raise TypeError(f"Cannot combine messages with invalid content types: {a.content!r}, {b.content!r}")
+        raise TypeError(
+            f"Cannot combine messages with invalid content types: {a.content!r}, {b.content!r}"
+        )
 
 
 def init_active_model(model: Model, config: GenerateConfig) -> None:
