@@ -146,10 +146,16 @@ def registry_lookup(type: RegistryType, name: str) -> object | None:
             return None
 
     o = _lookup()
-    # if if appears to be package scoped (/ with no .) then don't
-    # load entry points
-    if o is None and name.find("/") != -1 and name.find(".") == -1:
-        ensure_entry_points()
+
+    # try to recover
+    if o is None:
+        # load entry points as required
+        if name.find("/") != -1 and name.find(".") == -1:
+            ensure_entry_points()
+        # if this is a request for inspect_evals/ import its registry
+        if name.startswith("inspect_evals/"):
+            import inspect_evals._registry  # noqa: F401
+
         return _lookup()
     else:
         return o
