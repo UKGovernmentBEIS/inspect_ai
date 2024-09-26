@@ -12020,9 +12020,43 @@ const ToolOutput = ({ output, style }) => {
   if (!output) {
     return "";
   }
-  if (typeof output === "object" || Array.isArray(output)) {
-    output = JSON.stringify(output);
+  const outputs = [];
+  if (Array.isArray(output)) {
+    output.forEach((out) => {
+      if (out.type === "text") {
+        outputs.push(
+          m$1`<${ToolTextOutput} text=${out.text} style=${style} />`
+        );
+      } else {
+        if (out.image.startsWith("data:")) {
+          outputs.push(
+            m$1`<img
+              src="${out.image}"
+              style=${{
+              maxWidth: "100%",
+              border: "solid var(--bs-border-color) 1px",
+              ...style
+            }}
+            />`
+          );
+        } else {
+          outputs.push(
+            m$1`<${ToolTextOutput}
+              text=${String(out.image)}
+              style=${style}
+            />`
+          );
+        }
+      }
+    });
+  } else {
+    outputs.push(
+      m$1`<${ToolTextOutput} text=${String(output)} style=${style} />`
+    );
   }
+  return m$1`<div style=${{ display: "grid" }}>${outputs}</div>`;
+};
+const ToolTextOutput = ({ text, style }) => {
   return m$1`<pre
     style=${{
     marginLeft: "2px",
@@ -12031,9 +12065,11 @@ const ToolOutput = ({ output, style }) => {
     marginBottom: "0",
     ...style
   }}
-  ><code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
-      ${output.trim()}
-      </code></pre>`;
+  >
+    <code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
+      ${text.trim()}
+      </code>
+  </pre>`;
 };
 const extractInputMetadata = (toolName) => {
   if (toolName === "bash") {
@@ -12093,11 +12129,13 @@ const MessageContent = (props) => {
           index: index === contents.length - 1
         });
       } else {
-        const renderer = messageRenderers[content.type];
-        if (renderer) {
-          return renderer.render(content, index === contents.length - 1);
-        } else {
-          console.error(`Unknown message content type '${content.type}'`);
+        if (content) {
+          const renderer = messageRenderers[content.type];
+          if (renderer) {
+            return renderer.render(content, index === contents.length - 1);
+          } else {
+            console.error(`Unknown message content type '${content.type}'`);
+          }
         }
       }
     });
@@ -12131,7 +12169,7 @@ const messageRenderers = {
   },
   tool: {
     render: (content) => {
-      return m$1`<${ToolOutput} output=${content.text} />`;
+      return m$1`<${ToolOutput} output=${content.content} />`;
     }
   }
 };
@@ -12308,7 +12346,7 @@ const resolveToolMessage = (toolMessage) => {
     return [
       {
         type: "tool",
-        text: content
+        content
       }
     ];
   } else {
@@ -12316,11 +12354,16 @@ const resolveToolMessage = (toolMessage) => {
       if (typeof content === "string") {
         return {
           type: "tool",
-          text: content
+          content
         };
       } else if (con.type === "text") {
         return {
-          ...con,
+          content,
+          type: "tool"
+        };
+      } else if (con.type === "image") {
+        return {
+          content,
           type: "tool"
         };
       }
