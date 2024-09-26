@@ -53,7 +53,11 @@ export const ExpandablePanel = ({ collapse, border, lines = 7, children }) => {
   // Enforce the line clamp if need be
   let contentsStyle = { fontSize: FontSize.base };
   if (collapse && collapsed) {
-    contentsStyle = { ...contentsStyle, ...ApplicationStyles.lineClamp(lines) };
+    contentsStyle = {
+      ...contentsStyle,
+      maxHeight: `${lines}em`,
+      overflow: "hidden",
+    };
   }
 
   if (border) {

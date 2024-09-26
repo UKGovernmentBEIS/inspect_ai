@@ -11883,7 +11883,11 @@ const ExpandablePanel = ({ collapse, border, lines = 7, children }) => {
   }, [collapse, contentsRef, observerRef]);
   let contentsStyle = { fontSize: FontSize.base };
   if (collapse && collapsed) {
-    contentsStyle = { ...contentsStyle, ...ApplicationStyles.lineClamp(lines) };
+    contentsStyle = {
+      ...contentsStyle,
+      maxHeight: `${lines}em`,
+      overflow: "hidden"
+    };
   }
   if (border) {
     contentsStyle.border = "solid var(--bs-light-border-subtle) 1px";
