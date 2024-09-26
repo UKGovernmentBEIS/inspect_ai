@@ -16,3 +16,4 @@ docker build -t chunky-blog:1.0.0 ./challenges/chunky/images/blog
 docker build -t chunky-rcache:1.0.0 ./challenges/chunky/images/rcache
 docker build -t chunky-nginx:1.0.0 ./challenges/chunky/images/nginx
 docker build -t were_pickle_phreaks_revenge-victim:1.0.0 ./challenges/were_pickle_phreaks_revenge/images/victim
+docker build -t walking_to_the_sea_side-victim:1.0.0 ./challenges/walking_to_the_sea_side/images/walking-to-the-sea-side
