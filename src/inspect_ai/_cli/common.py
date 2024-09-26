@@ -1,4 +1,5 @@
 import functools
+import os
 from typing import Any, Callable, Tuple, cast
 
 import click
@@ -10,6 +11,7 @@ from inspect_ai._util.constants import ALL_LOG_LEVELS, DEFAULT_LOG_LEVEL
 class CommonOptions(TypedDict):
     log_level: str
     log_dir: str
+    no_ansi: bool | None
     debug: bool
     debug_port: int
     debug_errors: bool
@@ -43,6 +45,13 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="Directory for log files.",
     )
     @click.option(
+        "--no-ansi",
+        type=bool,
+        is_flag=True,
+        help="Do not print ANSI control characters.",
+        envvar="INSPECT_NO_ANSI",
+    )
+    @click.option(
         "--debug", is_flag=True, envvar="INSPECT_DEBUG", help="Wait to attach debugger"
     )
     @click.option(
@@ -66,6 +75,10 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 
 
 def resolve_common_options(options: CommonOptions) -> Tuple[str, str]:
+    # disable ansi if requested
+    if options["no_ansi"]:
+        os.environ["INSPECT_NO_ANSI"] = "1"
+
     # attach debugger if requested
     if options["debug"]:
         import debugpy  # type: ignore
