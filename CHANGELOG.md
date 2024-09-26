@@ -5,9 +5,9 @@
 - Capture solver input params for subtasks created by `fork()`.
 - Allow Docker sandboxes configured with `x-default` to be referred to by their declared service name.
 - Require a `max_messages` for use of `basic_agent()` (as without it, the agent could end up in an infinite loop).
-- Track sample task state in solver decorator rather than solver transcript.
 - Display solver input parameters for forked subtasks.
 - Improvements to docker compose down cleanup: timeout, survive missing compose files.
+
 
 ## v0.3.32 (25 September 2024)
 

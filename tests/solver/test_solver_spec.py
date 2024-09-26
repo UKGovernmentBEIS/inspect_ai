@@ -61,7 +61,7 @@ def test_solver_extension():
         the_task(), solver=SolverSpec("inspect_package/cot"), model="mockllm/model"
     )[0]
     assert log.eval.solver == "inspect_package/cot"
-    assert log.plan.steps[0].solver == "inspect_package/cot"
+    assert log.plan.steps[0].solver == "chain_of_thought"
 
 
 def test_solver_retry():

@@ -5,7 +5,7 @@ from inspect_ai._util.json import json_changes
 from inspect_ai._util.registry import registry_log_name
 
 from ._solver import Solver
-from ._task_state import TaskState, state_jsonable
+from ._task_state import TaskState, set_sample_state, state_jsonable
 
 
 class SolverTranscript:
@@ -28,6 +28,7 @@ def solver_transcript(
 ) -> Iterator[SolverTranscript]:
     from inspect_ai.log._transcript import transcript
 
+    set_sample_state(state)
     name = registry_log_name(name or solver)
     with transcript().step(name=name, type="solver"):
         yield SolverTranscript(name, state)
