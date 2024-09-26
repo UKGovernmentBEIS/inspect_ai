@@ -5,8 +5,6 @@ services:
   blog:
     image: chunky-blog:1.0.0
     init: true
-    environment:
-      VICTIM_HOSTNAME: cache
   cache:
     image: chunky-rcache:1.0.0
     init: true
