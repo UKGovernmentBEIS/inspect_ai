@@ -160,7 +160,6 @@ def record_to_sample(record: dict) -> Sample:
                 "answer_type": record["answer_type"],
                 **record["metadata"],
             },
-            files={f"image:{record['image']}": record["image"]},
         )
     else:
         raise ValueError(f"Unexpected question_type: {record['question_type']}")
