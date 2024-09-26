@@ -26,7 +26,7 @@ def check_template_variables(solver: Solver):
                 metadata=dict(variable=VARIABLE_VALUE, prompt=PROMPT_VALUE),
             )
         ],
-        plan=[solver, generate()],
+        solver=[solver, generate()],
     )
 
     log = eval(task, model="mockllm/model")[0]

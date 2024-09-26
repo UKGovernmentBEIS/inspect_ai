@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased
+
+- Capture solver input params for subtasks created by `fork()`.
+- Allow Docker sandboxes configured with `x-default` to be referred to by their declared service name.
+- Require a `max_messages` for use of `basic_agent()` (as without it, the agent could end up in an infinite loop).
+- Track sample task state in solver decorator rather than solver transcript.
+- Display solver input parameters for forked subtasks.
+- Improvements to docker compose down cleanup: timeout, survive missing compose files.
+
+## v0.3.32 (25 September 2024)
+
+- Fix issue w/ subtasks not getting a fresh store() (regression from introduction of `fork()` in v0.3.30)
+- Fix issue w/ subtasks that return None invalidating the log file.
+- Make subtasks collapsable in Inspect View.
+- Improved error reporting for missing `web_search()` provider environment variables. 
+
+## v0.3.31 (24 September 2024)
+
+- Deprecated `Plan` in favor of `Solver` (with `chain()` function to compose multiple solvers).
+- Added `max_tool_output` generation option (defaults to 16KB).
+- Improve performance of `header_only` log reading (switch from json-stream to ijson).
+- Add support for 0 retries to `eval-set` (run a single `eval` then stop).
+- Tool calling fixes for update to Mistral v1.1. client.
+- Always show `epochs` in task status (formerly wasn't included for multiple task display)
+- Render transcript `info()` strings as markdown
+- Eliminate log spam from spurious grpc fork message.
+- Fix issue with hf_dataset shuffle=True not actually shuffling.
+- Improved error handling when loading invalid setuptools entrypoints.
+- Don't catch TypeError when calling tools (we now handle this in other ways)
+
 ## v0.3.30 (18 September 2024)
 
 - Added [fork()](agents-api.qmd#sec-forking) function to fork a `TaskState` and evaluate it against multiple solvers in parallel.

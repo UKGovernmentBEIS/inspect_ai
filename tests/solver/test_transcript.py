@@ -25,7 +25,7 @@ def test_sample_transcript():
         dataset=[
             Sample(input="Say Hello", target="Hello"),
         ],
-        plan=[transcript_solver(), generate()],
+        solver=[transcript_solver(), generate()],
         scorer=match(),
     )
 

@@ -1,9 +1,9 @@
 import abc
 import asyncio
-import logging
 import os
 import sys
 import traceback
+from logging import getLogger
 from types import TracebackType
 from typing import Any, Literal, Type
 
@@ -15,6 +15,7 @@ from rich.traceback import Traceback
 
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, PKG_NAME
 from inspect_ai._util.error import EvalError, exception_message
+from inspect_ai._util.logger import warn_once
 from inspect_ai.model import (
     ChatMessage,
     GenerateConfig,
@@ -25,6 +26,8 @@ from inspect_ai.scorer import Score
 from inspect_ai.scorer._metric import SampleScore
 
 from ._transcript import EvalEvents
+
+logger = getLogger(__name__)
 
 SCORER_PLACEHOLDER = "88F74D2C"
 
@@ -107,9 +110,11 @@ class EvalSample(BaseModel):
     @property
     def score(self) -> Score | None:
         """Score for sample (deprecated)."""
-        logging.warning(
-            "The 'score' field is deprecated. Access sample scores through 'scores' instead."
+        warn_once(
+            logger,
+            "The 'score' field is deprecated. Access sample scores through 'scores' instead.",
         )
+
         return list(self.scores.values())[0] if self.scores else None
 
     scores: dict[str, Score] | None = Field(default=None)
@@ -229,7 +234,8 @@ class EvalResults(BaseModel):
     @property
     def scorer(self) -> EvalScore | None:
         """Scorer used to compute results (deprecated)."""
-        logging.warning(
+        warn_once(
+            logger,
             "The 'scorer' field is deprecated. Use 'scorers' instead.",
         )
         return self.scores[0] if self.scores else None
@@ -237,8 +243,9 @@ class EvalResults(BaseModel):
     @property
     def metrics(self) -> dict[str, EvalMetric]:
         """Metrics computed (deprecated)."""
-        logging.warning(
-            "The 'metrics' field is deprecated. Access metrics through 'scorers' instead."
+        warn_once(
+            logger,
+            "The 'metrics' field is deprecated. Access metrics through 'scorers' instead.",
         )
         return self.scores[0].metrics if self.scores else {}
 
@@ -330,11 +337,11 @@ class EvalSpec(BaseModel):
     task_args: dict[str, Any] = Field(default={})
     """Arguments used for invoking the task."""
 
-    plan: str | None = Field(default=None)
-    """Plan name."""
+    solver: str | None = Field(default=None)
+    """Solver name."""
 
-    plan_args: dict[str, Any] | None = Field(default=None)
-    """Arguments used for invoking the plan."""
+    solver_args: dict[str, Any] | None = Field(default=None)
+    """Arguments used for invoking the solver."""
 
     dataset: EvalDataset
     """Dataset used for eval."""
@@ -420,6 +427,10 @@ class EvalStats(BaseModel):
 
 
 class EvalLog(BaseModel):
+    # WARNING: The order of these fields is important for the log file format.
+    # Do not change the order of these fields without incrementing the version number,
+    # updating the log file read/write functionality (such as read_eval_log),
+    # and updating the tests.
     version: int = Field(default=2)
     """Eval log file format version."""
 

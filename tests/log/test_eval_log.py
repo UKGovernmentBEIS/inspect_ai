@@ -9,7 +9,6 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log import read_eval_log
 from inspect_ai.solver import (
     Generate,
-    Plan,
     TaskState,
     generate,
     solver,
@@ -36,7 +35,7 @@ def test_ignore_unserializable():
 
     task = Task(
         dataset=[Sample(input="Say hello.", target="Hello")],
-        plan=Plan(steps=[inject_unserializable(), generate()]),
+        solver=[inject_unserializable(), generate()],
     )
 
     try:
@@ -60,6 +59,10 @@ def test_fail_invalid():
 
 def test_fail_version():
     check_log_raises(log_path("log_version_3"))
+
+
+def test_valid_log_header():
+    read_eval_log(log_path("log_valid"), header_only=True)
 
 
 def check_log_raises(log_file):

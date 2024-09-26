@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.33
+
+- Fix bug that prevented run, debug buttons from appearing for tasks whose function declarations spanned more than single line.
+
 ## 0.3.32
 
 - Properly resolve log directory when showing log view using `cmd+L`

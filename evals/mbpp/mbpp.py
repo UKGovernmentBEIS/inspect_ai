@@ -115,7 +115,7 @@ def mbpp(
     return Task(
         dataset=dataset,
         epochs=Epochs(NUM_EPOCHS, ["mean", "pass_at_1", "pass_at_2", "pass_at_5"]),
-        plan=[
+        solver=[
             prompt_template(template),
             generate(),
         ],

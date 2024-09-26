@@ -50,7 +50,7 @@ We can use this tool in an evaluation by passing it to the `use_tools()` Solver:
 def addition_problem():
     return Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2"])],
-        plan=[
+        solver=[
             use_tools(add()), 
             generate()
         ],
@@ -165,7 +165,7 @@ use_tools(addition(), tool_choice="none")
 The last form (`tool_choice="none"`) would typically be used to turn off tool usage after an initial generation where the tool used. For example:
 
 ``` python
-plan = [
+solver = [
   use_tools(addition(), tool_choice=ToolFunction(name="addition")),
   generate(),
   follow_up_prompt(),
@@ -230,12 +230,12 @@ def web_search(
     ...
 ```
 
-You can use the `web_search()` tool in a plan like this:
+You can use the `web_search()` tool like this:
 
 ``` python
 from inspect_ai.tool import web_search
 
-plan=[
+solver=[
     use_tools(web_search()), 
     generate()
 ],
@@ -274,7 +274,7 @@ CMD_TIMEOUT = 180
 def intercode_ctf():
     return Task(
         dataset=read_dataset(),
-        plan=[
+        solver=[
             system_message("system.txt"),
             use_tools([
                 bash(CMD_TIMEOUT), 

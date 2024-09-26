@@ -4,6 +4,8 @@
 
 Agents combine planning, memory, and tool usage to pursue more complex, longer horizon tasks (e.g. a [Capture the Flag](https://en.wikipedia.org/wiki/Capture_the_flag_(cybersecurity)) challenge). Agents are an area of active research, and many schemes for implementing them have been developed, including [AutoGPT](https://arxiv.org/abs/2306.02224), [ReAct](https://arxiv.org/pdf/2303.11366.pdf), and [Reflexion](https://arxiv.org/pdf/2303.11366.pdf).
 
+An agent isn't a special construct within Inspect, it's merely a solver that includes tool use and calls `generate()` internally to interact with the model.
+
 Inspect supports a variety of approaches to agent evaluations, including:
 
 1.  Using Inspect's built-in `basic_agent()`.
@@ -11,8 +13,6 @@ Inspect supports a variety of approaches to agent evaluations, including:
 2.  Implementing a fully custom agent scaffold (i.e. taking full control of generation, tool calling, reasoning steps, etc.)
 
 3.  Adapting an agent provided by a research paper or open source library (for example, using a 3rd party agent library like [LangChain](https://python.langchain.com/docs/modules/agents/) or [Langroid](https://langroid.github.io/langroid/)).
-
-We'll cover the basics of all of these approaches below.
 
 An important additional consideration for agent evaluations is sandboxing (providing a secure environment for models to execute code within). The [Sandbox Environments](#sec-sandbox-environments) section goes into more depth on this.
 
@@ -22,17 +22,17 @@ The `basic_agent()`provides a ReAct tool loop with support for retries and encou
 
 1.  When developing tasks and datasets it's convenient to have a ready made agent that you know that will competently navigate your task.
 
-2.  When developing custom agents, it's a good idea to start out with an idea of how the model performs using its native planning and eliciatation capabilities. The basic agent is a good way to establish this baseline.
+2.  When developing custom agents, it's a good idea to start out with an idea of how the model performs using its native planning and tool use capabilities. The basic agent is a good way to establish this baseline.
 
 3.  It provides a sound basis for comparison of the native agentic capabilities of models both over time and across providers.
 
-The basic agent incorporates best practices for giving models some additional resilience and persistence, both through the optional `max_attempts` parameter, as well as by continuing the task even when the model stops making tool calls. The basic agent can frequently match or exeed custom scaffolds, so you should always try it as a baseline for your tasks!
+The basic agent incorporates best practices for giving models some additional resilience and persistence, both through the optional `max_attempts` parameter, as well as by continuing the task even when the model stops making tool calls. The basic agent can frequently match or exceed custom scaffolds, so you should always try it as a baseline for your tasks!
 
 Note that when using the basic agent you should *always* set a `max_messages` so that there is some termination point if the model gets off track or stuck in a loop.
 
 ### Example
 
-Here is an example use of `basic_agent()` as the `plan` for a CTF evaluation:
+Here is an example use of `basic_agent()` as the `solver` for a CTF evaluation:
 
 ``` python
 from inspect_ai import Task, task
@@ -54,7 +54,7 @@ you are going to use and how they fit into your plan.                    # <1>
 def ctf():
     return Task(
         dataset=json_dataset("ctf.json"),
-        plan=basic_agent(
+        solver=basic_agent(
             init=system_message(SYSTEM_MESSAGE),
             tools=[bash(timeout=180), python(timeout=180)], # <2>
             max_attempts=3,                                 # <3>
@@ -92,10 +92,9 @@ There are several options available for customising the behaviour of the basic a
 
 For multiple attempts, submissions are evaluated using the task's main scorer, with value of 1.0 indicating a correct answer. Scorer values are converted to float (e.g. "C" becomes 1.0) using the standard `value_to_float()` function. Provide an alternate conversion scheme as required via `score_value`.
 
-
 ## Custom Scaffold {#sec-custom-scaffolding}
 
-The basic agent demonstrated above will work well for some tasks, but in other cases you may need to provide more custom logic. For example, you might want to:
+The basic agent demonstrated above will work well for some tasks, but in other cases you may want to provide more custom logic. For example, you might want to:
 
 {{< include _tools-scaffold.md >}}
 
@@ -103,11 +102,11 @@ The basic agent demonstrated above will work well for some tasks, but in other c
 
 While its possible to make tools globally available to the model via `use_tools()`, you may also want to filter the available tools either based on task stages or dynamically based on some other criteria.
 
-Here's an example of a `Solver` that filters the available tools between calls to `generate()`:
+Here's an example of a solver agent that filters the available tools between calls to `generate()`:
 
 ``` python
 @solver
-def generate_ctf():
+def ctf_agent():
     async def solve(state: TaskState, generate: Generate):
         
         # first pass w/ core tools
@@ -127,8 +126,6 @@ def generate_ctf():
     
     return solve
 ```
-
-In this example we rely on the default `generate()` tool calling behaviour (`"loop"`). However, you can also imaging combining tool filtering with the more tailored tool calling logic described in [Tool Calls](#sec-tool-calls).
 
 ### Agents API
 
@@ -259,7 +256,7 @@ Finally, here's a task that uses the `wikipedia_search()` solver:
 def wikipedia() -> Task:
     return Task(
         dataset=json_dataset("wikipedia.jsonl"),
-        plan=wikipedia_search(),
+        solver=wikipedia_search(),
         scorer=model_graded_fact(),
     )
 ```
@@ -327,7 +324,7 @@ dataset = [
 def file_probe()
     return Task(
         dataset=dataset,
-        plan=[
+        solver=[
             use_tools([list_files()]), 
             generate()
         ],
@@ -360,7 +357,7 @@ There are two sandbox environments built in to Inspect:
 
 Sandbox environment definitions can be bound at the `Sample`, `Task`, or `eval()` level. Binding precedence goes from `eval()`, to `Task` to `Sample`, however sandbox config files defined on the `Sample` always take precedence when the sandbox type for the `Sample` is the same as the enclosing `Task` or `eval()`.
 
-Here is a `Task` that defines a `sandbox` and corresponding sandbox config file:
+Here is a `Task` that defines a `sandbox`:
 
 ``` python
 Task(
@@ -370,15 +367,17 @@ Task(
         generate()
     ]),
     scorer=match(),
-    sandbox=("docker", "compose.yaml")
+    sandbox="docker"
 )
 ```
 
-In this example there is a `compose.yaml` file in the task directory that will be used to provision Docker services (if there is no config file specified then the Docker default Python 3.12 image will be used). For example:
+By default, any `Dockerfile` and/or `compose.yaml` file within the task directory will be automatically discovered and used. If your compose file has a different name then you can provide an override specification as follows:
 
-``` python
-sandbox="docker"
+```python
+sandbox=("docker", "attacker-compose.yaml")
 ```
+
+The configuration file added to the `sandbox` spec should always be a compose file (rather than a `Dockerfile`, which is always discovered automatically). 
 
 ### Per Sample Setup
 
@@ -500,7 +499,7 @@ sandbox("victim")  # named sandbox environment
 ```
 
 ::: {.callout-note apperance="simple"}
-If you define multiple sandbox environments you are *required* to name one of them "default" so that Inspect knows which environment to copy samples files to and resolve for calls to `sandbox()` without an argument.
+If you define multiple sandbox environments you are *required* to name one of them "default" so that Inspect knows which environment to resolve for calls to `sandbox()` without an argument. Alternatively, you can add the `x-default` key to a service not named "default" to designate it as the default sandbox.
 :::
 
 #### Infrastructure

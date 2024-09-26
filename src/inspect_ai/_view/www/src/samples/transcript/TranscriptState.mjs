@@ -34,11 +34,23 @@ export const initStateManager = (scope) => {
      * @param {import("../../types/log").Changes} changes - The new state object to update with.
      */
     applyChanges: (changes) => {
-      state = applyPatch(
-        structuredClone(state),
-        structuredClone(changes).map(ensureValidChange),
-        true,
-      ).newDocument;
+      try {
+        state = applyPatch(
+          structuredClone(state),
+          structuredClone(changes).map(ensureValidChange),
+          true,
+        ).newDocument;
+      } catch (ex) {
+        const ops = changes.reduce((prev, change) => {
+          if (!Object.keys(prev).includes(change.op)) {
+            prev[change.op] = [];
+          }
+          prev[change.op].push(change.path);
+          return prev;
+        }, {});
+        const message = `${ex.name}\nFailed to apply patch:\n${JSON.stringify(ops, undefined, 2)}`;
+        console.error(message);
+      }
     },
   };
 };

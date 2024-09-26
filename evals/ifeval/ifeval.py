@@ -29,7 +29,7 @@ def ifeval():
         dataset=hf_dataset(
             path="google/IFEval", split="train", sample_fields=record_to_sample
         ),
-        plan=[generate()],
+        solver=[generate()],
         scorer=instruction_following(),
     )
 

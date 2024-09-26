@@ -1,6 +1,7 @@
 import re
 from typing import Any, Callable, TypeVar, cast, overload
 
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
@@ -167,3 +168,16 @@ def set_reducer_name(reducer: ScoreReducer, name: str) -> None:
             metadata=info.metadata,
         ),
     )
+
+
+def validate_reducer(epochs: int, reducer: ScoreReducer) -> None:
+    params = registry_params(reducer)
+    if "k" in params:
+        k = int(params["k"])
+        if k > epochs:
+            name = registry_log_name(reducer)
+            # don't interfere w/ unknown uses of 'k' (i.e. only validate built in)
+            if name.startswith("pass_at") or name.startswith("at_least"):
+                raise PrerequisiteError(
+                    f"Reducer '{name}_{k}' requires {k} epochs however evaluation has only {epochs} epochs."
+                )

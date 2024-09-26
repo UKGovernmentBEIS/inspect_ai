@@ -15,6 +15,7 @@ inspect eval drop/drop.py -T fewshot=5
 inspect eval drop/drop.py -T fewshot=false
 """
 
+import hashlib
 import re
 from typing import Dict, List
 
@@ -22,6 +23,8 @@ from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.scorer import f1
 from inspect_ai.solver import (
+    Solver,
+    chain,
     generate,
     prompt_template,
     system_message,
@@ -68,7 +71,7 @@ def drop(
             trust=True,
             sample_fields=record_to_sample,
         ),
-        plan=build_plan(fewshot=fewshot, fewshot_seed=fewshot_seed),
+        solver=drop_solver(fewshot=fewshot, fewshot_seed=fewshot_seed),
         scorer=f1(extract_answer),
     )
 
@@ -79,11 +82,11 @@ def extract_answer(answer: str) -> str:
     return match.group(1) if match else answer
 
 
-def build_plan(
+def drop_solver(
     fewshot: int,
     fewshot_seed: int,
-) -> List:
-    """Builds plan using various solvers for the DROP task.
+) -> Solver:
+    """Builds solver for the DROP task.
 
     Arguments:
         fewshot (int): Number of few shot examples to use.
@@ -110,13 +113,11 @@ def build_plan(
     else:
         sys_msg = system_message(SYSTEM_PROMPT_TEMPLATE)
 
-    plan = [
+    return chain(
         sys_msg,
         prompt_template(USER_PROMPT_TEMPLATE),
         generate(),
-    ]
-
-    return plan
+    )
 
 
 def record_to_sample(record: Dict) -> Sample:
@@ -124,6 +125,7 @@ def record_to_sample(record: Dict) -> Sample:
         input=format_input(record),
         target=get_answers(record),
         id=record["query_id"],
+        metadata={"passage_hash": hashlib.md5(record["passage"].encode()).hexdigest()},
     )
 
 

@@ -61,7 +61,7 @@ def xstest(subset="safe", scorer_model="openai/gpt-4o"):
 
     return Task(
         dataset=dataset,
-        plan=[system_message("You are a helpful assistant."), generate()],
+        solver=[system_message("You are a helpful assistant."), generate()],
         scorer=model_graded_qa(
             model=scorer_model,
             template=scorer_template,

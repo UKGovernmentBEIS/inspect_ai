@@ -9,14 +9,15 @@ import { format } from "jsondiffpatch/formatters/html";
  * Renders a view displaying a list of state changes.
  *
  * @param {Object} props - The properties for the component.
- * @param {Object} props.starting - The list of changes to be displayed.
- * @param {Object} props.ending - The list of changes to be displayed.
+ * @param {Object} props.before - The object in its before state
+ * @param {Object} props.after - The object in its before state
  * @param {Record<string, string>} [props.style] - Optional custom styles for the view container.
  * @returns {import("preact").JSX.Element | undefined} The component.
  */
-export const StateDiffView = ({ starting, ending, style }) => {
-  const changes = diff(starting, ending);
-  const html_result = format(changes);
+export const StateDiffView = ({ before, after, style }) => {
+  // Diff the objects and render the diff
+  const state_diff = diff(before, after);
+  const html_result = format(state_diff) || "Unable to render differences";
   return html`<div
     dangerouslySetInnerHTML=${{ __html: unescapeNewlines(html_result) }}
     style=${{ ...style }}

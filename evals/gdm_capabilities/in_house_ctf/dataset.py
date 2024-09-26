@@ -3,7 +3,7 @@ import sys
 
 from inspect_ai.dataset import Dataset, Sample, json_dataset
 
-DATA_DIR = "data"
+DATA_DIR = "challenges"
 SOLUTION_SIGNATURE = "## Possible solution"
 
 

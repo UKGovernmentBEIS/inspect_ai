@@ -1,7 +1,7 @@
 from inspect_ai.model import modelapi
 from inspect_ai.util import sandboxenv
 
-from .plans.cot import cot  # noqa: F401
+from .solvers.cot import cot  # noqa: F401
 
 # delayed import for the model and sandbox allows us to only resolve the imports
 # when they are actually requeasted (so that we don't end up requiring all

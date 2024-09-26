@@ -7,7 +7,7 @@ from huggingface_hub import snapshot_download  # type: ignore
 from inspect_ai import Task, task
 from inspect_ai.dataset import Dataset, Sample, hf_dataset
 from inspect_ai.scorer import match
-from inspect_ai.solver import Plan, basic_agent, system_message
+from inspect_ai.solver import Solver, basic_agent, system_message
 from inspect_ai.tool import bash, web_search
 
 GAIA_DATASET_LOCATION = Path(__file__).parent / "resources" / "GAIA"
@@ -16,7 +16,7 @@ COMPOSE_FILE = Path(__file__).parent / "compose.yaml"
 
 @task
 def gaia(
-    plan: Plan | None = None,
+    solver: Solver | None = None,
     input_prompt: str | None = None,
     max_messages: int = 30,
     subset: Literal[
@@ -33,9 +33,9 @@ def gaia(
         filter=filter if filter else lambda x: True,
     )
 
-    # provide default plan if required
-    if plan is None:
-        plan = basic_agent(
+    # provide default solver if required
+    if solver is None:
+        solver = basic_agent(
             init=system_message(
                 "Please solve the coding task below. Once you are done, "
                 + "use the submit() tool to provide your answer."
@@ -49,7 +49,7 @@ def gaia(
     # return task
     return Task(
         dataset=dataset,
-        plan=plan,
+        solver=solver,
         scorer=scorer,
         sandbox=("docker", str(COMPOSE_FILE)),
         max_messages=max_messages,

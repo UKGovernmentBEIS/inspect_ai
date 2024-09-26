@@ -816,11 +816,7 @@
           "default": null
         },
         "config": {
-          "allOf": [
-            {
-              "$ref": "#/$defs/GenerateConfig"
-            }
-          ],
+          "$ref": "#/$defs/GenerateConfig",
           "default": {
             "max_retries": null,
             "timeout": null,
@@ -841,6 +837,7 @@
             "logprobs": null,
             "top_logprobs": null,
             "parallel_tool_calls": null,
+            "max_tool_output": null,
             "cache_prompt": null
           }
         }
@@ -1316,7 +1313,7 @@
           "title": "Task Args",
           "type": "object"
         },
-        "plan": {
+        "solver": {
           "anyOf": [
             {
               "type": "string"
@@ -1326,9 +1323,9 @@
             }
           ],
           "default": null,
-          "title": "Plan"
+          "title": "Solver"
         },
-        "plan_args": {
+        "solver_args": {
           "anyOf": [
             {
               "type": "object"
@@ -1338,7 +1335,7 @@
             }
           ],
           "default": null,
-          "title": "Plan Args"
+          "title": "Solver Args"
         },
         "dataset": {
           "$ref": "#/$defs/EvalDataset"
@@ -1437,8 +1434,8 @@
         "task_file",
         "task_attribs",
         "task_args",
-        "plan",
-        "plan_args",
+        "solver",
+        "solver_args",
         "dataset",
         "sandbox",
         "model",
@@ -1720,6 +1717,18 @@
           "default": null,
           "title": "Parallel Tool Calls"
         },
+        "max_tool_output": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Tool Output"
+        },
         "cache_prompt": {
           "anyOf": [
             {
@@ -1762,6 +1771,7 @@
         "logprobs",
         "top_logprobs",
         "parallel_tool_calls",
+        "max_tool_output",
         "cache_prompt"
       ],
       "additionalProperties": false
@@ -1864,11 +1874,11 @@
           "title": "From"
         },
         "value": {
-          "allOf": [
-            {
-              "$ref": "#/$defs/JsonValue"
-            }
-          ],
+          "$ref": "#/$defs/JsonValue",
+          "default": null
+        },
+        "replaced": {
+          "$ref": "#/$defs/JsonValue",
           "default": null
         }
       },
@@ -1876,7 +1886,8 @@
         "op",
         "path",
         "from",
-        "value"
+        "value",
+        "replaced"
       ],
       "title": "JsonChange",
       "type": "object",
@@ -2888,11 +2899,24 @@
           "title": "Name",
           "type": "string"
         },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
+        },
         "input": {
           "title": "Input",
           "type": "object"
         },
         "result": {
+          "default": null,
           "title": "Result"
         },
         "events": {
@@ -2944,6 +2968,7 @@
         "timestamp",
         "event",
         "name",
+        "type",
         "input",
         "result",
         "events"
@@ -3097,6 +3122,28 @@
           ],
           "title": "Result"
         },
+        "truncated": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Truncated"
+        },
         "error": {
           "anyOf": [
             {
@@ -3161,6 +3208,7 @@
         "function",
         "arguments",
         "result",
+        "truncated",
         "error",
         "events"
       ],
@@ -3425,11 +3473,7 @@
       "$ref": "#/$defs/EvalSpec"
     },
     "plan": {
-      "allOf": [
-        {
-          "$ref": "#/$defs/EvalPlan"
-        }
-      ],
+      "$ref": "#/$defs/EvalPlan",
       "default": {
         "name": "plan",
         "steps": [],
@@ -3443,6 +3487,7 @@
           "max_connections": null,
           "max_retries": null,
           "max_tokens": null,
+          "max_tool_output": null,
           "num_choices": null,
           "parallel_tool_calls": null,
           "presence_penalty": null,
@@ -3470,11 +3515,7 @@
       "default": null
     },
     "stats": {
-      "allOf": [
-        {
-          "$ref": "#/$defs/EvalStats"
-        }
-      ],
+      "$ref": "#/$defs/EvalStats",
       "default": {
         "started_at": "",
         "completed_at": "",

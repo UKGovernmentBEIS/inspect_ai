@@ -41,7 +41,7 @@ def piqa():
 
     return Task(
         dataset=dataset,
-        plan=[multiple_choice(template=TEMPLATE)],
+        solver=[multiple_choice(template=TEMPLATE)],
         scorer=choice(),
     )
 

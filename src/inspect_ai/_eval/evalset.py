@@ -31,7 +31,7 @@ from inspect_ai.model import (
     Model,
 )
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.solver import Plan, PlanSpec
+from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentSpec
 
 from .eval import eval, eval_init
@@ -55,7 +55,7 @@ def eval_set(
     task_args: dict[str, Any] = dict(),
     sandbox: SandboxEnvironmentSpec | None = None,
     sandbox_cleanup: bool | None = None,
-    plan: Plan | PlanSpec | None = None,
+    solver: Solver | list[Solver] | SolverSpec | None = None,
     score: bool = True,
     log_level: str | None = None,
     limit: int | tuple[int, int] | None = None,
@@ -100,8 +100,8 @@ def eval_set(
            environment type (or optionally a tuple with type and config file)
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
           (defaults to True)
-        plan (Plan | PlanSpec | None): Alternative plan for evaluating task(s).
-          Optional (uses task plan by default).
+        solver (Solver | list[Solver] | SolverSpec | None): Alternative solver(s) for
+           evaluating task(s). ptional (uses task solver by default).
         score (bool): Score output (defaults to True)
         log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
            or "critical" (defaults to "info")
@@ -152,7 +152,7 @@ def eval_set(
             task_args=task_args,
             sandbox=sandbox,
             sandbox_cleanup=sandbox_cleanup,
-            plan=plan,
+            solver=solver,
             log_level=log_level,
             log_dir=log_dir,
             limit=limit,
@@ -366,7 +366,7 @@ def eval_set(
         retry=retry_if_not_result(all_evals_succeeded),
         retry_error_callback=return_last_value,
         reraise=True,
-        stop=stop_after_attempt(retry_attempts or 10),
+        stop=stop_after_attempt(10 if retry_attempts is None else retry_attempts),
         wait=wait_exponential(retry_wait or 30, max=(60 * 60)),
         before_sleep=before_sleep,
         before=before,
@@ -502,7 +502,7 @@ def validate_eval_set_prerequisites(
         identifer = task_identifer(task)
         if identifer in task_identifiers:
             raise PrerequisiteError(
-                f"[bold]ERROR[/bold]: The task '{task.task.name}' is not distinct.\n\nTasks in an eval_set must have distinct names OR use the @task decorator and have distinct combinations of name and task args. Plans passed to tasks should also use the @plan decorator."
+                f"[bold]ERROR[/bold]: The task '{task.task.name}' is not distinct.\n\nTasks in an eval_set must have distinct names OR use the @task decorator and have distinct combinations of name and task args. Solvers passed to tasks should also use the @solver decorator."
             )
         else:
             task_identifiers.add(identifer)

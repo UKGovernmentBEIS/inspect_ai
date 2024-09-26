@@ -30,7 +30,7 @@ from inspect_ai import Task, task  # noqa: E402
 from inspect_ai.dataset import FieldSpec, Sample, hf_dataset
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, std
 from inspect_ai.solver import (
-    Plan,
+    Solver,
     TaskState,
     basic_agent,
     system_message,
@@ -47,7 +47,7 @@ os.makedirs(COMPOSE_FILE_DIR, exist_ok=True)
 
 SAMPLE_TO_IMAGE_PATH = COMPOSE_FILE_DIR / "sample_to_image.json"
 
-DEFAULT_PLAN = basic_agent(
+DEFAULT_SOLVER = basic_agent(
     init=system_message(
         "Please solve the coding task below. Once you are done, use your submit tool."
     ),
@@ -64,7 +64,7 @@ logger = logging.getLogger(__name__)
 def swe_bench(
     dataset: str = "princeton-nlp/SWE-bench_Verified",
     split: str = "test",
-    plan: Plan = DEFAULT_PLAN,
+    solver: Solver = DEFAULT_SOLVER,
     max_messages: int = DEFAULT_MAX_MESSAGES,
     filter: Callable[[Sample], bool] | None = None,
 ) -> Task:
@@ -75,8 +75,8 @@ def swe_bench(
             The dataset to use. This should  either be the name of a dataset in the HF hub, or a path to a dataset on disk.
         split : str
             The split of the dataset to load.
-        plan : Plan
-            The plan to use when creating the task. If None, uses the default pkan.
+        solver : Solver
+            The solver to use when creating the task. If None, uses the default solver.
         max_messages : int
             The maximum number of messages to generate for each sample.
         filter : Callable[[Sample],bool]
@@ -126,9 +126,9 @@ def swe_bench(
         )
 
     return Task(
-        name=f"{dataset}_{split}_{plan.name}",
+        name=f"{dataset}_{split}",
         dataset=samples,
-        plan=plan,
+        solver=solver,
         scorer=swebench_scorer(),
         max_messages=max_messages,
     )

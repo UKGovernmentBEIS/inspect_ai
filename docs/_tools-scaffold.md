@@ -20,23 +20,30 @@ state.messages.append(output.message)
 state.messages.extend(call_tools(output.message, state.tools))
 ```
 
-This does everything that default `generate()` does, save for an outer loop to continue calling the mode as long as it continues calling tools. You could implement the outer loop as follows:
+This does everything that default `generate()` does, save for an outer loop to continue calling the mode as long as it continues calling tools. This is a complete solver agent that implements the outer loop:
 
 ``` python
-model = get_model()
-while True:
-    # call model
-    output = await model.generate(state.messages, state.tools)
+@solver
+def agent_loop():
+    async def solve(state: TaskState, generate: Generate):
+        model = get_model()
+        while True:
+            # call model
+            output = await model.generate(state.messages, state.tools)
 
-    # update state
-    state.output = output
-    state.messages.append(output.message)
+            # update state
+            state.output = output
+            state.messages.append(output.message)
 
-    # make tool calls or terminate if there are none
-    if output.message.tool_calls:
-        state.messages.extend(call_tools(output.message, state.tools))
-    else:
-        break
+            # make tool calls or terminate if there are none
+            if output.message.tool_calls:
+                state.messages.extend(call_tools(output.message, state.tools))
+            else:
+                break
+
+        return state
+
+    return solve
 ```
 
 You can imagine several ways you might want to customise this loop:
