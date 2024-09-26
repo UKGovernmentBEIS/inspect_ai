@@ -7837,28 +7837,30 @@ const ErrorPanel = ({ id, classes, title, error }) => {
   const message = error.message;
   const stack2 = error.stack;
   return m$1`
-    <div
-      ...${{ id }}
-      class="${classes ? classes : ""}"
-      style=${{
+    <div style=${{ overflowY: "auto", height: "100vh" }}>
+      <div
+        ...${{ id }}
+        class="${classes ? classes : ""}"
+        style=${{
     ...emptyStyle,
     flexDirection: "column",
     minHeight: "10rem",
     marginTop: "4rem",
+    marginBottom: "4em",
     width: "100vw"
   }}
-    >
-      <div style=${{ ...emptyStyle, fontSize: FontSize.larger }}>
-        <div>
-          <i
-            class="${ApplicationIcons.error}"
-            style="${{ marginRight: "0.5rem", color: "var(--bs-red)" }}"
-          ></i>
+      >
+        <div style=${{ ...emptyStyle, fontSize: FontSize.larger }}>
+          <div>
+            <i
+              class="${ApplicationIcons.error}"
+              style="${{ marginRight: "0.5rem", color: "var(--bs-red)" }}"
+            ></i>
+          </div>
+          <div>${title || ""}</div>
         </div>
-        <div>${title || ""}</div>
-      </div>
-      <div
-        style=${{
+        <div
+          style=${{
     display: "inline-block",
     fontSize: FontSize.smaller,
     marginTop: "1rem",
@@ -7867,18 +7869,19 @@ const ErrorPanel = ({ id, classes, title, error }) => {
     padding: "1em",
     maxWidth: "80%"
   }}
-      >
-        <div>
-          Error: ${message || ""}
-          ${stack2 && m$1`
-            <pre
-              style=${{ fontSize: FontSize.smaller, whiteSpace: "pre-wrap" }}
-            >
+        >
+          <div>
+            Error: ${message || ""}
+            ${stack2 && m$1`
+              <pre
+                style=${{ fontSize: FontSize.smaller, whiteSpace: "pre-wrap" }}
+              >
             <code>
               at ${stack2}
             </code>
           </pre>
-          `}
+            `}
+          </div>
         </div>
       </div>
     </div>
@@ -7897,7 +7900,7 @@ class AppErrorBoundary extends b {
   }
   render() {
     if (this.state.hasError) {
-      console.log({ e: this.state.error });
+      console.error({ e: this.state.error });
       return m$1`<${ErrorPanel}
         title="An unexpected error occurred."
         error="${this.state.error}"
@@ -15950,12 +15953,7 @@ const stepDescriptor = (event) => {
     }
   }
 };
-const SubtaskEventView = ({
-  id,
-  event,
-  style,
-  depth
-}) => {
+const SubtaskEventView = ({ id, event, style, depth }) => {
   const transcript = event.events.length > 0 ? m$1`<${TranscriptView}
           id="${id}-subtask"
           name="Transcript"
