@@ -62,7 +62,7 @@ from inspect_ai.solver import Generate, Plan, TaskState
 from inspect_ai.solver._chain import Chain, unroll
 from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
-from inspect_ai.solver._task_state import state_jsonable
+from inspect_ai.solver._task_state import set_sample_state, state_jsonable
 from inspect_ai.util._subtask import init_subtask
 
 from ..context import init_task_context
@@ -385,6 +385,7 @@ async def task_run_sample(
     )
 
     # initialise subtask and scoring context
+    set_sample_state(state)
     init_subtask(SAMPLE_SUBTASK, state.store)
     if scorers:
         init_scoring_context(scorers, Target(sample.target))

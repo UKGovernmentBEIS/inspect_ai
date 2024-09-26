@@ -38,21 +38,21 @@ def self_critique(
          is used).
     """
     # resolve templates
-    critique_template = resource(critique_template or DEFAULT_CRITIQUE_TEMPLATE)
-    completion_template = resource(
+    critique_templ = resource(critique_template or DEFAULT_CRITIQUE_TEMPLATE)
+    completion_templ = resource(
         completion_template or DEFAULT_CRITIQUE_COMPLETION_TEMPLATE
     )
 
     # resolve model
-    model = get_model(model)
+    critique_model = get_model(model)
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         # metadata without critique template variables
         metadata = omit(state.metadata, ["question", "completion", "critique"])
 
         # run critique
-        critique = await model.generate(
-            critique_template.format(
+        critique = await critique_model.generate(
+            critique_templ.format(
                 question=state.input_text,
                 completion=state.output.completion,
                 **metadata,
@@ -62,7 +62,7 @@ def self_critique(
         # add the critique as a user message
         state.messages.append(
             ChatMessageUser(
-                content=completion_template.format(
+                content=completion_templ.format(
                     question=state.input_text,
                     completion=state.output.completion,
                     critique=critique.completion,
