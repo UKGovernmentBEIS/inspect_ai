@@ -7,6 +7,12 @@ dependencies = { file = ["requirements.txt"] }
 
 [tool.setuptools_scm]
 
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["inspect_ai*"]
+
+
 [tool.ruff]
 extend-exclude = ["docs"]
 src = ["src"]
@@ -59,7 +65,7 @@ warn_unused_configs = true
 mypy_path = "tests"
 
 [[tool.mypy.overrides]]
-module = "inspect_ai.*"
+module = ["inspect_ai.*", "inspect_evals.*"]
 warn_return_any = true
 disallow_untyped_defs = true
 disallow_any_generics = true
@@ -101,6 +107,10 @@ Documentation = "https://inspect.ai-safety-institute.org.uk/"
 inspect = "inspect_ai._cli.main:main"
 
 [project.optional-dependencies]
+inspect_evals = [
+    "datasets",
+    "pillow"
+]
 dev = [
     "anthropic", 
     "aioboto3", 

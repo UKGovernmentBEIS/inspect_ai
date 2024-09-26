@@ -1,4 +1,6 @@
+import inspect
 from dataclasses import dataclass, field
+from functools import wraps
 from typing import (
     Any,
     Callable,
@@ -22,7 +24,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.model import CachePolicy, GenerateConfigArgs
 
-from ._task_state import TaskState
+from ._task_state import TaskState, set_sample_state
 
 
 @runtime_checkable
@@ -192,15 +194,44 @@ def solver(name: str | SolverType) -> Callable[..., SolverType] | SolverType:
             if not is_callable_coroutine(solver):
                 raise TypeError(f"'{solver}' is not declared as an async callable.")
 
+            # if the solver is a class then we inject state tracking
+            # by patching the __call__ method (this is because we
+            # want to preserve the type, especially for code that e.g.
+            # checks for Chain or Plan)
+            if inspect.isclass(type(solver)):
+                original_call = solver.__call__
+
+                async def call_with_state(
+                    state: TaskState, generate: Generate
+                ) -> TaskState:
+                    state = await original_call(state, generate)
+                    set_sample_state(state)
+                    return state
+
+                registered_solver = solver
+                setattr(registered_solver, "__call__", call_with_state)
+
+            # if its a function then use ordinary @wraps to preserve
+            # the wrapped solver
+            else:
+
+                @wraps(solver)
+                async def registered_solver(
+                    state: TaskState, generate: Generate
+                ) -> TaskState:
+                    state = await solver(state, generate)
+                    set_sample_state(state)
+                    return state
+
             registry_tag(
                 solver_type,
-                solver,
+                registered_solver,
                 RegistryInfo(type="solver", name=solver_name),
                 *args,
                 **kwargs,
             )
 
-            return solver
+            return registered_solver
 
         return solver_register(cast(SolverType, solver_wrapper), solver_name)
 
