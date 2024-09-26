@@ -15,8 +15,13 @@ from inspect_ai.scorer import (
     stderr,
 )
 from inspect_ai.scorer._pattern import match_first
-from inspect_ai.solver import Generate, Solver, TaskState, solver
-from inspect_ai.solver._multiple_choice import SINGLE_ANSWER_TEMPLATE
+from inspect_ai.solver import (
+    Generate,
+    MultipleChoiceTemplate,
+    Solver,
+    TaskState,
+    solver,
+)
 
 FREEFORM_TEMPLATE = r"""
 Answer the following question. The entire content of your response should be of the following format: 'ANSWER: $ANSWER' (without quotes) where $ANSWER is your answer.
@@ -85,7 +90,7 @@ def mathvista_solver() -> Solver:
         if state.metadata["question_type"] == "multi_choice":
             state.user_prompt.text = state.choices.prompt(
                 question=state.user_prompt.text,
-                template=SINGLE_ANSWER_TEMPLATE,
+                template=MultipleChoiceTemplate.SINGLE_ANSWER,
             )
 
             return await generate(state)

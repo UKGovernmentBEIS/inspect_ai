@@ -101,6 +101,6 @@ C) maybe
 The model is prompted with an abstract and a question. The model is required to
 answer the question with a yes, no, or maybe. The standard `multiple_choice`
 solver is used with a prompt template based on the
-default `SINGLE_ANSWER_TEMPLATE`, which allows using the in-built `choice`
+default `MultipleChoice.SINGLE_ANSWER`, which allows using the in-built `choice`
 scorer for evaluation.
  
