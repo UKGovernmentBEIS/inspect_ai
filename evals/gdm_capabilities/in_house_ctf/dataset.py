@@ -4,7 +4,6 @@ import sys
 from inspect_ai.dataset import Dataset, Sample, json_dataset
 
 DATA_DIR = "challenges"
-SOLUTION_SIGNATURE = "## Possible solution"
 
 
 def read_dataset(challenges: str | list[str] | None = None) -> Dataset:
@@ -16,14 +15,6 @@ def read_dataset(challenges: str | list[str] | None = None) -> Dataset:
         task_id = record["challenge_name"]
         task_assets = f"{DATA_DIR}/{task_id}"
 
-        # read solution
-        with open(f"{task_assets}/README.md") as f:
-            readme = f.read()
-
-        solution = ""
-        if SOLUTION_SIGNATURE in readme:
-            solution = readme.split(SOLUTION_SIGNATURE)[1].strip("\n")
-
         return Sample(
             id=task_id,
             input=record["prompts"],
@@ -31,7 +22,6 @@ def read_dataset(challenges: str | list[str] | None = None) -> Dataset:
                 "challenge_type": record["challenge_type"],
                 "challenge_address": record["challenge_address"],
                 "objective_prompt": record["prompts"],
-                "solution": solution,
                 "get_flag_cmd": record["get_flag_cmd"],
                 "get_flag_service": record["get_flag_service"],
             },
