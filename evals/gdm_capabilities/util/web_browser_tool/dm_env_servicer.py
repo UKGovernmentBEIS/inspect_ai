@@ -110,7 +110,7 @@ class EnvironmentService(dm_env_rpc_pb2_grpc.EnvironmentServicer):
             yield environment_response
 
     def _validate_settings(self, settings, valid_settings):
-        """ "Validate the provided settings with list of valid setting keys."""
+        """Validate the provided settings with list of valid setting keys."""
         unrecognized_settings = [
             setting for setting in settings if setting not in valid_settings
         ]
