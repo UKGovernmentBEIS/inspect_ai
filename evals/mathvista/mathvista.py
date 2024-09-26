@@ -1,5 +1,8 @@
 import re
+from io import BytesIO
 from pathlib import Path
+
+from PIL import Image
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
@@ -121,9 +124,13 @@ def record_to_sample(record: dict) -> Sample:
 
     if not image.exists():
         print(f"Extracting {image}")
+        # ensure parent
         image.parent.mkdir(exist_ok=True)
-        with open(image, "wb") as file:
-            file.write(image_bytes)
+        # reduce the image size
+        img = Image.open(BytesIO(image_bytes))
+        img.thumbnail((1024, 1024))
+        # save preserving format
+        img.save(image, format=img.format)
 
     message: list[ChatMessage] = [
         ChatMessageUser(
