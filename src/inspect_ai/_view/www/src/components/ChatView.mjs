@@ -21,44 +21,65 @@ import { resolveToolInput, ToolCallView } from "./Tools.mjs";
 export const ChatView = ({ id, messages, style, indented }) => {
   // Filter tool messages into a sidelist that the chat stream
   // can use to lookup the tool responses
-  const toolMessages = {};
-  const nonToolMessages = [];
+
+  /**
+   * @type {Array<{message: import("../types/log").ChatMessageAssistant | import("../types/log").ChatMessageSystem | import("../types/log").ChatMessageUser, toolOutput?: import("../types/log").ChatMessageTool}>}
+   */
+  const resolvedMessages = [];
   for (const message of messages) {
     if (message.role === "tool") {
-      toolMessages[message.tool_call_id] = message;
+      // Add this tool message onto the previous message
+      if (resolvedMessages.length > 0) {
+        const msg = resolvedMessages[resolvedMessages.length - 1];
+        msg.toolOutput = message;
+      } else {
+        console.warn("Received a tool message without a preceding message.");
+      }
     } else {
-      nonToolMessages.push(message);
+      resolvedMessages.push({ message });
     }
   }
 
   // Capture system messages (there could be multiple)
+  /**
+   * @type {Array<import("../types/log").ChatMessageSystem>}
+   */
   const systemMessages = [];
-  const collapsedMessages = nonToolMessages
-    .map((msg) => {
-      if (msg.role === "system") {
-        systemMessages.push(msg);
+  const collapsedMessages = resolvedMessages
+    .map((resolved) => {
+      if (resolved.message.role === "system") {
+        systemMessages.push(resolved.message);
       }
-      return msg;
+      return resolved;
     })
-    .filter((msg) => {
-      return msg.role !== "system";
+    .filter((resolved) => {
+      return resolved.message.role !== "system";
     });
 
   // Collapse system messages
-  const systemMessage = systemMessages.reduce(
-    (reduced, message) => {
-      const systemContents = Array.isArray(message.content)
-        ? message.content
-        : [message.content];
-      reduced.content.push(...systemContents.map(normalizeContent));
-      return reduced;
-    },
-    { role: "system", content: [] },
-  );
+  /**
+   * @type {Array<import("../types/log").ContentImage | import("../types/log").ContentText>}
+   */
+  const systemContent = [];
+  for (const systemMessage of systemMessages) {
+    const contents = Array.isArray(systemMessage.content)
+      ? systemMessage.content
+      : [systemMessage.content];
+    systemContent.push(...contents.map(normalizeContent));
+  }
+
+  /**
+   * @type {import("../types/log").ChatMessageSystem}
+   */
+  const systemMessage = {
+    role: "system",
+    content: systemContent,
+    source: "input",
+  };
 
   // Converge them
   if (systemMessage && systemMessage.content.length > 0) {
-    collapsedMessages.unshift(systemMessage);
+    collapsedMessages.unshift({ message: systemMessage });
   }
 
   const result = html`
@@ -83,16 +104,16 @@ export const ChatView = ({ id, messages, style, indented }) => {
             </div>
             <${ChatMessage}
               id=${`${id}-chat-messages`}
-              message=${msg}
-              toolMessages=${toolMessages}
+              message=${msg.message}
+              toolMessage=${msg.toolOutput}
               indented=${indented}
             />
           </div>`;
         } else {
           return html` <${ChatMessage}
             id=${`${id}-chat-messages`}
-            message=${msg}
-            toolMessages=${toolMessages}
+            message=${msg.message}
+            toolMessage=${msg.toolOutput}
             indented=${indented}
           />`;
         }
@@ -103,6 +124,12 @@ export const ChatView = ({ id, messages, style, indented }) => {
   return result;
 };
 
+/**
+ * Ensure that content is a proper content type
+ *
+ * @param {import("../types/log").ContentText | import("../types/log").ContentImage | string} content - The properties passed to the component.
+ * @returns {import("../types/log").ContentText | import("../types/log").ContentImage} The component.
+ */
 const normalizeContent = (content) => {
   if (typeof content === "string") {
     return {
@@ -114,7 +141,7 @@ const normalizeContent = (content) => {
   }
 };
 
-const ChatMessage = ({ id, message, toolMessages, indented }) => {
+const ChatMessage = ({ id, message, toolMessage, indented }) => {
   const collapse = message.role === "system";
   return html`
     <div
@@ -145,7 +172,7 @@ const ChatMessage = ({ id, message, toolMessages, indented }) => {
         <${MessageContents}
           key=${`${id}-contents`}
           message=${message}
-          toolMessages=${toolMessages}
+          toolMessage=${toolMessage}
         />
       </${ExpandablePanel}>
       </div>
@@ -153,7 +180,7 @@ const ChatMessage = ({ id, message, toolMessages, indented }) => {
   `;
 };
 
-const MessageContents = ({ message, toolMessages }) => {
+const MessageContents = ({ message, toolMessage }) => {
   if (message.tool_calls && message.tool_calls.length) {
     const result = [];
 
@@ -168,9 +195,6 @@ const MessageContents = ({ message, toolMessages }) => {
 
     // Render the tool calls made by this message
     const toolCalls = message.tool_calls.map((tool_call) => {
-      // Get the basic tool data
-      const toolMessage = toolMessages[tool_call.id];
-
       // Extract tool input
       const { input, functionCall, inputType } = resolveToolInput(
         tool_call.function,
