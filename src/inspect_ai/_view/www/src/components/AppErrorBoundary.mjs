@@ -21,7 +21,7 @@ export class AppErrorBoundary extends Component {
 
   render() {
     if (this.state.hasError) {
-      console.log({ e: this.state.error });
+      console.error({ e: this.state.error });
       // You can render any custom fallback UI
       return html`<${ErrorPanel}
         title="An unexpected error occurred."

@@ -47,7 +47,7 @@ export const resolveToolInput = (fn, toolArgs) => {
  * @param {string} params.functionCall - The function call
  * @param {string | undefined } params.input - The main input for this call
  * @param {string | undefined } params.inputType - The input type for this call
- * @param {string | undefined } params.output - The result of the tool call
+ * @param {string | number | boolean | (import("../types/log").ContentText | import("../types/log").ContentImage)[]} params.output - The tool output
  * @param { "compact" | undefined } params.mode - The display mode for this call
  * @returns {import("preact").JSX.Element} The SampleTranscript component.
  */
@@ -138,9 +138,9 @@ export const ToolInput = ({ type, contents }) => {
  * Renders the ToolOutput component.
  *
  * @param {Object} props - The parameters for the component.
- * @param {string | Object | Array} props.output - The tool output
+ * @param {string | number | boolean | (import("../types/log").ContentText | import("../types/log").ContentImage)[]} props.output - The tool output
  * @param {Object} props.style - The style for the element
- * @returns {import("preact").JSX.Element | string} The ToolOutput component.
+ * @returns { import("preact").JSX.Element | import("preact").JSX.Element[] | string} The ToolOutput component.
  */
 export const ToolOutput = ({ output, style }) => {
   // If there is no output, don't show the tool
@@ -149,10 +149,52 @@ export const ToolOutput = ({ output, style }) => {
   }
 
   // First process an array or object into a string
-  if (typeof output === "object" || Array.isArray(output)) {
-    output = JSON.stringify(output);
+  const outputs = [];
+  if (Array.isArray(output)) {
+    output.forEach((out) => {
+      if (out.type === "text") {
+        outputs.push(
+          html`<${ToolTextOutput} text=${out.text} style=${style} />`,
+        );
+      } else {
+        if (out.image.startsWith("data:")) {
+          outputs.push(
+            html`<img
+              src="${out.image}"
+              style=${{
+                maxWidth: "100%",
+                border: "solid var(--bs-border-color) 1px",
+                ...style,
+              }}
+            />`,
+          );
+        } else {
+          outputs.push(
+            html`<${ToolTextOutput}
+              text=${String(out.image)}
+              style=${style}
+            />`,
+          );
+        }
+      }
+    });
+  } else {
+    outputs.push(
+      html`<${ToolTextOutput} text=${String(output)} style=${style} />`,
+    );
   }
+  return html`<div style=${{ display: "grid" }}>${outputs}</div>`;
+};
 
+/**
+ * Renders the ToolTextOutput component.
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {string} props.text - The tool text
+ * @param {Object} props.style - The style for the element
+ * @returns {import("preact").JSX.Element} The ToolOutput component.
+ */
+const ToolTextOutput = ({ text, style }) => {
   return html`<pre
     style=${{
       marginLeft: "2px",
@@ -161,9 +203,11 @@ export const ToolOutput = ({ output, style }) => {
       marginBottom: "0",
       ...style,
     }}
-  ><code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
-      ${output.trim()}
-      </code></pre>`;
+  >
+    <code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
+      ${text.trim()}
+      </code>
+  </pre>`;
 };
 
 /**

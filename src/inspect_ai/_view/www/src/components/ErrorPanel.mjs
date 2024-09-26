@@ -12,49 +12,52 @@ export const ErrorPanel = ({ id, classes, title, error }) => {
   const message = error.message;
   const stack = error.stack;
   return html`
-    <div
-      ...${{ id }}
-      class="${classes ? classes : ""}"
-      style=${{
-        ...emptyStyle,
-        flexDirection: "column",
-        minHeight: "10rem",
-        marginTop: "4rem",
-        width: "100vw",
-      }}
-    >
-      <div style=${{ ...emptyStyle, fontSize: FontSize.larger }}>
-        <div>
-          <i
-            class="${ApplicationIcons.error}"
-            style="${{ marginRight: "0.5rem", color: "var(--bs-red)" }}"
-          ></i>
-        </div>
-        <div>${title || ""}</div>
-      </div>
+    <div style=${{ overflowY: "auto", height: "100vh" }}>
       <div
+        ...${{ id }}
+        class="${classes ? classes : ""}"
         style=${{
-          display: "inline-block",
-          fontSize: FontSize.smaller,
-          marginTop: "1rem",
-          border: "solid 1px var(--bs-border-color)",
-          borderRadius: "var(--bs-border-radius)",
-          padding: "1em",
-          maxWidth: "80%",
+          ...emptyStyle,
+          flexDirection: "column",
+          minHeight: "10rem",
+          marginTop: "4rem",
+          marginBottom: "4em",
+          width: "100vw",
         }}
       >
-        <div>
-          Error: ${message || ""}
-          ${stack &&
-          html`
-            <pre
-              style=${{ fontSize: FontSize.smaller, whiteSpace: "pre-wrap" }}
-            >
+        <div style=${{ ...emptyStyle, fontSize: FontSize.larger }}>
+          <div>
+            <i
+              class="${ApplicationIcons.error}"
+              style="${{ marginRight: "0.5rem", color: "var(--bs-red)" }}"
+            ></i>
+          </div>
+          <div>${title || ""}</div>
+        </div>
+        <div
+          style=${{
+            display: "inline-block",
+            fontSize: FontSize.smaller,
+            marginTop: "1rem",
+            border: "solid 1px var(--bs-border-color)",
+            borderRadius: "var(--bs-border-radius)",
+            padding: "1em",
+            maxWidth: "80%",
+          }}
+        >
+          <div>
+            Error: ${message || ""}
+            ${stack &&
+            html`
+              <pre
+                style=${{ fontSize: FontSize.smaller, whiteSpace: "pre-wrap" }}
+              >
             <code>
               at ${stack}
             </code>
           </pre>
-          `}
+            `}
+          </div>
         </div>
       </div>
     </div>

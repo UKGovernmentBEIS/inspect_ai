@@ -7837,28 +7837,30 @@ const ErrorPanel = ({ id, classes, title, error }) => {
   const message = error.message;
   const stack2 = error.stack;
   return m$1`
-    <div
-      ...${{ id }}
-      class="${classes ? classes : ""}"
-      style=${{
+    <div style=${{ overflowY: "auto", height: "100vh" }}>
+      <div
+        ...${{ id }}
+        class="${classes ? classes : ""}"
+        style=${{
     ...emptyStyle,
     flexDirection: "column",
     minHeight: "10rem",
     marginTop: "4rem",
+    marginBottom: "4em",
     width: "100vw"
   }}
-    >
-      <div style=${{ ...emptyStyle, fontSize: FontSize.larger }}>
-        <div>
-          <i
-            class="${ApplicationIcons.error}"
-            style="${{ marginRight: "0.5rem", color: "var(--bs-red)" }}"
-          ></i>
+      >
+        <div style=${{ ...emptyStyle, fontSize: FontSize.larger }}>
+          <div>
+            <i
+              class="${ApplicationIcons.error}"
+              style="${{ marginRight: "0.5rem", color: "var(--bs-red)" }}"
+            ></i>
+          </div>
+          <div>${title || ""}</div>
         </div>
-        <div>${title || ""}</div>
-      </div>
-      <div
-        style=${{
+        <div
+          style=${{
     display: "inline-block",
     fontSize: FontSize.smaller,
     marginTop: "1rem",
@@ -7867,18 +7869,19 @@ const ErrorPanel = ({ id, classes, title, error }) => {
     padding: "1em",
     maxWidth: "80%"
   }}
-      >
-        <div>
-          Error: ${message || ""}
-          ${stack2 && m$1`
-            <pre
-              style=${{ fontSize: FontSize.smaller, whiteSpace: "pre-wrap" }}
-            >
+        >
+          <div>
+            Error: ${message || ""}
+            ${stack2 && m$1`
+              <pre
+                style=${{ fontSize: FontSize.smaller, whiteSpace: "pre-wrap" }}
+              >
             <code>
               at ${stack2}
             </code>
           </pre>
-          `}
+            `}
+          </div>
         </div>
       </div>
     </div>
@@ -7897,7 +7900,7 @@ class AppErrorBoundary extends b {
   }
   render() {
     if (this.state.hasError) {
-      console.log({ e: this.state.error });
+      console.error({ e: this.state.error });
       return m$1`<${ErrorPanel}
         title="An unexpected error occurred."
         error="${this.state.error}"
@@ -11800,52 +11803,6 @@ Prism.languages.json = {
   }
 };
 Prism.languages.webmanifest = Prism.languages.json;
-const ApplicationStyles = {
-  moreButton: {
-    maxHeight: "1.8em",
-    fontSize: FontSize.smaller,
-    padding: "0 0.2em 0 0.2em",
-    ...TextStyle.secondary
-  },
-  threeLineClamp: {
-    display: "-webkit-box",
-    "-webkit-line-clamp": "3",
-    "-webkit-box-orient": "vertical",
-    overflow: "hidden"
-  },
-  lineClamp: (len) => {
-    return {
-      display: "-webkit-box",
-      "-webkit-line-clamp": `${len}`,
-      "-webkit-box-orient": "vertical",
-      overflow: "hidden"
-    };
-  },
-  wrapText: () => {
-    return {
-      whiteSpace: "nowrap",
-      textOverflow: "ellipsis",
-      overflow: "hidden"
-    };
-  },
-  scoreFills: {
-    green: {
-      backgroundColor: "var(--bs-success)",
-      borderColor: "var(--bs-success)",
-      color: "var(--bs-body-bg)"
-    },
-    red: {
-      backgroundColor: "var(--bs-danger)",
-      borderColor: "var(--bs-danger)",
-      color: "var(--bs-body-bg)"
-    },
-    orange: {
-      backgroundColor: "var(--bs-orange)",
-      borderColor: "var(--bs-orange)",
-      color: "var(--bs-body-bg)"
-    }
-  }
-};
 const ExpandablePanel = ({ collapse, border, lines = 7, children }) => {
   const [collapsed, setCollapsed] = h(collapse);
   const [showToggle, setShowToggle] = h(false);
@@ -11880,7 +11837,11 @@ const ExpandablePanel = ({ collapse, border, lines = 7, children }) => {
   }, [collapse, contentsRef, observerRef]);
   let contentsStyle = { fontSize: FontSize.base };
   if (collapse && collapsed) {
-    contentsStyle = { ...contentsStyle, ...ApplicationStyles.lineClamp(lines) };
+    contentsStyle = {
+      ...contentsStyle,
+      maxHeight: `${lines}em`,
+      overflow: "hidden"
+    };
   }
   if (border) {
     contentsStyle.border = "solid var(--bs-light-border-subtle) 1px";
@@ -12017,9 +11978,43 @@ const ToolOutput = ({ output, style }) => {
   if (!output) {
     return "";
   }
-  if (typeof output === "object" || Array.isArray(output)) {
-    output = JSON.stringify(output);
+  const outputs = [];
+  if (Array.isArray(output)) {
+    output.forEach((out) => {
+      if (out.type === "text") {
+        outputs.push(
+          m$1`<${ToolTextOutput} text=${out.text} style=${style} />`
+        );
+      } else {
+        if (out.image.startsWith("data:")) {
+          outputs.push(
+            m$1`<img
+              src="${out.image}"
+              style=${{
+              maxWidth: "100%",
+              border: "solid var(--bs-border-color) 1px",
+              ...style
+            }}
+            />`
+          );
+        } else {
+          outputs.push(
+            m$1`<${ToolTextOutput}
+              text=${String(out.image)}
+              style=${style}
+            />`
+          );
+        }
+      }
+    });
+  } else {
+    outputs.push(
+      m$1`<${ToolTextOutput} text=${String(output)} style=${style} />`
+    );
   }
+  return m$1`<div style=${{ display: "grid" }}>${outputs}</div>`;
+};
+const ToolTextOutput = ({ text, style }) => {
   return m$1`<pre
     style=${{
     marginLeft: "2px",
@@ -12028,9 +12023,11 @@ const ToolOutput = ({ output, style }) => {
     marginBottom: "0",
     ...style
   }}
-  ><code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
-      ${output.trim()}
-      </code></pre>`;
+  >
+    <code class="sourceCode" style=${{ wordWrap: "anywhere" }}>
+      ${text.trim()}
+      </code>
+  </pre>`;
 };
 const extractInputMetadata = (toolName) => {
   if (toolName === "bash") {
@@ -12090,11 +12087,13 @@ const MessageContent = (props) => {
           index: index === contents.length - 1
         });
       } else {
-        const renderer = messageRenderers[content.type];
-        if (renderer) {
-          return renderer.render(content, index === contents.length - 1);
-        } else {
-          console.error(`Unknown message content type '${content.type}'`);
+        if (content) {
+          const renderer = messageRenderers[content.type];
+          if (renderer) {
+            return renderer.render(content, index === contents.length - 1);
+          } else {
+            console.error(`Unknown message content type '${content.type}'`);
+          }
         }
       }
     });
@@ -12128,7 +12127,7 @@ const messageRenderers = {
   },
   tool: {
     render: (content) => {
-      return m$1`<${ToolOutput} output=${content.text} />`;
+      return m$1`<${ToolOutput} output=${content.content} />`;
     }
   }
 };
@@ -12305,7 +12304,7 @@ const resolveToolMessage = (toolMessage) => {
     return [
       {
         type: "tool",
-        text: content
+        content
       }
     ];
   } else {
@@ -12313,11 +12312,16 @@ const resolveToolMessage = (toolMessage) => {
       if (typeof content === "string") {
         return {
           type: "tool",
-          text: content
+          content
         };
       } else if (con.type === "text") {
         return {
-          ...con,
+          content,
+          type: "tool"
+        };
+      } else if (con.type === "image") {
+        return {
+          content,
           type: "tool"
         };
       }
@@ -12983,6 +12987,52 @@ const PlanColumn = ({ title, classes, style, children }) => {
       ${children}
     </div>
   `;
+};
+const ApplicationStyles = {
+  moreButton: {
+    maxHeight: "1.8em",
+    fontSize: FontSize.smaller,
+    padding: "0 0.2em 0 0.2em",
+    ...TextStyle.secondary
+  },
+  threeLineClamp: {
+    display: "-webkit-box",
+    "-webkit-line-clamp": "3",
+    "-webkit-box-orient": "vertical",
+    overflow: "hidden"
+  },
+  lineClamp: (len) => {
+    return {
+      display: "-webkit-box",
+      "-webkit-line-clamp": `${len}`,
+      "-webkit-box-orient": "vertical",
+      overflow: "hidden"
+    };
+  },
+  wrapText: () => {
+    return {
+      whiteSpace: "nowrap",
+      textOverflow: "ellipsis",
+      overflow: "hidden"
+    };
+  },
+  scoreFills: {
+    green: {
+      backgroundColor: "var(--bs-success)",
+      borderColor: "var(--bs-success)",
+      color: "var(--bs-body-bg)"
+    },
+    red: {
+      backgroundColor: "var(--bs-danger)",
+      borderColor: "var(--bs-danger)",
+      color: "var(--bs-body-bg)"
+    },
+    orange: {
+      backgroundColor: "var(--bs-orange)",
+      borderColor: "var(--bs-orange)",
+      color: "var(--bs-body-bg)"
+    }
+  }
 };
 const isNumeric = (n2) => {
   return !isNaN(parseFloat(n2)) && isFinite(n2);
@@ -15950,12 +16000,7 @@ const stepDescriptor = (event) => {
     }
   }
 };
-const SubtaskEventView = ({
-  id,
-  event,
-  style,
-  depth
-}) => {
+const SubtaskEventView = ({ id, event, style, depth }) => {
   const transcript = event.events.length > 0 ? m$1`<${TranscriptView}
           id="${id}-subtask"
           name="Transcript"
@@ -17018,7 +17063,7 @@ const SampleDisplay = ({
     tabs: {
       fontSize: FontSize.base
     },
-    tabBody: {}
+    tabBody: { paddingBottom: "1em" }
   }}
     tools=${tools}>
     ${tabs}

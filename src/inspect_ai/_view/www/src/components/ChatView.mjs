@@ -221,7 +221,7 @@ const resolveToolMessage = (toolMessage) => {
     return [
       {
         type: "tool",
-        text: content,
+        content,
       },
     ];
   } else {
@@ -229,11 +229,16 @@ const resolveToolMessage = (toolMessage) => {
       if (typeof content === "string") {
         return {
           type: "tool",
-          text: content,
+          content,
         };
       } else if (con.type === "text") {
         return {
-          ...con,
+          content,
+          type: "tool",
+        };
+      } else if (con.type === "image") {
+        return {
+          content,
           type: "tool",
         };
       }
