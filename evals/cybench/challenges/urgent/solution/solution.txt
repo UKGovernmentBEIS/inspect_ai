@@ -1,0 +1,7 @@
+The key to solving this challenge lies in understanding and exploiting basic decoding techniques, particularly base64 and URL decoding.
+The solution process involves the following steps:
+1. Open and read the content of a .zip file, which contains an .eml file with encoded content.
+2. Identify segments within the content that are base64 encoded, often by looking for patterns or specific markers in the text.
+3. Decode the base64 content.
+4. Within this decoded content, decode the URL-encoded strings.
+5. Finally, search the fully decoded content for the flag.
