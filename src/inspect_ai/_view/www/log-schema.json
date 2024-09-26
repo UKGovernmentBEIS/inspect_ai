@@ -1877,13 +1877,18 @@
         "value": {
           "$ref": "#/$defs/JsonValue",
           "default": null
+        },
+        "replaced": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
         }
       },
       "required": [
         "op",
         "path",
         "from",
-        "value"
+        "value",
+        "replaced"
       ],
       "title": "JsonChange",
       "type": "object",

@@ -39,8 +39,8 @@ The following are multiple choice questions (with answers) about {subject}. Thin
 
 {examples}
 """.strip()
-# Based on the SINGLE_ANSWER_TEMPLATE provided in the multiple choice solver:
-# https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_multiple_choice.py#L14
+# Based on MultipleChoiceTemplate.SINGLE_ANSWER provided in the multiple choice solver:
+# https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_multiple_choice.py
 USER_PROMPT_TEMPLATE = """Answer the following multiple choice question. The last line of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}. Think step by step before answering.
 
 Question:

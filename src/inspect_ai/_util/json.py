@@ -85,6 +85,9 @@ class JsonChange(BaseModel):
     value: JsonValue = Field(default=None, exclude=False)
     """Changed value."""
 
+    replaced: JsonValue = Field(default=None, exclude=False)
+    """Replaced value."""
+
     model_config = {"populate_by_name": True}
 
 
@@ -93,6 +96,17 @@ def json_changes(
 ) -> list[JsonChange] | None:
     patch = jsonpatch.make_patch(before, after)
     if patch:
-        return [JsonChange(**change) for change in cast(list[Any], patch)]
+        changes: list[JsonChange] = []
+        for change in cast(list[Any], patch):
+            json_change = JsonChange(**change)
+            if json_change.op == "replace":
+                paths = json_change.path.split("/")[1:]
+                replaced = before
+                for path in paths:
+                    index: Any = int(path) if path.isnumeric() else path
+                    replaced = replaced[index]
+                json_change.replaced = replaced
+            changes.append(json_change)
+        return changes
     else:
         return None

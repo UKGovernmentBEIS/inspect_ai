@@ -132,6 +132,12 @@ def basic_agent(
     @solver
     def basic_agent_loop() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
+            # validate that there is a max_messages
+            if state.max_messages is None:
+                raise RuntimeError(
+                    "max_messages must be set when using basic_agent (without max_messages providing a termination condition it's possible the agent could end up in an infinite loop)"
+                )
+
             # track attempts
             attempts = 0
 

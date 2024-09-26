@@ -1,7 +1,6 @@
 import asyncio
 import contextlib
 import datetime
-import os
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Callable, Iterator, Set
@@ -22,6 +21,7 @@ from rich.table import Table
 from rich.text import Text
 from typing_extensions import override
 
+from inspect_ai._util.ansi import no_ansi
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai._util.logger import http_rate_limit_count
 from inspect_ai._util.path import cwd_relative_path
@@ -72,6 +72,7 @@ class RichDisplay(Display):
         self.parallel = False
         self.live: Live | None = None
         self.timer_handle: asyncio.TimerHandle | None = None
+        rich_initialise()
 
     @override
     def print(self, message: str) -> None:
@@ -131,7 +132,7 @@ class RichDisplay(Display):
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]:
         # if there is no ansi display than all of the below will
         # be a no-op, so we print a simple text message for the task
-        if rich_no_ansi():
+        if no_ansi():
             rich_console().print(task_no_ansi(profile))
 
         # for typechekcer
@@ -505,7 +506,7 @@ def task_no_ansi(profile: TaskProfile) -> str:
     config = task_config(profile)
     if config:
         message = f"{message} (config: {config})"
-    return f"{message}..."
+    return f"{message}...\n"
 
 
 def task_config(profile: TaskProfile, generate_config: bool = True) -> str:
@@ -676,21 +677,15 @@ def is_vscode_notebook(console: Console) -> bool:
     return console.is_jupyter and is_running_in_vscode()
 
 
-def rich_no_ansi() -> bool:
-    return os.environ.get("INSPECT_NO_ANSI", None) is not None
+def rich_no_color() -> bool:
+    return no_ansi() or not is_running_in_vscode() or is_running_in_jupyterlab()
 
 
 def rich_initialise() -> None:
-    use_color = is_running_in_vscode() and not is_running_in_jupyterlab()
-    no_color = rich_no_ansi() or not use_color
-    if no_color:
+    if no_ansi():
+        rich.reconfigure(no_color=True, force_terminal=False, force_interactive=False)
+    elif rich_no_color():
         rich.reconfigure(no_color=True)
-
-    if rich_no_ansi():
-        rich.reconfigure(
-            force_terminal=False,
-            force_interactive=False,
-        )
 
 
 def rich_theme() -> Theme:

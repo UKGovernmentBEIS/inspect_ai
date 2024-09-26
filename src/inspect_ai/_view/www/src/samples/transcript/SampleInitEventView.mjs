@@ -14,19 +14,14 @@ import { ApplicationIcons } from "../../appearance/Icons.mjs";
  * @param { string  } props.id - The id of this event.
  * @param {import("../../types/log").SampleInitEvent} props.event - The event object to display.
  * @param {Object} props.style - The style for this view
- * @param {import("./Types.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const SampleInitEventView = ({ id, event, style, stateManager }) => {
+export const SampleInitEventView = ({ id, event, style }) => {
   /**
    * @type {Record<string, unknown>}
    */
   //@ts-ignore
   const stateObj = event.state;
-
-  // Rememember the state (so other event viewers can use
-  // it as a baseline when applying their state updates)
-  stateManager.initializeState(stateObj);
 
   const sections = [];
 
