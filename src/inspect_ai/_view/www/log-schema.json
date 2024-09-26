@@ -1876,13 +1876,18 @@
         "value": {
           "$ref": "#/$defs/JsonValue",
           "default": null
+        },
+        "replaced": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
         }
       },
       "required": [
         "op",
         "path",
         "from",
-        "value"
+        "value",
+        "replaced"
       ],
       "title": "JsonChange",
       "type": "object",
@@ -2894,11 +2899,24 @@
           "title": "Name",
           "type": "string"
         },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
+        },
         "input": {
           "title": "Input",
           "type": "object"
         },
         "result": {
+          "default": null,
           "title": "Result"
         },
         "events": {
@@ -2950,6 +2968,7 @@
         "timestamp",
         "event",
         "name",
+        "type",
         "input",
         "result",
         "events"

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Capture solver input params for subtasks created by `fork()`.
+- Allow Docker sandboxes configured with `x-default` to be referred to by their declared service name.
+- Require a `max_messages` for use of `basic_agent()` (as without it, the agent could end up in an infinite loop).
+- Display solver input parameters for forked subtasks.
+- Improvements to docker compose down cleanup: timeout, survive missing compose files.
+
+
+## v0.3.32 (25 September 2024)
+
 - Fix issue w/ subtasks not getting a fresh store() (regression from introduction of `fork()` in v0.3.30)
 - Fix issue w/ subtasks that return None invalidating the log file.
 - Make subtasks collapsable in Inspect View.

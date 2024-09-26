@@ -17,19 +17,10 @@ import { TranscriptView } from "./TranscriptView.mjs";
  * @param { string  } props.id - The id of this event.
  * @param {import("../../types/log").ToolEvent} props.event - The event object to display.
  * @param { Object } props.style - The style of this event.
- * @param {import("./Types.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
- * @param {import("./Types.mjs").StateManager} props.storeManager - A function that updates the state with a new state object.
  * @param { number } props.depth - The depth of this event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const ToolEventView = ({
-  id,
-  event,
-  style,
-  stateManager,
-  storeManager,
-  depth,
-}) => {
+export const ToolEventView = ({ id, event, style, depth }) => {
   // Extract tool input
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
@@ -67,8 +58,6 @@ export const ToolEventView = ({
                 id="${id}-subtask"
                 name="Transcript"
                 events=${event.events}
-                stateManager=${stateManager}
-                storeManager=${storeManager}
                 depth=${depth + 1}
               />`
             : ""

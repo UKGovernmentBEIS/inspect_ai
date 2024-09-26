@@ -10,6 +10,8 @@ https://arxiv.org/abs/1704.04683
 inspect eval race-h.py
 """
 
+import hashlib
+
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.model import GenerateConfig
@@ -52,4 +54,5 @@ def record_to_sample(record):
         input=record["article"] + "\n\nQuestion:\n" + record["question"],
         target=record["answer"],
         choices=record["options"],
+        metadata={"article_hash": hashlib.md5(record["article"].encode()).hexdigest()},
     )
