@@ -1,4 +1,6 @@
-from utils import create_content_and_answers_list, load_and_concatenate_datasets
+from typing import Any
+
+from datasets import Dataset  # type: ignore
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import MemoryDataset, Sample
@@ -6,17 +8,19 @@ from inspect_ai.model import ChatMessageUser, GenerateConfig
 from inspect_ai.scorer import choice, model_graded_fact
 from inspect_ai.solver import generate, multiple_choice, prompt_template
 
+from .utils import create_content_and_answers_list, load_and_concatenate_datasets
 
-# Allow multiple-choice/open-ended tasks to be run separately
+
+# Allow multiple-choice tasks to be run separately
 @task
-def mmmu_multiple_choice():
+def mmmu_multiple_choice() -> Task:
     combined_dataset = load_and_concatenate_datasets(subjects_list)
     return mmmu_task_multiple_choice(combined_dataset)
 
 
-# Allow multiple-choice/open-ended tasks to be run separately
+# Allow open-ended tasks to be run separately
 @task
-def mmmu_open():
+def mmmu_open() -> Task:
     combined_dataset = load_and_concatenate_datasets(subjects_list)
     return mmmu_task_open(combined_dataset)
 
@@ -27,7 +31,7 @@ Answer with the option's letter from the given choices directly.
 """.strip()
 
 
-def mmmu_task_multiple_choice(dataset):
+def mmmu_task_multiple_choice(dataset: Dataset) -> Task:
     multiple_choice_questions_hf = dataset.filter(
         lambda example: example["question_type"] == "multiple-choice"
     )
@@ -54,7 +58,7 @@ Answer the question using a single word or phrase.
 """.strip()
 
 
-def mmmu_task_open(dataset):
+def mmmu_task_open(dataset: Dataset) -> Task:
     open_ended_questions_hf = dataset.filter(
         lambda example: example["question_type"] == "open"
     )
@@ -107,7 +111,7 @@ subjects_list = [
 
 
 # Map records to Inspect Sample for multiple-choice questions
-def record_to_sample_multiple_choice(record):
+def record_to_sample_multiple_choice(record: dict[str, Any]) -> Sample:
     content_list, answers_list = create_content_and_answers_list(record)
 
     return Sample(
@@ -124,7 +128,7 @@ def record_to_sample_multiple_choice(record):
 
 
 # Map records to Inspect Sample for open-ended questions
-def record_to_sample_open_ended(record):
+def record_to_sample_open_ended(record: dict[str, Any]) -> Sample:
     content_list, _ = create_content_and_answers_list(record)
 
     return Sample(

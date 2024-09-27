@@ -1,19 +1,24 @@
 import ast
 import os
+from pathlib import Path
+from typing import Any
 
-from datasets import concatenate_datasets, load_dataset  # type: ignore
+from datasets import Dataset, concatenate_datasets, load_dataset  # type: ignore
+from platformdirs import user_cache_dir
 
-from inspect_ai.model import ContentImage, ContentText
+from inspect_ai.model import Content, ContentImage, ContentText
 
 
-def save_image(record, image_number, subject_dir, question_number):
+def save_image(
+    record: dict[str, Any], image_number: int, subject_dir: Path, question_number: int
+) -> str | None:
     """
     Save an image from the provided record to the specified directory.
 
     Args:
         record (dict): The record containing image data.
         image_number (int): The index of the image field in the record (e.g., 1 for 'image_1').
-        subject_dir (str): The directory where the image should be saved.
+        subject_dir (Path): The directory where the image should be saved.
         question_number (str): The question number to use in the image filename.
 
     Returns:
@@ -21,21 +26,26 @@ def save_image(record, image_number, subject_dir, question_number):
     """
     if record.get(f"image_{image_number}"):
         image_filename = f"question_{question_number}_image_{image_number}.png"
-        image_path = os.path.join(subject_dir, image_filename)
-        image = record[f"image_{image_number}"]
-        image.thumbnail((1024, 1024))
-        image.save(image_path, format="PNG")
-        return image_path
-    return None
+        image_path = subject_dir / image_filename
+        if not image_path.exists():
+            image = record[f"image_{image_number}"]
+            print(f"writing image {image_path.name}")
+            image.thumbnail((1024, 1024))
+            image.save(image_path, format="PNG")
+        return image_path.as_posix()
+    else:
+        return None
 
 
-def create_content_and_answers_list(record, base_dir="images"):
+def create_content_and_answers_list(
+    record: dict[str, Any],
+) -> tuple[list[Content], list[str]]:
     """
     Create a list of content elements and a list of answers from a record.
 
     Args:
         record (dict): The Inspect record containing question, images, and options.
-        base_dir (str, optional): The base directory where images should be saved. Defaults to "images".
+
 
     Returns:
         tuple: A tuple containing:
@@ -49,11 +59,12 @@ def create_content_and_answers_list(record, base_dir="images"):
     subject = "_".join(components[1:-1])  # Extract the full subject name
     question_number = components[-1]  # Extract the question number
 
-    subject_dir = os.path.join(base_dir, subject)
+    IMAGE_BASE_DIR = Path(user_cache_dir("inspect_evals")) / "mmmu_images"
+    subject_dir = IMAGE_BASE_DIR / subject
     os.makedirs(subject_dir, exist_ok=True)
 
-    content_list = [ContentText(text=record["question"])]
-    answers_list = []
+    content_list: list[Content] = [ContentText(text=record["question"])]
+    answers_list: list[str] = []
 
     for i in range(1, 8):
         image_path = save_image(record, i, subject_dir, question_number)
@@ -68,7 +79,9 @@ def create_content_and_answers_list(record, base_dir="images"):
     return content_list, answers_list
 
 
-def load_and_concatenate_datasets(subjects_list, path="MMMU/MMMU", split="validation"):
+def load_and_concatenate_datasets(
+    subjects_list: list[str], path: str = "MMMU/MMMU", split: str = "validation"
+) -> Dataset:
     """
     Load Huggingface datasets for each subject in the list and concatenate them into a single dataset.
 

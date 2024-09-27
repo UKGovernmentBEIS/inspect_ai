@@ -6,11 +6,12 @@ Evaluation on RACE-H, the subset of the dataset corresponding to high school exa
 Guokun Lai, Qizhe Xie, Hanxiao Liu, Yiming Yang, Eduard Hovy
 https://arxiv.org/abs/1704.04683
 
-# eval race-h
-inspect eval race-h.py
+# eval race_h
+inspect eval inspect_evals/race_h
 """
 
 import hashlib
+from typing import Any
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
@@ -32,7 +33,7 @@ Choices:
 
 
 @task
-def race_h():
+def race_h() -> Task:
     dataset = hf_dataset(
         path="ehovy/race",
         name="high",
@@ -49,7 +50,7 @@ def race_h():
     )
 
 
-def record_to_sample(record):
+def record_to_sample(record: dict[str, Any]) -> Sample:
     return Sample(
         input=record["article"] + "\n\nQuestion:\n" + record["question"],
         target=record["answer"],
