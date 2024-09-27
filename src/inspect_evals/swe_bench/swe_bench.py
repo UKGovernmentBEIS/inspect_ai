@@ -13,7 +13,7 @@ from logging import getLogger
 from pathlib import Path
 from textwrap import dedent
 
-from build_images import build_images_for_samples
+from .build_images import build_images_for_samples
 from platformdirs import user_cache_dir
 from swebench.harness.constants import (  # type: ignore
     APPLY_PATCH_FAIL,
