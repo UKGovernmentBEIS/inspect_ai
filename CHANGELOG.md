@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- StopReason: Added "model_length" for exceeding token window and renamed "length" to "max_tokens"
+- StopReason: Added "model_length" for exceeding token window and renamed "length" to "max_tokens".
 - Capture solver input params for subtasks created by `fork()`.
 - Option to disable ANSI terminal output with `--no-ansi` or `INSPECT_NO_ANSI`
 - Allow Docker sandboxes configured with `x-default` to be referred to by their declared service name.
@@ -34,7 +34,7 @@
 
 ## v0.3.30 (18 September 2024)
 
-- Added [fork()](agents-api.qmd#sec-forking) function to fork a `TaskState` and evaluate it against multiple solvers in parallel.
+- Added [fork()](https://inspect.ai-safety-institute.org.uk/agents-api.html#sec-forking) function to fork a `TaskState` and evaluate it against multiple solvers in parallel.
 - Ensure that Scores produced after being reduced still retain `answer`, `explanation`, and `metadata`.
 - Fix error when running `inspect info log-types`
 - Improve scorer names imported from modules by not including the the module names.
