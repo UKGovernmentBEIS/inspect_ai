@@ -22,12 +22,16 @@ from inspect_ai.solver import system_message, basic_agent
 from inspect_ai.tool import bash, python
 from inspect_evals.swe_bench import swe_bench
 
-
 # Create an agent that only uses bash, and an agent that only uses python
 agent = basic_agent(tools=[bash(timeout=30)])
-task = swe_bench(dataset="princeton-nlp/SWE-bench_Verified",  solver=agent, instance_ids = ["sympy__sympy-22914","scikit-learn__scikit-learn-14141"])
-# Compare how these two agents perform. 
+task = swe_bench(
+    dataset="princeton-nlp/SWE-bench_Verified",
+    solver=agent,
+    instance_ids=["sympy__sympy-22914", "sympy__sympy-13878"],
+)
+# Compare how these two agents perform.
 eval(task, model="openai/gpt-4o")
+
 ```
 
 NOTE: SWE-bench will take a while to run, and uses a lot of tokens. If things are too slow, you should increase the level of parallelism - see https://inspect.ai-safety-institute.org.uk/parallelism.html. Note that running too many docker containers on your machine can also cause issues, most notably with a 'ALL PREDEFINED ADDRESS POOLS HAVE BEEN FULLY SUBNETTED' error - we don't recommend running more than 32 containers at any one time.
@@ -46,6 +50,7 @@ cp -r /tmp/swebench_baselines/evaluation/verified/20240620_sweagent_claude3.5son
 This means that you can compare the performance of your agent not just on the full dataset, but also on subsets of that dataset. This is often useful when trying to run smaller, cheaper experiments. To make this comparison easy, we provide a scorer that will calculate the average performance of an existing baseline on that set of trajectories:
 
 ```python
+from inspect_evals.swe_bench import swebench_baseline_scorer
 agent = basic_agent(tools=[bash(timeout=30)])
 scorers = [
     swebench_baseline_scorer(
@@ -57,9 +62,8 @@ scorers = [
 task = swe_bench(
     dataset="princeton-nlp/SWE-bench_Verified",
     solver=agent,
-    instance_ids=["sympy__sympy-22914", "scikit-learn__scikit-learn-14141"],
+    instance_ids=["sympy__sympy-22914", "sympy__sympy-13878"],
     scorer=scorers,
-    max_messages=2, # Low max-messages for testing
 )
 
 eval(task, model="openai/gpt-4o")

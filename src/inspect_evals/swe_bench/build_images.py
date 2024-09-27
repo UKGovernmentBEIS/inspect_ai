@@ -13,7 +13,7 @@ def build_images_for_samples(
     """This function uses the swe_bench library to build the docker images for the SWE-bench dataset.
 
     Args:
-        sample (list[Sample]): The list of samples to build images for.
+        samples (Dataset): The dataset to build the images for
         max_workers (int): The maximum number of workers to use for building images. Defaults to 4.
         force_rebuild (bool, optional): Whether to force a rebuild of the images. Defaults to False.
     """
@@ -58,7 +58,7 @@ def build_images_for_samples(
 def sample_to_hf(sample: Sample) -> dict[str, str]:
     assert sample.metadata is not None
     return {
-        "problem_statement": sample.input,
+        "problem_statement": str(sample.input),
         "base_commit": sample.metadata["base_commit"],
         "instance_id": str(sample.id),
         "patch": sample.metadata["patch"],
