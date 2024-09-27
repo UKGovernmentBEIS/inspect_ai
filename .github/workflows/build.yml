@@ -48,7 +48,7 @@ jobs:
           python -m pip install .[dev]
       - name: Run mypy
         run: |
-          mypy --exclude tests/test_package src tests
+          mypy .
 
   test:
     runs-on: ubuntu-latest
