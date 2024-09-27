@@ -193,13 +193,7 @@ class OpenAIAPI(ModelAPI):
                 filter=model_call_filter,
             )
         except APIStatusError as e:
-            completion, error = handle_content_filter_error(e)
-            return ModelOutput.from_content(
-                model=self.model_name,
-                content=completion,
-                stop_reason="content_filter",
-                error=str(error) if error else None,
-            )
+            return self.handle_api_status_error(e)
 
     def _chat_choices_from_response(
         self, response: ChatCompletion, tools: list[ToolInfo]
@@ -262,6 +256,19 @@ class OpenAIAPI(ModelAPI):
             params["parallel_tool_calls"] = config.parallel_tool_calls
 
         return params
+
+    # convert some well known bad request errors into ModelOutput
+    def handle_api_status_error(self, e: APIStatusError) -> ModelOutput:
+        if e.status_code == 400 and e.code == "context_length_exceeded":
+            if isinstance(e.body, dict) and "message" in e.body.keys():
+                content = str(e.body.get("message"))
+            else:
+                content = e.message
+            return ModelOutput.from_content(
+                model=self.model_name, content=content, stop_reason="model_length"
+            )
+        else:
+            raise e
 
 
 async def as_openai_chat_messages(
@@ -408,25 +415,6 @@ async def as_chat_completion_part(
             type="image_url",
             image_url=dict(url=image_url, detail=cast(Any, detail)),
         )
-
-
-# Azure throws an APIStatusError (w/ status 400) when its content
-# moderation policies are triggered, which invalidates the entire
-# eval run with an error. In this case we'd rather not end the run
-# entirely but rather return the error as the model "message" and
-# then record the error in ModelOutput metadata. Note that OpenAI
-# does not exhibit this behavior (it just returns the completion
-# "Sorry, but I can't assist with that."
-def handle_content_filter_error(e: APIStatusError) -> tuple[str, object | None]:
-    CANT_ASSIST = "Sorry, but I can't assist with that."
-    if e.status_code == 400:
-        if isinstance(e.body, dict) and "message" in e.body.keys():
-            message = str(e.body.get("message"))
-            return message, e.body
-        else:
-            return CANT_ASSIST, e.body
-    else:
-        raise e
 
 
 def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:

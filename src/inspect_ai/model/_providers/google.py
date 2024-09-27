@@ -18,6 +18,7 @@ from google.ai.generativelanguage import (
 from google.api_core.exceptions import (
     GatewayTimeout,
     InternalServerError,
+    InvalidArgument,
     ServiceUnavailable,
     TooManyRequests,
 )
@@ -119,7 +120,7 @@ class GoogleAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         parameters = GenerationConfig(
             candidate_count=config.num_choices,
             temperature=config.temperature,
@@ -137,16 +138,19 @@ class GoogleAPI(ModelAPI):
         gemini_tool_config = chat_tool_config(tool_choice) if len(tools) > 0 else None
 
         # cast to AsyncGenerateContentResponse since we passed stream=False
-        response = cast(
-            AsyncGenerateContentResponse,
-            await self.model.generate_content_async(
-                contents=contents,
-                safety_settings=self.safety_settings,
-                generation_config=parameters,
-                tools=gemini_tools,
-                tool_config=gemini_tool_config,
-            ),
-        )
+        try:
+            response = cast(
+                AsyncGenerateContentResponse,
+                await self.model.generate_content_async(
+                    contents=contents,
+                    safety_settings=self.safety_settings,
+                    generation_config=parameters,
+                    tools=gemini_tools,
+                    tool_config=gemini_tool_config,
+                ),
+            )
+        except InvalidArgument as ex:
+            return self.handle_invalid_argument(ex)
 
         # build output
         output = ModelOutput(
@@ -171,6 +175,14 @@ class GoogleAPI(ModelAPI):
 
         # return
         return output, call
+
+    def handle_invalid_argument(self, ex: InvalidArgument) -> ModelOutput:
+        if "size exceeds the limit" in ex.message.lower():
+            return ModelOutput.from_content(
+                model=self.model_name, content=ex.message, stop_reason="model_length"
+            )
+        else:
+            raise ex
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
@@ -463,7 +475,7 @@ def candidate_stop_reason(finish_reason: FinishReason) -> StopReason:
         case FinishReason.STOP:
             return "stop"
         case FinishReason.MAX_TOKENS:
-            return "length"
+            return "max_tokens"
         case FinishReason.SAFETY | FinishReason.RECITATION:
             return "content_filter"
         case _:

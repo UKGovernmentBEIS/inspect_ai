@@ -352,7 +352,7 @@ def candidate_stop_reason(finish_reason: FinishReason) -> StopReason:
         case FinishReason.STOP:
             return "stop"
         case FinishReason.MAX_TOKENS:
-            return "length"
+            return "max_tokens"
         case FinishReason.SAFETY | FinishReason.RECITATION:
             return "content_filter"
         case _:

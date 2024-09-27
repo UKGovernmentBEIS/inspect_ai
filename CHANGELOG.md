@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- StopReason: Added "model_length" for exceeding token window and renamed "length" to "max_tokens"
 - Capture solver input params for subtasks created by `fork()`.
 - Option to disable ANSI terminal output with `--no-ansi` or `INSPECT_NO_ANSI`
 - Allow Docker sandboxes configured with `x-default` to be referred to by their declared service name.

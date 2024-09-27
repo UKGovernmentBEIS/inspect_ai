@@ -293,9 +293,9 @@ def choice_stop_reason(choice: MistralChatCompletionChoice) -> StopReason:
     match choice.finish_reason:
         case "stop":
             return "stop"
-        case "length" | "model_length":
-            return "length"
-        case "tool_calls":
-            return "tool_calls"
+        case "length":
+            return "max_tokens"
+        case "model_length" | "tool_calls":
+            return choice.finish_reason
         case _:
             return "unknown"

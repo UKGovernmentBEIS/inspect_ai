@@ -180,9 +180,9 @@ def basic_agent(
                                 ChatMessageUser(content=incorrect_message)
                             )
 
-                # no tool calls: model gave up without submitting
-                else:
-                    # urge the model to continue
+                # no tool calls: model gave up without submitting, urge the
+                # model to continue unless it exceeded its context window
+                elif state.output.stop_reason != "model_length":
                     state.messages.append(ChatMessageUser(content=continue_message))
 
             return state
