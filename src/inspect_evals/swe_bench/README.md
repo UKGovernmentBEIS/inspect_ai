@@ -38,6 +38,7 @@ Submissions to [the official SWE-bench leaderboard](https://www.swebench.com/) o
 # Download the swe-bench baselines. NOTE: THEY ARE QUITE LARGE. 
 git clone https://github.com/swe-bench/experiments /tmp/swebench_baselines
 # Copy to current directory
+mkdir -p swebench_baselines
 cp -r /tmp/swebench_baselines/evaluation/verified/20240620_sweagent_claude3.5sonnet ./swebench_baselines/
 # Can add other files in /tmp/swebenchbaselines/evaluations/... here
 ```
@@ -45,14 +46,23 @@ cp -r /tmp/swebench_baselines/evaluation/verified/20240620_sweagent_claude3.5son
 This means that you can compare the performance of your agent not just on the full dataset, but also on subsets of that dataset. This is often useful when trying to run smaller, cheaper experiments. To make this comparison easy, we provide a scorer that will calculate the average performance of an existing baseline on that set of trajectories:
 
 ```python
-# Select only the subset where the patch is more than 20 lines long. Select the default plan.
 agent = basic_agent(tools=[bash(timeout=30)])
-task = swe_bench(dataset="princeton-nlp/SWE-bench_Verified", solver=agent, instance_ids = ["sympy__sympy-22914","scikit-learn__scikit-learn-14141"])
+scorers = [
+    swebench_baseline_scorer(
+        "./swebench_baselines/20240620_sweagent_claude3.5sonnet",
+        name="SWE-agent_3.5_sonnet",
+    ),
+    swebench_scorer(),
+]
+task = swe_bench(
+    dataset="princeton-nlp/SWE-bench_Verified",
+    solver=agent,
+    instance_ids=["sympy__sympy-22914", "scikit-learn__scikit-learn-14141"],
+    scorer=scorers,
+    max_messages=2, # Low max-messages for testing
+)
 
-# Pick the Claude3.5Sonnet baseline.
-swebench_verified_task_subset.scorer = [swebench_baseline_scorer("./swebench_baselines/swebench_verified_20240620_sweagent_claude3.5sonnet",name="sweagent_baseline"), swebench_scorer()]
-
-eval(swebench_verified_task_subset)
+eval(task, model="openai/gpt-4o")
 ```
 
 This will lead to both numbers being reported in the final output, allowing you to compare baselines:
