@@ -33,12 +33,7 @@ def build_images_for_samples(
     samples_hf = [sample_to_hf(s) for s in sample]
 
     # We also keep a mapping from instance_ids to the name of the docker image
-    id_to_docker_image = (
-        {}
-        if not os.path.exists(SAMPLE_TO_IMAGE_PATH)
-        else json.load(open(SAMPLE_TO_IMAGE_PATH))
-    )
-
+    id_to_docker_image = {}
     for swebench_instance in samples_hf:
         docker_image_name = make_test_spec(swebench_instance).env_image_key
         id_to_docker_image[swebench_instance["instance_id"]] = docker_image_name

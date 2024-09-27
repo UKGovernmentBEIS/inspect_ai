@@ -39,14 +39,12 @@ from inspect_ai.tool import bash
 from inspect_ai.util import sandbox
 from inspect_ai.util._subprocess import ExecResult
 from build_images import build_images_for_samples
+from platformdirs import user_cache_dir
 
 getLogger().handlers = []  # Swe-bench adds a global logger, which we disable.
 
-INPUT_PROMPT = "Please solve the following issue:\n\n{issue_text}"
-COMPOSE_FILE_DIR = Path(__file__).parent / "resources/compose_files/"
-os.makedirs(COMPOSE_FILE_DIR, exist_ok=True)
-
-SAMPLE_TO_IMAGE_PATH = COMPOSE_FILE_DIR / "sample_to_image.json"
+COMPOSE_FILES_DIR = Path(user_cache_dir("inspect_swebench_eval")) / "compose_files /"
+DEFAULT_INPUT_PROMPT = "Please solve the following coding issue:\n\n{issue_text}"
 
 DEFAULT_SOLVER = basic_agent(
     init=system_message(
@@ -55,9 +53,7 @@ DEFAULT_SOLVER = basic_agent(
     tools=[bash(timeout=180)],
 )
 
-DEFAULT_MAX_MESSAGES = 30
 
-# get python logger
 logger = logging.getLogger(__name__)
 
 
@@ -66,7 +62,8 @@ def swe_bench(
     dataset: str = "princeton-nlp/SWE-bench_Verified",
     split: str = "test",
     solver: Solver = DEFAULT_SOLVER,
-    max_messages: int = DEFAULT_MAX_MESSAGES,
+    max_messages: int = 30,
+    input_prompt: str = DEFAULT_INPUT_PROMPT,
     instance_ids: list[str] | None = None,
 ) -> Task:
     """Returns a Task, representing an evaluation on SWE-bench.
@@ -116,7 +113,7 @@ def swe_bench(
 
     for sample in samples:
         sample.metadata = sample.metadata or {}
-        sample.input = INPUT_PROMPT.format(issue_text=sample.input)
+        sample.input = input_prompt.format(issue_text=sample.input)
         sample.sandbox = (
             "docker",
             get_compose_file(sample.id, id_to_docker_image),
@@ -387,12 +384,12 @@ def get_baseline_results(path_to_baseline: str) -> dict[str, dict[str, str]]:
 def get_compose_file(instance_id: str, ids_to_docker_image: dict[str, str]) -> str:
     image_name = ids_to_docker_image[instance_id]
 
-    compose_file_path = f"{COMPOSE_FILE_DIR}/{image_name}.yaml"
+    compose_file_path = f"{COMPOSE_FILES_DIR}/{image_name}.yaml"
     if os.path.exists(compose_file_path):
         return compose_file_path
 
     # If the image is found, we can now create the compose file.
-    image_compose_file = COMPOSE_FILE_DIR / f"{image_name}.yaml"
+    image_compose_file = COMPOSE_FILES_DIR / f"{image_name}.yaml"
     with image_compose_file.open(mode="w+") as f:
         f.write(f"""services:
   default:
