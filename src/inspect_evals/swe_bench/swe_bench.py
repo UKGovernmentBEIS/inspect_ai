@@ -13,7 +13,6 @@ from logging import getLogger
 from pathlib import Path
 from textwrap import dedent
 
-from .build_images import build_images_for_samples
 from platformdirs import user_cache_dir
 from swebench.harness.constants import (  # type: ignore
     APPLY_PATCH_FAIL,
@@ -39,6 +38,8 @@ from inspect_ai.tool import bash
 from inspect_ai.util import sandbox
 from inspect_ai.util._subprocess import ExecResult
 
+from .build_images import build_images_for_samples
+
 getLogger().handlers = []  # Swe-bench adds a global logger, which we disable.
 
 COMPOSE_FILES_DIR = Path(user_cache_dir("inspect_swebench_eval")) / "compose_files /"
@@ -63,6 +64,7 @@ def swe_bench(
     max_messages: int = 30,
     input_prompt: str = DEFAULT_INPUT_PROMPT,
     instance_ids: list[str] | None = None,
+    scorer: Scorer | list[Scorer] | None = None,
 ) -> Task:
     """Returns a Task, representing an evaluation on SWE-bench.
 
@@ -77,6 +79,9 @@ def swe_bench(
             The maximum number of messages to generate for each sample.
         instance_ids : list[str]
             A list of instance_ids to filter the dataset by. If None, all instances are used.
+        scorer : Scorer | list[Scorer] | None
+            The scorer to use when evaluating swe_bench. If None, uses the default scorer. Mostly commonly, this will be a list of scorers to compare to baselines (see the README for more information).
+
     """
     samples = hf_dataset(
         dataset,
@@ -93,6 +98,8 @@ def swe_bench(
                 "version",
                 "repo",
                 "environment_setup_commit",
+                "hints_text",
+                "created_at",
             ],
         ),
     )
@@ -104,7 +111,7 @@ def swe_bench(
         sample.metadata["FAIL_TO_PASS"] = json.loads(sample.metadata["FAIL_TO_PASS"])
 
     if instance_ids is not None:
-        samples.filter(lambda x: x["instance_id"] in instance_ids)
+        samples = samples.filter(lambda x: x.id in instance_ids)
 
     # Build the images for the samples - can take a long time
     id_to_docker_image = build_images_for_samples(samples)
@@ -126,7 +133,7 @@ def swe_bench(
         name=f"{dataset}_{split}",
         dataset=samples,
         solver=solver,
-        scorer=swebench_scorer(),
+        scorer=scorer if scorer is not None else swebench_scorer(),
         max_messages=max_messages,
     )
 
@@ -382,6 +389,7 @@ def get_baseline_results(path_to_baseline: str) -> dict[str, dict[str, str]]:
 def get_compose_file(instance_id: str, ids_to_docker_image: dict[str, str]) -> str:
     image_name = ids_to_docker_image[instance_id]
 
+    COMPOSE_FILES_DIR.mkdir(parents=True, exist_ok=True)
     compose_file_path = f"{COMPOSE_FILES_DIR}/{image_name}.yaml"
     if os.path.exists(compose_file_path):
         return compose_file_path

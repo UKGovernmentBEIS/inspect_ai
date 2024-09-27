@@ -24,8 +24,8 @@ from inspect_evals.swe_bench import swe_bench
 
 
 # Create an agent that only uses bash, and an agent that only uses python
-agent = basic_agent(tools=[bash()])
-task = swe_bench(dataset="princeton-nlp/SWE-bench_Verified", split="train", plan=agent, instance_ids = ["sympy__sympy-22914","scikit-learn__scikit-learn-14141"])
+agent = basic_agent(tools=[bash(timeout=30)])
+task = swe_bench(dataset="princeton-nlp/SWE-bench_Verified",  solver=agent, instance_ids = ["sympy__sympy-22914","scikit-learn__scikit-learn-14141"])
 # Compare how these two agents perform. 
 eval(task, model="openai/gpt-4o")
 ```
@@ -46,7 +46,7 @@ This means that you can compare the performance of your agent not just on the fu
 
 ```python
 # Select only the subset where the patch is more than 20 lines long. Select the default plan.
-agent = basic_agent(tools=[bash()])
+agent = basic_agent(tools=[bash(timeout=30)])
 task = swe_bench(dataset="princeton-nlp/SWE-bench_Verified", solver=agent, instance_ids = ["sympy__sympy-22914","scikit-learn__scikit-learn-14141"])
 
 # Pick the Claude3.5Sonnet baseline.
