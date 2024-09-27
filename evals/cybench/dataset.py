@@ -1,150 +1,95 @@
 from pathlib import Path
-from typing import Callable
+from typing import Generator
 
 import yaml
+from model import ChallengeInfo
 
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 
-SUPPORTED_FILE_NAMES = ["challenge.yaml", "challenge.yml"]
+CHALLENGE_INFO_FILENAME = "challenge.yaml"
 
 
-def cybench_dataset(
-    challenges_dir: Path | list[Path] | None,
-    filters: Callable[[Sample], bool] | list[Callable[[Sample], bool]] | None,
-) -> Dataset:
-    # If no path specified, run all the challenges.
-    if not challenges_dir:
-        challenges_dir = Path(__file__).resolve().parent
-    challenges_dir = (
-        challenges_dir if isinstance(challenges_dir, list) else [challenges_dir]
+def create_dataset(challenge_dirs: list[Path]) -> Dataset:
+    """
+    Create a dataset from a list of challenge directories.
+
+    Args:
+        challenge_dirs (list[Path]): A list of directories to recursively search for
+          challenges in. A challenge is considered to be a directory containing a
+          `challenge.yaml` file.
+    """
+    challenge_dirs = list(_find_challenge_dirs_recursive(challenge_dirs))
+    return MemoryDataset(samples=list(_create_samples(challenge_dirs)))
+
+
+def filter_dataset_by_variant(dataset: Dataset, variants: set[str]) -> Dataset:
+    """
+    Filter a dataset to just samples with a specific variant.
+
+    Args:
+        dataset (Dataset): The dataset to filter.
+        variants (set[str]): A set of variant names to filter the dataset by. Only
+          samples with a variant name contained in this set are included.
+    """
+    return dataset.filter(
+        # Check that metadata is not None to satisfy mypy.
+        lambda x: x.metadata is not None and x.metadata["variant"] in variants
     )
-    challenges = _get_challenges(challenges_dir)
-    dataset = MemoryDataset(samples=_create_samples(challenges))
-    if filters:
-        dataset = _filter_dataset(dataset, filters)
-    return dataset
 
 
-def _get_challenges(challenges_dirs: list[Path]) -> list[Path]:
-    def get_challenges(challenge_dir: Path) -> list[Path]:
-        if not isinstance(challenge_dir, Path):
-            raise TypeError(
-                "Expected challenge_dir to be a Path, "
-                f"but got {type(challenge_dir).__name__}."
-            )
-
-        challenge_dir = challenge_dir.resolve()
-        if not challenge_dir.exists():
-            raise FileNotFoundError(f"Could not find: {challenge_dir}")
-
-        challenge_dirs = set()
-        for file_name in SUPPORTED_FILE_NAMES:
-            for file in challenge_dir.rglob(file_name):
-                challenge_dirs.add(file.parent)
-        return list(challenge_dirs)
-
-    all_challenge_dirs = set()
+def _find_challenge_dirs_recursive(
+    challenges_dirs: list[Path],
+) -> Generator[Path, None, None]:
     for challenge_dir in challenges_dirs:
-        all_challenge_dirs.update(get_challenges(challenge_dir))
+        if not challenge_dir.exists():
+            raise NotADirectoryError(f"Could not find: '{challenge_dir}'")
+        for file in challenge_dir.rglob(CHALLENGE_INFO_FILENAME):
+            yield file.parent
 
-    return list(all_challenge_dirs)
 
+def _create_samples(challenge_dirs: list[Path]) -> Generator[Sample, None, None]:
+    for challenge_dir in challenge_dirs:
+        challenge_info = _load_challenge_info(challenge_dir)
+        challenge_files = _make_paths_absolute(challenge_info.files, challenge_dir)
 
-def _create_samples(challenges: list[Path]) -> list[Sample]:
-    def create_sample_per_variant(challenge: Path) -> list[Sample]:
-        challenge_info = _load_challenge_info(challenge)
-        id = challenge_info["name"]
-        target = challenge_info["flag"]
-        challenge_files = _get_files(challenge_info.get("files", {}), challenge)
-        sandbox = _get_sandbox(challenge_info, challenge)
-        tags = challenge_info.get("tags", [])
-        variants = challenge_info["variants"]
-
-        samples = []
-        if isinstance(variants, list):
-            variants = {
-                f"variant_{i}": {"prompt": variant}
-                for i, variant in enumerate(variants)
-            }
-        for name, variant in variants.items():
-            variant_files = _get_files(variant.get("files", {}), challenge)
-            variant_files.update(challenge_files)
-
-            sample = Sample(
-                id=id,
-                input=variant["prompt"],
-                target=target,
-                files=variant_files,
+        # Create a sample for each variant of the challenge.
+        for varient_name, variant in challenge_info.variants.items():
+            variant_files = _make_paths_absolute(variant.files, challenge_dir)
+            yield Sample(
+                id=f"{challenge_info.name}-{varient_name}",
+                input=variant.prompt,
+                target=challenge_info.flag,
+                files=challenge_files | variant_files,
                 metadata={
-                    "variant": name,
-                    "ratings": variant.get("ratings", {}),
-                    "tags": tags,
+                    "variant": varient_name,
+                    "challenge_metadata": challenge_info.metadata,
+                    "variant_metadata": variant.metadata,
                 },
-                sandbox=sandbox,
+                sandbox=("docker", _make_path_absolute("compose.yaml", challenge_dir)),
             )
-            samples.append(sample)
-
-        return samples
-
-    return [
-        sample
-        for challenge in challenges
-        for sample in create_sample_per_variant(challenge)
-    ]
 
 
-def _filter_dataset(
-    dataset: MemoryDataset,
-    filters: Callable[[Sample], bool] | list[Callable[[Sample], bool]],
-) -> MemoryDataset:
-    filters = filters if isinstance(filters, list) else [filters]
-    for filter in filters:
-        dataset = dataset.filter(filter)
-    return dataset
+def _load_challenge_info(challenge: Path) -> ChallengeInfo:
+    # Each challenge directory must have a CHALLENGE_INFO_FILENAME file.
+    yaml_path = challenge / CHALLENGE_INFO_FILENAME
+    try:
+        with open(yaml_path, "r") as f:
+            data = yaml.safe_load(f)
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"Could not find {CHALLENGE_INFO_FILENAME} in '{challenge}'."
+        )
+    return ChallengeInfo(**data)
 
 
-def _load_challenge_info(challenge: Path) -> dict:
-    # Each challenge directory must have a config file with the challenge information.
-    for file_name in SUPPORTED_FILE_NAMES:
-        yaml_path = challenge / file_name
-        try:
-            return _load_challenge_info_from_yaml(yaml_path)
-        except FileNotFoundError:
-            continue
-    raise FileNotFoundError(
-        f"Could not find {' or '.join(SUPPORTED_FILE_NAMES)} in {challenge}."
-    )
+def _make_paths_absolute(files: dict[str, str], base_path: Path) -> dict[str, str]:
+    return {key: _make_path_absolute(value, base_path) for key, value in files.items()}
 
 
-def _load_challenge_info_from_yaml(yaml_path: Path) -> dict:
-    with open(yaml_path, "r") as f:
-        yaml_data = f.read()
-    raw_data = yaml.safe_load(yaml_data)
-    return raw_data
-
-
-def _get_files(files_dict: dict[str, str], challenge: Path) -> dict[str, str]:
-    return {
-        key: _make_path_absolute(value, challenge) for key, value in files_dict.items()
-    }
-
-
-def _get_sandbox(challenge_info: dict, challenge: Path) -> str | tuple[str, str | None]:
-    provider, config_file = "docker", "compose.yaml"
-    # If a sandbox is provided, a provider and config_file must be specified.
-    if sandbox := challenge_info.get("sandbox"):
-        try:
-            provider, config_file = sandbox["provider"], sandbox["config_file"]
-        except KeyError:
-            raise KeyError(
-                "Could not find sandbox provider and config_file in challenge config; if a sanbox is provided, both must be specified."
-            )
-    return provider, _make_path_absolute(config_file, challenge)
-
-
-def _make_path_absolute(path_or_content: str, challenge: Path) -> str:
+def _make_path_absolute(path_or_content: str, base_path: Path) -> str:
     if Path(path_or_content).is_absolute():
         return path_or_content
-    if (challenge / path_or_content).is_file():
-        return str((challenge / path_or_content).resolve())
+    path = base_path / path_or_content
+    if path.is_file():
+        return str(path.resolve())
     return path_or_content
