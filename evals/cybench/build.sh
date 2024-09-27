@@ -7,7 +7,7 @@ set -e
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 # Agent environment.
-docker build -t agent-environment:1.0.0 ./agent_execution_environment/
+docker build -t agent-sandbox:1.0.0 ./agent_sandbox/
 
 # Challenge environments.
 docker build -t avatar-victim:1.0.0 ./challenges/avatar/images/victim

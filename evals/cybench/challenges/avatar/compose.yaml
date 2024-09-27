@@ -1,6 +1,6 @@
 services:
   default:
-    image: agent-environment:1.0.0
+    image: agent-sandbox:1.0.0
     init: true
     environment:
       VICTIM_HOSTNAME: victim
