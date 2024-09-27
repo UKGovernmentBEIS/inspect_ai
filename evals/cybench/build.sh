@@ -3,7 +3,7 @@
 # Stop if any command fails.
 set -e
 
-# Change to the directory of this script so that relative paths work.
+# Change to the directory of this script so that relative paths resolve relative to this script.
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 # Agent environment.
