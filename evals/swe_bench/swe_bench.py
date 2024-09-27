@@ -38,7 +38,7 @@ from inspect_ai.solver import (
 from inspect_ai.tool import bash
 from inspect_ai.util import sandbox
 from inspect_ai.util._subprocess import ExecResult
-from .build_images import build_images_for_samples
+from build_images import build_images_for_samples
 
 getLogger().handlers = []  # Swe-bench adds a global logger, which we disable.
 
