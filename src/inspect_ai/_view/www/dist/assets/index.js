@@ -14206,6 +14206,29 @@ const system_msg_added_sig = {
     />`;
   }
 };
+const prompt_template = {
+  type: "prompt_template",
+  signature: {
+    remove: [],
+    replace: ["/messages/0/content"],
+    add: []
+  },
+  render: (_changes, resolvedState) => {
+    const message = resolvedState["messages"][0];
+    message.role = "user";
+    if (Array.isArray(message.content)) {
+      if (!message.content[0].type) {
+        message.content[0].type = "text";
+      }
+    } else {
+      message.content = [{ text: message.content, type: "text" }];
+    }
+    return m$1`<${ChatView}
+      id="system_msg_event_preview"
+      messages=${[message]}
+    />`;
+  }
+};
 const kToolPattern = "/tools/(\\d+)";
 const use_tools = {
   type: "use_tools",
@@ -14288,6 +14311,7 @@ const renderTools = (changes, resolvedState) => {
   `;
 };
 const RenderableChangeTypes = [
+  prompt_template,
   system_msg_added_sig,
   use_tools,
   add_tools
