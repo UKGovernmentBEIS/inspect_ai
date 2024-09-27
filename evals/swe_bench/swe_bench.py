@@ -77,7 +77,7 @@ def swe_bench(
             The solver to use when creating the task. If None, uses the default solver.
         max_messages : int
             The maximum number of messages to generate for each sample.
-        instance_id : list[str]
+        instance_ids : list[str]
             A list of instance_ids to filter the dataset by. If None, all instances are used.
     """
     samples = hf_dataset(
