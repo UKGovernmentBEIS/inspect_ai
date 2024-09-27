@@ -49,7 +49,7 @@ asyncio_default_fixture_loop_scope = "function"
 log_level = "warning"
 
 [tool.mypy]
-exclude = "examples/agents/"
+exclude = ["tests/test_package", "evals", "build"]
 warn_unused_ignores = true
 no_implicit_reexport = true
 strict_equality = true
