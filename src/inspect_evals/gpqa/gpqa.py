@@ -8,14 +8,16 @@ https://arxiv.org/abs/2311.12022
 Based on: https://github.com/openai/simple-evals/blob/main/gpqa_eval.py
 
 # eval for default epochs (4)
-inspect eval gpqa.py
+inspect eval inspect_evals/gpqa_diamond
 
 # eval with 1 epoch
-inspect eval gpqa.py --epochs 1
+inspect eval inspect_evals/gpqa_diamond --epochs 1
 
 # without chain of thought
-inspect eval gpqa.py -T cot=false
+inspect eval inspect_evals/gpqa_diamond -T cot=false
 """
+
+from typing import Any
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, csv_dataset
@@ -28,7 +30,7 @@ DEFAULT_EPOCHS = 4
 
 
 @task
-def gpqa_diamond(cot=True):
+def gpqa_diamond(cot: bool = True) -> Task:
     return Task(
         dataset=csv_dataset(
             csv_file="https://openaipublic.blob.core.windows.net/simple-evals/gpqa_diamond.csv",
@@ -45,7 +47,7 @@ def gpqa_diamond(cot=True):
 
 # map records to inspect samples (note that target is always "A" in the,
 # dataset, we will shuffle the presentation of options to mitigate this)
-def record_to_sample(record):
+def record_to_sample(record: dict[str, Any]) -> Sample:
     return Sample(
         input=record["Question"],
         choices=[

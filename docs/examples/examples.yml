@@ -82,7 +82,7 @@
   contributors: ["jjallaire"]
 
 - title: "MathVista: Evaluating Mathematical Reasoning in Visual Contexts"
-  path: evals/mathvista
+  path: src/inspect_evals/mathvista
   description: |
     Diverse mathematical and visual tasks that require fine-grained, deep visual understanding and compositional reasoning. Demonstrates multimodal inputs and custom scorers.
   arxiv: https://arxiv.org/abs/2310.02255
@@ -133,7 +133,7 @@
 - title: "DROP: A Reading Comprehension Benchmark Requiring Discrete Reasoning Over Paragraphs"
   description: |
     Evaluates reading comprehension where models must resolve references in a question, perhaps to multiple input positions, and perform discrete operations over them (such as addition, counting, or sorting).
-  path: evals/drop
+  path: src/inspect_evals/drop
   arxiv: https://arxiv.org/abs/1903.00161
   cite: dua2019dropreadingcomprehensionbenchmark
   group: Reasoning
@@ -153,7 +153,7 @@
 - title: "RACE-H: A benchmark for testing reading comprehension and reasoning abilities of neural models"
   description: |
     Reading comprehension tasks collected from the English exams for middle and high school Chinese students in the age range between 12 to 18.
-  path: evals/race-h
+  path: src/inspect_evals/race_h
   arxiv: https://arxiv.org/abs/1704.04683
   cite: lai2017racelargescalereadingcomprehension
   group: Reasoning
@@ -163,7 +163,7 @@
 - title: "MMMU: A Massive Multi-discipline Multimodal Understanding and Reasoning Benchmark"
   description: |
     Multimodal questions from college exams, quizzes, and textbooks, covering six core disciplinestasks, demanding college-level subject knowledge and deliberate reasoning. Demonstrates multimodel inputs.
-  path: evals/mmmu
+  path: src/inspect_evals/mmmu
   arxiv: https://arxiv.org/abs/2311.16502
   cite: yue2024mmmumassivemultidisciplinemultimodal
   group: Reasoning
@@ -222,7 +222,7 @@
 - title: "GPQA: A Graduate-Level Google-Proof Q&A Benchmark"
   description: |
     Challenging dataset of 448 multiple-choice questions written by domain experts in biology, physics, and chemistry (experts at PhD level in the corresponding domains reach 65% accuracy).
-  path: evals/gpqa
+  path: src/inspect_evals/gpqa
   arxiv: https://arxiv.org/abs/2311.12022
   cite: rein2023gpqagraduatelevelgoogleproofqa
   group: Knowledge

@@ -17,7 +17,7 @@ inspect eval drop/drop.py -T fewshot=false
 
 import hashlib
 import re
-from typing import Dict, List
+from typing import Any
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
@@ -27,6 +27,7 @@ from inspect_ai.solver import (
     chain,
     generate,
     prompt_template,
+    solver,
     system_message,
 )
 
@@ -60,7 +61,7 @@ def drop(
 ) -> Task:
     """Inspect task implementing the DROP benchmark.
 
-    Arguments:
+    Args:
         fewshot (int): Number of few shot examples to use.
         fewshot_seed (int): Random seed for sampling few shot examples.
     """
@@ -82,6 +83,7 @@ def extract_answer(answer: str) -> str:
     return match.group(1) if match else answer
 
 
+@solver
 def drop_solver(
     fewshot: int,
     fewshot_seed: int,
@@ -120,7 +122,7 @@ def drop_solver(
     )
 
 
-def record_to_sample(record: Dict) -> Sample:
+def record_to_sample(record: dict[str, Any]) -> Sample:
     return Sample(
         input=format_input(record),
         target=get_answers(record),
@@ -129,7 +131,7 @@ def record_to_sample(record: Dict) -> Sample:
     )
 
 
-def format_input(doc: Dict) -> str:
+def format_input(doc: dict[str, Any]) -> str:
     passage_str = f"""Passage: {doc["passage"]}"""
     question_str = f"""Question: {doc["question"]}"""
     answer_str = """Answer:"""
@@ -144,8 +146,10 @@ def sample_to_fewshot(sample: Sample) -> str:
 
 # Copied from
 # https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/tasks/drop/utils.py#L23C1-L49C19
-def get_answers(doc: Dict) -> list[str]:
-    def _flatten_validated_answers(validated_answers: Dict) -> List[Dict]:
+def get_answers(doc: dict[str, Any]) -> list[str]:
+    def _flatten_validated_answers(
+        validated_answers: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         """Flattens a dict of lists of validated answers.
 
         {"number": ['1', '8'], ...}
@@ -174,7 +178,7 @@ def get_answers(doc: Dict) -> list[str]:
     return answers
 
 
-def parse_answer(answer: Dict) -> str:
+def parse_answer(answer: dict[str, Any]) -> str:
     # NOTE: Everything is converted to a string here, since this will ultimately
     # be treated as a bag of words
     if answer["number"] != "":
