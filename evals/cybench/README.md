@@ -17,3 +17,5 @@ inspect eval task.py --model openai/gpt-4o -T max_attempts=2 -T max_messages=75
 
 ## TODO:
 - Document `files` "merging" behaviour
+- Document that images will be available from a public registry but the source is
+  included for reference (and some files are copied into the container at runtime).
