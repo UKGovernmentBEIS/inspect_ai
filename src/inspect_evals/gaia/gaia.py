@@ -83,7 +83,9 @@ def gaia_dataset(
     filter: Callable[[Sample], bool] = lambda x: True,
 ) -> Dataset:
     # use user cache dir for dataset
-    GAIA_DATASET_LOCATION = Path(user_cache_dir("gaia_eval")) / "GAIA"
+    GAIA_DATASET_LOCATION = (
+        Path(user_cache_dir("inspect_evals")) / "gaia_dataset" / "GAIA"
+    )
 
     # download dataset if required
     if not os.path.exists(GAIA_DATASET_LOCATION):
