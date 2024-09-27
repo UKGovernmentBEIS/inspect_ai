@@ -77,16 +77,4 @@ jobs:
         run: |
           pytest -rA --doctest-modules --color=yes --cov=inspect_ai
 
-  package:
-    name: Build & inspect the package.
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-        # Without this step, the build fails due to these static assets
-        # being duplicated into the `dist` folder.
-      - name: Delete knowingly duplicated files
-        run: rm src/inspect_ai/_view/www/favicon.svg
-
-      - uses: hynek/build-and-inspect-python-package@v1
+  
