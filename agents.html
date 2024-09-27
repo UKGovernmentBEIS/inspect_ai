@@ -844,7 +844,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>Sandbox environment definitions can be bound at the <code>Sample</code>, <code>Task</code>, or <code>eval()</code> level. Binding precedence goes from <code>eval()</code>, to <code>Task</code> to <code>Sample</code>, however sandbox config files defined on the <code>Sample</code> always take precedence when the sandbox type for the <code>Sample</code> is the same as the enclosing <code>Task</code> or <code>eval()</code>.</p>
-<p>Here is a <code>Task</code> that defines a <code>sandbox</code> and corresponding sandbox config file:</p>
+<p>Here is a <code>Task</code> that defines a <code>sandbox</code>:</p>
 <div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>Task(</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    dataset<span class="op">=</span>dataset,</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    plan([</span>
@@ -852,10 +852,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>        generate()</span>
 <span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    ]),</span>
 <span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    scorer<span class="op">=</span>match(),</span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    sandbox<span class="op">=</span>(<span class="st">"docker"</span>, <span class="st">"compose.yaml"</span>)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    sandbox<span class="op">=</span><span class="st">"docker"</span></span>
 <span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>In this example there is a <code>compose.yaml</code> file in the task directory that will be used to provision Docker services (if there is no config file specified then the Docker default Python 3.12 image will be used). For example:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>sandbox<span class="op">=</span><span class="st">"docker"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>By default, any <code>Dockerfile</code> and/or <code>compose.yaml</code> file within the task directory will be automatically discovered and used. If your compose file has a different name then you can provide an override specification as follows:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>sandbox<span class="op">=</span>(<span class="st">"docker"</span>, <span class="st">"attacker-compose.yaml"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The configuration file added to the <code>sandbox</code> spec should always be a compose file (rather than a <code>Dockerfile</code>, which is always discovered automatically).</p>
 </section>
 <section id="per-sample-setup" class="level3">
 <h3 class="anchored" data-anchor-id="per-sample-setup">Per Sample Setup</h3>

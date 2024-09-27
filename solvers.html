@@ -467,9 +467,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> multiple_choice(</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
 <span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    template: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    multiple_correct: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    cot: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
 <span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    shuffle: <span class="bu">bool</span> <span class="op">|</span> Random <span class="op">=</span> <span class="va">False</span>,</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver:</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    multiple_correct: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver:</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>We’ll present an example and then discuss the various options below (in most cases you won’t need to customise these). First though there are some special considerations to be aware of when using the <code>multiple_choice()</code> solver:</p>
 <ol type="1">
 <li>The <code>Sample</code> must include the available <code>choices</code>. Choices should not include letters (as they are automatically included when presenting the choices to the model).</li>
@@ -564,13 +566,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tbody>
 <tr class="odd">
 <td><code>template</code></td>
-<td>Use <code>template</code> to provide an alternate prompt template (note that if you do this your template should handle prompting for <code>multiple_correct</code> directly if required).</td>
+<td>Use <code>template</code> to provide an alternate prompt template (note that if you do this your template should handle prompting for <code>multiple_correct</code> directly if required). You can access the built in templates using the <code>MultipleChoiceTemplate</code> enum.</td>
 </tr>
 <tr class="even">
-<td><code>multiple_correct</code></td>
-<td>By default, multiple choice questions have a single correct answer. Set <code>multiple_correct=True</code> if your target has defined multiple correct answers (for example, a <code>target</code> of <code>["B", "C"]</code>). In this case the model is prompted to provide one or more answers, and the sample is scored correct only if each of these answers are provided.</td>
+<td><code>cot</code></td>
+<td>Whether the solver should perform chain-of-thought reasoning before answering (defaults to <code>False</code>). NOTE: this has no effect if you provide a custom template.</td>
 </tr>
 <tr class="odd">
+<td><code>multiple_correct</code></td>
+<td>By default, multiple choice questions have a single correct answer. Set <code>multiple_correct=True</code> if your target has defined multiple correct answers (for example, a <code>target</code> of <code>["B", "C"]</code>). In this case the model is prompted to provide one or more answers, and the sample is scored correct only if each of these answers are provided. NOTE: this has no effect if you provide a custom template.</td>
+</tr>
+<tr class="even">
 <td><code>shuffle</code></td>
 <td>If you specify <code>shuffle=True</code>, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated).</td>
 </tr>
