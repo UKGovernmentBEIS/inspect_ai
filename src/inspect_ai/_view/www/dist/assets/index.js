@@ -20936,64 +20936,70 @@ function App({ api: api2, pollForLogs = true }) {
   });
   const [showFind, setShowFind] = h(false);
   const mainAppRef = A();
-  y(async () => {
-    setHeadersLoading(true);
-    const chunkSize = 8;
-    const fileLists = [];
-    for (let i2 = 0; i2 < logs.files.length; i2 += chunkSize) {
-      let chunk = logs.files.slice(i2, i2 + chunkSize).map((log) => {
-        return log.name;
-      });
-      fileLists.push(chunk);
-    }
-    try {
-      for (const fileList of fileLists) {
-        const headers = await api2.eval_log_headers(fileList);
-        setLogHeaders((prev) => {
-          const updatedHeaders = {};
-          headers.forEach((header, index) => {
-            const logFile = fileList[index];
-            updatedHeaders[logFile] = header;
-          });
-          return { ...prev, ...updatedHeaders };
+  y(() => {
+    const loadHeaders = async () => {
+      setHeadersLoading(true);
+      const chunkSize = 8;
+      const fileLists = [];
+      for (let i2 = 0; i2 < logs.files.length; i2 += chunkSize) {
+        let chunk = logs.files.slice(i2, i2 + chunkSize).map((log) => {
+          return log.name;
         });
-        if (headers.length === chunkSize) {
-          await sleep(5e3);
-        }
+        fileLists.push(chunk);
       }
-    } catch (e2) {
-      console.log(e2);
-      setStatus({ loading: false, error: e2 });
-    }
-    setHeadersLoading(false);
-  }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
-  y(async () => {
-    const targetLog = logs.files[selected];
-    if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
       try {
-        setStatus({ loading: true, error: void 0 });
-        const logContents = await loadLog(targetLog.name);
-        if (logContents) {
-          const log = logContents.parsed;
-          setCurrentLog({
-            contents: log,
-            name: targetLog.name,
-            raw: logContents.raw
+        for (const fileList of fileLists) {
+          const headers = await api2.eval_log_headers(fileList);
+          setLogHeaders((prev) => {
+            const updatedHeaders = {};
+            headers.forEach((header, index) => {
+              const logFile = fileList[index];
+              updatedHeaders[logFile] = header;
+            });
+            return { ...prev, ...updatedHeaders };
           });
-          setStatus({ loading: false, error: void 0 });
+          if (headers.length === chunkSize) {
+            await sleep(5e3);
+          }
         }
       } catch (e2) {
         console.log(e2);
         setStatus({ loading: false, error: e2 });
       }
-    } else if (logs.log_dir && logs.files.length === 0) {
-      setStatus({
-        loading: false,
-        error: new Error(
-          `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`
-        )
-      });
-    }
+      setHeadersLoading(false);
+    };
+    loadHeaders();
+  }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
+  y(() => {
+    const performLoad = async () => {
+      const targetLog = logs.files[selected];
+      if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
+        try {
+          setStatus({ loading: true, error: void 0 });
+          const logContents = await loadLog(targetLog.name);
+          if (logContents) {
+            const log = logContents.parsed;
+            setCurrentLog({
+              contents: log,
+              name: targetLog.name,
+              raw: logContents.raw
+            });
+            setStatus({ loading: false, error: void 0 });
+          }
+        } catch (e2) {
+          console.log(e2);
+          setStatus({ loading: false, error: e2 });
+        }
+      } else if (logs.log_dir && logs.files.length === 0) {
+        setStatus({
+          loading: false,
+          error: new Error(
+            `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`
+          )
+        });
+      }
+    };
+    performLoad();
   }, [selected, logs, capabilities, currentLog, setCurrentLog, setStatus]);
   const loadLogs = async () => {
     try {
@@ -21109,60 +21115,63 @@ function App({ api: api2, pollForLogs = true }) {
       window.removeEventListener("message", onMessage);
     };
   }, [onMessage]);
-  y(async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const extensionVersionEl = document.querySelector(
-      'meta[name="inspect-extension:version"]'
-    );
-    const extensionVersion = extensionVersionEl ? extensionVersionEl.getAttribute("content") : void 0;
-    if (isVscode()) {
-      if (!extensionVersion) {
-        setCapabilities({ downloadFiles: false, webWorkers: false });
-      }
-    }
-    setOffcanvas(true);
-    const logPath = urlParams.get("task_file");
-    const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
-    const load = resolvedLogPath ? async () => {
-      return {
-        log_dir: "",
-        files: [{ name: resolvedLogPath }]
-      };
-    } : loadLogs;
-    const embeddedState = document.getElementById("logview-state");
-    if (embeddedState) {
-      const state = JSON.parse(embeddedState.textContent);
-      onMessage({ data: state });
-    } else {
-      const result = await load();
-      setLogs(result);
-      const log_file = urlParams.get("log_file");
-      if (log_file) {
-        const index = result.files.findIndex((val) => {
-          return log_file.endsWith(val.name);
-        });
-        if (index > -1) {
-          setSelected(index);
+  y(() => {
+    const performInit = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const extensionVersionEl = document.querySelector(
+        'meta[name="inspect-extension:version"]'
+      );
+      const extensionVersion = extensionVersionEl ? extensionVersionEl.getAttribute("content") : void 0;
+      if (isVscode()) {
+        if (!extensionVersion) {
+          setCapabilities({ downloadFiles: false, webWorkers: false });
         }
-      } else if (selected === -1) {
-        setSelected(0);
       }
-    }
-    new ClipboardJS(".clipboard-button,.copy-button");
-    if (pollForLogs) {
-      setInterval(() => {
-        api2.client_events().then(async (events) => {
-          if (events.includes("reload")) {
-            window.location.reload(true);
+      setOffcanvas(true);
+      const logPath = urlParams.get("task_file");
+      const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
+      const load = resolvedLogPath ? async () => {
+        return {
+          log_dir: "",
+          files: [{ name: resolvedLogPath }]
+        };
+      } : loadLogs;
+      const embeddedState = document.getElementById("logview-state");
+      if (embeddedState) {
+        const state = JSON.parse(embeddedState.textContent);
+        onMessage({ data: state });
+      } else {
+        const result = await load();
+        setLogs(result);
+        const log_file = urlParams.get("log_file");
+        if (log_file) {
+          const index = result.files.findIndex((val) => {
+            return log_file.endsWith(val.name);
+          });
+          if (index > -1) {
+            setSelected(index);
           }
-          if (events.includes("refresh-evals")) {
-            const logs2 = await load();
-            setLogs(logs2);
-            setSelected(0);
-          }
-        });
-      }, 1e3);
-    }
+        } else if (selected === -1) {
+          setSelected(0);
+        }
+      }
+      new ClipboardJS(".clipboard-button,.copy-button");
+      if (pollForLogs) {
+        setInterval(() => {
+          api2.client_events().then(async (events) => {
+            if (events.includes("reload")) {
+              window.location.reload();
+            }
+            if (events.includes("refresh-evals")) {
+              const logs2 = await load();
+              setLogs(logs2);
+              setSelected(0);
+            }
+          });
+        }, 1e3);
+      }
+    };
+    performInit();
   }, []);
   const fullScreen = logs.files.length === 1 && !logs.log_dir;
   const sidebar = !fullScreen && currentLog.contents ? m$1`
