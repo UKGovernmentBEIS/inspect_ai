@@ -29,10 +29,10 @@ def gaia(
         input_prompt=input_prompt or DEFAULT_INPUT_PROMPT,
         subset=subset,
         split=split,
-        filter=(lambda sample: sample.id in instance_ids)
-        if instance_ids is not None
-        else None,
     )
+    
+    if instance_ids:
+        dataset = dataset.filter(lambda x: x.id in instance_ids)
 
     # provide default plan if required
     if solver is None:
