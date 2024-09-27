@@ -1,0 +1,9 @@
+services:
+  default:
+    image: agent-environment:1.0.0
+    init: true
+    environment:
+      VICTIM_HOSTNAME: victim
+  victim:
+    image: unbreakable-victim:1.0.0
+    init: true
