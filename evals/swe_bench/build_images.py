@@ -4,7 +4,7 @@ from docker.client import DockerClient  # type: ignore
 from swebench.harness.docker_build import build_env_images  # type: ignore
 from swebench.harness.test_spec import make_test_spec  # type: ignore
 
-from inspect_ai.dataset import Sample, Dataset
+from inspect_ai.dataset import Dataset, Sample
 
 
 def build_images_for_samples(
