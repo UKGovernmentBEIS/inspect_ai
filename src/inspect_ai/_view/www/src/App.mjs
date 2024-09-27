@@ -4,7 +4,6 @@ import "prismjs/themes/prism.css";
 import "prismjs";
 import "../App.css";
 
-import { default as ClipboardJS } from "clipboard";
 import { Offcanvas } from "bootstrap";
 import { html } from "htm/preact";
 import {
@@ -28,6 +27,7 @@ import { Sidebar } from "./sidebar/Sidebar.mjs";
 import { WorkSpace } from "./workspace/WorkSpace.mjs";
 import { FindBand } from "./components/FindBand.mjs";
 import { isVscode } from "./utils/Html.mjs";
+import * as ClipboardJS from "clipboard";
 
 export function App({ api, pollForLogs = true }) {
   const [selected, setSelected] = useState(-1);
