@@ -22,15 +22,17 @@ def gaia(
         "2023_all", "2023_level1", "2023_level2", "2023_level3"
     ] = "2023_all",
     split: Literal["test", "validation"] = "validation",
-    filter: Callable[[Sample], bool] | None = None,
+    instance_ids: list[str] | None = None,
 ) -> Task:
     # read dataset
     dataset = gaia_dataset(
         input_prompt=input_prompt or DEFAULT_INPUT_PROMPT,
         subset=subset,
         split=split,
-        filter=filter if filter else lambda x: True,
     )
+
+    if instance_ids:
+        dataset = dataset.filter(lambda x: x.id in instance_ids)
 
     # provide default plan if required
     if solver is None:

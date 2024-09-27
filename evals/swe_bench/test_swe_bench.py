@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 from uuid import uuid1
 
-from build_images import build_images
 from datasets import load_dataset  # type: ignore
 from swe_bench import swe_bench, swebench_baseline_scorer
 
@@ -48,14 +47,6 @@ def get_dataset_single_instance(
     return dataset_location
 
 
-def build_swebench_images(
-    dataset_name: str = "princeton-nlp/SWE-bench_Verified",
-    split: str | None = "test",
-    max_workers: int = 4,
-) -> None:
-    build_images(dataset_name=dataset_name, split=split, max_workers=max_workers)
-
-
 @solver
 def apply_patch_solver(patch: str):
     # Solver to apply a specific patch to a git repository.
@@ -86,8 +77,6 @@ def delete_readme_solver():
 
 def test_correct_patch_succeeds() -> None:
     dataset = get_dataset_single_instance(GOLDEN_PATCH_TEST_ID)
-    build_swebench_images(dataset, "train")
-
     test_task = swe_bench(dataset, "train")
     golden_patch = test_task.dataset[0].metadata["patch"]
     test_task.solver = apply_patch_solver(golden_patch)
@@ -101,7 +90,6 @@ def test_correct_patch_succeeds() -> None:
 
 def test_incorrect_patch_fails() -> None:
     dataset = get_dataset_single_instance(GOLDEN_PATCH_TEST_ID)
-    build_swebench_images(dataset, "train")
 
     test_task = swe_bench(dataset, "train", solver=delete_readme_solver())
 
@@ -115,8 +103,6 @@ def test_incorrect_patch_fails() -> None:
 def test_same_scores_for_swe_agent() -> None:
     # Very slow test
     # This test checks that we agree with the original swe-bench implementation patches outputted by swe-agent, with one instance from each of the repositories scraped in SWE-bench-verified.
-
-    build_swebench_images(dataset_name=SLOW_TEST_DATASET, split="train")
 
     # We load the whole dataset
     test_task = swe_bench(dataset=SLOW_TEST_DATASET, split="train")
@@ -172,6 +158,3 @@ def test_same_scores_for_swe_agent() -> None:
                 error_str += f"Result of evaluating {result.samples[0].id} did not agree with the swe_bench ground truth. Our score: '{score.value}'. swe-agent score: '{swe_agent_score.value}' Scorer results: {score.explanation}"
 
     assert error_str == "", error_str
-
-
-test_same_scores_for_swe_agent()

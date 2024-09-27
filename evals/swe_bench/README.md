@@ -39,8 +39,17 @@ eval(swebench_task, model="openai/gpt-4o", max_tasks=2, max_subprocesses=8, max_
 
 NOTE: SWE-bench will take a while to run, and uses a lot of tokens. If things are too slow, you should increase the level of parallelism - see https://inspect.ai-safety-institute.org.uk/parallelism.html. Note that running too many docker containers on your machine can also cause issues, most notably with a 'ALL PREDEFINED ADDRESS POOLS HAVE BEEN FULLY SUBNETTED' error - we don't recommend running more than 32 containers at any one time.
 
-### Comparing to baselines
-Submissions to [the official SWE-bench leaderboard](https://www.swebench.com/) often come with a set of trajectories and per-swebench-instance results. This means that you can compare the performance of your agent not just on the full dataset, but also on subsets of that dataset. This is often useful when trying to run smaller, cheaper experiments. To make this comparison easy, we provide a scorer that will calculate the average performance of an existing baseline on that set of trajectories:
+### Comparing to official swe-bench baselines
+Submissions to [the official SWE-bench leaderboard](https://www.swebench.com/) often come with a set of trajectories and per-swebench-instance results. To download these baselines, you can git clone the official baselines repository, and copy the baselines to a local directory:
+```bash
+# Download the swe-bench baselines. NOTE: THEY ARE QUITE LARGE. 
+git clone https://github.com/swe-bench/experiments /tmp/swebench_baselines
+# Copy to current directory
+cp -r /tmp/swebench_baselines/evaluation/verified/20240620_sweagent_claude3.5sonnet ./swebench_baselines/
+# Can add other files in /tmp/swebenchbaselines/evaluations/... here
+```
+
+This means that you can compare the performance of your agent not just on the full dataset, but also on subsets of that dataset. This is often useful when trying to run smaller, cheaper experiments. To make this comparison easy, we provide a scorer that will calculate the average performance of an existing baseline on that set of trajectories:
 
 ```python
 from inspect_ai import eval
@@ -59,7 +68,7 @@ eval(swebench_verified_task_subset,limit=5)
 This will lead to both numbers being reported in the final output, allowing you to compare baselines:
 
 ![SWE-bench baseline comparison](./resources/docs/swebench_comparison.jpeg)
-```
+
 
 
 
