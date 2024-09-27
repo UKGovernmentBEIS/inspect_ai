@@ -5,10 +5,10 @@ from typing import Any, cast
 
 from openai import (
     APIConnectionError,
-    APIStatusError,
     APITimeoutError,
     AsyncAzureOpenAI,
     AsyncOpenAI,
+    BadRequestError,
     InternalServerError,
     RateLimitError,
 )
@@ -192,8 +192,8 @@ class OpenAIAPI(ModelAPI):
                 response=response.model_dump(),
                 filter=model_call_filter,
             )
-        except APIStatusError as e:
-            return self.handle_api_status_error(e)
+        except BadRequestError as e:
+            return self.handle_bad_request(e)
 
     def _chat_choices_from_response(
         self, response: ChatCompletion, tools: list[ToolInfo]
@@ -258,7 +258,7 @@ class OpenAIAPI(ModelAPI):
         return params
 
     # convert some well known bad request errors into ModelOutput
-    def handle_api_status_error(self, e: APIStatusError) -> ModelOutput:
+    def handle_bad_request(self, e: BadRequestError) -> ModelOutput:
         if e.status_code == 400 and e.code == "context_length_exceeded":
             if isinstance(e.body, dict) and "message" in e.body.keys():
                 content = str(e.body.get("message"))
