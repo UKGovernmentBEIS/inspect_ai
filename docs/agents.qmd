@@ -351,7 +351,7 @@ The sandbox is also available to custom [scorers](#sec-sandbox-access).
 There are two sandbox environments built in to Inspect:
 
 | Environment Type | Description |
-|--------------------------|----------------------------------------------|
+|--------------------------|---------------------------------------------|
 | `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
 | `docker` | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details). |
 
@@ -373,11 +373,11 @@ Task(
 
 By default, any `Dockerfile` and/or `compose.yaml` file within the task directory will be automatically discovered and used. If your compose file has a different name then you can provide an override specification as follows:
 
-```python
+``` python
 sandbox=("docker", "attacker-compose.yaml")
 ```
 
-The configuration file added to the `sandbox` spec should always be a compose file (rather than a `Dockerfile`, which is always discovered automatically). 
+The configuration file added to the `sandbox` spec should always be a compose file (rather than a `Dockerfile`, which is always discovered automatically).
 
 ### Per Sample Setup
 

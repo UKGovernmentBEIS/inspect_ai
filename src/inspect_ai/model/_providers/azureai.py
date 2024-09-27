@@ -95,7 +95,7 @@ class AzureAIAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         # There are two different model APIs on Azure AI. The first is associated
         # with 'realtime' deployments of llama (and maps closely to other llama
         # inference apis):
@@ -156,17 +156,23 @@ class AzureAIAPI(ModelAPI):
             endpoint_url = f"{self.endpoint_url}/v1/chat/completions"
 
         # call model
-        response = await chat_api_request(
-            self.client,
-            model_name=self.model_name,
-            url=endpoint_url,
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "azureml-model-deployment": self.model_name,
-            },
-            json=json,
-            config=config,
-        )
+        try:
+            response = await chat_api_request(
+                self.client,
+                model_name=self.model_name,
+                url=endpoint_url,
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "azureml-model-deployment": self.model_name,
+                },
+                json=json,
+                config=config,
+            )
+        except httpx.HTTPStatusError as ex:
+            if ex.response.status_code == 400:
+                return self.handle_bad_request(ex)
+            else:
+                raise ex
 
         # record call
         call = ModelCall.create(
@@ -236,6 +242,16 @@ class AzureAIAPI(ModelAPI):
             return Llama31Handler()
         else:
             return ChatAPIHandler()
+
+    def handle_bad_request(self, ex: httpx.HTTPStatusError) -> ModelOutput:
+        if "maximum context length" in ex.response.text.lower():
+            return ModelOutput.from_content(
+                model=self.model_name,
+                content=ex.response.text,
+                stop_reason="model_length",
+            )
+        else:
+            raise ex
 
 
 def chat_completion_choices(
