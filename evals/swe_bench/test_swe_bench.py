@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from uuid import uuid1
 
-from build_images import build_images
+from build_images import build_images_for_samples
 from datasets import load_dataset  # type: ignore
 from swe_bench import swe_bench, swebench_baseline_scorer
 
@@ -53,7 +53,9 @@ def build_swebench_images(
     split: str | None = "test",
     max_workers: int = 4,
 ) -> None:
-    build_images(dataset_name=dataset_name, split=split, max_workers=max_workers)
+    build_images_for_samples(
+        dataset_name=dataset_name, split=split, max_workers=max_workers
+    )
 
 
 @solver
