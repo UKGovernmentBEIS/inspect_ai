@@ -104,7 +104,7 @@ def swe_bench(
         sample.metadata["FAIL_TO_PASS"] = json.loads(sample.metadata["FAIL_TO_PASS"])
 
     if instance_ids is not None:
-        samples = [s for s in samples if s.id in instance_ids]
+        samples.filter(lambda x: x["instance_id"] in instance_ids)
 
     # Build the images for the samples - can take a long time
     id_to_docker_image = build_images_for_samples(samples)
@@ -114,7 +114,7 @@ def swe_bench(
         sample.input = input_prompt.format(issue_text=sample.input)
         sample.sandbox = (
             "docker",
-            get_compose_file(sample.id, id_to_docker_image),
+            get_compose_file(str(sample.id), id_to_docker_image),
         )
         sample.setup = get_setup_script(
             sample.metadata["repo"],

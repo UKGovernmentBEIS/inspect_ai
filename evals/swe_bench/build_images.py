@@ -4,11 +4,11 @@ from docker.client import DockerClient  # type: ignore
 from swebench.harness.docker_build import build_env_images  # type: ignore
 from swebench.harness.test_spec import make_test_spec  # type: ignore
 
-from inspect_ai.dataset import Sample
+from inspect_ai.dataset import Sample, Dataset
 
 
 def build_images_for_samples(
-    sample: list[Sample],
+    sample: Dataset,
     max_workers: int = 4,
     force_rebuild=False,
 ) -> dict[str, str]:
@@ -58,8 +58,9 @@ def build_images_for_samples(
 
 
 def sample_to_hf(sample: Sample) -> dict[str, str]:
+    assert sample.metadata is not None
     return {
-        "instance_id": sample.id,
+        "instance_id": str(sample.id),
         "patch": sample.metadata["patch"],
         "PASS_TO_PASS": sample.metadata["PASS_TO_PASS"],
         "FAIL_TO_PASS": sample.metadata["FAIL_TO_PASS"],
