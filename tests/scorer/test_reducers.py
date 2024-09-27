@@ -79,14 +79,29 @@ def test_dict_reducers() -> None:
 
 def test_reducer_preserve_metadata() -> None:
     simple_scores = [
+        # first five scores are identical
         Score(
             value=1, answer="1", explanation="An explanation", metadata={"foo": "bar"}
         ),
-        Score(value=2),
-        Score(value=3),
-        Score(value=4),
-        Score(value=5),
-        Score(value=6),
+        Score(
+            value=1, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+        ),
+        Score(
+            value=1, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+        ),
+        Score(
+            value=1, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+        ),
+        Score(
+            value=1, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+        ),
+        # last score is different
+        Score(
+            value=2,
+            answer="2",
+            explanation="Different explanation",
+            metadata={"foo": "BAZ"},
+        ),
     ]
 
     reducers = [
@@ -97,17 +112,25 @@ def test_reducer_preserve_metadata() -> None:
         at_least_3_reducer,
     ]
 
-    # verify that metadata is preserved
+    # verify that other fields are set only if equal across all samples
     for reducer in reducers:
-        assert reducer(simple_scores).answer is not None
-        assert reducer(simple_scores).explanation is not None
-        assert reducer(simple_scores).metadata is not None
+        # reduce all scores _including_ the last one that's different
+        reduced = reducer(simple_scores)
+        assert reduced.answer is None
+        assert reduced.explanation is None
+        assert reduced.metadata is None
+        # reduce all scores _except_ the last one
+        reduced = reducer(simple_scores[:-1])
+        assert reduced.answer == simple_scores[0].answer
+        assert reduced.explanation == simple_scores[0].explanation
+        assert reduced.metadata == simple_scores[0].metadata
 
-    # verify that metadata is preserved for a single epoch
+    # verify that other fields are preserved for a single epoch
     for reducer in reducers:
-        assert reducer([simple_scores[0]]).answer is not None
-        assert reducer([simple_scores[0]]).explanation is not None
-        assert reducer([simple_scores[0]]).metadata is not None
+        reduced = reducer([simple_scores[0]])
+        assert reduced.answer == simple_scores[0].answer
+        assert reduced.explanation == simple_scores[0].explanation
+        assert reduced.metadata == simple_scores[0].metadata
 
 
 @score_reducer(name="add_em_up")

@@ -565,9 +565,31 @@ Inspect includes several built in reducers which are summarised below.
 
 :::{.callout-note}
 
-The built in reducers will compute a reduced `value` for the score and populate the remaining fields (`answer`, `explanation`, and `metadata` using the values from the first score that is being reduced)
+The built in reducers will compute a reduced `value` for the score and populate the remaining fields (`answer`, `explanation`, and `metadata`) only if equal across all epochs. If your custom metrics function relies on these fields, you should also implement your own custom reducer and merge or preserve these fields in some way.
 
 :::
+
+### Custom Reducers
+
+You can also add your own reducer with `@score_reducer` decorated functions. Here’s a somewhat simplified version of the code for the `mean` reducer:
+
+``` python
+import statistics
+
+from inspect_ai.scorer import Score, ScoreReducer, score_reducer
+
+@score_reducer(name="mean")
+def mean_score() -> ScoreReducer:
+    def reduce(scores: list[Score]) -> Score:
+        """Compute a mean value of all scores."""
+
+        values = [float(score.value) for score in scores]
+        mean_value = statistics.mean(values)
+
+        return Score(value=mean_value)
+
+    return reduce
+```
 
 
 ## Workflow {#sec-scorer-workflow}
