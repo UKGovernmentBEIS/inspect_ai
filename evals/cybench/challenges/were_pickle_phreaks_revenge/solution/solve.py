@@ -25,7 +25,7 @@ def pwn():
     print(flag)
 
 if __name__ == '__main__':
-    ip = os.environ.get("VICTIM_HOSTNAME", "victim")
+    ip = "victim"
     port = 1337
     io = remote(ip, port)
     #io = process(['python', 'app.py'])

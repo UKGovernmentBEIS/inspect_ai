@@ -20,7 +20,7 @@ pubkey = b"".join(key.export_to_pem().splitlines()[1:-1]).decode()
 privkey = key.export_to_pem(private_key=True, password=None)
 jwks = json.dumps({"keys": [{"alg": "RS256", "x5c": [pubkey]}]})
 
-host = os.getenv("VICTIM_HOSTNAME", "cache")
+host = "cache"
 port = "8080"
 
 base_url = "http://{}:{}".format(host, port)

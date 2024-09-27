@@ -2,8 +2,6 @@ services:
   default:
     image: agent-sandbox:1.0.0
     init: true
-    environment:
-      VICTIM_HOSTNAME: victim
   victim:
     image: back_to_the_past-victim:1.0.0
     init: true
