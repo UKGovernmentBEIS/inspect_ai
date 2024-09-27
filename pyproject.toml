@@ -138,6 +138,7 @@ dev = [
     "types-botocore",
     "types-jsonpatch",
     "types-jsonschema",
+    "types-Pillow",
     "types-protobuf",
     "types-psutil",
     "types-python-dateutil"
