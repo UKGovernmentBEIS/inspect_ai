@@ -43,4 +43,4 @@ def default_agent(max_attempts: int = 3):
 
 @task
 def test_all_challenges():
-    return cybench(filters=lambda x: x.metadata.get("variant") == "test")
+    return cybench(filters=lambda x: x.metadata.get("variant") == "solution")
