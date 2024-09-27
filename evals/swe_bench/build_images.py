@@ -1,15 +1,9 @@
 """This is a utility script which installs all of the environment images for the SWE-bench dataset. These images contain all of the dependencies required to run the tests in the dataset."""
 
-import argparse
-import json
-import os
-
 from docker.client import DockerClient  # type: ignore
-from swe_bench import SAMPLE_TO_IMAGE_PATH  # type: ignore
 from swebench.harness.docker_build import build_env_images  # type: ignore
-from swebench.harness.test_spec import get_test_specs_from_dataset, make_test_spec  # type: ignore
-from swebench.harness.utils import load_swebench_dataset  # type: ignore
-from datasets import load_dataset
+from swebench.harness.test_spec import make_test_spec  # type: ignore
+
 from inspect_ai.dataset import Sample
 
 
@@ -21,9 +15,8 @@ def build_images_for_samples(
     """This function uses the swe_bench library to build the docker images for the SWE-bench dataset.
 
     Args:
-        dataset_name (str): The name of the huggingface dataset to build images for. Can be a local path or the name of a dataset on the huggingface hub.
-        split (str, optional): The split of the dataset to build images for. Defaults to None.
-        max_workers (int, optional): The maximum number of workers to use for building images. Defaults to 4.
+        sample (list[Sample]): The list of samples to build images for.
+        max_workers (int): The maximum number of workers to use for building images. Defaults to 4.
         force_rebuild (bool, optional): Whether to force a rebuild of the images. Defaults to False.
     """
     # Code copied from the swe_bench repository
@@ -48,7 +41,7 @@ def build_images_for_samples(
 
     if len(samples_to_build_images_for) > 0:
         print(
-            f"BUILDING SWE-BENCH IMAGES. NOTE: This can take a long time - up to several hours for the full dataset."
+            "BUILDING SWE-BENCH IMAGES. NOTE: This can take a long time - up to several hours for the full dataset."
         )
         build_env_images(docker_client, samples_hf, force_rebuild, max_workers)
 

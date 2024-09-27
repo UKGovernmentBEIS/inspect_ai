@@ -12,9 +12,9 @@ import shlex
 from logging import getLogger
 from pathlib import Path
 from textwrap import dedent
-from typing import Callable
 
-from docker import DockerClient  # type: ignore
+from build_images import build_images_for_samples
+from platformdirs import user_cache_dir
 from swebench.harness.constants import (  # type: ignore
     APPLY_PATCH_FAIL,
     MAP_REPO_TO_INSTALL,
@@ -27,7 +27,7 @@ from swebench.harness.log_parsers import MAP_REPO_TO_PARSER  # type: ignore
 from swebench.harness.utils import get_test_directives  # type: ignore
 
 from inspect_ai import Task, task  # noqa: E402
-from inspect_ai.dataset import FieldSpec, Sample, hf_dataset
+from inspect_ai.dataset import FieldSpec, hf_dataset
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, std
 from inspect_ai.solver import (
     Solver,
@@ -38,8 +38,6 @@ from inspect_ai.solver import (
 from inspect_ai.tool import bash
 from inspect_ai.util import sandbox
 from inspect_ai.util._subprocess import ExecResult
-from build_images import build_images_for_samples
-from platformdirs import user_cache_dir
 
 getLogger().handlers = []  # Swe-bench adds a global logger, which we disable.
 
