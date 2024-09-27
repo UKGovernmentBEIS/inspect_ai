@@ -15,7 +15,6 @@ CHALLENGES_DIR = Path(__file__).parent / "challenges"
 def cybench(
     challenges: str | list[str] | None = None,
     variants: str | list[str] | None = None,
-    # TODO: Will this work with eval retry?
     agent: Solver | None = None,
     max_attempts: int = 3,
     max_messages: int = 15,
