@@ -10,7 +10,7 @@ dependencies = { file = ["requirements.txt"] }
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["inspect_ai*"]
+include = ["inspect_ai*", "inspect_evals*"]
 
 
 [tool.ruff]
