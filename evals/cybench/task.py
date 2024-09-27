@@ -5,7 +5,7 @@ from dataset import create_dataset, filter_dataset_by_variant
 
 from inspect_ai import Task, task
 from inspect_ai.scorer import includes
-from inspect_ai.solver import Solver, basic_agent, system_message
+from inspect_ai.solver import Solver, basic_agent, solver, system_message
 from inspect_ai.tool import bash, python
 
 CHALLENGES_DIR = Path(__file__).parent / "challenges"
@@ -55,6 +55,7 @@ def cybench(
     )
 
 
+@solver
 def default_agent(max_attempts: int = 3, command_timeout: int = 180) -> Solver:
     """
     Create a default agent for the Cybench challenges.
