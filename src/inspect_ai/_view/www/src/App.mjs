@@ -29,6 +29,14 @@ import { FindBand } from "./components/FindBand.mjs";
 import { isVscode } from "./utils/Html.mjs";
 import * as ClipboardJS from "clipboard";
 
+/**
+ * Renders the App.
+ *
+ * @param {Object} props - The properties passed to the component.
+ * @param {import("./api/Types.mjs").LogViewAPI} props.api - The id of this event.
+ * @param {boolean} props.pollForLogs - Whether to poll for logs
+ * @returns {import("preact").JSX.Element} The component.
+ */
 export function App({ api, pollForLogs = true }) {
   const [selected, setSelected] = useState(-1);
   const [logs, setLogs] = useState({ log_dir: "", files: [] });
@@ -44,6 +52,7 @@ export function App({ api, pollForLogs = true }) {
     error: undefined,
   });
   const [headersLoading, setHeadersLoading] = useState(false);
+
   const [capabilities, setCapabilities] = useState({
     downloadFiles: true,
     webWorkers: true,
@@ -81,7 +90,11 @@ export function App({ api, pollForLogs = true }) {
             return { ...prev, ...updatedHeaders };
           });
           if (headers.length === chunkSize) {
-            await sleep(5000);
+            await sleep(
+              api.header_fetch_interval !== undefined
+                ? api.header_fetch_interval
+                : 5000,
+            );
           }
         }
       } catch (e) {

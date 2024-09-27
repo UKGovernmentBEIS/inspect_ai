@@ -1,11 +1,18 @@
 //@ts-check
 
 /**
+* @typedef {Object} Capabilities
+* @property {boolean} downloadFiles - Indicates if file downloads are supported.
+* @property {boolean} webWorkers - Indicates if web workers are supported.
+*
+
+/**
  * @typedef {Object} LogViewAPI
+ * @property { number | undefined } header_fetch_interval
  * @property { () => Promise<any[]> } client_events - A function which can be polled to check for client events.
  * @property { () => Promise<LogFiles>} eval_logs - The parsed content of the file as an object.
- * @property { () => Promise<LogContents> } eval_log - The parsed content of the file as an object.
- * @property { () => Promise<import("../types/log").EvalLog[]>} eval_log_headers - The parsed content of the file as an object.
+ * @property { (file: string, headerOnly: number, capabilities: Capabilities) => Promise<LogContents> } eval_log - The parsed content of the file as an object.
+ * @property { (logFiles: string[]) => Promise<import("../types/log").EvalLog[]>} eval_log_headers - The parsed content of the file as an object.
  * @property { (logFile: string) => Promise<void> } download_file - The parsed content of the file as an object.
  * @property { (logFile: string, log_dir: string) => Promise<void> } open_log_file - The parsed content of the file as an object.
  */
@@ -30,6 +37,7 @@
 /**
  * @typedef {Object} LogFiles
  * @property {LogFile[]} files - The log files
+ * @property {string | undefined} log_dir
  */
 
 /**

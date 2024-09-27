@@ -39,6 +39,7 @@ function simpleHttpAPI(logInfo) {
     // No op
   }
   return {
+    header_fetch_interval: 0,
     client_events: async () => {
       return Promise.resolve([]);
     },
@@ -55,6 +56,7 @@ function simpleHttpAPI(logInfo) {
         });
         return Promise.resolve({
           files: logs,
+          log_dir: undefined,
         });
       } else if (log_file) {
         // Check the cache
@@ -75,6 +77,7 @@ function simpleHttpAPI(logInfo) {
 
         return {
           files: [result],
+          log_dir: undefined,
         };
       } else {
         // No log.json could be found, and there isn't a log file,
@@ -135,7 +138,6 @@ function simpleHttpAPI(logInfo) {
 async function fetchFile(url, parse, handleError) {
   const safe_url = encodePathParts(url);
   const response = await fetch(`${safe_url}`, { method: "GET" });
-  console.log({ response });
   if (response.ok) {
     const text = await response.text();
     return {

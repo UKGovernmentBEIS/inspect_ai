@@ -5,7 +5,16 @@ import { dirname } from "../utils/Path.mjs";
 
 // Resolves any signals for which API to use:
 
+/**
+ * Resolves the current API to use (based upon the environment)
+ * - VSCode is used if we're being hosted in VSCode
+ * - SimpleHttpApi is used if there is an embedded log signal
+ * - Browser is used if running against inspect view
+ *
+ * @returns { import("./Types.mjs").LogViewAPI } An object containing the parsed data and the raw text of the file.
+ */
 const resolveApi = () => {
+  // @ts-ignore
   if (window.acquireVsCodeApi) {
     return vscodeApi;
   } else {
