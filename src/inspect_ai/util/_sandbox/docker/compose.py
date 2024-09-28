@@ -1,5 +1,6 @@
 import json
 import os
+import shlex
 from logging import getLogger
 from pathlib import Path
 from typing import Any, Literal, TypedDict, cast
@@ -265,7 +266,7 @@ async def compose_command(
     compose_command = compose_command + command
 
     # Execute the command
-    sandbox_log(f"compose command: {compose_command}")
+    sandbox_log(f"compose command: {shlex.join(compose_command)}")
     result = await subprocess(
         compose_command,
         input=input,
