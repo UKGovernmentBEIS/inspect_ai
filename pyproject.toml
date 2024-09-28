@@ -114,6 +114,8 @@ inspect_evals = [
     "datasets",
     "pillow"
 ]
+swe_bench = ["inspect_ai[inspect_evals]", "swebench","docker"]
+
 dev = [
     "anthropic", 
     "aioboto3", 

@@ -10,6 +10,7 @@
 - Track sample task state in solver decorator rather than solver transcript.
 - Display solver input parameters for forked subtasks.
 - Improvements to docker compose down cleanup: timeout, survive missing compose files.
+- Scores produced after being reduced retain `answer`, `explanation`, and `metadata` only if equal across all epochs.
 
 ## v0.3.32 (25 September 2024)
 
