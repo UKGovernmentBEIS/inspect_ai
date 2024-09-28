@@ -3,12 +3,13 @@ from pathlib import Path
 from uuid import uuid1
 
 from datasets import load_dataset  # type: ignore
-from swe_bench import swe_bench, swebench_baseline_scorer
 
 from inspect_ai import Task, eval
 from inspect_ai.log import EvalLog
 from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.util import sandbox
+
+from ..swe_bench import swe_bench, swebench_baseline_scorer
 
 RESOURCE_DIR = Path(__file__).parent / "resources"
 TIMEOUT_SECONDS = 2
