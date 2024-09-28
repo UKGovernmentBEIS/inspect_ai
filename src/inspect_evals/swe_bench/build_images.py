@@ -1,11 +1,7 @@
-from docker.client import DockerClient  # type: ignore
-from swebench.harness.docker_build import build_env_images  # type: ignore
-from swebench.harness.test_spec import make_test_spec  # type: ignore
-
 from inspect_ai.dataset import Dataset, Sample
 
 
-def build_images_for_samples(
+def build_images(
     samples: Dataset,
     max_workers: int = 4,
     force_rebuild: bool = False,
@@ -17,6 +13,10 @@ def build_images_for_samples(
         max_workers (int): The maximum number of workers to use for building images. Defaults to 4.
         force_rebuild (bool, optional): Whether to force a rebuild of the images. Defaults to False.
     """
+    from docker.client import DockerClient  # type: ignore
+    from swebench.harness.docker_build import build_env_images  # type: ignore
+    from swebench.harness.test_spec import make_test_spec  # type: ignore
+
     # Code copied from the swe_bench repository
     docker_client = DockerClient.from_env()
 

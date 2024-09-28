@@ -1,9 +1,10 @@
-from .build_images import build_images_for_samples
-from .swe_bench import swe_bench, swebench_baseline_scorer, swebench_scorer
+from .build_images import build_images
+from .scorers import swe_bench_baseline_scorer, swe_bench_scorer
+from .swe_bench import swe_bench
 
 __all__ = [
     "swe_bench",
-    "build_images_for_samples",
-    "swebench_baseline_scorer",
-    "swebench_scorer",
+    "build_images",
+    "swe_bench_baseline_scorer",
+    "swe_bench_scorer",
 ]
