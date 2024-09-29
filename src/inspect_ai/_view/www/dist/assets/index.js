@@ -16269,7 +16269,24 @@ const ModelEventView = ({ id, event, style }) => {
     alignSelf: "start",
     justifySelf: "start"
   };
+  const userMessages = [];
+  for (const msg of event.input.reverse()) {
+    if (msg.role === "user") {
+      userMessages.push(msg);
+    } else {
+      break;
+    }
+  }
+  const userMsg = userMessages.length > 0 ? m$1`
+  <${EventPanel} id=${id} title="Message" icon=${ApplicationIcons.input} style=${style}>
+    <${ChatView}
+      id="${id}-model-output"
+      messages=${[...userMessages || []]}
+      style=${{ paddingTop: "1em" }}
+      />
+  </${EventPanel}>` : "";
   return m$1`
+  ${userMsg}
   <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model} style=${style}>
   
     <div name="Completion" style=${{ margin: "0.5em 0" }}>
