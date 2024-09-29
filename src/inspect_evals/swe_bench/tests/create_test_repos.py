@@ -2,7 +2,7 @@ import json
 import os
 from pathlib import Path
 
-import pandas as pd
+import pandas as pd  # type: ignore
 from datasets import load_dataset
 
 dataset = load_dataset("princeton-nlp/SWE-bench_Verified")["test"]
@@ -48,10 +48,10 @@ for result in os.listdir(swebench_baseline_logs_dir):
 
 # Get repository name from the results
 results = pd.DataFrame.from_records(results)
-results["repo"] = results["instance_id"].apply(lambda x: x.split("__")[0])
+results["repo"] = results["instance_id"].apply(lambda x: x.split("__")[0])  # type: ignore
 
 # Github patches which change binary files cannot actually be applied. We wil remove these entries in the dataset
-results = results[~results["swe_agent_patch"].str.contains("Binary files")]
+results = results[~results["swe_agent_patch"].str.contains("Binary files")]  # type: ignore
 
 # Group by repository, and success. Then pick one from each group.
 results_per_repo = results.groupby(["repo", "resolved"])

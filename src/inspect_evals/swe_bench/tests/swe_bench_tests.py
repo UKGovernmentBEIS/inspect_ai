@@ -5,7 +5,7 @@ from datasets import load_dataset  # type: ignore
 
 from inspect_ai import Task, eval
 from inspect_ai.log import EvalLog
-from inspect_ai.solver import Generate, TaskState, solver
+from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import sandbox
 from inspect_evals.swe_bench import (
     swe_bench,
@@ -23,7 +23,7 @@ TEST_INSTANCE_ID = "scikit-learn__scikit-learn-15100"
 
 
 @solver
-def apply_patch_solver(patch: str):
+def apply_patch_solver(patch: str) -> Solver:
     # Solver which applies a patch to a github repository, and then exists.
 
     async def _apply_patch_solver(state: TaskState, generate: Generate) -> TaskState:
@@ -42,8 +42,8 @@ def apply_patch_solver(patch: str):
 
 
 @solver
-def delete_readme_solver():
-    # Solver which just deleters the README.md file from the repository.
+def delete_readme_solver() -> Solver:
+    # Solver which just deletes the README.md file from the repository.
 
     async def _delete_readme_solver(state: TaskState, generate: Generate) -> TaskState:
         await sandbox().exec(["rm", "/testbed/README.md"])
@@ -129,6 +129,7 @@ def test_same_scores_as_a_baseline(
             Task(
                 dataset=[test_sample],
                 solver=apply_patch_solver(swe_agent_patch),
+                scorer=test_task.scorer,
             )
         )
 
