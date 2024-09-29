@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-from uuid import uuid1
 
 from datasets import load_dataset  # type: ignore
 
@@ -8,7 +7,6 @@ from inspect_ai import Task, eval
 from inspect_ai.log import EvalLog
 from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.util import sandbox
-
 from inspect_evals.swe_bench import (
     swe_bench,
     swe_bench_baseline_scorer,
