@@ -14,14 +14,17 @@ dataset = load_dataset("princeton-nlp/SWE-bench_Verified")["test"]
 
 results_per_repo = {}
 swebench_baseline_logs_dir = (
-    Path(__file__).parent / "20240620_sweagent_claude3.5sonnet" / "logs"
+    Path(__file__).parent
+    / "swebench_baselines"
+    / "20240620_sweagent_claude3.5sonnet"
+    / "logs"
 )
 
+
 if not swebench_baseline_logs_dir.exists():
-    print(
-        f"Run the script in the swe-bench README to generate the dataset used for testing."
+    raise FileNotFoundError(
+        f"The baseline directory you are pointing towards does not exist. Please use the script in the README to download the baseline from the SWE-bench baselines directory, and copy it to {swebench_baseline_logs_dir.parent.parent / 'swebench_baselines'}"
     )
-    exit()
 
 
 results = []

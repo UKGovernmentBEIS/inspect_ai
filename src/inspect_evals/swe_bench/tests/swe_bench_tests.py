@@ -88,8 +88,8 @@ TEST_DATASET = (
     "train",
 )  # The dataset we are using to test on - should be created by the "create_test_repos.py" script
 BASELINE = (
-    PARENT_DIR / "20240620_sweagent_claude3.5sonnet"
-)  # The baseline we are comparing agents
+    PARENT_DIR / "swebench_baselines" / "20240620_sweagent_claude3.5sonnet"
+)  # The baseline we are comparing agents. Should be created by the script README
 
 
 def test_same_scores_as_a_baseline(
@@ -99,9 +99,14 @@ def test_same_scores_as_a_baseline(
     # This test checks that the output of our implementation of swe_bench is the same as the original implementation.
     # By default, the script in create_tests_repos.py will create a dataset which contains a subset of the SWE-bench dataset which contains one of each repo in the datset
 
-    if not dataset.exists():
-        print(
+    if not dataset[0].exists():
+        raise FileNotFoundError(
             f"Huggingface dataset {dataset} does not exist. To run this test, please run the create_test_repos.py script to generate a subset of SWE-bench you wish to test on"
+        )
+
+    if not baseline.exists():
+        raise FileNotFoundError(
+            f"The baseline directory you are pointing towards does not exist. Please use the script in the README to download the baseline from the SWE-bench baselines directory, and copy it to {baseline.parent}"
         )
 
     # We load the dataset in both the original and huggingface versions.
@@ -111,7 +116,7 @@ def test_same_scores_as_a_baseline(
         scorer=[
             swe_bench_scorer(),
             swe_bench_baseline_scorer(
-                str(baseline), name=baseline.name()
+                str(baseline), name=baseline.name
             ),  # We compare the baselines to the original scorers
         ],
     )
@@ -149,7 +154,7 @@ def test_same_scores_as_a_baseline(
         if result.samples:
             for sample in result.samples:
                 if sample.error:
-                    error_str += f"Error occurred while evaluating task. Error:\n\n {sample.error}"
+                    error_str += f"Error occurred in a sample while evaluating task. Error:\n\n {sample.error}"
                     continue
 
             if result.samples[0].scores:
