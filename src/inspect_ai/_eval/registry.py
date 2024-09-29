@@ -22,7 +22,7 @@ MODEL_PARAM = "model"
 logger = logging.getLogger(__name__)
 
 
-TaskType = TypeVar('TaskType', bound=Callable[..., Task])
+TaskType = TypeVar("TaskType", bound=Callable[..., Task])
 
 
 def task_register(
@@ -89,16 +89,20 @@ def task_create(name: str, model: ModelName, **kwargs: Any) -> Task:
 
     return cast(Task, registry_create("task", name, **task_args))
 
-@overload
-def task(func: TaskType) -> TaskType:
-    ...
 
 @overload
-def task(*, name: str | None = ..., **attribs: Any) -> Callable[[TaskType], TaskType]:
-    ...
+def task(func: TaskType) -> TaskType: ...
+
+
+@overload
+def task(
+    *, name: str | None = ..., **attribs: Any
+) -> Callable[[TaskType], TaskType]: ...
+
 
 def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
     """Decorator for registering tasks with type preservation."""
+
     def create_task_wrapper(task_type: TaskType) -> TaskType:
         # Get the name and parameters of the task
         task_name = registry_name(task_type, name or getattr(task_type, "__name__"))
@@ -138,4 +142,5 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
         # The decorator was used with arguments: @task(name="foo")
         def decorator(func: TaskType) -> TaskType:
             return create_task_wrapper(func)
+
         return decorator
