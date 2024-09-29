@@ -104,7 +104,7 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
     r"""Decorator for registering tasks.
 
     Args:
-      *task: Function returning `Task` targeted by
+      *args: Function returning `Task` targeted by
         plain task decorator without attributes (e.g. `@task`)
       name (str | None):
         Optional name for task. If the decorator has no name
