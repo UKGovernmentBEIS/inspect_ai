@@ -9,30 +9,17 @@ from inspect_ai.log import EvalLog
 from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.util import sandbox
 
-from inspect_evals.swe_bench import swe_bench, swe_bench_baseline_scorer
+from inspect_evals.swe_bench import (
+    swe_bench,
+    swe_bench_baseline_scorer,
+    swe_bench_scorer,
+)
 
 TIMEOUT_SECONDS = 2
 PARENT_DIR = Path(__file__).parent
-SWEBENCH_BASELINE_NAME = "20240620_sweagent_claude3.5sonnet"
-BASELINE_DIR = (
-    PARENT_DIR / "20240620_sweagent_claude3.5sonnet"
-)  # The baseline we are comparing ageints
-TEST_DATASET = (
-    PARENT_DIR / "test_dataset.hf"
-)  # The dataset we are using to test on - should be created by the "create_test_repos.py" script
 SWE_BENCH_SPLIT = ("princeton-nlp/SWE-bench_Verified", "train")
 MAX_CONCURRENCY = int(os.getenv("INSPECT_MAX_CONCURRENCY", 4))
 TEST_INSTANCE_ID = "scikit-learn__scikit-learn-15100"
-
-if not Path(TEST_DATASET).exists():
-    raise FileNotFoundError(
-        f"Test datasets have not been created. Please run the create_test_repos.py script to run the tests."
-    )
-
-if not Path(BASELINE_DIR).exists():
-    raise FileNotFoundError(
-        f"Test baseline files have not been created. Please run the script in the swe-bench README to generate the baselines used for testing."
-    )
 
 
 @solver
@@ -94,21 +81,41 @@ def test_incorrect_patch_fails() -> None:
     ), "SWE-bench should mark an incorrect application as a failure."
 
 
-def test_same_scores_as_a_baseline() -> None:
+TEST_DATASET = (
+    PARENT_DIR / "test_dataset.hf",
+    "train",
+)  # The dataset we are using to test on - should be created by the "create_test_repos.py" script
+BASELINE = (
+    PARENT_DIR / "20240620_sweagent_claude3.5sonnet"
+)  # The baseline we are comparing ageints
+
+
+def test_same_scores_as_a_baseline(
+    dataset: tuple[Path, str] = TEST_DATASET, baseline: Path = BASELINE
+) -> None:
     # Very slow test
-    # This test checks that we agree with the original swe-bench implementation patches outputted by swe-agent, with one instance from each of the repositories scraped in SWE-bench-verified.
+    # This test checks that the output of our implementation of swe_bench is the same as the original implementation.
+    # By default, the script in create_tests_repos.py will create a dataset which contains a subset of the SWE-bench dataset which contains one of each repo in the datset
 
-    # We load the whole dataset
-    test_task = swe_bench(dataset=TEST_DATASET, split="train")
-    test_dataset = load_dataset(TEST_DATASET, split="train")
+    if not dataset.exists():
+        print(
+            f"Huggingface dataset {dataset} does not exist. To run this test, please run the create_test_repos.py script to generate a subset of SWE-bench you wish to test on"
+        )
 
-    # Add a scorer which compares the value of the swe-agents's patch with the ground truth
-    scorers = [
-        test_task.scorer[0],
-        swe_bench_baseline_scorer(BASELINE_DIR, name="sweagent_baseline"),
-    ]
+    # We load the dataset in both the original and huggingface versions.
+    test_task = swe_bench(
+        dataset=dataset[0].as_posix(),
+        split=dataset[1],
+        scorer=[
+            swe_bench_scorer(),
+            swe_bench_baseline_scorer(
+                str(baseline), name=baseline.name()
+            ),  # We compare the baselines to the original scorers
+        ],
+    )
+    test_dataset = load_dataset(dataset[0].as_posix(), split=dataset[1])
 
-    # Make solvers which apply the swe-agent's patch for each  swebench instance
+    # We create a task for each sample in the dataset.
     test_tasks = []
     for test_sample, swe_agent_patch in zip(
         test_task.dataset, test_dataset["swe_agent_patch"]
@@ -117,7 +124,6 @@ def test_same_scores_as_a_baseline() -> None:
             Task(
                 dataset=[test_sample],
                 solver=apply_patch_solver(swe_agent_patch),
-                scorer=scorers,
             )
         )
 
