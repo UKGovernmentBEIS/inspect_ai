@@ -7,6 +7,7 @@
 - Option to disable ANSI terminal output with `--no-ansi` or `INSPECT_NO_ANSI`
 - Add chain of thought option to `multiple_choice()` and export `MultipleChoiceTemplate` enumeration
 - Allow Docker sandboxes configured with `x-default` to be referred to by their declared service name.
+- Improved error messages for Docier sandbox initialisation.
 - Improve legibility of Docker sandbox log entries (join rather than displaying as array)
 - Display images created by tool calls in the Viewer.
 - Fix duplicated tool call output display in Viewer for Gemini and Llama models.
