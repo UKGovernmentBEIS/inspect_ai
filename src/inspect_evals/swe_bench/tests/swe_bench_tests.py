@@ -15,10 +15,12 @@ from inspect_evals.swe_bench import (
     swe_bench_scorer,
 )
 
-TIMEOUT_SECONDS = 2
-PARENT_DIR = Path(__file__).parent
-SWE_BENCH_SPLIT = ("princeton-nlp/SWE-bench_Verified", "train")
 MAX_CONCURRENCY = int(os.getenv("INSPECT_MAX_CONCURRENCY", 4))
+TIMEOUT_SECONDS = 2
+
+PARENT_DIR = Path(__file__).parent
+
+SWE_BENCH_SPLIT = ("princeton-nlp/SWE-bench_Verified", "test")
 TEST_INSTANCE_ID = "scikit-learn__scikit-learn-15100"
 
 
@@ -87,7 +89,7 @@ TEST_DATASET = (
 )  # The dataset we are using to test on - should be created by the "create_test_repos.py" script
 BASELINE = (
     PARENT_DIR / "20240620_sweagent_claude3.5sonnet"
-)  # The baseline we are comparing ageints
+)  # The baseline we are comparing agents
 
 
 def test_same_scores_as_a_baseline(
@@ -101,8 +103,7 @@ def test_same_scores_as_a_baseline(
         print(
             f"Huggingface dataset {dataset} does not exist. To run this test, please run the create_test_repos.py script to generate a subset of SWE-bench you wish to test on"
         )
-        
-    
+
     # We load the dataset in both the original and huggingface versions.
     test_task = swe_bench(
         dataset=dataset[0].as_posix(),
