@@ -149,12 +149,10 @@ def registry_lookup(type: RegistryType, name: str) -> object | None:
 
     # try to recover
     if o is None:
-        # load entry points as required
+        # load entry points for this package as required
         if name.find("/") != -1 and name.find(".") == -1:
-            ensure_entry_points()
-        # if this is a request for inspect_evals/ import its registry
-        if name.startswith("inspect_evals/"):
-            import inspect_evals._registry  # noqa: F401
+            package = name.split("/")[0]
+            ensure_entry_points(package)
 
         return _lookup()
     else:

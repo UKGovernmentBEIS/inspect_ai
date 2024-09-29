@@ -5,7 +5,7 @@ from .solvers.cot import cot  # noqa: F401
 
 # delayed import for the model and sandbox allows us to only resolve the imports
 # when they are actually requeasted (so that we don't end up requiring all
-# of their dependencies whenever inspect is loaded)
+# of their dependencies when this package's entry points are loaded)
 
 
 @modelapi(name="custom")

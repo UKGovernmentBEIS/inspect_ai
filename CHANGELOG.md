@@ -12,6 +12,7 @@
 - Display images created by tool calls in the Viewer.
 - Fix duplicated tool call output display in Viewer for Gemini and Llama models.
 - Require a `max_messages` for use of `basic_agent()` (as without it, the agent could end up in an infinite loop).
+- Load extension entrypoints per-package (prevent unnecessary imports from packages not being referenced).
 - Track sample task state in solver decorator rather than solver transcript.
 - Display solver input parameters for forked subtasks.
 - Improvements to docker compose down cleanup: timeout, survive missing compose files.
