@@ -1,7 +1,7 @@
 import inspect
 import logging
 from copy import deepcopy
-from typing import Any, Callable, TypeVar, cast
+from typing import Any, Callable, TypeVar, cast, overload
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import (
@@ -22,7 +22,7 @@ MODEL_PARAM = "model"
 logger = logging.getLogger(__name__)
 
 
-TaskType = TypeVar("TaskType", bound=Callable[..., Task])
+TaskType = TypeVar('TaskType', bound=Callable[..., Task])
 
 
 def task_register(
@@ -89,37 +89,30 @@ def task_create(name: str, model: ModelName, **kwargs: Any) -> Task:
 
     return cast(Task, registry_create("task", name, **task_args))
 
+@overload
+def task(func: TaskType) -> TaskType:
+    ...
 
-def task(*task: TaskType | None, name: str | None = None, **attribs: Any) -> Any:
-    r"""Decorator for registering tasks.
+@overload
+def task(*, name: str | None = ..., **attribs: Any) -> Callable[[TaskType], TaskType]:
+    ...
 
-    Args:
-      *task (TaskType): Function returning `Task` targeted by
-        plain task decorator without attributes (e.g. `@task`)
-      name (str | None):
-        Optional name for task. If the decorator has no name
-        argument then the name of the function
-        will be used to automatically assign a name.
-      **attribs: (dict[str,Any]): Additional task attributes.
-
-    Returns:
-        Task with registry attributes.
-    """
-
+def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
+    """Decorator for registering tasks with type preservation."""
     def create_task_wrapper(task_type: TaskType) -> TaskType:
-        # get the name and params
+        # Get the name and parameters of the task
         task_name = registry_name(task_type, name or getattr(task_type, "__name__"))
         params = list(inspect.signature(task_type).parameters.keys())
 
-        # create and return the wrapper
+        # Create and return the wrapper function
         def wrapper(*w_args: Any, **w_kwargs: Any) -> Task:
-            # create the task
-            task = task_type(*w_args, **w_kwargs)
+            # Create the task
+            task_instance = task_type(*w_args, **w_kwargs)
 
-            # tag it
+            # Tag the task with registry information
             registry_tag(
                 task_type,
-                task,
+                task_instance,
                 RegistryInfo(
                     type="task",
                     name=task_name,
@@ -129,14 +122,20 @@ def task(*task: TaskType | None, name: str | None = None, **attribs: Any) -> Any
                 **w_kwargs,
             )
 
-            # return it
-            return task
+            # Return the task instance
+            return task_instance
 
+        # Register the task and return the wrapper
         return task_register(
             task=cast(TaskType, wrapper), name=task_name, attribs=attribs, params=params
         )
 
-    if task:
-        return create_task_wrapper(cast(TaskType, task[0]))
+    if args:
+        # The decorator was used without arguments: @task
+        func = args[0]
+        return create_task_wrapper(func)
     else:
-        return create_task_wrapper
+        # The decorator was used with arguments: @task(name="foo")
+        def decorator(func: TaskType) -> TaskType:
+            return create_task_wrapper(func)
+        return decorator
