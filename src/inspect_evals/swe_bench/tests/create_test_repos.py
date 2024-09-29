@@ -10,14 +10,16 @@ dataset = load_dataset("princeton-nlp/SWE-bench_Verified")["test"]
 # We  create a subset of SWE-bench-verfied which:
 # 1) Contains all of the repositories in SWE-bench verified
 # 2) For each repository, contains an example where swe_agent + Claude 3.5 + Sonnet resolved the issue, and an example where it did not
+# This is used to test that our version of swe_bench has the same behaviour as the original version.
 
 results_per_repo = {}
-baseline_dir = Path(__file__).parent.parent / "baselines"
-logs_dir = baseline_dir / "20240620_sweagent_claude3.5sonnet" / "logs"
+swebench_baseline_logs_dir = (
+    Path(__file__).parent / "20240620_sweagent_claude3.5sonnet" / "logs"
+)
 
-if not logs_dir.exists():
+if not swebench_baseline_logs_dir.exists():
     print(
-        f"Please run the baseline creation script at {baseline_dir / "download_baselines.sh"} to make the baselines to compare your agents against."
+        f"Run the script in the swe-bench README to generate the dataset used for testing."
     )
     exit()
 
@@ -26,14 +28,14 @@ results = []
 missing_results = []
 
 # Load results from the log directory
-for result in os.listdir(logs_dir):
-    results_path = os.path.join(logs_dir, result, "report.json")
+for result in os.listdir(swebench_baseline_logs_dir):
+    results_path = os.path.join(swebench_baseline_logs_dir, result, "report.json")
     if os.path.exists(results_path):
         with open(results_path, "r") as f:
             result_dict = json.load(f)
             result_name, results_value = next(iter(result_dict.items()))
             output_dict = dict(instance_id=result_name, **results_value)
-            patch_path = os.path.join(logs_dir, result, "patch.diff")
+            patch_path = os.path.join(swebench_baseline_logs_dir, result, "patch.diff")
             with open(patch_path, "r") as f:
                 output_dict["swe_agent_patch"] = f.read()
             results.append(output_dict)
@@ -91,7 +93,7 @@ dataset = dataset.filter(lambda x: "psf__requests-1921" not in x["instance_id"])
 accuracy = sum(resolved) / len(resolved)
 
 # Save tbe dataset
-dataset_dir = Path(__file__).parent / "all_repos_swe_agent_50_percent.hf"
+dataset_dir = Path(__file__).parent / "test_dataset.hf"
 os.makedirs(str(dataset_dir), exist_ok=True)
 dataset.to_parquet(dataset_dir / "dataset.parquet")
 

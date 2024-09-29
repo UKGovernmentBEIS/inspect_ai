@@ -9,48 +9,35 @@ from inspect_ai.log import EvalLog
 from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.util import sandbox
 
-from ..swe_bench import swe_bench, swebench_baseline_scorer
+from inspect_evals.swe_bench import swe_bench, swe_bench_baseline_scorer
 
-RESOURCE_DIR = Path(__file__).parent / "resources"
 TIMEOUT_SECONDS = 2
-GOLDEN_PATCH_TEST_ID = "scikit-learn__scikit-learn-15100"
+PARENT_DIR = Path(__file__).parent
 SWEBENCH_BASELINE_NAME = "20240620_sweagent_claude3.5sonnet"
-SWEAGENT_BASELINE: str = str(RESOURCE_DIR / "baselines" / SWEBENCH_BASELINE_NAME)
-
-SLOW_TEST_DATASET: str = str(
-    RESOURCE_DIR / "tests" / "all_repos_swe_agent_50_percent.hf"
-)  # A dataset with one instance from each of the repositories scraped in SWE-bench-verified, and also a column indicating whether it was resolved by swe-agent.
-
+BASELINE_DIR = (
+    PARENT_DIR / "20240620_sweagent_claude3.5sonnet"
+)  # The baseline we are comparing ageints
+TEST_DATASET = (
+    PARENT_DIR / "test_dataset.hf"
+)  # The dataset we are using to test on - should be created by the "create_test_repos.py" script
+SWE_BENCH_SPLIT = ("princeton-nlp/SWE-bench_Verified", "train")
 MAX_CONCURRENCY = int(os.getenv("INSPECT_MAX_CONCURRENCY", 4))
+TEST_INSTANCE_ID = "scikit-learn__scikit-learn-15100"
 
-if not Path(SLOW_TEST_DATASET).exists():
+if not Path(TEST_DATASET).exists():
     raise FileNotFoundError(
-        f"Test datasets have not been created. Please run the script at {(RESOURCE_DIR / 'tests'/'create_test_repos.py').absolute()} to run the tests."
+        f"Test datasets have not been created. Please run the create_test_repos.py script to run the tests."
     )
 
-if not Path(SWEAGENT_BASELINE).exists():
+if not Path(BASELINE_DIR).exists():
     raise FileNotFoundError(
-        f"Test baseline files have not been created. Please run the script at {(RESOURCE_DIR / 'baselines' / 'download_sweagent_baselines.sh').absolute()} to run the tests."
+        f"Test baseline files have not been created. Please run the script in the swe-bench README to generate the baselines used for testing."
     )
-
-
-def get_dataset_single_instance(
-    instance_id: str,
-    dataset_name: str = "princeton-nlp/SWE-bench_Verified",
-    split: str = "test",
-) -> str:
-    full_benchmark = load_dataset(dataset_name)[split]
-    instance = full_benchmark.filter(lambda x: x["instance_id"] == instance_id)
-    dataset_location = f"/tmp/{uuid1()}/"
-    os.makedirs(dataset_location, exist_ok=True)
-    instance.to_parquet(dataset_location + "dataset.parquet")
-
-    return dataset_location
 
 
 @solver
 def apply_patch_solver(patch: str):
-    # Solver to apply a specific patch to a git repository.
+    # Solver which applies a patch to a github repository, and then exists.
 
     async def _apply_patch_solver(state: TaskState, generate: Generate) -> TaskState:
         state.metadata["patch"] = patch
@@ -69,6 +56,8 @@ def apply_patch_solver(patch: str):
 
 @solver
 def delete_readme_solver():
+    # Solver which just deleters the README.md file from the repository.
+
     async def _delete_readme_solver(state: TaskState, generate: Generate) -> TaskState:
         await sandbox().exec(["rm", "/testbed/README.md"])
         return state
@@ -77,8 +66,9 @@ def delete_readme_solver():
 
 
 def test_correct_patch_succeeds() -> None:
-    dataset = get_dataset_single_instance(GOLDEN_PATCH_TEST_ID)
-    test_task = swe_bench(dataset, "train")
+    test_task = swe_bench(
+        SWE_BENCH_SPLIT[0], SWE_BENCH_SPLIT[1], instance_ids=[TEST_INSTANCE_ID]
+    )
     golden_patch = test_task.dataset[0].metadata["patch"]
     test_task.solver = apply_patch_solver(golden_patch)
 
@@ -90,9 +80,12 @@ def test_correct_patch_succeeds() -> None:
 
 
 def test_incorrect_patch_fails() -> None:
-    dataset = get_dataset_single_instance(GOLDEN_PATCH_TEST_ID)
-
-    test_task = swe_bench(dataset, "train", solver=delete_readme_solver())
+    test_task = swe_bench(
+        SWE_BENCH_SPLIT[0],
+        SWE_BENCH_SPLIT[1],
+        solver=delete_readme_solver(),
+        instance_ids=[TEST_INSTANCE_ID],
+    )
 
     result = eval(test_task, "mockllm/model", max_messages=2, debug_errors=True)[0]
 
@@ -101,18 +94,18 @@ def test_incorrect_patch_fails() -> None:
     ), "SWE-bench should mark an incorrect application as a failure."
 
 
-def test_same_scores_for_swe_agent() -> None:
+def test_same_scores_as_a_baseline() -> None:
     # Very slow test
     # This test checks that we agree with the original swe-bench implementation patches outputted by swe-agent, with one instance from each of the repositories scraped in SWE-bench-verified.
 
     # We load the whole dataset
-    test_task = swe_bench(dataset=SLOW_TEST_DATASET, split="train")
-    test_dataset = load_dataset(SLOW_TEST_DATASET, split="train")
+    test_task = swe_bench(dataset=TEST_DATASET, split="train")
+    test_dataset = load_dataset(TEST_DATASET, split="train")
 
     # Add a scorer which compares the value of the swe-agents's patch with the ground truth
     scorers = [
         test_task.scorer[0],
-        swebench_baseline_scorer(SWEAGENT_BASELINE, name="sweagent_baseline"),
+        swe_bench_baseline_scorer(BASELINE_DIR, name="sweagent_baseline"),
     ]
 
     # Make solvers which apply the swe-agent's patch for each  swebench instance

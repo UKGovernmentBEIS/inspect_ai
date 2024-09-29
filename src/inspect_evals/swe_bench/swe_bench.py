@@ -12,7 +12,7 @@ from pathlib import Path
 from textwrap import dedent
 
 from platformdirs import user_cache_dir
-
+from importlib.util import find_spec
 from inspect_ai import Task, task
 from inspect_ai.dataset import FieldSpec, hf_dataset
 from inspect_ai.scorer import Scorer
@@ -60,6 +60,10 @@ def swe_bench(
 
     """
     getLogger().handlers = []  # Swe-bench adds a global logger, which we disable.
+
+    assert find_spec(
+        "swebench"
+    ), "To run SWE-bench, please install the optional swebench depency, by running `pip install inspect-ai[swebench]`"  # FOR JJ: Does this make sense to you? IDK if it would confuse people who are developing on UK-goverment-BEIS, or in developer model (where the install is different)
 
     samples = hf_dataset(
         dataset,
