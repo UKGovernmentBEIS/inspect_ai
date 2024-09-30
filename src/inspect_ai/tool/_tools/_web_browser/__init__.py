@@ -1,4 +1,4 @@
-from .web_browser import (
+from ._web_browser import (
     web_browser,
     web_browser_back,
     web_browser_click,
