@@ -8,10 +8,13 @@ from ._tool_info import ToolInfo, ToolParam, ToolParams
 from ._tool_with import tool_with
 from ._tools._execute import bash, python
 from ._tools._web_search import web_search
+from ._tools.web_browser import web_browser, web_go
 
 __all__ = [
     "bash",
     "python",
+    "web_browser",
+    "web_go",
     "web_search",
     "tool",
     "tool_with",
