@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.33 (30 September 2024)
 
 - StopReason: Added "model_length" for exceeding token window and renamed "length" to "max_tokens".
 - Capture solver input params for subtasks created by `fork()`.
