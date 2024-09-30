@@ -7,8 +7,8 @@ from ._tool_choice import ToolChoice, ToolFunction
 from ._tool_info import ToolInfo, ToolParam, ToolParams
 from ._tool_with import tool_with
 from ._tools._execute import bash, python
+from ._tools._web_browser import web_browser, web_go
 from ._tools._web_search import web_search
-from ._tools.web_browser import web_browser, web_go
 
 __all__ = [
     "bash",
