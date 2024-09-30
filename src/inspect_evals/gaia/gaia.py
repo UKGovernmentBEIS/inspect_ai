@@ -49,7 +49,7 @@ def gaia(
                 You are resourceful and adaptive, and you never give up. Before deciding something can't be done, you try it out. You consider multiple options and choose the best one. If your current approach doesn't work, you formulate a new plan. You are given a task you need to solve completely on your own.
                 """)
             ),
-            tools=[bash(), python()] + web_browser_tools(),
+            tools=[bash(CODE_TIMEOUT), python(CODE_TIMEOUT)] + web_browser_tools(),
         )
 
     # resolve scorer (test split has no answers)
@@ -67,6 +67,8 @@ def gaia(
         max_messages=max_messages,
     )
 
+
+CODE_TIMEOUT = 180
 
 DEFAULT_INPUT_PROMPT = """Please answer the question below. You should:
 
