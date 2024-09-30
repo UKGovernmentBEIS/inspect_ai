@@ -1,5 +1,6 @@
-from inspect_ai.dataset import Dataset, Sample
 from logging import getLogger
+
+from inspect_ai.dataset import Dataset, Sample
 
 
 def build_images(

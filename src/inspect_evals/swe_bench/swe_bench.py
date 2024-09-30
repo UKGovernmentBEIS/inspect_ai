@@ -8,7 +8,6 @@ import json
 import logging
 import os
 from importlib.util import find_spec
-from logging import getLogger
 from pathlib import Path
 from textwrap import dedent
 
@@ -60,7 +59,6 @@ def swe_bench(
             The scorer to use when evaluating swe_bench. If None, uses the default scorer. Mostly commonly, this will be a list of scorers to compare to baselines (see the README for more information).
 
     """
-
     assert find_spec(
         "swebench"
     ), "To run SWE-bench, please install the optional SWE-bench depency, by running `pip install inspect-ai[swe_bench]`"
