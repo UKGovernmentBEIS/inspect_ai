@@ -2,8 +2,10 @@ from inspect_ai._util.ansi import no_ansi
 from inspect_ai._util.constants import PKG_PATH
 from inspect_ai.util._subprocess import subprocess
 
+INSPECT_WEB_BROWSER_IMAGE = "inspect_web_browser:0.5"
+
 INTERNAL_IMAGES = {
-    "inspect-web-browser:0.5": PKG_PATH
+    INSPECT_WEB_BROWSER_IMAGE: PKG_PATH
     / "tool"
     / "_tools"
     / "web_browser"
