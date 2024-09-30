@@ -52,7 +52,7 @@ def web_browser_go(sandbox: str = "web_browser") -> Tool:
            url (str): URL to navigate to.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The node_id of each element is displayed in brackets at the beginning of the line.
+           Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
         return await web_browser_cmd(sandbox, "web_go", url)
 
@@ -72,16 +72,16 @@ def web_browser_click(sandbox: str = "web_browser") -> Tool:
        Web browser clicking tool.
     """
 
-    async def execute(node_id: str) -> str:
+    async def execute(element_id: str) -> str:
         """Click an element on the page currently displayed by the web browser.
 
         Args:
-           node_id (str): ID of the node to click.
+           element_id (str): ID of the element to click.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The node_id of each element is displayed in brackets at the beginning of the line.
+           Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd(sandbox, "web_click", node_id)
+        return await web_browser_cmd(sandbox, "web_click", element_id)
 
     return execute
 
@@ -106,7 +106,7 @@ def web_browser_scroll(sandbox: str = "web_browser") -> Tool:
            direction (str): "up" or "down"
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The node_id of each element is displayed in brackets at the beginning of the line.
+           Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
         return await web_browser_cmd(sandbox, "web_scroll", direction)
 
@@ -130,7 +130,7 @@ def web_browser_forward(sandbox: str = "web_browser") -> Tool:
         """Navigate the web browser forward in the browser history.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The node_id of each element is displayed in brackets at the beginning of the line.
+           Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
         return await web_browser_cmd(sandbox, "web_forward")
 
@@ -154,7 +154,7 @@ def web_browser_back(sandbox: str = "web_browser") -> Tool:
         """Navigate the web browser back in the browser history.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The node_id of each element is displayed in brackets at the beginning of the line.
+           Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
         return await web_browser_cmd(sandbox, "web_back")
 
@@ -178,7 +178,7 @@ def web_browser_refresh(sandbox: str = "web_browser") -> Tool:
         """Refresh the current page of the web browser.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The node_id of each element is displayed in brackets at the beginning of the line.
+           Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
         return await web_browser_cmd(sandbox, "web_refresh")
 
@@ -198,17 +198,17 @@ def web_browser_type(sandbox: str = "web_browser") -> Tool:
        Web browser typing tool.
     """
 
-    async def execute(node_id: str, text: str) -> str:
+    async def execute(element_id: str, text: str) -> str:
         """Type text into an input on a web browser page.
 
         Args:
-           node_id (str): ID of the node to type text into.
+           element_id (str): ID of the element to type text into.
            text (str): Text to type.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The node_id of each element is displayed in brackets at the beginning of the line.
+           Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd(sandbox, "web_type", node_id, text)
+        return await web_browser_cmd(sandbox, "web_type", element_id, text)
 
     return execute
 
@@ -226,17 +226,17 @@ def web_browser_type_submit(sandbox: str = "web_browser") -> Tool:
        Web browser type and submit tool.
     """
 
-    async def execute(node_id: str, text: str) -> str:
+    async def execute(element_id: str, text: str) -> str:
         """Type text into a form input on a web browser page and press ENTER to submit the form.
 
         Args:
-           node_id (str): ID of the node to type text into.
+           element_id (str): ID of the element to type text into.
            text (str): Text to type.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The node_id of each element is displayed in brackets at the beginning of the line.
+           Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd(sandbox, "web_type_submit", node_id, text)
+        return await web_browser_cmd(sandbox, "web_type_submit", element_id, text)
 
     return execute
 
