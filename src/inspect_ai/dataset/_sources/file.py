@@ -27,10 +27,10 @@ def file_dataset(
         file (str): Path to JSON or CSV file. Can be a local filesystem path or
             a path to an S3 bucket (e.g. "s3://my-bucket"). Use `fs_options`
             to pass arguments through to the `S3FileSystem` constructor.
-        sample_fields (SampleFieldSpec | RecordToSample): Method of mapping underlying
+        sample_fields (FieldSpec | RecordToSample): Method of mapping underlying
             fields in the data source to Sample objects. Pass `None` if the data is already
             stored in `Sample` form (i.e. has "input" and "target" columns.); Pass a
-            `SampleFieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
+            `FieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
             handle mapping with a custom function that returns one or more samples.
         dialect (str): CSV dialect ("unix" or "excel", defaults to "unix"). Only
             applies to reading CSV files.

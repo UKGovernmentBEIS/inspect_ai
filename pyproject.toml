@@ -111,7 +111,7 @@ inspect = "inspect_ai._cli.main:main"
 
 [project.optional-dependencies]
 inspect_evals = [
-    "datasets",
+    "datasets>=2.21", # This is the last version of HuggingFace datasets befor the v3.0.0 release. Needed for a working datasets.load_dataset call for several of the evals.
     "pillow"
 ]
 swe_bench = ["inspect_ai[inspect_evals]", "swebench","docker"]

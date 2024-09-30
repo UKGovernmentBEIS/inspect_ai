@@ -45,6 +45,12 @@ async def generate_o1(
     # create chatapi handler
     handler = O1PreviewChatAPIHandler()
 
+    # map max_tokens => max_completion_tokens
+    max_tokens = params.get("max_tokens", None)
+    if max_tokens:
+        params["max_completion_tokens"] = max_tokens
+        del params["max_tokens"]
+
     # call model
     response = await client.chat.completions.create(
         model=model,
