@@ -2,7 +2,7 @@
 
 FROM python:3.12-bookworm
 
-WORKDIR /app
+WORKDIR /app/web_browser
 
 RUN apt-get update
 
