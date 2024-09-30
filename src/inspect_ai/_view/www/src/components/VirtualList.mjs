@@ -5,7 +5,6 @@ import { html, Component } from "htm/preact";
 import { createRef } from "preact";
 import { throttle } from "../utils/sync.mjs";
 
-
 /**
  * @typedef {Object} RowDescriptor
  * @property {number} index - The index of the current file in the list.
@@ -21,7 +20,6 @@ import { throttle } from "../utils/sync.mjs";
  * @param {number} index - The index of the current row.
  * @returns {import('preact').JSX.Element} A JSX element representing the row.
  */
-
 
 const STYLE_INNER =
   "position:relative; overflow:hidden; width:100%; min-height:100%;";
@@ -58,10 +56,10 @@ export class VirtualList extends Component {
   }
 
   /**
-  * Resizes the component based on the current height of the container.
-  * Updates the height state if the container height has changed.
-  * @private
-  */
+   * Resizes the component based on the current height of the container.
+   * Updates the height state if the container height has changed.
+   * @private
+   */
   resize() {
     if (this.base instanceof HTMLElement) {
       if (this.state.height !== this.base.offsetHeight) {
@@ -158,12 +156,12 @@ export class VirtualList extends Component {
       <div style=${`${STYLE_INNER} height:${totalHeight}px;`}>
         <div style=${`${STYLE_CONTENT} top:${top}px;`} ref=${this.containerRef}>
           ${selection.map((item, index) => {
-      const component = renderRow(item, start + index);
+            const component = renderRow(item, start + index);
 
-      return html`<div key=${`list-item-${start + index}`}>
+            return html`<div key=${`list-item-${start + index}`}>
               ${component}
             </div>`;
-    })}
+          })}
         </div>
       </div>
     </div>`;

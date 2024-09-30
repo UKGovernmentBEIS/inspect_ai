@@ -28,9 +28,18 @@ import { FontSize } from "../appearance/Fonts.mjs";
  */
 export const resolveToolInput = (fn, toolArgs) => {
   const toolName = fn;
-
   const [inputKey, inputType] = extractInputMetadata(toolName);
-  const { input, args } = extractInput(inputKey, toolArgs);
+  const parseInput = () => {
+    if (inputKey) {
+      return extractInput(inputKey, toolArgs);
+    } else {
+      return {
+        input: undefined,
+        args: [],
+      };
+    }
+  };
+  const { input, args } = parseInput();
   const functionCall =
     args.length > 0 ? `${toolName}(${args.join(",")})` : toolName;
   return {
