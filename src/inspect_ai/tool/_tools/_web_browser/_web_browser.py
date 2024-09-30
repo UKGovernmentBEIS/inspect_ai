@@ -52,9 +52,7 @@ def web_browser_go(sandbox: str = "web_browser") -> Tool:
            url (str): URL to navigate to.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The
-           node_id of each element is displayed in brackets at the beginning
-           of the line.
+           Web accessibility tree of the visible elements of the web page. The node_id of each element is displayed in brackets at the beginning of the line.
         """
         return await web_browser_cmd(sandbox, "web_go", url)
 
@@ -81,9 +79,7 @@ def web_browser_click(sandbox: str = "web_browser") -> Tool:
            node_id (str): ID of the node to click.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The
-           node_id of each element is displayed in brackets at the beginning
-           of the line.
+           Web accessibility tree of the visible elements of the web page. The node_id of each element is displayed in brackets at the beginning of the line.
         """
         return await web_browser_cmd(sandbox, "web_click", node_id)
 
@@ -110,9 +106,7 @@ def web_browser_scroll(sandbox: str = "web_browser") -> Tool:
            direction (str): "up" or "down"
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The
-           node_id of each element is displayed in brackets at the beginning
-           of the line.
+           Web accessibility tree of the visible elements of the web page. The node_id of each element is displayed in brackets at the beginning of the line.
         """
         return await web_browser_cmd(sandbox, "web_scroll", direction)
 
@@ -136,9 +130,7 @@ def web_browser_forward(sandbox: str = "web_browser") -> Tool:
         """Navigate the web browser forward in the browser history.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The
-           node_id of each element is displayed in brackets at the beginning
-           of the line.
+           Web accessibility tree of the visible elements of the web page. The node_id of each element is displayed in brackets at the beginning of the line.
         """
         return await web_browser_cmd(sandbox, "web_forward")
 
@@ -162,9 +154,7 @@ def web_browser_back(sandbox: str = "web_browser") -> Tool:
         """Navigate the web browser back in the browser history.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The
-           node_id of each element is displayed in brackets at the beginning
-           of the line.
+           Web accessibility tree of the visible elements of the web page. The node_id of each element is displayed in brackets at the beginning of the line.
         """
         return await web_browser_cmd(sandbox, "web_back")
 
@@ -188,9 +178,7 @@ def web_browser_refresh(sandbox: str = "web_browser") -> Tool:
         """Refresh the current page of the web browser.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The
-           node_id of each element is displayed in brackets at the beginning
-           of the line.
+           Web accessibility tree of the visible elements of the web page. The node_id of each element is displayed in brackets at the beginning of the line.
         """
         return await web_browser_cmd(sandbox, "web_refresh")
 
@@ -218,9 +206,7 @@ def web_browser_type(sandbox: str = "web_browser") -> Tool:
            text (str): Text to type.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The
-           node_id of each element is displayed in brackets at the beginning
-           of the line.
+           Web accessibility tree of the visible elements of the web page. The node_id of each element is displayed in brackets at the beginning of the line.
         """
         return await web_browser_cmd(sandbox, "web_type", node_id, text)
 
@@ -248,9 +234,7 @@ def web_browser_type_submit(sandbox: str = "web_browser") -> Tool:
            text (str): Text to type.
 
         Returns:
-           Web accessibility tree of the visible elements of the web page. The
-           node_id of each element is displayed in brackets at the beginning
-           of the line.
+           Web accessibility tree of the visible elements of the web page. The node_id of each element is displayed in brackets at the beginning of the line.
         """
         return await web_browser_cmd(sandbox, "web_type_submit", node_id, text)
 
