@@ -16,9 +16,16 @@ import { resolveToolInput, ToolCallView } from "./Tools.mjs";
  * @param {import("../types/log").Messages} props.messages - The array of chat messages.
  * @param {Object} [props.style] - Inline styles for the chat view.
  * @param {boolean} props.indented - Whether the chatview has indented messages
+ * @param {boolean} [props.numbered] - Whether the chatview is numbered
  * @returns {import("preact").JSX.Element} The component.
  */
-export const ChatView = ({ id, messages, style, indented }) => {
+export const ChatView = ({
+  id,
+  messages,
+  style,
+  indented,
+  numbered = true,
+}) => {
   // Filter tool messages into a sidelist that the chat stream
   // can use to lookup the tool responses
 
@@ -83,7 +90,7 @@ export const ChatView = ({ id, messages, style, indented }) => {
   const result = html`
     <div style=${style}>
       ${collapsedMessages.map((msg, index) => {
-        if (collapsedMessages.length > 1) {
+        if (collapsedMessages.length > 1 && numbered) {
           return html` <div
             style=${{
               display: "grid",

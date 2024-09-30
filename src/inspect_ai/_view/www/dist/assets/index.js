@@ -12131,7 +12131,13 @@ const messageRenderers = {
     }
   }
 };
-const ChatView = ({ id, messages, style, indented }) => {
+const ChatView = ({
+  id,
+  messages,
+  style,
+  indented,
+  numbered = true
+}) => {
   const resolvedMessages = [];
   for (const message of messages) {
     if (message.role === "tool") {
@@ -12168,7 +12174,7 @@ const ChatView = ({ id, messages, style, indented }) => {
   const result = m$1`
     <div style=${style}>
       ${collapsedMessages.map((msg, index) => {
-    if (collapsedMessages.length > 1) {
+    if (collapsedMessages.length > 1 && numbered) {
       return m$1` <div
             style=${{
         display: "grid",
@@ -16283,6 +16289,7 @@ const ModelEventView = ({ id, event, style }) => {
       id="${id}-model-output"
       messages=${[...userMessages, ...outputMessages || []]}
       style=${{ paddingTop: "1em" }}
+      numbered=${false}
       />
     </div>
 
