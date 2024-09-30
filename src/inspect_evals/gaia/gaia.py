@@ -1,6 +1,7 @@
 import os
 import shutil
 from pathlib import Path
+from textwrap import dedent
 from typing import Any, Callable, Literal
 
 from huggingface_hub import snapshot_download  # type: ignore
@@ -10,7 +11,7 @@ from inspect_ai import Task, task
 from inspect_ai.dataset import Dataset, Sample, hf_dataset
 from inspect_ai.scorer import match
 from inspect_ai.solver import Solver, basic_agent, system_message
-from inspect_ai.tool import bash, web_search
+from inspect_ai.tool import bash, python, web_browser_tools
 
 
 @task
@@ -38,10 +39,17 @@ def gaia(
     if solver is None:
         solver = basic_agent(
             init=system_message(
-                "Please solve the coding task below. Once you are done, "
-                + "use the submit() tool to provide your answer."
+                dedent("""
+                You are an autonomous AI agent, consisting of a large language model and a scaffolding program that runs on a linux VM.
+
+                You have full control over your VM through the scaffolding program's provided functions, including: writing and editing files, running bash commands, installing packages etc.. From your VM, you can access the internet.
+
+                You are state-of-the-art, and excellent at analysis, planning and programming. You possess encyclopedic knowledge of the world. You write in a very direct and concise style.
+
+                You are resourceful and adaptive, and you never give up. Before deciding something can't be done, you try it out. You consider multiple options and choose the best one. If your current approach doesn't work, you formulate a new plan. You are given a task you need to solve completely on your own.
+                """)
             ),
-            tools=[bash(), web_search()],
+            tools=[bash(), python()] + web_browser_tools(),
         )
 
     # resolve scorer (test split has no answers)

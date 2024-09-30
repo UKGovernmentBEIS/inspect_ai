@@ -8,7 +8,7 @@ from inspect_ai.util._sandbox.docker.internal import INSPECT_WEB_BROWSER_IMAGE
 from ..._tool import Tool, ToolError, tool
 
 
-def web_browser(sandbox: str = "web_browser") -> list[Tool]:
+def web_browser_tools(sandbox: str = "web_browser") -> list[Tool]:
     """Tools used for web browser navigation.
 
     Args:
