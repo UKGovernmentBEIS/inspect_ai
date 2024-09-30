@@ -154,7 +154,7 @@ cat model.patch"""
 def get_eval_script(test_patch: str, repo: str, version: str, base_commit: str) -> str:
     """Creates a script which runs the tests of all the files in the test_patch."""
     # First we fetch the repository-specific 'specification' which SWE-bench provides
-    from swebench.harness.log_parsers import MAP_REPO_VERSION_TO_SPECS
+    from swebench.harness.constants import MAP_REPO_VERSION_TO_SPECS
     from swebench.harness.utils import get_test_directives  # type: ignore
 
     conda_env = "testbed"
