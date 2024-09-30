@@ -9,6 +9,7 @@
 - Allow Docker sandboxes configured with `x-default` to be referred to by their declared service name.
 - Improved error messages for Docier sandbox initialisation.
 - Improve legibility of Docker sandbox log entries (join rather than displaying as array)
+- Display user message immediately proceding assistant message in model call transcripts.
 - Display images created by tool calls in the Viewer.
 - Fix duplicated tool call output display in Viewer for Gemini and Llama models.
 - Require a `max_messages` for use of `basic_agent()` (as without it, the agent could end up in an infinite loop).
