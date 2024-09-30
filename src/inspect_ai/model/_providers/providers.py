@@ -1,3 +1,5 @@
+import os
+
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.version import verify_required_version
 
@@ -69,6 +71,10 @@ def vertex() -> type[ModelAPI]:
     PACKAGE = "google-cloud-aiplatform"
     MIN_VERSION = "1.59.0"
 
+    # workaround log spam
+    # https://github.com/ray-project/ray/issues/24917
+    os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "0"
+
     # verify we have the package
     try:
         import vertexai  # type: ignore  # noqa: F401
@@ -89,6 +95,10 @@ def google() -> type[ModelAPI]:
     FEATURE = "Google API"
     PACKAGE = "google-generativeai"
     MIN_VERSION = "0.8.1"
+
+    # workaround log spam
+    # https://github.com/ray-project/ray/issues/24917
+    os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "0"
 
     # verify we have the package
     try:

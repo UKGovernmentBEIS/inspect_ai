@@ -31,7 +31,7 @@ def popularity(model):
 
     return Task(
         dataset=dataset,
-        plan=[system_message(SYSTEM_MESSAGE), generate()],
+        solver=[system_message(SYSTEM_MESSAGE), generate()],
         scorer=match(),
         config=config,
     )

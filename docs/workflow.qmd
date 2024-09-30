@@ -2,28 +2,47 @@
 
 There are a variety of ways to run evaluations that range from interactive work in a notebook or REPL all the way up to running large evaluation suites. We'll start with the basics, then cover exploratory workflows, and finally discuss how to compose evals together into a suite.
 
+::: {.callout-note appearance="simple"}
+If you are using VS Code, we recommend installing the VS Code Extension, which includes tools for running, tuning, debugging, and visualising evals. See the article on the [VS Code Extension](#sec-vscode) for more details on installing and using the extension.
+:::
+
 ## Eval Basics
 
 To create an evaluation, write a function that returns a `Task`. This task will bring together the dataset, solvers, scorer, and configuration required for the evaluation. Here's the example used in the introduction:
 
-``` python
+``` {.python filename="theory.py"}
 from inspect_ai import Task, task
 from inspect_ai.dataset import example_dataset
 from inspect_ai.scorer import model_graded_fact
-from inspect_ai.solver import (
-  chain_of_thought, generate, self_critique
-)
+from inspect_ai.solver import (               
+  chain, prompt_template, generate, self_critique   
+) 
+
+DEFAULT_PROMPT="<prompt>"
+
+from tree_of_thought imoprt TREE_PROMPT, generate_tree
+
+@solver 
+def critique():
+    return chain([
+        prompt_template(DEFAULT_PROMPT), 
+        generate(), 
+        self_critique()
+    ])
+
+@solver
+def tree_of_thought():
+    return chain([
+        prompt_template(TREE_PROMPT), 
+        generate_tree()
+    ])
 
 @task
 def theory_of_mind():
-    return Task(
+    return Task(  
         dataset=example_dataset("theory_of_mind"),
-        plan=[
-          chain_of_thought(), 
-          generate(), 
-          self_critique()
-        ],
-        scorer=model_graded_fact(),
+        solver=critique(),
+        scorer=model_graded_fact()
     )
 ```
 
@@ -41,11 +60,11 @@ $ inspect eval theory.py --model openai/gpt-4
 
 Immediately after an evaluation completes, a link to the log for the evaluation is written to the terminal.
 
-::: {.callout-note title="VS Code Extension"}
+Note that we have two solvers: `critique` (the default) and `tree_of_thought`. We can evaluate using the tree of thought solver with:
 
-If you are using VS Code, we also recommend installing the VS Code Extension, which includes tools for running, tuning, debugging, and visualising evals. See the article on the [VS Code Extension](#sec-vscode) for more details on installing and using the extension.
-
-:::
+``` bash
+$ inspect eval theory.py --solver tree_of_thought --model openai/gpt-4
+```
 
 ### Models
 
@@ -64,6 +83,52 @@ $ export INSPECT_EVAL_MODEL=google/gemini-1.0-pro
 $ inspect eval theory.py
 ```
 
+### Parameters
+
+You can optionally parameterise tasks by just adding parameters to the `@task` function. For example, here we provide a way to vary the dataset for the theory of mind task:
+
+``` python
+@task
+def theory_of_mind(dataset = "validation.csv"):
+    return Task(  
+        dataset=csv_dataset(dataset),
+        solver=critique(),
+        scorer=model_graded_fact()
+    )
+```
+
+Use `-T` to specify task parameters from the CLI:
+
+``` bash
+$ insepct eval theory.py -T "test.csv" --model openai/gpt-4o
+```
+
+### Solvers
+
+You can very the solver used for a task using the `--solver` flag. For example:
+
+``` bash
+$ inspect eval theory.py --solver=tree_of_thought --model=openai/gpt-4o
+```
+
+Solvers can additionally have their own parameters which you can also specify using the CLI. For example, here we extend the `tree_of_thought` solver to take a depth parameter (which we forward on to `generate_tree()`):
+
+``` python
+@solver
+def tree_of_thought(depth):
+    return chain([
+        prompt_template(TREE_PROMPT), 
+        generate_tree(depth)
+    ])
+```
+
+Use `-S` to specify solver parameters from the CLI:
+
+``` bash
+$ inspect eval theory.py \
+    --solver=tree_of_thought -S depth=3 \
+    --model=openai/gpt-4
+```
 
 ### Visualising
 
@@ -74,7 +139,6 @@ $ inspect view
 ```
 
 ![](images/inspect-view-main.png){.border .lightbox fig-alt="The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples."}
-
 
 The log viewer will update automatically whenever a new evaluation is completed (you can also navigate back to previous evaluations). The log viewer summarises aggregate data and also provides a detailed view into each sample. For example, here we zoom in on the model's scoring explanation for a specific sample:
 
@@ -94,7 +158,7 @@ $ inspect eval theory.py --limit 10
 $ inspect eval theory.py --max-tokens 128
 
 # set temperature and seed
-$ inspect eval theory.py --temperature 0 --seed 42
+$ inspect eval theory.py --temperature 0.5 --seed 42
 ```
 
 ## Configuration {#sec-workflow-configuration}
@@ -146,8 +210,6 @@ from inspect_ai.dataset import json_dataset
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import generate, system_message
 
-from itertools import product
-
 @task
 def security_guide(
     system="devops.txt", 
@@ -156,7 +218,7 @@ def security_guide(
 ):
    return Task(
       dataset=json_dataset("security_guide.jsonl"),
-      plan=[system_message(system), generate()],
+      solver=[system_message(system), generate()],
       scorer=model_graded_fact(
           template=grader, model=grader_model
       )
@@ -166,6 +228,8 @@ def security_guide(
 The `system` and `grader` arguments point to files we are using as system message and grader model templates. At the outset we might want to explore every possible combination of these parameters. We can use the `itertools.product` function to do this:
 
 ``` python
+from itertools import product
+
 # 'grid' will be a permutation of all parameters
 params = {
     "system": ["devops.txt", "researcher.txt"],
@@ -210,7 +274,7 @@ Returning to the example above, let's say that after experimenting, we were comf
 def security_guide(system="devops.txt"):
    return Task(
       dataset=json_dataset("security_guide.jsonl"),
-      plan=[system_message(system), generate()],
+      solver=[system_message(system), generate()],
       scorer=model_graded_fact(
           template="expert.txt", model="openai/gpt-4"
       )

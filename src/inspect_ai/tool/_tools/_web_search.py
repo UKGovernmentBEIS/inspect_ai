@@ -12,6 +12,7 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.retry import httpx_should_retry, log_retry_attempt
 from inspect_ai.util._concurrency import concurrency
 
@@ -55,6 +56,13 @@ def web_search(
     # get search client
     client = httpx.AsyncClient()
 
+    if provider == "google":
+        search_provider = google_search_provider(client)
+    else:
+        raise ValueError(
+            f"Provider {provider} not supported. Only 'google' is supported."
+        )
+
     # resolve provider (only google for now)
     async def execute(query: str) -> ToolResult:
         """
@@ -68,13 +76,6 @@ def web_search(
         urls: list[str] = []
         snippets: list[str] = []
         search_calls = 0
-
-        if provider == "google":
-            search_provider = google_search_provider(client)
-        else:
-            raise Exception(
-                f"Provider {provider} not supported. Only 'google' is supported."
-            )
 
         # Paginate through search results until we have successfully extracted num_results pages or we have reached max_provider_calls
         while len(page_contents) < num_results and search_calls < max_provider_calls:
@@ -180,8 +181,8 @@ def google_search_provider(client: httpx.AsyncClient) -> SearchProvider:
     google_api_key = os.environ.get("GOOGLE_CSE_API_KEY", None)
     google_cse_id = os.environ.get("GOOGLE_CSE_ID", None)
     if not google_api_key or not google_cse_id:
-        raise Exception(
-            "GOOGLE_CSE_ID and/or GOOGLE_CSE_API_KEY not set in environment"
+        raise PrerequisiteError(
+            "GOOGLE_CSE_ID and/or GOOGLE_CSE_API_KEY not set in the environment. Please ensure these variables are defined to use Google Custom Search with the web_search tool.\n\nLearn more about the Google web search provider at https://inspect.ai-safety-institute.org.uk/tools.html#google-provider"
         )
 
     async def search(query: str, start_idx: int) -> list[SearchLink]:

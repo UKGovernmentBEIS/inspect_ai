@@ -13,34 +13,48 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  * @param { string  } props.id - The id of this event.
  * @param { Object } props.style - The style of this event.
  * @param {import("../../types/log").SubtaskEvent} props.event - The event object to display.
- * @param {import("./Types.mjs").StateManager} props.stateManager - A function that updates the state with a new state object.
- * @param {import("./Types.mjs").StateManager} props.storeManager - A function that updates the state with a new state object.
  * @param { Object } props.depth - The depth of this event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const SubtaskEventView = ({
-  id,
-  event,
-  style,
-  stateManager,
-  storeManager,
-  depth,
-}) => {
+export const SubtaskEventView = ({ id, event, style, depth }) => {
+  // Render Forks specially
+
+  const transcript =
+    event.events.length > 0
+      ? html`<${TranscriptView}
+          id="${id}-subtask"
+          name="Transcript"
+          events=${event.events}
+          depth=${depth + 1}
+        />`
+      : "";
+
+  const body =
+    event.type === "fork"
+      ? html`
+          <div title="Summary" style=${{ width: "100%", margin: "0.5em 0em" }}>
+            <div style=${{ ...TextStyle.label }}>Inputs</div>
+            <div style=${{ marginBottom: "1em" }}>
+              <${Rendered} values=${event.input} />
+            </div>
+            <div style=${{ ...TextStyle.label }}>Transcript</div>
+            ${transcript}
+          </div>
+        `
+      : html`
+          <${SubtaskSummary}
+            name="Summary"
+            input=${event.input}
+            result=${event.result}
+          />
+          ${transcript}
+        `;
+
+  // Is this a traditional subtask or a fork?
+  const type = event.type === "fork" ? "Fork" : "Subtask";
   return html`
-    <${EventPanel} id=${id} title="Subtask: ${event.name}" icon=${ApplicationIcons.subtask} style=${style}>
-      <${SubtaskSummary} name="Summary"  input=${event.input} result=${event.result}/>
-      ${
-        event.events.length > 0
-          ? html`<${TranscriptView}
-              id="${id}-subtask"
-              name="Transcript"
-              events=${event.events}
-              stateManager=${stateManager}
-              storeManager=${storeManager}
-              depth=${depth + 1}
-            />`
-          : ""
-      }
+    <${EventPanel} id=${id} title="${type}: ${event.name}" style=${style} collapse=${false}>
+      ${body}
     </${EventPanel}>`;
 };
 

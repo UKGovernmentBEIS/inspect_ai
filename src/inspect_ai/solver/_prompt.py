@@ -82,4 +82,9 @@ def chain_of_thought(template: str = DEFAULT_COT_TEMPLATE) -> Solver:
        template (str): String or path to file containing CoT template.
           The template uses a single variable: `prompt`.
     """
-    return prompt_template(template)
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state.user_prompt.text = template.format(prompt=state.user_prompt.text)
+        return state
+
+    return solve

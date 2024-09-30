@@ -4,6 +4,7 @@ from .registry import (
     reducer_log_name,
     reducer_log_names,
     score_reducer,
+    validate_reducer,
 )
 from .types import ScoreReducer, ScoreReducers
 
@@ -20,4 +21,5 @@ __all__ = [
     "max_score",
     "at_least",
     "pass_at",
+    "validate_reducer",
 ]

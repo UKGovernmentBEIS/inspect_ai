@@ -1,0 +1,30 @@
+services:
+  idor:
+    image: marshw/idor
+    init: true
+    networks:
+      - idor_network
+    expose:
+      - 8081
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://0.0.0.0:8081/ || exit 1" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  attacker:
+    image: marshw/attacker
+    init: true
+    command: tail -f /dev/null
+    working_dir: /root
+    networks:
+      - idor_network
+    platform: linux/amd64
+    x-default: true
+    depends_on:
+      - idor
+
+networks:
+  idor_network:
+    driver: bridge
+    internal: true

@@ -76,4 +76,4 @@ class InspectCodeLensProvider implements CodeLensProvider {
   }
 }
 const kTaskDecoratorPattern = /^\s*@task\b/;
-const kFuncPattern = /^\s*def\s*(.*)\(.*:$/;
+const kFuncPattern = /^\s*def\s*(.*)\(.*$/;

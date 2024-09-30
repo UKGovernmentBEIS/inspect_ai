@@ -12,7 +12,7 @@ def {{<taskName>}}():
 
     return Task(
         dataset=dataset,
-        plan=[
+        solver=[
           generate(),
         ],
         scorer=match(),

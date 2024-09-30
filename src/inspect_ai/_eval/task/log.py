@@ -36,7 +36,7 @@ from inspect_ai.model._model import model_usage
 from inspect_ai.scorer import Score
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.solver import Plan, Solver, TaskState
-from inspect_ai.solver._plan import PlanSpec
+from inspect_ai.solver._solver import SolverSpec
 
 
 class TaskLogger:
@@ -47,7 +47,7 @@ class TaskLogger:
         task_file: str | None,
         task_id: str | None,
         run_id: str,
-        plan: PlanSpec | None,
+        solver: SolverSpec | None,
         model: Model,
         dataset: Dataset,
         sandbox: tuple[str, str | None] | None,
@@ -76,8 +76,8 @@ class TaskLogger:
             task_file=task_file,
             task_attribs=task_attribs,
             task_args=task_args,
-            plan=plan.plan if plan else None,
-            plan_args=plan.args if plan else None,
+            solver=solver.solver if solver else None,
+            solver_args=solver.args if solver else None,
             model=str(ModelName(model)),
             model_base_url=model.api.base_url,
             dataset=EvalDataset(

@@ -12,6 +12,7 @@ from inspect_ai.util._subtask import subtask
 
 @subtask
 async def times_two(input: int) -> int:
+    assert store().get("x", 0) == 0
     store().set("x", 84)
     return input * 2
 
@@ -21,6 +22,8 @@ def test_subtask():
     def subtask_solver():
         async def solve(state: TaskState, generate: Generate):
             state.store.set("x", 42)
+            # call twice so times_two can verify that state is reset
+            result = await times_two(int(state.input_text))
             result = await times_two(int(state.input_text))
             state.output = ModelOutput.from_content(state.model.name, str(result))
             return state
@@ -31,7 +34,7 @@ def test_subtask():
         dataset=[
             Sample(input="1", target="2"),
         ],
-        plan=[generate(), subtask_solver()],
+        solver=[generate(), subtask_solver()],
         scorer=match(),
     )
 

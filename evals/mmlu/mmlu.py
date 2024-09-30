@@ -49,14 +49,6 @@ dataset = csv_dataset(
     shuffle=True,
 )
 
-MULTIPLE_CHOICE_TEMPLATE_COT = r"""
-Answer the following multiple choice question. The last line of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}. Think step by step before answering.
-
-{question}
-
-{choices}
-""".strip()
-
 
 @task
 def mmlu(subjects=[], cot=False):
@@ -70,14 +62,11 @@ def mmlu(subjects=[], cot=False):
     else:
         task_dataset = dataset
 
-    if cot:
-        plan = multiple_choice(template=MULTIPLE_CHOICE_TEMPLATE_COT)
-    else:
-        plan = multiple_choice()
+    solver = multiple_choice(cot=cot)
 
     return Task(
         dataset=task_dataset,
-        plan=plan,
+        solver=solver,
         scorer=choice(),
         config=GenerateConfig(temperature=0.5),
     )

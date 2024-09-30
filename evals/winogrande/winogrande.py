@@ -24,6 +24,7 @@ from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.model import GenerateConfig
 from inspect_ai.scorer import choice
 from inspect_ai.solver import (
+    Solver,
     multiple_choice,
     system_message,
 )
@@ -39,8 +40,8 @@ SYSTEM_W_EXAMPLES_PROMPT_TEMPLATE = (
     f"""The following are multiple choice questions, with answers on the best logical completion to replace {BLANK_TAG} by {list(ANSWER_TO_LETTER.values())[0]} or {list(ANSWER_TO_LETTER.values())[1]}."""
     + """\n\n{examples}\n"""
 )
-# Based on the SINGLE_ANSWER_TEMPLATE provided in the multiple choice solver:
-# https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_multiple_choice.py#L14
+# Based on MultipleChoiceTemplate.SINGLE_ANSWER provided in the multiple choice solver:
+# https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_multiple_choice.py
 USER_PROMPT_TEMPLATE = (
     f"""Answer the following multiple choice question by choosing the best logical option to replace the {BLANK_TAG}."""
     + """ The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}.\n\n{question}\n{choices}\n"""
@@ -68,7 +69,7 @@ def winogrande(
             trust=True,
             sample_fields=record_to_sample,
         ),
-        plan=build_plan(
+        solver=winogrande_solver(
             dataset_name=dataset_name, fewshot=fewshot, fewshot_seed=fewshot_seed
         ),
         scorer=choice(),
@@ -76,12 +77,12 @@ def winogrande(
     )
 
 
-def build_plan(
+def winogrande_solver(
     dataset_name: str,
     fewshot: int,
     fewshot_seed: int,
-) -> list:
-    plan = [multiple_choice(template=USER_PROMPT_TEMPLATE, shuffle=False)]
+) -> list[Solver]:
+    solver = [multiple_choice(template=USER_PROMPT_TEMPLATE, shuffle=False)]
 
     if fewshot:
         fewshot_samples = hf_dataset(
@@ -94,7 +95,7 @@ def build_plan(
             seed=fewshot_seed,
             limit=fewshot,
         )
-        plan.insert(
+        solver.insert(
             0,
             system_message(
                 SYSTEM_W_EXAMPLES_PROMPT_TEMPLATE.format(
@@ -105,7 +106,7 @@ def build_plan(
             ),
         )
 
-    return plan
+    return solver
 
 
 def record_to_sample(record: Dict) -> Sample:

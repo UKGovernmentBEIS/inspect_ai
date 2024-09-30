@@ -12,11 +12,13 @@ export const MessageContent = (props) => {
           index: index === contents.length - 1,
         });
       } else {
-        const renderer = messageRenderers[content.type];
-        if (renderer) {
-          return renderer.render(content, index === contents.length - 1);
-        } else {
-          console.error(`Unknown message content type '${content.type}'`);
+        if (content) {
+          const renderer = messageRenderers[content.type];
+          if (renderer) {
+            return renderer.render(content, index === contents.length - 1);
+          } else {
+            console.error(`Unknown message content type '${content.type}'`);
+          }
         }
       }
     });
@@ -54,7 +56,7 @@ const messageRenderers = {
   },
   tool: {
     render: (content) => {
-      return html`<${ToolOutput} output=${content.text} />`;
+      return html`<${ToolOutput} output=${content.content} />`;
     },
   },
 };

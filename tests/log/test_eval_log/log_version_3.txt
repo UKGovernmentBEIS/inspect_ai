@@ -33,7 +33,7 @@
     "results": {
         "scorers": [{
             "name": "model_graded_fact",
-            "params": {}
+            "params": {},
             "metrics": {
                 "accuracy": {
                     "name": "accuracy",

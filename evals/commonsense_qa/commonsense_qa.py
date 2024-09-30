@@ -27,7 +27,7 @@ def commonsense_qa():
 
     return Task(
         dataset=dataset,
-        plan=multiple_choice(),
+        solver=multiple_choice(),
         scorer=choice(),
         config=GenerateConfig(temperature=0),
     )

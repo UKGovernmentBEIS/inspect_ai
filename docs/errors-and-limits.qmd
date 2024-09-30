@@ -24,7 +24,7 @@ In some cases you might wish to tolerate some number of errors without failing t
 def intercode_ctf():
     return Task(
         dataset=read_dataset(),
-        plan=[
+        solver=[
             system_message("system.txt"),
             use_tools([bash(timeout=120)]),
             generate(),
@@ -65,7 +65,7 @@ In open-ended model conversations (for example, an agent evalution with tool usa
 def intercode_ctf():
     return Task(
         dataset=read_dataset(),
-        plan=[
+        solver=[
             system_message("system.txt"),
             use_tools([bash(timeout=120)]),
             generate(),

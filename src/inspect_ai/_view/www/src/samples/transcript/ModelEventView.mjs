@@ -46,13 +46,24 @@ export const ModelEventView = ({ id, event, style }) => {
     justifySelf: "start",
   };
 
+  // For any user messages which immediately preceded this model call, including a
+  // panel and display those user messages
+  const userMessages = [];
+  for (const msg of event.input.reverse()) {
+    if (msg.role === "user") {
+      userMessages.push(msg);
+    } else {
+      break;
+    }
+  }
+
   return html`
   <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model} style=${style}>
   
     <div name="Completion" style=${{ margin: "0.5em 0" }}>
     <${ChatView}
       id="${id}-model-output"
-      messages=${[...(outputMessages || [])]}
+      messages=${[...userMessages, ...(outputMessages || [])]}
       style=${{ paddingTop: "1em" }}
       />
     </div>

@@ -32,7 +32,7 @@ def solver_with_cache(cache):
 def cache_example():
     return Task(
         dataset=_dataset(),
-        plan=[
+        solver=[
             # This will configure a basic cache with default settings, see the
             # defaults in `CachePolicy` for more info.
             solver_with_cache(cache=True),
@@ -45,7 +45,7 @@ def cache_example():
 def cache_example_with_expiry():
     return Task(
         dataset=_dataset(),
-        plan=[
+        solver=[
             # Explicitly cache calls for 12 hours
             solver_with_cache(cache=CachePolicy(expiry="12h")),
         ],
@@ -57,7 +57,7 @@ def cache_example_with_expiry():
 def cache_example_never_expires():
     return Task(
         dataset=_dataset(),
-        plan=[
+        solver=[
             # Cache requests but never expire them
             solver_with_cache(cache=CachePolicy(expiry=None)),
         ],
@@ -69,7 +69,7 @@ def cache_example_never_expires():
 def cache_example_scoped():
     return Task(
         dataset=_dataset(),
-        plan=[
+        solver=[
             # Scope the cache key with additional fields and set expiry to a week
             solver_with_cache(
                 cache=CachePolicy(
@@ -86,7 +86,7 @@ def cache_example_scoped():
 def cache_example_ignore_epochs():
     return Task(
         dataset=_dataset(),
-        plan=[
+        solver=[
             # Ignore the epoch when caching. Running this with (for example)
             # `--epochs 20` will still be fast as the first generate call will
             # get cached and re-used by subsequent calls

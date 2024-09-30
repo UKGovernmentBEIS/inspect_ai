@@ -118,10 +118,12 @@ def tool(
         Tool with registry attributes.
     """
     if prompt:
-        print(prompt)
-        logger.warning(
-            "WARNING: The prompt parameter is deprecated (please relocate "
-            + "to the tool function's description doc comment)"
+        from inspect_ai._util.logger import warn_once
+
+        warn_once(
+            logger,
+            "The prompt parameter is deprecated (please relocate "
+            + "to the tool function's description doc comment)",
         )
         prompt = re.sub(r"\s+", " ", prompt)
 

@@ -29,7 +29,7 @@ def test_sandbox_environment_read_file():
     ]
     task = Task(
         dataset=dataset,
-        plan=[use_tools([read_file(), list_files()]), generate()],
+        solver=[use_tools([read_file(), list_files()]), generate()],
         scorer=includes(),
         sandbox="local",
     )
@@ -66,7 +66,7 @@ def test_sandbox_environment_list_files():
     ]
     task = Task(
         dataset=dataset,
-        plan=[use_tools([read_file(), list_files()]), generate()],
+        solver=[use_tools([read_file(), list_files()]), generate()],
         scorer=includes(),
         sandbox="local",
     )
@@ -102,7 +102,7 @@ def test_sandbox_environment_read_file_error():
     ]
     task = Task(
         dataset=dataset,
-        plan=[
+        solver=[
             use_tools(
                 [
                     read_file(),
@@ -152,7 +152,7 @@ def test_sandbox_environment_nonroot_files():
     ]
     task = Task(
         dataset=dataset,
-        plan=[
+        solver=[
             use_tools(
                 [
                     command_exec(),

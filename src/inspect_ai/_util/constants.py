@@ -22,6 +22,7 @@ ALL_LOG_LEVELS = [
     "INFO",
     "WARNING",
     "ERROR",
+    "CRITICAL",
 ]
 DEFAULT_LOG_LEVEL = "warning"
 DEFAULT_LOG_BUFFER_LOCAL = 10

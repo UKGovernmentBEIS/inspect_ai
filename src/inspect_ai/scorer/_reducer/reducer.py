@@ -324,7 +324,15 @@ def _reduced_score(value: Value, scores: list[Score]) -> Score:
     """
     return Score(
         value=value,
-        answer=scores[0].answer,
-        explanation=scores[0].explanation,
-        metadata=scores[0].metadata,
+        # retain remaining fields only if equal across all Scores
+        answer=scores[0].answer
+        if len(set(score.answer for score in scores)) == 1
+        else None,
+        explanation=scores[0].explanation
+        if len(set(score.explanation for score in scores)) == 1
+        else None,
+        metadata=scores[0].metadata
+        if len(set(tuple(score.metadata.items()) for score in scores if score.metadata))
+        == 1
+        else None,
     )

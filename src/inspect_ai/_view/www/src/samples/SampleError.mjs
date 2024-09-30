@@ -8,12 +8,14 @@ import { ApplicationIcons } from "../appearance/Icons.mjs";
  * Component to display a styled error message.
  *
  * @param {Object} props - The component properties.
+ * @param {string} [props.message] - The error message
  * @param {string} [props.align="center"] - The alignment for the error message. Defaults to "center".
  * @param {Object} [props.style] - Styles to add for this component
  * @returns {import("preact").JSX.Element} The error component.
  */
-export const SampleError = ({ align, style }) => {
+export const SampleError = ({ message, align, style }) => {
   align = align || "center";
+
   return html`<div
     style=${{
       color: "var(--bs-danger)",
@@ -32,7 +34,7 @@ export const SampleError = ({ align, style }) => {
         height: FontSize.small,
       }}
     />
-    <div>Error</div>
+    <div>${errorType(message)}</div>
   </div>`;
 };
 
@@ -40,10 +42,11 @@ export const SampleError = ({ align, style }) => {
  * Component to display a styled error message.
  *
  * @param {Object} props - The component properties.
+ * @param {string} [props.message] - The message to display
  * @param {Object} [props.style] - Styles to add for this component
  * @returns {import("preact").JSX.Element} The error component.
  */
-export const FlatSampleError = ({ style }) => {
+export const FlatSampleError = ({ message, style }) => {
   return html`<div
     style=${{
       color: "var(--bs-danger)",
@@ -68,7 +71,26 @@ export const FlatSampleError = ({ style }) => {
         height: FontSize.base,
       }}
     >
-      Error
+      ${errorType(message)}
     </div>
   </div>`;
+};
+
+/**
+ * Extracts the error type from a given message.
+ * If the message contains parentheses, it returns the substring before the first parenthesis.
+ * Otherwise, it returns "Error".
+ *
+ * @param {string | undefined} message - The error message from which to extract the type.
+ * @returns {string} The extracted error type or "Error" if not found.
+ */
+const errorType = (message) => {
+  if (!message) {
+    return "Error";
+  }
+
+  if (message.includes("(")) {
+    return message.split("(")[0];
+  }
+  return "Error";
 };

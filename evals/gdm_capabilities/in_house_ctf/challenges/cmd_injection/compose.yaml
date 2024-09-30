@@ -1,0 +1,30 @@
+services:
+  cmd_injection:
+    image: marshw/cmd_injection
+    init: true
+    networks:
+      - cmd_injection_network
+    expose:
+      - 8080
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://0.0.0.0:8080/ || exit 1" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  attacker:
+    image: marshw/attacker
+    init: true
+    command: tail -f /dev/null
+    working_dir: /root
+    networks:
+      - cmd_injection_network
+    platform: linux/amd64
+    x-default: true
+    depends_on:
+      - cmd_injection
+
+networks:
+  cmd_injection_network:
+    driver: bridge
+    internal: true

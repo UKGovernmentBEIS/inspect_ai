@@ -10,6 +10,6 @@ from inspect_ai.solver import generate
 def task2():
     return Task(
         dataset=[Sample(input="What is 1+1?", target="2")] * 10,
-        plan=[file_check("task2.py"), generate()],
+        solver=[file_check("task2.py"), generate()],
         scorer=includes(),
     )

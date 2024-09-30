@@ -140,7 +140,7 @@ class BedrockChatHandler(abc.ABC):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         from botocore.config import Config
 
         formatted_input_with_tools: list[ChatAPIMessage] = chat_api_input(
@@ -168,12 +168,16 @@ class BedrockChatHandler(abc.ABC):
                 ),
             ),
         ) as client:
-            response = await client.invoke_model(
-                body=json.dumps(body),
-                modelId=self.model_name,
-                accept="application/json",
-                contentType="application/json",
-            )
+            try:
+                response = await client.invoke_model(
+                    body=json.dumps(body),
+                    modelId=self.model_name,
+                    accept="application/json",
+                    contentType="application/json",
+                )
+            except Exception as ex:
+                return self.handle_generate_exception(ex)
+
             response_body = json.loads(await response["body"].read())
 
         choice = self.completion_choice(response_body, tools, self.chat_api_handler())
@@ -202,6 +206,23 @@ class BedrockChatHandler(abc.ABC):
             return True
 
         return False
+
+    def handle_generate_exception(self, ex: Exception) -> ModelOutput:
+        error = str(ex)
+        if "maximum context length" in error:
+            # see if we can narrow down to just the error message
+            content = error
+            response = getattr(ex, "response", None)
+            if isinstance(response, dict) and "Error" in response:
+                error_dict = cast(dict[str, Any], response.get("Error"))
+                content = error_dict["Message"]
+            return ModelOutput.from_content(
+                model=self.model_name,
+                content=content,
+                stop_reason="model_length",
+            )
+        else:
+            raise ex
 
     @abc.abstractmethod
     def request_body(

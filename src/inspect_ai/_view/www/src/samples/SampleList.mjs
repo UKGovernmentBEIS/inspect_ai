@@ -306,7 +306,7 @@ const SampleRow = ({
         }}
       >
         ${sample.error
-          ? html`<${SampleError} />`
+          ? html`<${SampleError} message=${sample.error.message} />`
           : sampleDescriptor?.selectedScore(sample).render()}
       </div>
     </div>

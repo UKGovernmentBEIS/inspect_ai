@@ -60,16 +60,15 @@ def eval_results(
                 reducer_display_nm = (
                     reducer_log_name(reducer) if use_reducer_name else None
                 )
-                reduced_scores, epochs = reduce_scores(resolved_scores, reducer=reducer)
+                reduced_scores = reduce_scores(resolved_scores, reducer=reducer)
 
                 # record this scorer's intermediate results
-                if epochs > 1:
-                    reduced_samples = EvalSampleReductions(
-                        scorer=scorer_name,
-                        reducer=reducer_display_nm,
-                        samples=reduced_scores,
-                    )
-                    sample_reductions.append(reduced_samples)
+                reduced_samples = EvalSampleReductions(
+                    scorer=scorer_name,
+                    reducer=reducer_display_nm,
+                    samples=reduced_scores,
+                )
+                sample_reductions.append(reduced_samples)
 
                 # Compute metrics for this scorer
                 simple_scores = cast(list[Score], reduced_scores)
@@ -123,8 +122,7 @@ def eval_results(
                     )
             # build results
         results.scores = result_scores
-        if len(sample_reductions) > 0:
-            results.sample_reductions = sample_reductions
+        results.sample_reductions = sample_reductions
 
     return results
 
@@ -277,7 +275,7 @@ def scorers_from_metric_dict(
 
 def reduce_scores(
     scores: list[SampleScore], reducer: ScoreReducer
-) -> tuple[list[SampleScore], int]:
+) -> list[SampleScore]:
     # Group the scores by sample_id
     grouped_scores: dict[str, list[SampleScore]] = defaultdict(list)
     for sample_score in scores:
@@ -298,9 +296,7 @@ def reduce_scores(
             )
         )
 
-    # count epochs reduced
-    epochs = len(next(iter(grouped_scores.values()), []))
-    return reduced_scores, epochs
+    return reduced_scores
 
 
 def metrics_unique_key(key: str, existing: list[str]) -> str:
