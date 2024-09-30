@@ -32,8 +32,6 @@ export const ChatView = ({ id, messages, style, indented }) => {
       if (resolvedMessages.length > 0) {
         const msg = resolvedMessages[resolvedMessages.length - 1];
         msg.toolOutput = message;
-      } else {
-        console.warn("Received a tool message without a preceding message.");
       }
     } else {
       resolvedMessages.push({ message });
