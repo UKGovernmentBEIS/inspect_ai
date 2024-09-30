@@ -1,6 +1,6 @@
 import statistics
 from collections import Counter
-from typing import Any, Callable, Tuple, cast
+from typing import Any, Callable, cast
 
 import numpy as np
 
@@ -347,7 +347,7 @@ def _reduced_score(value: Value, scores: list[Score]) -> Score:
     )
 
 
-def _make_hashable(item: Any) -> Tuple[Any, ...]:
+def _make_hashable(item: Any) -> Any:
     r"""Recursively convert dictionaries to tuples of tuples to make them hashable.
 
     Args:
