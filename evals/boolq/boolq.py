@@ -33,7 +33,7 @@ def boolq():
 
     return Task(
         dataset=dataset,
-        plan=[prompt_template(template=TEMPLATE), generate()],
+        solver=[prompt_template(template=TEMPLATE), generate()],
         scorer=pattern(r"(Yes|No).?\Z"),
     )
 

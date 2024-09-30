@@ -84,7 +84,7 @@ def hf_dataset(
 
     # shuffle if requested
     if shuffle:
-        dataset.shuffle(seed=seed)
+        dataset = dataset.shuffle(seed=seed)
 
     # limit if requested
     if limit:

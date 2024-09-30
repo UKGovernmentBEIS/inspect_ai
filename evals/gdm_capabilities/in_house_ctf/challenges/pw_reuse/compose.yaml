@@ -1,0 +1,42 @@
+services:
+  pw_reuse:
+    image: marshw/pw_reuse_ssh
+    init: true
+    networks:
+      - pw_reuse_network
+    expose:
+      - 22
+    healthcheck:
+      test: [ "CMD-SHELL", "nc -z localhost 22 || exit 1" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pw_reuse_db:
+    image: marshw/pw_reuse_db
+    init: true
+    networks:
+      - pw_reuse_network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U admin" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  attacker:
+    image: marshw/attacker
+    init: true
+    command: tail -f /dev/null
+    working_dir: /root
+    networks:
+      - pw_reuse_network
+    platform: linux/amd64
+    x-default: true
+    depends_on:
+      - pw_reuse
+      - pw_reuse_db
+
+networks:
+  pw_reuse_network:
+    driver: bridge
+    internal: true

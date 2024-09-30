@@ -63,7 +63,7 @@ Scorers provide one or more built-in metrics (each of the scorers above provides
 ``` python
 Task(
     dataset=dataset,
-    plan=[
+    solver=[
         system_message(SYSTEM_MESSAGE),
         multiple_choice()
     ],
@@ -290,7 +290,7 @@ There are several ways to use multiple scorers in an evaluation:
 ``` python
 Task(
     dataset=dataset,
-    plan=[
+    solver=[
         system_message(SYSTEM_MESSAGE),
         generate()
     ],
@@ -435,12 +435,7 @@ def challenge() -> Task:
                 target="hello-world.txt",
             )
         ],
-        plan=Plan(
-            [
-                use_tools([bash()]),
-                generate(),
-            ]
-        ),
+        solver=[use_tools([bash()]), generate()],
         sandbox="local",
         scorer=check_file_exists(),
     )
@@ -458,7 +453,7 @@ You can override scorer's built-in metrics by passing an alternate list of `metr
 ``` python
 Task(
     dataset=dataset,
-    plan=[
+    solver=[
         system_message(SYSTEM_MESSAGE),
         multiple_choice()
     ],
@@ -532,7 +527,7 @@ By default, this is done by taking the mean of all sample scores, but you may sp
 def gpqa():
     return Task(
         dataset=read_gpqa_dataset("gpqa_main.csv"),
-        plan=[
+        solver=[
             system_message(SYSTEM_MESSAGE),
             multiple_choice(),
         ],
@@ -562,17 +557,39 @@ Inspect includes several built in reducers which are summarised below.
 | median               | Reduce to the median of all scores                                                                                   |
 | mode             | Reduce to the most common score.                                                             |
 | max              | Reduce to the maximum of all scores.                                                            |
-| pass_at_{k}  | Probability of at least 1 correct sample given `k` epochs. |
+| pass_at_{k}  | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
 | at_least_{k} | `1` if at least `k` samples are correct, else `0`. |
 
-: {tbl-colwidths="\[40,60\]"}
+: {tbl-colwidths="\[30,70\]"}
 
 
 :::{.callout-note}
 
-The built in reducers will compute a reduced `value` for the score and populate the remaining fields (`answer`, `explanation`, and `metadata` using the values from the first score that is being reduced)
+The built in reducers will compute a reduced `value` for the score and populate the remaining fields (`answer`, `explanation`, and `metadata`) only if equal across all epochs. If your custom metrics function relies on these fields, you should also implement your own custom reducer and merge or preserve these fields in some way.
 
 :::
+
+### Custom Reducers
+
+You can also add your own reducer with `@score_reducer` decorated functions. Here’s a somewhat simplified version of the code for the `mean` reducer:
+
+``` python
+import statistics
+
+from inspect_ai.scorer import Score, ScoreReducer, score_reducer
+
+@score_reducer(name="mean")
+def mean_score() -> ScoreReducer:
+    def reduce(scores: list[Score]) -> Score:
+        """Compute a mean value of all scores."""
+
+        values = [float(score.value) for score in scores]
+        mean_value = statistics.mean(values)
+
+        return Score(value=mean_value)
+
+    return reduce
+```
 
 
 ## Workflow {#sec-scorer-workflow}

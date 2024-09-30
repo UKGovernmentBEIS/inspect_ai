@@ -1,12 +1,10 @@
-import ast
 import os
 import re
 from logging import getLogger
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
-from inspect_ai._util.error import exception_message
-from inspect_ai._util.file import file
+from inspect_ai._util.decorator import parse_decorators
 
 from .task import TaskInfo
 
@@ -114,80 +112,15 @@ def is_task_path(path: Path) -> bool:
 
 
 def parse_tasks(path: Path, root_dir: Path, absolute: bool) -> list[TaskInfo]:
-    # read code from python source file
-    if path.suffix.lower() == ".py":
-        with file(path.as_posix(), "r", encoding="utf-8") as f:
-            code = f.read()
-
-    # read code from notebook
-    elif path.suffix.lower() == ".ipynb":
-        try:
-            from inspect_ai._util.notebook import read_notebook_code
-        except ImportError:
-            return []
-
-        code = read_notebook_code(path)
-
-    # unsupported file type
-    else:
-        raise ModuleNotFoundError(f"Invalid extension for task file: {path.suffix}")
-
-    # parse the top level tasks out of the code
-    tasks: list[TaskInfo] = []
-    try:
-        tree = ast.parse(code)
-        for node in ast.iter_child_nodes(tree):
-            if isinstance(node, ast.FunctionDef):
-                for decorator in node.decorator_list:
-                    result = parse_decorator(node, decorator)
-                    if result:
-                        name, attribs = result
-                        tasks.append(
-                            TaskInfo(
-                                file=task_path(path, root_dir, absolute),
-                                name=name,
-                                attribs=attribs,
-                            )
-                        )
-    except SyntaxError:
-        pass
-
-    return tasks
-
-
-def parse_decorator(
-    node: ast.FunctionDef, decorator: ast.expr
-) -> tuple[str, dict[str, Any]] | None:
-    if isinstance(decorator, ast.Name):
-        if str(decorator.id) == "task":
-            return node.name, {}
-    elif isinstance(decorator, ast.Call):
-        if isinstance(decorator.func, ast.Name):
-            if str(decorator.func.id) == "task":
-                return parse_task_decorator(node, decorator)
-    return None
-
-
-def parse_task_decorator(
-    node: ast.FunctionDef, decorator: ast.Call
-) -> tuple[str, dict[str, Any]]:
-    name = node.name
-    attribs: dict[str, Any] = {}
-    for arg in decorator.keywords:
-        if arg.arg is not None:
-            try:
-                value = ast.literal_eval(arg.value)
-                if arg.arg == "name":
-                    name = value
-                else:
-                    attribs[arg.arg] = value
-            except ValueError as ex:
-                # when parsing tasks, we can't provide the values of expressions that execute code
-                logger.debug(
-                    f"Error parsing attribute {arg.arg} of task {node.name}: {exception_message(ex)}"
-                )
-                pass
-    return name, attribs
+    task_decorators = parse_decorators(path, "task")
+    return [
+        TaskInfo(
+            file=task_path(path, root_dir, absolute),
+            name=decorator[0],
+            attribs=decorator[1],
+        )
+        for decorator in task_decorators
+    ]
 
 
 # manage relative vs. absolute paths

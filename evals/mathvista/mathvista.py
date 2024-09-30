@@ -1,5 +1,8 @@
 import re
+from io import BytesIO
 from pathlib import Path
+
+from PIL import Image
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
@@ -15,15 +18,13 @@ from inspect_ai.scorer import (
     stderr,
 )
 from inspect_ai.scorer._pattern import match_first
-from inspect_ai.solver import Generate, Solver, TaskState, solver
-
-SINGLE_ANSWER_TEMPLATE = r"""
-Answer the following multiple choice question. The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}.
-
-{question}
-
-{choices}
-""".strip()
+from inspect_ai.solver import (
+    Generate,
+    MultipleChoiceTemplate,
+    Solver,
+    TaskState,
+    solver,
+)
 
 FREEFORM_TEMPLATE = r"""
 Answer the following question. The entire content of your response should be of the following format: 'ANSWER: $ANSWER' (without quotes) where $ANSWER is your answer.
@@ -44,7 +45,7 @@ def mathvista() -> Task:
 
     return Task(
         dataset=dataset,
-        plan=[mathvista_solver()],
+        solver=[mathvista_solver()],
         scorer=mathvista_scorer(),
     )
 
@@ -92,7 +93,7 @@ def mathvista_solver() -> Solver:
         if state.metadata["question_type"] == "multi_choice":
             state.user_prompt.text = state.choices.prompt(
                 question=state.user_prompt.text,
-                template=SINGLE_ANSWER_TEMPLATE,
+                template=MultipleChoiceTemplate.SINGLE_ANSWER,
             )
 
             return await generate(state)
@@ -115,11 +116,21 @@ def mathvista_solver() -> Solver:
 def record_to_sample(record: dict) -> Sample:
     # extract image
     image = Path(record["image"])
+
+    # images are a mix of jpg and png but all have a file extension of .jpg
+    image_bytes = record["decoded_image"]["bytes"]
+    if is_image_png(image_bytes):
+        image = image.with_suffix(".png")
+
     if not image.exists():
         print(f"Extracting {image}")
+        # ensure parent
         image.parent.mkdir(exist_ok=True)
-        with open(image, "wb") as file:
-            file.write(record["decoded_image"]["bytes"])
+        # reduce the image size
+        img = Image.open(BytesIO(image_bytes))
+        img.thumbnail((1024, 1024))
+        # save preserving format
+        img.save(image, format=img.format)
 
     message: list[ChatMessage] = [
         ChatMessageUser(
@@ -127,7 +138,7 @@ def record_to_sample(record: dict) -> Sample:
                 ContentText(text=record["question"])
                 if record["question_type"] == "multi_choice"
                 else ContentText(text=record["query"]),
-                ContentImage(image=record["image"]),
+                ContentImage(image=image.as_posix()),
             ]
         )
     ]
@@ -156,7 +167,6 @@ def record_to_sample(record: dict) -> Sample:
                 "answer_type": record["answer_type"],
                 **record["metadata"],
             },
-            files={f"image:{record['image']}": record["image"]},
         )
     else:
         raise ValueError(f"Unexpected question_type: {record['question_type']}")
@@ -171,3 +181,7 @@ def get_multi_choice_as_letter(record: dict) -> str:
     answer = record["answer"]
     target = list(choices.values()).index(answer)
     return chr(ord("A") + int(target))
+
+
+def is_image_png(image_bytes: bytes) -> bool:
+    return image_bytes[:8] == b"\x89\x50\x4e\x47\x0d\x0a\x1a\x0a"

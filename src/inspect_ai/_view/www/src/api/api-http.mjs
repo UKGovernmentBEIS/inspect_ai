@@ -133,7 +133,9 @@ function simpleHttpAPI(logInfo) {
  * @throws {Error} Will throw an error if the HTTP request fails or the response is not OK (status code not 200).
  */
 async function fetchFile(url, parse, handleError) {
-  const response = await fetch(`${url}`, { method: "GET" });
+  const safe_url = encodePathParts(url);
+  const response = await fetch(`${safe_url}`, { method: "GET" });
+  console.log({ response });
   if (response.ok) {
     const text = await response.text();
     return {
@@ -253,3 +255,38 @@ const log_file_cache = (log_file) => {
     },
   };
 };
+
+/**
+ * Encodes the path segments of a URL or relative path to ensure special characters
+ * (like `+`, spaces, etc.) are properly encoded without affecting legal characters like `/`.
+ *
+ * This function will encode file names and path portions of both absolute URLs and
+ * relative paths. It ensures that components of a full URL, such as the protocol and
+ * query parameters, remain intact, while only encoding the path.
+ *
+ * @param {string} url - The URL or relative path to encode.
+ * @returns {string} - The URL or path with the path segments properly encoded.
+ */
+function encodePathParts(url) {
+  if (!url) return url; // Handle empty strings
+
+  try {
+    // Parse a full Uri
+    const fullUrl = new URL(url);
+    fullUrl.pathname = fullUrl.pathname
+      .split("/")
+      .map((segment) =>
+        segment ? encodeURIComponent(decodeURIComponent(segment)) : "",
+      )
+      .join("/");
+    return fullUrl.toString();
+  } catch {
+    // This is a relative path that isn't parseable as Uri
+    return url
+      .split("/")
+      .map((segment) =>
+        segment ? encodeURIComponent(decodeURIComponent(segment)) : "",
+      )
+      .join("/");
+  }
+}

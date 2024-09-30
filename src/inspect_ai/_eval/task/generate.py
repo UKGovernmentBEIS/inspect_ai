@@ -47,7 +47,9 @@ async def task_generate(
         # resolve tool calls if necessary
         if tool_calls != "none" and message.tool_calls:
             # call tools and append messages to state
-            state.messages.extend(await call_tools(message, state.tools))
+            state.messages.extend(
+                await call_tools(message, state.tools, config.max_tool_output)
+            )
 
             # check for completed or only executing a single tool call
             if state.completed or tool_calls == "single":

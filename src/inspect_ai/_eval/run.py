@@ -14,11 +14,16 @@ from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._log import Recorder
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
-from inspect_ai.solver._plan import Plan, PlanSpec
+from inspect_ai.scorer._reducer.registry import validate_reducer
+from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util._sandbox.environment import TaskCleanup, TaskInit
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
-from .loader import ResolvedTask, as_plan_spec, create_plan
+from .loader import (
+    ResolvedTask,
+    as_solver_spec,
+    solver_from_spec,
+)
 from .task.log import TaskLogger
 from .task.run import TaskRunOptions, create_sample_semaphore, task_run
 from .task.rundir import task_run_dir_switching
@@ -36,7 +41,7 @@ async def eval_run(
     recorder: Recorder,
     model_args: dict[str, Any],
     epochs_reducer: list[ScoreReducer] | None = None,
-    plan: Plan | PlanSpec | None = None,
+    solver: Solver | SolverSpec | None = None,
     debug_errors: bool = False,
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -65,16 +70,16 @@ async def eval_run(
             tasks, cleanup
         )
 
-    # resolve plan and plan spec
-    if isinstance(plan, Plan):
-        eval_plan = plan
-        eval_plan_spec = as_plan_spec(plan)
-    elif isinstance(plan, PlanSpec):
-        eval_plan = create_plan(plan)
-        eval_plan_spec = plan
+    # resolve solver and solver spec
+    if isinstance(solver, Solver):
+        eval_solver = solver
+        eval_solver_spec = as_solver_spec(solver)
+    elif isinstance(solver, SolverSpec):
+        eval_solver = solver_from_spec(solver)
+        eval_solver_spec = solver
     else:
-        eval_plan = None
-        eval_plan_spec = None
+        eval_solver = None
+        eval_solver_spec = None
 
     try:
         # create run tasks
@@ -103,6 +108,11 @@ async def eval_run(
                         task.epochs_reducer
                     )
 
+                # validate task epochs
+                if task.epochs and task.epochs_reducer:
+                    for reducer in task.epochs_reducer:
+                        validate_reducer(task.epochs, reducer)
+
                 # max messages
                 if task_eval_config.max_messages is None:
                     task_eval_config.max_messages = task.max_messages
@@ -122,7 +132,7 @@ async def eval_run(
                     task_file=resolved_task.task_file,
                     task_id=resolved_task.id if resolved_task.id else uuid(),
                     run_id=run_id,
-                    plan=eval_plan_spec,
+                    solver=eval_solver_spec,
                     model=resolved_task.model,
                     dataset=task.dataset,
                     sandbox=resolved_task.sandbox,
@@ -142,7 +152,7 @@ async def eval_run(
                         logger=logger,
                         eval_wd=eval_wd,
                         config=task_eval_config,
-                        plan=eval_plan,
+                        solver=eval_solver,
                         score=score,
                         debug_errors=debug_errors,
                         sample_source=resolved_task.sample_source,

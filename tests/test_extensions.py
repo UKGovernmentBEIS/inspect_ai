@@ -34,7 +34,7 @@ async def test_extension_sandboxenv():
                     input="Please use the list_files tool to list the files in the current directory"
                 )
             ],
-            plan=[use_tools(list_files()), generate()],
+            solver=[use_tools(list_files()), generate()],
             scorer=includes(),
             sandbox="podman",
         )

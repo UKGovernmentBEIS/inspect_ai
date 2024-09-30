@@ -25,7 +25,7 @@ def test_sample_store():
             Sample(input="Say Hello", target="Hello"),
             Sample(input="Say Goodbye", target="Goodbye"),
         ],
-        plan=[store_solver(), generate()],
+        solver=[store_solver(), generate()],
         scorer=match(),
     )
 
@@ -59,7 +59,7 @@ def test_tool_store():
         dataset=[
             Sample(input="Get the cookie using the available tools.", target="ignored"),
         ],
-        plan=[use_tools(get_cookie()), store_solver(), generate()],
+        solver=[use_tools(get_cookie()), store_solver(), generate()],
         scorer=includes(),
     )
 

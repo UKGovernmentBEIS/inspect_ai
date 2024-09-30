@@ -1,10 +1,11 @@
 import os
 import re
 from pathlib import Path
-from typing import Any, Callable, Literal, cast
+from typing import Any, Callable, Literal, cast, get_args
 from urllib.parse import urlparse
 
-import json_stream  # type: ignore
+import ijson  # type: ignore
+from ijson import IncompleteJSONError
 from pydantic import BaseModel
 from pydantic_core import from_json, to_json
 
@@ -152,6 +153,72 @@ def eval_log_json(log: EvalLog) -> str:
     ).decode()
 
 
+def _validate_version(ver: int) -> None:
+    if ver > LOG_SCHEMA_VERSION:
+        raise ValueError(f"Unable to read version {ver} of log format.")
+
+
+def _read_header_streaming(log_file: str) -> EvalLog:
+    with file(log_file, "r") as f:
+        # Do low-level parsing to get the version number and also
+        # detect the presence of results or error sections
+        version: int | None = None
+        has_results = False
+        has_error = False
+
+        for prefix, event, value in ijson.parse(f):
+            if (prefix, event) == ("version", "number"):
+                version = value
+            elif (prefix, event) == ("results", "start_map"):
+                has_results = True
+            elif (prefix, event) == ("error", "start_map"):
+                has_error = True
+            elif prefix == "samples":
+                # Break as soon as we hit samples as that can be very large
+                break
+
+        if version is None:
+            raise ValueError("Unable to read version of log format.")
+
+        _validate_version(version)
+        version = LOG_SCHEMA_VERSION
+
+        # Rewind the file to the beginning to re-parse the contents of fields
+        f.seek(0)
+
+        # Parse the log file, stopping before parsing samples
+        for k, v in ijson.kvitems(f, ""):
+            if k == "status":
+                assert v in get_args(
+                    Literal["started", "success", "cancelled", "error"]
+                )
+                status: Literal["started", "success", "cancelled", "error"] = v
+            if k == "eval":
+                eval = EvalSpec(**v)
+            elif k == "plan":
+                plan = EvalPlan(**v)
+            elif k == "results":
+                results = EvalResults(**v)
+            elif k == "stats":
+                stats = EvalStats(**v)
+                if not has_error:
+                    # Exit before parsing samples
+                    break
+            elif k == "error":
+                error = EvalError(**v)
+                break
+
+    return EvalLog(
+        eval=eval,
+        plan=plan,
+        results=results if has_results else None,
+        stats=stats,
+        status=status,
+        version=version,
+        error=error if has_error else None,
+    )
+
+
 def read_eval_log(log_file: str | FileInfo, header_only: bool = False) -> EvalLog:
     """Read an evaluation log.
 
@@ -166,51 +233,22 @@ def read_eval_log(log_file: str | FileInfo, header_only: bool = False) -> EvalLo
     # resolve to file path
     log_file = log_file if isinstance(log_file, str) else log_file.name
 
-    # verify we know about this version of the log file format
-    def validate_version(ver: int) -> None:
-        if ver > LOG_SCHEMA_VERSION:
-            raise ValueError(f"Unable to read version {ver} of log format.")
-
-    # header-only uses json-stream
     if header_only:
-        with file(log_file, "r") as f:
-            try:
-                data = json_stream.load(f, persistent=True)
-
-                def read_field(field: str) -> Any:
-                    if field in data.keys():
-                        return json_stream.to_standard_types(data[field])
-                    else:
-                        return None
-
-                # fail for unknown version
-                validate_version(read_field("version"))
-
-                # set the version to the schema version we'll be returning
-                version = LOG_SCHEMA_VERSION
-
-                results = read_field("results")
-                error = read_field("error")
-
-                return EvalLog(
-                    version=version,
-                    status=read_field("status"),
-                    eval=EvalSpec(**read_field("eval")),
-                    plan=EvalPlan(**read_field("plan")),
-                    results=EvalResults(**results) if results else None,
-                    stats=EvalStats(**read_field("stats")),
-                    error=EvalError(**error) if error else None,
-                )
-            # The Python JSON serializer supports NaN and Inf, however
-            # this isn't technically part of the JSON spec. The json-stream
-            # library shares this limitation, so if we fail with an
-            # invalid character then we move on and and parse w/ pydantic
-            # (which does support NaN and Inf by default)
-            except ValueError as ex:
-                if str(ex).find("Invalid JSON character") != -1:
-                    pass
-                else:
-                    raise ex
+        try:
+            return _read_header_streaming(log_file)
+        # The Python JSON serializer supports NaN and Inf, however
+        # this isn't technically part of the JSON spec. The json-stream
+        # library shares this limitation, so if we fail with an
+        # invalid character then we move on and and parse w/ pydantic
+        # (which does support NaN and Inf by default)
+        except (ValueError, IncompleteJSONError) as ex:
+            if (
+                str(ex).find("Invalid JSON character") != -1
+                or str(ex).find("invalid char in json text") != -1
+            ):
+                pass
+            else:
+                raise ValueError(f"Unable to read log file: {log_file}") from ex
 
     # parse full log (also used as a fallback for header_only encountering NaN or Inf)
     with file(log_file, "r") as f:
@@ -219,7 +257,7 @@ def read_eval_log(log_file: str | FileInfo, header_only: bool = False) -> EvalLo
         log = EvalLog(**raw_data)
 
         # fail for unknown version
-        validate_version(log.version)
+        _validate_version(log.version)
 
         # set the version to the schema version we'll be returning
         log.version = LOG_SCHEMA_VERSION

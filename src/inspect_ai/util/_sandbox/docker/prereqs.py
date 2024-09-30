@@ -1,4 +1,5 @@
 import json
+import shlex
 from logging import getLogger
 from typing import Callable
 
@@ -90,9 +91,16 @@ async def validate_version(
             + "Install: https://docs.docker.com/engine/install/"
         )
 
+    if not result.success:
+        raise PrerequisiteError(
+            "ERROR: Docker sandbox environments require a working Docker Engine\n\n"
+            + f"{cmd[0]} exited with return code {result.returncode} when executing: {shlex.join(cmd)}\n"
+            + result.stderr
+        )
+
     # validate version
     if version.compare(required_version) < 0:
         raise PrerequisiteError(
-            f"ERROR: Docker sandbox environments require {feature} >= {required_version}\n\n"
+            f"ERROR: Docker sandbox environments require {feature} >= {required_version} (current: {version})\n\n"
             + "Upgrade: https://docs.docker.com/engine/install/"
         )

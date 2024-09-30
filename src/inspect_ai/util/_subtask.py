@@ -40,15 +40,28 @@ class Subtask(Protocol):
 
 
 @overload
-def subtask(name: str, store: Store | None = None) -> Callable[..., Subtask]: ...
+def subtask(
+    name: str,
+    store: Store | None = None,
+    type: str | None = None,
+    input: dict[str, Any] | None = None,
+) -> Callable[..., Subtask]: ...
 
 
 @overload
-def subtask(name: Subtask, store: Store | None = None) -> Subtask: ...
+def subtask(
+    name: Subtask,
+    store: Store | None = None,
+    type: str | None = None,
+    input: dict[str, Any] | None = None,
+) -> Subtask: ...
 
 
 def subtask(
-    name: str | Subtask, store: Store | None = None
+    name: str | Subtask,
+    store: Store | None = None,
+    type: str | None = None,
+    input: dict[str, Any] | None = None,
 ) -> Callable[..., Subtask] | Subtask:
     r"""Decorator for subtasks.
 
@@ -56,6 +69,8 @@ def subtask(
         func (Subtask): Subtask implementation.
         name (str | None): Name for subtask (defaults to function name)
         store (store | None): Store to use for subtask
+        type (str | None): Type to use for subtask
+        input (dict[str, Any] | None): Input to log for subtask
 
     Returns:
         Function which runs the Subtask, providing an isolated
@@ -85,21 +100,21 @@ def subtask(
                     f"'{subtask_name}' is not declared as an async callable."
                 )
 
-            # capture input (including positional args)
-            input: dict[str, Any] = {}
-            if len(args) > 0:
-                params = list(inspect.signature(func).parameters.keys())
-                for i, arg in enumerate(args):
-                    input[params[i]] = arg
-            input = dict_jsonable(input | kwargs)
+            # capture input for logging if required
+            if input is not None:
+                log_input = dict_jsonable(input)
+            else:
+                log_input = {}
+                if len(args) > 0:
+                    params = list(inspect.signature(func).parameters.keys())
+                    for i, arg in enumerate(args):
+                        log_input[params[i]] = arg
+                log_input = dict_jsonable(log_input | kwargs)
 
             # create coroutine so we can provision a subtask contextvars
             async def run() -> tuple[RT, SubtaskEvent]:
                 # initialise subtask (provisions store and transcript)
-                nonlocal store
-                if store is None:
-                    store = Store()
-                init_subtask(subtask_name, store)
+                init_subtask(subtask_name, store if store else Store())
 
                 # run the subtask
                 with track_store_changes():  # type: ignore
@@ -108,9 +123,10 @@ def subtask(
                 # create a subtask event
                 event = SubtaskEvent(
                     name=subtask_name,
-                    input=input,
+                    input=log_input,
                     result=result,
                     events=transcript().events,
+                    type=type,
                 )
 
                 # return result and event

@@ -1,11 +1,13 @@
 import asyncio
 import inspect
 from dataclasses import dataclass, is_dataclass
+from textwrap import dedent
 from typing import (
     Any,
     Callable,
     Dict,
     List,
+    NamedTuple,
     Type,
     cast,
     get_args,
@@ -18,8 +20,8 @@ from jsonschema import Draft7Validator
 from pydantic import BaseModel
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
-from inspect_ai._util.error import exception_message
 from inspect_ai._util.registry import registry_info
+from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
 from inspect_ai.tool._tool import TOOL_PROMPT, ToolParsingError
 from inspect_ai.tool._tool_call import ToolCallError
@@ -31,16 +33,22 @@ from inspect_ai.tool._tool_info import (
 from inspect_ai.tool._tool_with import tool_description
 
 from ._chat_message import ChatMessageAssistant, ChatMessageTool
+from ._generate_config import active_generate_config
 
 
 async def call_tools(
-    message: ChatMessageAssistant, tools: list[Tool]
+    message: ChatMessageAssistant,
+    tools: list[Tool],
+    max_output: int | None = None,
 ) -> list[ChatMessageTool]:
     """Perform tool calls in assistant message.
 
     Args:
-       message: Assistant message
-       tools: Available tools
+       message (ChatMessageAssistant): Assistant message
+       tools (list[Tool]): Available tools
+       max_output (int | None): Maximum output length (in bytes).
+          Defaults to max_tool_output from active GenerateConfig
+          (16 * 1024 by default).
 
     Returns:
        List of tool calls
@@ -96,6 +104,7 @@ async def call_tools(
 
             # massage result, leave list[Content] alone, convert all other
             # types to string as that is what the model APIs accept
+            truncated: tuple[int, int] | None = None
             if isinstance(result, list) and (
                 isinstance(result[0], ContentText | ContentImage)
             ):
@@ -103,12 +112,24 @@ async def call_tools(
             else:
                 content = str(result)
 
+                # truncate if necessary
+                truncated_output = truncate_tool_output(
+                    call.function, content, max_output
+                )
+                if truncated_output:
+                    content = truncated_output.output
+                    truncated = (
+                        truncated_output.raw_bytes,
+                        truncated_output.truncated_bytes,
+                    )
+
             # create event
             event = ToolEvent(
                 id=call.id,
                 function=call.function,
                 arguments=call.arguments,
                 result=content,
+                truncated=truncated,
                 error=tool_error,
                 events=transcript().events,
             )
@@ -166,18 +187,14 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
     if validation_errors:
         raise ToolParsingError(validation_errors)
 
+    # get arguments (with creation of dataclasses, pydantic objects, etc.)
+    arguments = tool_params(call.arguments, tool_def.tool)
+
     # call the tool
-    try:
-        # get arguments (with creation of dataclasses, pydantic objects, etc.)
-        arguments = tool_params(call.arguments, tool_def.tool)
+    result = await tool_def.tool(**arguments)
 
-        # call the tool
-        result = await tool_def.tool(**arguments)
-
-        # return result + events
-        return result
-    except TypeError as ex:
-        raise ToolParsingError(exception_message(ex))
+    # return result + events
+    return result
 
 
 def tools_info(tools: list[Tool] | list[ToolInfo]) -> list[ToolInfo]:
@@ -353,5 +370,37 @@ def validate_tool_input(input: dict[str, Any], parameters: ToolParams) -> str | 
             + [f"- {error.message}" for error in errors]
         )
         return message
+    else:
+        return None
+
+
+class TruncatedToolOutput(NamedTuple):
+    output: str
+    raw_bytes: int
+    truncated_bytes: int
+
+
+def truncate_tool_output(
+    tool_name: str, output: str, max_output: int | None
+) -> TruncatedToolOutput | None:
+    # determine active max output
+    active_max_output = max_output
+    if active_max_output is None:
+        active_max_output = active_generate_config().max_tool_output
+        if active_max_output is None:
+            active_max_output = 16 * 1024
+
+    # truncate if required
+    truncated = truncate_string_to_bytes(output, active_max_output)
+    if truncated:
+        truncated_output = dedent(f"""
+            The output of your call to {tool_name} was too long to be displayed.
+            Here is a truncated version:
+            <START_TOOL_OUTPUT>
+            {truncated.output}
+            <END_TOOL_OUTPUT>""")
+        return TruncatedToolOutput(
+            truncated_output, truncated.original_bytes, active_max_output
+        )
     else:
         return None

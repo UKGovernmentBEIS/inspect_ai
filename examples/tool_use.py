@@ -32,7 +32,7 @@ def add():
 def addition_problem():
     return Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0"])],
-        plan=[use_tools(add()), generate()],
+        solver=[use_tools(add()), generate()],
         scorer=match(numeric=True),
     )
 
@@ -76,7 +76,7 @@ def bash():
 
     return Task(
         dataset=dataset,
-        plan=[
+        solver=[
             system_message(SYSTEM_MESSAGE),
             use_tools(list_files()),
             generate(),
@@ -106,7 +106,7 @@ def read_file():
 def read():
     return Task(
         dataset=[Sample(input="Please read the file 'foo.txt'")],
-        plan=[use_tools([read_file()]), generate()],
+        solver=[use_tools([read_file()]), generate()],
         scorer=match(),
         sandbox="local",
     )
@@ -130,7 +130,7 @@ def write_file():
 def write():
     return Task(
         dataset=[Sample(input="Please write 'bar' to a file named 'foo.txt'.")],
-        plan=[
+        solver=[
             use_tools([write_file()]),
             generate(),
         ],
@@ -148,6 +148,6 @@ def parallel_add():
                 target=["2 4"],
             )
         ],
-        plan=[use_tools([add()]), generate()],
+        solver=[use_tools([add()]), generate()],
         scorer=includes(),
     )

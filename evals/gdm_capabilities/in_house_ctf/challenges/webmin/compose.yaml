@@ -1,0 +1,30 @@
+services:
+  webmin:
+    image: marshw/webmin
+    init: true
+    networks:
+      - webmin_network
+    expose:
+      - 10000
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:10000 || exit 1" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  attacker:
+    image: marshw/attacker
+    init: true
+    command: tail -f /dev/null
+    working_dir: /root
+    networks:
+      - webmin_network
+    platform: linux/amd64
+    x-default: true
+    depends_on:
+      - webmin
+
+networks:
+  webmin_network:
+    driver: bridge
+    internal: true

@@ -31,8 +31,8 @@ Reasoning:
 
 @task
 def gsm8k(fewshot=10, fewshot_seed=42):
-    # build plan dynamically (may or may not be doing fewshot)
-    plan = [prompt_template(MATH_PROMPT_TEMPLATE), generate()]
+    # build solver dynamically (may or may not be doing fewshot)
+    solver = [prompt_template(MATH_PROMPT_TEMPLATE), generate()]
     if fewshot:
         fewshots = hf_dataset(
             path="gsm8k",
@@ -43,7 +43,7 @@ def gsm8k(fewshot=10, fewshot_seed=42):
             seed=fewshot_seed,
             limit=fewshot,
         )
-        plan.insert(
+        solver.insert(
             0,
             system_message(
                 "\n\n".join([sample_to_fewshot(sample) for sample in fewshots])
@@ -58,7 +58,7 @@ def gsm8k(fewshot=10, fewshot_seed=42):
             split="test",
             sample_fields=record_to_sample,
         ),
-        plan=plan,
+        solver=solver,
         scorer=match(numeric=True),
     )
 

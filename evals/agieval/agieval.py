@@ -1,5 +1,4 @@
 import re
-from typing import Callable, List
 
 from inspect_ai import Task
 from inspect_ai.dataset import Dataset, Sample, json_dataset
@@ -16,7 +15,9 @@ from inspect_ai.scorer import (
     stderr,
 )
 from inspect_ai.solver import (
+    Solver,
     TaskState,
+    chain,
     generate,
     multiple_choice,
     prompt_template,
@@ -90,11 +91,11 @@ def record_to_sample(record):
     )
 
 
-def build_plan(
+def agieval_solver(
     dataset_name: str,
     cot: bool = False,
     fewshot_samples: Dataset | None = None,
-) -> List[Callable]:
+) -> Solver:
     # Determine the template for the tasks in the proper language and for the correct type (MCQ, Cloze)
     if dataset_name in EN_TASK:
         template_prompt = (
@@ -112,16 +113,18 @@ def build_plan(
         # Raise an error if the task name is not recognized
         raise ValueError(f"Dataset '{dataset_name}' not recognized.")
 
-    # Create a plan according to the task type and options (cot, fewshots...)
+    # Create a solver according to the task type and options (cot, fewshots...)
     if dataset_name in CLOZE_TASK:
         template_prompt = template_prompt.format(
             prompt="{prompt}", cot_string=cot_string, fewshot_string=fewshot_string
         )
 
-        plan = [
-            prompt_template(template=template_prompt),
-            generate(),
-        ]
+        solver = chain(
+            [
+                prompt_template(template=template_prompt),
+                generate(),
+            ]
+        )
     else:
         template_prompt = template_prompt.format(
             letters="{letters}",
@@ -131,12 +134,14 @@ def build_plan(
             fewshot_string=fewshot_string,
         )
 
-        plan = [
-            multiple_choice(template=template_prompt),
-            generate(),
-        ]
+        solver = chain(
+            [
+                multiple_choice(template=template_prompt),
+                generate(),
+            ]
+        )
 
-    return plan
+    return solver
 
 
 def task_template(
@@ -158,8 +163,8 @@ def task_template(
     else:
         fewshot_samples = None
 
-    # make a plan according to the type of task and language
-    plan = build_plan(
+    # create a solver according to the type of task and language
+    solver = agieval_solver(
         dataset_name=dataset_name, cot=cot, fewshot_samples=fewshot_samples
     )
 
@@ -168,7 +173,7 @@ def task_template(
 
     return Task(
         dataset=dataset,
-        plan=plan,
+        solver=solver,
         scorer=scorer,
         # from source paper 4.2.4: Implementation Details
         config=GenerateConfig(

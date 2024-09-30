@@ -70,7 +70,7 @@ There are two fundamental requirements for dynamic tasks used with `eval_set()`:
 1)  They are created using an `@task` function as described above.
 2)  Their parameters use ordinary Python types (like `str`, `int`, `list`, etc.) as opposed to custom objects (which are hard to serialise consistently).
 
-Note that you can pass a `plan` to an `@task` function, so long as it was created by a function decorated with `@plan`.
+Note that you can pass a `solver` to an `@task` function, so long as it was created by a function decorated with `@solver`.
 
 ### Retry Options
 

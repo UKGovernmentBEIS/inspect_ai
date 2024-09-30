@@ -1,5 +1,6 @@
 import json
 import os
+import shlex
 from logging import getLogger
 from pathlib import Path
 from typing import Any, Literal, TypedDict, cast
@@ -7,6 +8,8 @@ from typing import Any, Literal, TypedDict, cast
 import yaml
 from pydantic import BaseModel
 
+from inspect_ai._util.ansi import no_ansi
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
 from .prereqs import (
@@ -36,19 +39,35 @@ async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
     # set cwd to config file directory
     cwd = os.path.dirname(project.config) if project.config else None
 
-    # shut down docker containers
-    result = await compose_command(
-        ["down", "--volumes"],
-        project=project,
-        cwd=cwd,
-        capture_output=quiet,
-        ansi="never",
-    )
-    if not result.success:
-        msg = f"Failed to stop docker service {result.stderr}"
-        logger.warning(msg)
+    # shut down docker containers. default internal timeout is 10 seconds
+    # but we've seen reports of this handing, so add a proess timeout
+    # of 60 seconds for belt and suspenders
+    TIMEOUT = 60
+    try:
+        result = await compose_command(
+            ["down", "--volumes"],
+            project=project,
+            cwd=cwd,
+            timeout=TIMEOUT,
+            capture_output=quiet,
+            ansi="never",
+        )
 
-    await compose_cleanup_images(project=project, cwd=cwd)
+        if not result.success:
+            msg = f"Failed to stop docker service {result.stderr}"
+            logger.warning(msg)
+
+    except TimeoutError:
+        logger.warning(
+            f"Docker compose down for project '{project.name}' timed out after {TIMEOUT} seconds."
+        )
+
+    try:
+        await compose_cleanup_images(project=project, cwd=cwd, timeout=TIMEOUT)
+    except TimeoutError:
+        logger.warning(
+            f"Docker image cleanup for project '{project.name}' timed out after {TIMEOUT} seconds."
+        )
 
 
 async def compose_cp(
@@ -110,7 +129,7 @@ async def compose_build(project: ComposeProject, capture_output: bool = False) -
     )
     if not result.success:
         msg = "Failed to build docker containers"
-        raise RuntimeError(msg)
+        raise PrerequisiteError(msg)
 
 
 async def compose_pull(
@@ -161,7 +180,7 @@ async def compose_services(project: ComposeProject) -> dict[str, ComposeService]
 class Project(BaseModel):
     Name: str
     Status: str
-    ConfigFiles: str
+    ConfigFiles: str | None
 
 
 async def compose_ls() -> list[Project]:
@@ -230,7 +249,9 @@ async def compose_command(
     # env to forward
     env = project.env if (project.env and forward_env) else {}
 
-    # ansi
+    # ansi (apply global override)
+    if no_ansi():
+        ansi = "never"
     if ansi:
         compose_command = compose_command + ["--ansi", ansi]
 
@@ -245,7 +266,7 @@ async def compose_command(
     compose_command = compose_command + command
 
     # Execute the command
-    sandbox_log(f"compose command: {compose_command}")
+    sandbox_log(f"compose command: {shlex.join(compose_command)}")
     result = await subprocess(
         compose_command,
         input=input,
@@ -254,5 +275,4 @@ async def compose_command(
         timeout=timeout,
         capture_output=capture_output,
     )
-    sandbox_log(f"compose command (completed): {compose_command}")
     return result

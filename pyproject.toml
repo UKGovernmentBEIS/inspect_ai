@@ -7,6 +7,12 @@ dependencies = { file = ["requirements.txt"] }
 
 [tool.setuptools_scm]
 
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["inspect_ai*", "inspect_evals*"]
+
+
 [tool.ruff]
 extend-exclude = ["docs"]
 src = ["src"]
@@ -43,7 +49,7 @@ asyncio_default_fixture_loop_scope = "function"
 log_level = "warning"
 
 [tool.mypy]
-exclude = "examples/agents/"
+exclude = ["tests/test_package", "evals", "build"]
 warn_unused_ignores = true
 no_implicit_reexport = true
 strict_equality = true
@@ -59,7 +65,7 @@ warn_unused_configs = true
 mypy_path = "tests"
 
 [[tool.mypy.overrides]]
-module = "inspect_ai.*"
+module = ["inspect_ai.*", "inspect_evals.*"]
 warn_return_any = true
 disallow_untyped_defs = true
 disallow_any_generics = true
@@ -70,6 +76,9 @@ check_untyped_defs = true
 disallow_untyped_decorators = true
 extra_checks = true
 disable_error_code = "unused-ignore"
+
+[tool.check-wheel-contents]
+ignore = ["W009"]
 
 [project]
 name = "inspect_ai"
@@ -101,6 +110,12 @@ Documentation = "https://inspect.ai-safety-institute.org.uk/"
 inspect = "inspect_ai._cli.main:main"
 
 [project.optional-dependencies]
+inspect_evals = [
+    "datasets",
+    "pillow"
+]
+swe_bench = ["inspect_ai[inspect_evals]", "swebench","docker"]
+
 dev = [
     "anthropic", 
     "aioboto3", 
@@ -119,7 +134,7 @@ dev = [
     "pytest-cov",
     "pytest-dotenv",
     "pytest-xdist",
-    "ruff==0.6.5", # match version specified in .pre-commit-config.yaml
+    "ruff==0.6.8", # match version specified in .pre-commit-config.yaml
     "types-PyYAML",
     "types-aiofiles",
     "types-beautifulsoup4",
@@ -128,6 +143,7 @@ dev = [
     "types-botocore",
     "types-jsonpatch",
     "types-jsonschema",
+    "types-Pillow",
     "types-protobuf",
     "types-psutil",
     "types-python-dateutil"

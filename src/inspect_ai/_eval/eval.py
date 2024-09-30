@@ -19,7 +19,8 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model import init_active_model, resolve_models
 from inspect_ai.scorer._reducer import reducer_log_names
-from inspect_ai.solver import Plan, PlanSpec
+from inspect_ai.solver._chain import chain
+from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentSpec
 
 from .context import init_eval_context
@@ -38,7 +39,7 @@ def eval(
     task_args: dict[str, Any] = dict(),
     sandbox: SandboxEnvironmentSpec | None = None,
     sandbox_cleanup: bool | None = None,
-    plan: Plan | PlanSpec | None = None,
+    solver: Solver | list[Solver] | SolverSpec | None = None,
     log_level: str | None = None,
     log_dir: str | None = None,
     limit: int | tuple[int, int] | None = None,
@@ -71,8 +72,8 @@ def eval(
            environment type (or optionally a tuple with type and config file)
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
           (defaults to True)
-        plan (Plan | PlanSpec, None): Alternative plan for evaluating task(s).
-          Optional (uses task plan by default).
+        solver (Solver | list[Solver] | SolverSpec | None): Alternative solver for task(s).
+          Optional (uses task solver by default).
         log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
            or "critical" (defaults to "info")
         log_dir (str | None): Output path for logging results
@@ -118,7 +119,7 @@ def eval(
             task_args=task_args,
             sandbox=sandbox,
             sandbox_cleanup=sandbox_cleanup,
-            plan=plan,
+            solver=solver,
             log_level=log_level,
             log_dir=log_dir,
             limit=limit,
@@ -146,7 +147,7 @@ async def eval_async(
     task_args: dict[str, Any] = dict(),
     sandbox: SandboxEnvironmentSpec | None = None,
     sandbox_cleanup: bool | None = None,
-    plan: Plan | PlanSpec | None = None,
+    solver: Solver | list[Solver] | SolverSpec | None = None,
     log_level: str | None = None,
     log_dir: str | None = None,
     limit: int | tuple[int, int] | None = None,
@@ -179,8 +180,8 @@ async def eval_async(
            environment type (or optionally a tuple with type and config file)
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
-        plan (Plan | PlanSpec | None): Alternative plan for evaluating task(s).
-           Optional (uses task plan by default).
+        solver (Solver | list[Solver] | SolverSpec | None): Alternative solver for task(s).
+          Optional (uses task solver by default).
         log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
             or "critical" (defaults to "info")
         log_dir (str | None): Output path for logging results
@@ -247,6 +248,9 @@ async def eval_async(
         log_dir = absolute_file_path(log_dir)
         recorder = JSONRecorder(log_dir, log_buffer=log_buffer)
 
+        # resolve solver
+        solver = chain(solver) if isinstance(solver, list) else solver
+
         # resolve epochs
         if isinstance(epochs, int):
             epochs = Epochs(epochs)
@@ -293,7 +297,7 @@ async def eval_async(
                         recorder=recorder,
                         model_args=model_args,
                         epochs_reducer=epochs_reducer,
-                        plan=plan,
+                        solver=solver,
                         score=score,
                         debug_errors=debug_errors is True,
                         **kwargs,
@@ -316,7 +320,7 @@ async def eval_async(
                 recorder=recorder,
                 model_args=model_args,
                 epochs_reducer=epochs_reducer,
-                plan=plan,
+                solver=solver,
                 score=score,
                 **kwargs,
             )
@@ -499,10 +503,10 @@ async def eval_retry_async(
                 raise FileNotFoundError(f"Task '{task_name}' not found.")
             task = task_name
 
-        # see if there is plan spec in the eval log
-        plan = (
-            PlanSpec(eval_log.eval.plan, eval_log.eval.plan_args or {})
-            if eval_log.eval.plan
+        # see if there is solver spec in the eval log
+        solver = (
+            SolverSpec(eval_log.eval.solver, eval_log.eval.solver_args or {})
+            if eval_log.eval.solver
             else None
         )
 
@@ -554,7 +558,7 @@ async def eval_retry_async(
                 task_args=task_args,
                 sandbox=eval_log.eval.sandbox,
                 sandbox_cleanup=sandbox_cleanup,
-                plan=plan,
+                solver=solver,
                 log_level=log_level,
                 log_dir=log_dir,
                 limit=limit,

@@ -77,7 +77,9 @@ def addition3():
     return add
 
 
-def check_tools(model: Model, disable: list[str] = ["calls", "force", "none"]) -> None:
+def check_tools(
+    model: Model, disable: list[Literal["calls", "force", "none"]] = []
+) -> None:
     if "calls" not in disable:
         check_tools_calls(model)
     if "force" not in disable:
@@ -97,7 +99,7 @@ def check_tools_calls(model: Model, **model_args) -> None:
     model = get_model(model)
     task = Task(
         dataset=addition_dataset,
-        plan=[use_tools(addition()), generate()],
+        solver=[use_tools(addition()), generate()],
         scorer=match("any", numeric=True),
     )
 
@@ -121,7 +123,7 @@ def check_tools_none(model: Model, **model_args) -> None:
     model = get_model(model)
     task = Task(
         dataset=addition_dataset,
-        plan=[use_tools(addition(), tool_choice="none"), generate()],
+        solver=[use_tools(addition(), tool_choice="none"), generate()],
         scorer=match(),
     )
 
@@ -139,7 +141,7 @@ def check_tools_force(model: Model, **model_args) -> None:
     model = get_model(model)
     task = Task(
         dataset=addition_dataset,
-        plan=[
+        solver=[
             use_tools(
                 [addition(), addition2(), addition3()],
                 tool_choice=ToolFunction(name="addition2"),
@@ -171,7 +173,7 @@ def test_anthropic_tools():
 
 @skip_if_no_mistral
 def test_mistral_tools():
-    check_tools("mistral/mistral-large-latest", disable=["force"])
+    check_tools("mistral/mistral-large-latest")
 
 
 @skip_if_no_groq
@@ -229,7 +231,7 @@ def test_dynamic_tools():
 
     task = Task(
         dataset=[Sample(input="Pick a random color.")],
-        plan=dynamic_tools(),
+        solver=dynamic_tools(),
         scorer=match(),
     )
 
@@ -247,7 +249,7 @@ def test_dynamic_tools():
 def test_tool_error():
     task = Task(
         dataset=[Sample(input="Please read the file 'foo.txt'")],
-        plan=[use_tools([read_file()]), generate()],
+        solver=[use_tools([read_file()]), generate()],
         scorer=match(),
         sandbox="local",
     )
@@ -266,7 +268,7 @@ def test_tool_error():
 def test_tool_eval_error():
     task = Task(
         dataset=[Sample(input="Please raise an error.")],
-        plan=[use_tools([raise_error()]), generate()],
+        solver=[use_tools([raise_error()]), generate()],
         scorer=match(),
         sandbox="local",
     )
@@ -300,7 +302,7 @@ def test_tool_calls():
     def task(tool_calls: Literal["loop", "single", "none"]):
         return Task(
             dataset=[Sample(input="What is 1+1?", target="2")],
-            plan=[
+            solver=[
                 system_message(
                     "When using the add tool, be sure to call it at least three consecutive times to ensure the correct result."
                 ),

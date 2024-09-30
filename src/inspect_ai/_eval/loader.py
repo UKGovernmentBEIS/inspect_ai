@@ -1,5 +1,5 @@
 import ast
-import inspect
+import contextlib
 import os
 from dataclasses import dataclass, field
 from importlib.machinery import SourceFileLoader
@@ -10,8 +10,10 @@ from types import ModuleType
 from typing import Any, Callable, cast
 
 from inspect_ai._eval.task.util import task_file, task_run_dir
+from inspect_ai._util.decorator import parse_decorators
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.path import add_to_syspath, chdir_python
+from inspect_ai._util.logger import warn_once
+from inspect_ai._util.path import chdir_python
 from inspect_ai._util.registry import (
     RegistryInfo,
     is_registry_object,
@@ -21,7 +23,7 @@ from inspect_ai._util.registry import (
     registry_params,
 )
 from inspect_ai.model import Model, ModelName
-from inspect_ai.solver._plan import Plan, PlanSpec
+from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentSpec
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
@@ -268,9 +270,9 @@ def create_tasks(
     return tasks
 
 
-def load_file_tasks(file: Path) -> list[RegistryInfo]:
+def load_file_tasks(file: Path) -> None:
     with chdir_python(file.parent.as_posix()):
-        return _load_task_specs(file)
+        _load_task_specs(file)
 
 
 def create_file_tasks(
@@ -302,8 +304,9 @@ def create_file_tasks(
 
             # warn about deprecated chdir attrib
             if "chdir" in task.attribs:
-                logger.warning(
-                    "The 'chdir' task attribute is deprecated (tasks now always chdir)"
+                warn_once(
+                    logger,
+                    "The 'chdir' task attribute is deprecated (tasks now always chdir)",
                 )
 
         return tasks
@@ -313,13 +316,13 @@ def create_file_tasks(
 # higher level loading functions above (those functions
 # change the working directory, this one does not b/c it is
 # intended as a helper function)
-def _load_task_specs(task_path: Path) -> list[RegistryInfo]:
+def _load_task_specs(task_path: Path) -> list[str]:
     # load the module
     module = load_module(task_path, code_has_task)
     if module:
         # find the tasks in the module
-        tasks = inspect.getmembers(module, lambda m: is_registry_object(m, "task"))
-        return [registry_info(task[1]) for task in tasks]
+        tasks = parse_decorators(task_path, "task")
+        return [task[0] for task in tasks]
     else:
         return []
 
@@ -395,52 +398,56 @@ def code_has_task(code: str) -> bool:
     return code_has_decorator(code, "task")
 
 
-def as_plan_spec(plan: Plan) -> PlanSpec:
-    if not is_registry_object(plan):
+def as_solver_spec(solver: Solver) -> SolverSpec:
+    if not is_registry_object(solver):
         raise PrerequisiteError(
-            f"The plan {plan.name} was not created by a function decorated with @plan so cannot be recorded."
+            f"The solver {getattr(solver, '__name__', '<unknown>')} was not created by a function decorated with @solver so cannot be recorded."
         )
-    return PlanSpec(plan=registry_info(plan).name, args=registry_params(plan))
+    return SolverSpec(solver=registry_info(solver).name, args=registry_params(solver))
 
 
-def create_plan(spec: PlanSpec) -> Plan:
+def solver_from_spec(spec: SolverSpec) -> Solver:
     # resolve @ reference
-    spec_split = split_spec(spec.plan)
+    spec_split = split_spec(spec.solver)
     if spec_split[1] is not None:
-        plan_file: Path | None = Path(spec_split[0])
-        plan_name: str | None = spec_split[1]
+        solver_file: Path | None = Path(spec_split[0]).resolve()
+        solver_name: str | None = spec_split[1]
     elif Path(spec_split[0]).exists():
-        plan_file = Path(spec_split[0])
-        plan_name = None
+        solver_file = Path(spec_split[0]).resolve()
+        solver_name = None
     else:
-        plan_file = None
-        plan_name = spec_split[0]
+        solver_file = None
+        solver_name = spec_split[0]
 
-    # if we have a file then we need to load it
-    if plan_file is not None:
-        # ensure the module is loaded so we can see the plans
-        with add_to_syspath(plan_file.parent.as_posix()):
-            plan_module = load_module(plan_file)
+    # switch contexts if we are loading from a file
+    create_cm = (
+        chdir_python(solver_file.parent.as_posix())
+        if solver_file is not None
+        else contextlib.nullcontext()
+    )
 
-        # if there is no plan_name we need to discover the first plan
-        if plan_name is None:
-            plans = inspect.getmembers(
-                plan_module, lambda m: is_registry_object(m, "plan")
-            )
-            if len(plans) == 0:
-                raise PrerequisiteError(
-                    f"The source file {plan_file.as_posix()} does not contain any @plan functions."
-                )
-            if len(plans) > 1:
-                raise PrerequisiteError(
-                    f"The source file {plan_file.as_posix()} has more than one @plan function (qualify which plan using file.py@plan)"
-                )
-            plan_name = registry_info(plans[0][1]).name
+    with create_cm:
+        # if we have a file then we need to load it and (if required) determine the solver name
+        if solver_file is not None:
+            # load the module so that registry_create works
+            load_module(solver_file)
 
-    # make mypy happy and catch unexpected branching
-    if plan_name is None:
-        raise ValueError(f"Unable to resolve plan name from {spec.plan}")
+            # if there is no solver_name we need to discover the first @solver
+            if solver_name is None:
+                solvers = parse_decorators(solver_file, "solver")
+                if len(solvers) == 0:
+                    raise PrerequisiteError(
+                        f"The source file {solver_file.as_posix()} does not contain any @solver functions."
+                    )
+                if len(solvers) > 1:
+                    raise PrerequisiteError(
+                        f"The source file {solver_file.as_posix()} has more than one @solver function (qualify which solver using file.py@solver)"
+                    )
+                solver_name = solvers[0][0]
 
-    # create and return the plan
-    plan = cast(Plan, registry_create("plan", plan_name, **spec.args))
-    return plan
+        # make mypy happy and catch unexpected branching
+        if solver_name is None:
+            raise ValueError(f"Unable to resolve solver name from {spec.solver}")
+
+        solver = cast(Solver, registry_create("solver", solver_name, **spec.args))
+        return solver

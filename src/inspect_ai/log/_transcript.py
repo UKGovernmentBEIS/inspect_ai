@@ -130,6 +130,9 @@ class ToolEvent(BaseEvent):
     result: ToolResult
     """Function return value."""
 
+    truncated: tuple[int, int] | None = Field(default=None)
+    """Bytes truncated (from,to) if truncation occurred"""
+
     error: ToolCallError | None = Field(default=None)
     """Error that occurred during tool call."""
 
@@ -215,10 +218,13 @@ class SubtaskEvent(BaseEvent):
     name: str
     """Name of subtask function."""
 
+    type: str | None = Field(default=None)
+    """Type of subtask"""
+
     input: dict[str, Any]
     """Subtask function inputs."""
 
-    result: Any
+    result: Any = Field(default=None)
     """Subtask function result."""
 
     events: list["Event"]

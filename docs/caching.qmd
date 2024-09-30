@@ -25,7 +25,7 @@ For example, here we are iterating on our self critique template, so we cache th
 def theory_of_mind():
     return Task(
         dataset=example_dataset("theory_of_mind"),
-        plan=[
+        solver=[
             chain_of_thought(),
             generate(cache = True),
             self_critique(CRITIQUE_TEMPLATE)

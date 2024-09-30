@@ -39,8 +39,8 @@ The following are multiple choice questions (with answers) about {subject}. Thin
 
 {examples}
 """.strip()
-# Based on the SINGLE_ANSWER_TEMPLATE provided in the multiple choice solver:
-# https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_multiple_choice.py#L14
+# Based on MultipleChoiceTemplate.SINGLE_ANSWER provided in the multiple choice solver:
+# https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/solver/_multiple_choice.py
 USER_PROMPT_TEMPLATE = """Answer the following multiple choice question. The last line of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}. Think step by step before answering.
 
 Question:
@@ -74,7 +74,7 @@ def mmlu_pro(
 
     return Task(
         dataset=dataset,
-        plan=build_plan(fewshot=fewshot),
+        solver=mmlu_pro_solver(fewshot=fewshot),
         scorer=choice(),
     )
 
@@ -136,10 +136,10 @@ def filter_dataset(dataset: Dataset, subjects: list) -> Dataset:
     return dataset
 
 
-def build_plan(
+def mmlu_pro_solver(
     fewshot: int,
-) -> list:
-    plan = [multiple_choice(template=USER_PROMPT_TEMPLATE, shuffle=False)]
+) -> list[Solver]:
+    solver = [multiple_choice(template=USER_PROMPT_TEMPLATE, shuffle=False)]
 
     if fewshot:
         fewshot_samples = hf_dataset(
@@ -148,7 +148,7 @@ def build_plan(
             trust=True,
             sample_fields=record_to_sample,
         )
-        plan.insert(
+        solver.insert(
             0,
             mmlu_pro_system_message(
                 dataset=fewshot_samples,
@@ -156,7 +156,7 @@ def build_plan(
             ),
         )
 
-    return plan
+    return solver
 
 
 def record_to_sample(record: Dict) -> Sample:

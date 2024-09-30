@@ -18,7 +18,7 @@ from tenacity import (
 )
 
 from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS
-from inspect_ai._util.content import Content, ContentText
+from inspect_ai._util.content import ContentText
 from inspect_ai._util.hooks import init_hooks, override_api_key, send_telemetry
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import (
@@ -39,7 +39,11 @@ from ._chat_message import (
     ChatMessageSystem,
     ChatMessageUser,
 )
-from ._generate_config import GenerateConfig
+from ._generate_config import (
+    GenerateConfig,
+    active_generate_config,
+    set_active_generate_config,
+)
 from ._model_call import ModelCall
 from ._model_output import ModelOutput, ModelUsage
 
@@ -684,16 +688,18 @@ def combine_messages(
     elif isinstance(a.content, list) and isinstance(b.content, list):
         return message_type(content=a.content + b.content)
     elif isinstance(a.content, str) and isinstance(b.content, list):
-        return message_type(content=b.content + [ContentText(text=a.content)])
+        return message_type(content=[ContentText(text=a.content), *b.content])
+    elif isinstance(a.content, list) and isinstance(b.content, str):
+        return message_type(content=a.content + [ContentText(text=b.content)])
     else:
-        content: list[Content] = [ContentText(text=a.text)]
-        content.extend(cast(list[Content], b.content))
-        return message_type(content=content)
+        raise TypeError(
+            f"Cannot combine messages with invalid content types: {a.content!r}, {b.content!r}"
+        )
 
 
 def init_active_model(model: Model, config: GenerateConfig) -> None:
     active_model_context_var.set(model)
-    active_generate_config_context_var.set(config)
+    set_active_generate_config(config)
 
 
 def active_model() -> Model | None:
@@ -705,15 +711,8 @@ def active_model() -> Model | None:
     return active_model_context_var.get(None)
 
 
-def active_generate_config() -> GenerateConfig:
-    return active_generate_config_context_var.get()
-
-
 # shared contexts for asyncio tasks
 active_model_context_var: ContextVar[Model] = ContextVar("active_model")
-active_generate_config_context_var: ContextVar[GenerateConfig] = ContextVar(
-    "generate_config", default=GenerateConfig()
-)
 
 
 def init_model_usage() -> None:

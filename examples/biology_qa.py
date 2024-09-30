@@ -12,6 +12,6 @@ def biology_qa() -> Task:
             name="biology_qa",
             sample_fields=FieldSpec(input="question", target="answer"),
         ),
-        plan=[use_tools(web_search()), generate()],
+        solver=[use_tools(web_search()), generate()],
         scorer=model_graded_qa(),
     )

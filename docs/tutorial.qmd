@@ -64,7 +64,7 @@ Discerning whether the correct security guidance was provided by the model might
 def security_guide():
     return Task(
         dataset=csv_dataset("security_guide.csv"),
-        plan=[system_message(SYSTEM_MESSAGE), generate()],
+        solver=[system_message(SYSTEM_MESSAGE), generate()],
         scorer=model_graded_fact(),
     )
 ```
@@ -136,7 +136,7 @@ def hellaswag():
     # define task
     return Task(
         dataset=dataset,
-        plan=[
+        solver=[
           system_message(SYSTEM_MESSAGE),
           multiple_choice()
         ],
@@ -228,8 +228,8 @@ We'll load the dataset from [HuggingFace](https://huggingface.co/datasets/gsm8k)
 ```{python}
 @task
 def gsm8k(fewshot=10, fewshot_seed=42):
-    # build plan dynamically (may or may not be doing fewshot)
-    plan = [prompt_template(MATH_PROMPT_TEMPLATE), generate()]
+    # build solver list dynamically (may or may not be doing fewshot)
+    solver = [prompt_template(MATH_PROMPT_TEMPLATE), generate()]
     if fewshot:
         fewshots = hf_dataset(
             path="gsm8k",
@@ -240,7 +240,7 @@ def gsm8k(fewshot=10, fewshot_seed=42):
             seed=fewshot_seed,
             limit=fewshot,
         )
-        plan.insert(
+        solver.insert(
             0,
             system_message(
                 "\n\n".join([sample_to_fewshot(sample) for sample in fewshots])
@@ -255,7 +255,7 @@ def gsm8k(fewshot=10, fewshot_seed=42):
             split="test",
             sample_fields=record_to_sample,
         ),
-        plan=plan,
+        solver=solver,
         scorer=match(numeric=True),
     )
 ```
@@ -329,14 +329,14 @@ def math(shuffle=True):
         dataset=hf_dataset(
             "hendrycks/competition_math",
             split="test",
-            sample_fields=sample_fields=FieldSpec(
+            sample_fields=FieldSpec(
                 input="problem", 
                 target="solution"
             ),
             shuffle=True,
             trust=True,
         ),
-        plan=[
+        solver=[
             prompt_template(PROMPT_TEMPLATE),
             generate(),
         ],
@@ -484,7 +484,7 @@ def addition_problem():
             input="What is 1 + 1?",
             target=["2", "2.0"]
         )],
-        plan=[use_tools(add()), generate()],
+        solver=[use_tools(add()), generate()],
         scorer=match(numeric=True),
     )
 ```
@@ -507,7 +507,7 @@ The definition of the task calls out to a couple of helper functions that do mos
 
 1) `read_dataset()`, which reads samples from the file system. Note that samples include both instructions and files to copy into the secure sandbox. See the [full source code](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/gdm_capabilities/intercode_ctf) of this example for details.
 
-2. `ctf_agent()`, which defines the agent's plan. The plan consists principally of using `bash()` and `python()` tools in a loop until the flag is discovered. We'll describe this function in more detail below.
+2. `ctf_agent()`, which defines the agent's solver. The solver consists principally of using `bash()` and `python()` tools in a loop until the flag is discovered. We'll describe this function in more detail below.
 
 ```{python}
 from textwrap import dedent
@@ -516,7 +516,7 @@ from dataset import read_dataset
 
 from inspect_ai import Task, task
 from inspect_ai.scorer import includes
-from inspect_ai.solver import basic_agent, plan, system_message
+from inspect_ai.solver import basic_agent, solver, system_message
 from inspect_ai.tool import bash, python
 
 @task
@@ -527,7 +527,7 @@ def intercode_ctf(
 ):
     return Task(
         dataset=read_dataset(shuffle),
-        plan=ctf_agent(max_attempts),
+        solver=ctf_agent(max_attempts),
         scorer=includes(),
         max_messages=max_messages,
         sandbox="docker",
@@ -539,7 +539,7 @@ Note that we specify `sandbox="docker"` to ensure that code generated from the m
 Here is the definition of the agent:
 
 ```{python}
-@plan
+@solver
 def ctf_agent(max_attempts=3):
     SYSTEM_MESSAGE = dedent("""
     You are a Capture the Flag (CTF) player, and you are interacting with a

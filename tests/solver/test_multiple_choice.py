@@ -4,11 +4,7 @@ import pytest
 from test_helpers.utils import simple_task_state
 
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, ModelOutput
-from inspect_ai.solver import TaskState, multiple_choice
-from inspect_ai.solver._multiple_choice import (
-    MULTIPLE_ANSWER_TEMPLATE,
-    SINGLE_ANSWER_TEMPLATE,
-)
+from inspect_ai.solver import MultipleChoiceTemplate, TaskState, multiple_choice
 from inspect_ai.solver._task_state import Choice
 
 
@@ -48,7 +44,7 @@ async def test_single_multiple_choice():
     new_state = await solver(state=state, generate=generate)
 
     assert new_state.output.completion == "ANSWER: A"
-    assert new_state.user_prompt.text == SINGLE_ANSWER_TEMPLATE.format(
+    assert new_state.user_prompt.text == MultipleChoiceTemplate.SINGLE_ANSWER.format(
         letters="A", question="What's the answer?", choices="A) only one choice here"
     )
     assert new_state.choices[0].correct is True
@@ -65,7 +61,7 @@ async def test_maps_choices_without_shuffling():
     new_state = await solver(state=state, generate=generate)
 
     assert new_state.messages[-1].content == "ANSWER: A"
-    assert new_state.user_prompt.text == SINGLE_ANSWER_TEMPLATE.format(
+    assert new_state.user_prompt.text == MultipleChoiceTemplate.SINGLE_ANSWER.format(
         letters="A,B,C",
         question="What's the answer?",
         choices="A) choice 1\nB) choice 2\nC) choice 3",
@@ -124,7 +120,7 @@ async def test_can_shuffle_choices_when_calling_the_model():
     assert new_state.output.completion == "ANSWER: C"
     assert new_state.messages[-1].content == "ANSWER: C"
 
-    assert new_state.user_prompt.text == SINGLE_ANSWER_TEMPLATE.format(
+    assert new_state.user_prompt.text == MultipleChoiceTemplate.SINGLE_ANSWER.format(
         letters="A,B,C",
         question="What's the answer?",
         choices="A) choice 1\nB) choice 2\nC) choice 3",
@@ -155,7 +151,7 @@ async def test_multiple_correct():
     new_state = await solver(state=state, generate=generate)
 
     assert new_state.output.completion == "ANSWER: AB"
-    assert new_state.user_prompt.text == MULTIPLE_ANSWER_TEMPLATE.format(
+    assert new_state.user_prompt.text == MultipleChoiceTemplate.MULTIPLE_ANSWER.format(
         letters="A,B,C",
         question="What's the answer?",
         choices="A) choice 1\nB) choice 2\nC) choice 3",
@@ -186,7 +182,7 @@ async def test_multiple_correct_model_generated_commas():
     new_state = await solver(state=state, generate=generate)
 
     assert new_state.output.completion == "ANSWER: B, C"
-    assert new_state.user_prompt.text == MULTIPLE_ANSWER_TEMPLATE.format(
+    assert new_state.user_prompt.text == MultipleChoiceTemplate.MULTIPLE_ANSWER.format(
         letters="A,B,C",
         question="What's the answer?",
         choices="A) choice 1\nB) choice 2\nC) choice 3",
@@ -227,7 +223,7 @@ async def test_multiple_shuffled_answers_one_answer():
 
     assert new_state.output.completion == "ANSWER: A"
     assert new_state.messages[-1].content == "ANSWER: A"
-    assert new_state.user_prompt.text == MULTIPLE_ANSWER_TEMPLATE.format(
+    assert new_state.user_prompt.text == MultipleChoiceTemplate.MULTIPLE_ANSWER.format(
         letters="A,B,C",
         question="What's the answer?",
         choices="A) choice 1\nB) choice 2\nC) choice 3",
@@ -268,7 +264,7 @@ async def test_multiple_shuffled_answers_more():
     new_state = await solver(state=state, generate=generate_shuffled)
     assert new_state.output.completion == "ANSWER: B, C"
     assert new_state.messages[-1].content == "ANSWER: B, C"
-    assert new_state.user_prompt.text == MULTIPLE_ANSWER_TEMPLATE.format(
+    assert new_state.user_prompt.text == MultipleChoiceTemplate.MULTIPLE_ANSWER.format(
         letters="A,B,C,D",
         question="What's the answer?",
         choices="A) choice 1\nB) choice 2\nC) choice 3\nD) choice 4",
