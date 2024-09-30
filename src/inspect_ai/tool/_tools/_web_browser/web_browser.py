@@ -21,19 +21,19 @@ def web_browser(sandbox: str = "web_browser") -> list[Tool]:
 
     """
     return [
-        web_go(sandbox),
-        web_click(sandbox),
-        web_scroll(sandbox),
-        web_forward(sandbox),
-        web_back(sandbox),
-        web_refresh(sandbox),
-        web_type(sandbox),
-        web_type_submit(sandbox),
+        web_browser_go(sandbox),
+        web_browser_click(sandbox),
+        web_browser_scroll(sandbox),
+        web_browser_forward(sandbox),
+        web_browser_back(sandbox),
+        web_browser_refresh(sandbox),
+        web_browser_type(sandbox),
+        web_browser_type_submit(sandbox),
     ]
 
 
 @tool
-def web_go(sandbox: str = "web_browser") -> Tool:
+def web_browser_go(sandbox: str = "web_browser") -> Tool:
     """Web Browser tool for navigation to a URL.
 
     Args:
@@ -60,7 +60,7 @@ def web_go(sandbox: str = "web_browser") -> Tool:
 
 
 @tool
-def web_click(sandbox: str = "web_browser") -> Tool:
+def web_browser_click(sandbox: str = "web_browser") -> Tool:
     """Web Browser tool for clicking an element on a web page.
 
     Args:
@@ -87,7 +87,7 @@ def web_click(sandbox: str = "web_browser") -> Tool:
 
 
 @tool
-def web_scroll(sandbox: str = "web_browser") -> Tool:
+def web_browser_scroll(sandbox: str = "web_browser") -> Tool:
     """Web Browser tool for scrolling up or down one page.
 
     Args:
@@ -114,7 +114,7 @@ def web_scroll(sandbox: str = "web_browser") -> Tool:
 
 
 @tool
-def web_forward(sandbox: str = "web_browser") -> Tool:
+def web_browser_forward(sandbox: str = "web_browser") -> Tool:
     """Web Browser tool for navigating forward in the browser history.
 
     Args:
@@ -138,7 +138,7 @@ def web_forward(sandbox: str = "web_browser") -> Tool:
 
 
 @tool
-def web_back(sandbox: str = "web_browser") -> Tool:
+def web_browser_back(sandbox: str = "web_browser") -> Tool:
     """Web Browser tool for navigating back in the browser history.
 
     Args:
@@ -162,7 +162,7 @@ def web_back(sandbox: str = "web_browser") -> Tool:
 
 
 @tool
-def web_refresh(sandbox: str = "web_browser") -> Tool:
+def web_browser_refresh(sandbox: str = "web_browser") -> Tool:
     """Web Browser tool for refreshing the current page.
 
     Args:
@@ -186,7 +186,7 @@ def web_refresh(sandbox: str = "web_browser") -> Tool:
 
 
 @tool
-def web_type(sandbox: str = "web_browser") -> Tool:
+def web_browser_type(sandbox: str = "web_browser") -> Tool:
     """Web Browser tool for typing into inputs.
 
     Args:
@@ -214,7 +214,7 @@ def web_type(sandbox: str = "web_browser") -> Tool:
 
 
 @tool
-def web_type_submit(sandbox: str = "web_browser") -> Tool:
+def web_browser_type_submit(sandbox: str = "web_browser") -> Tool:
     """Web Browser tool for typing and submitting input.
 
     Args:
