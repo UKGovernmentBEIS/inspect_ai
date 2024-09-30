@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Catch o1-preview "invalid_prompt" exception and convert to normal content_filter refusal.
+
 ## v0.3.34 (30 September 2024)
 
 - Support for `max_tokens` on OpenAI o1 models (map to `max_completion_tokens`).
