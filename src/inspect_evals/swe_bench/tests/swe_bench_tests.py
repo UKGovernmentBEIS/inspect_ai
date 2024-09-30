@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 from datasets import load_dataset  # type: ignore
+from platformdirs import user_cache_dir
 
 from inspect_ai import Task, eval
 from inspect_ai.log import EvalLog
@@ -16,7 +17,6 @@ from inspect_evals.swe_bench import (
 MAX_CONCURRENCY = int(os.getenv("INSPECT_MAX_CONCURRENCY", 4))
 TIMEOUT_SECONDS = 2
 
-PARENT_DIR = Path(__file__).parent
 
 SWE_BENCH_SPLIT = ("princeton-nlp/SWE-bench_Verified", "test")
 TEST_INSTANCE_ID = "scikit-learn__scikit-learn-15100"
@@ -81,17 +81,18 @@ def test_incorrect_patch_fails() -> None:
     ), "SWE-bench should mark an incorrect application as a failure."
 
 
+TESTS_RESOURCES_DIR = Path(user_cache_dir("inspect_swebench_test"))
 TEST_DATASET = (
-    PARENT_DIR / "test_dataset.hf",
+    TESTS_RESOURCES_DIR / "test_dataset.hf",
     "train",
 )  # The dataset we are using to test on - should be created by the "create_test_repos.py" script
-BASELINE = (
-    PARENT_DIR / "swebench_baselines" / "20240620_sweagent_claude3.5sonnet"
+BASELINE_DIR = (
+    TESTS_RESOURCES_DIR / "swebench_baselines" / "20240620_sweagent_claude3.5sonnet"
 )  # The baseline we are comparing agents. Should be created by the script README
 
 
 def test_same_scores_as_a_baseline(
-    dataset: tuple[Path, str] = TEST_DATASET, baseline: Path = BASELINE
+    dataset: tuple[Path, str] = TEST_DATASET, baseline: Path = BASELINE_DIR
 ) -> None:
     # Very slow test
     # This test checks that the output of our implementation of swe_bench is the same as the original implementation.
@@ -104,7 +105,7 @@ def test_same_scores_as_a_baseline(
 
     if not baseline.exists():
         raise FileNotFoundError(
-            f"The baseline directory you are pointing towards does not exist. Please use the script in the README to download the baseline from the SWE-bench baselines directory, and copy it to {baseline.parent}"
+            f"The baseline directory you are pointing towards does not exist. Please use the script in the README to download the baseline from the SWE-bench baselines directory, and copy it to {BASELINE_DIR}"
         )
 
     # We load the dataset in both the original and huggingface versions.

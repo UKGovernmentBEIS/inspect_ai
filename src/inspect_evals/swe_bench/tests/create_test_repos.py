@@ -1,9 +1,9 @@
 import json
 import os
-from pathlib import Path
 
 import pandas as pd  # type: ignore
 from datasets import load_dataset
+from swe_bench_tests import BASELINE_DIR, TEST_DATASET
 
 dataset = load_dataset("princeton-nlp/SWE-bench_Verified")["test"]
 
@@ -13,17 +13,12 @@ dataset = load_dataset("princeton-nlp/SWE-bench_Verified")["test"]
 # This is used to test that our version of swe_bench has the same behaviour as the original version.
 
 results_per_repo = {}
-swebench_baseline_logs_dir = (
-    Path(__file__).parent
-    / "swebench_baselines"
-    / "20240620_sweagent_claude3.5sonnet"
-    / "logs"
-)
+swebench_baseline_logs_dir = BASELINE_DIR / "logs"
 
 
 if not swebench_baseline_logs_dir.exists():
     raise FileNotFoundError(
-        f"The baseline directory you are pointing towards does not exist. Please use the script in the README to download the baseline from the SWE-bench baselines directory, and copy it to {swebench_baseline_logs_dir.parent.parent / 'swebench_baselines'}"
+        f"The baseline directory you are pointing towards does not exist. Please use the script in the README to download the baseline from the SWE-bench baselines directory, and copy it to {BASELINE_DIR}"
     )
 
 
@@ -96,7 +91,7 @@ dataset = dataset.filter(lambda x: "psf__requests-1921" not in x["instance_id"])
 accuracy = sum(resolved) / len(resolved)
 
 # Save tbe dataset
-dataset_dir = Path(__file__).parent / "test_dataset.hf"
+dataset_dir = TEST_DATASET[0]
 os.makedirs(str(dataset_dir), exist_ok=True)
 dataset.to_parquet(dataset_dir / "dataset.parquet")
 
