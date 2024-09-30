@@ -211,7 +211,7 @@ def mockllm() -> type[ModelAPI]:
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "1.40.0"
+    MIN_VERSION = "1.45.0"
 
     # verify we have the package
     try:
