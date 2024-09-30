@@ -1,3 +1,5 @@
+from logging import getLogger
+
 from inspect_ai.dataset import Dataset, Sample
 
 
@@ -17,6 +19,7 @@ def build_images(
     from swebench.harness.docker_build import build_env_images  # type: ignore
     from swebench.harness.test_spec import make_test_spec  # type: ignore
 
+    getLogger().handlers = []  # Swe-bench adds a global logger, which we disable.
     # Code copied from the swe_bench repository
     docker_client = DockerClient.from_env()
 

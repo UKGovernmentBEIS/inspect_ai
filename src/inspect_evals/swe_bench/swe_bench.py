@@ -7,7 +7,7 @@ https://arxiv.org/abs/2310.06770
 import json
 import logging
 import os
-from logging import getLogger
+from importlib.util import find_spec
 from pathlib import Path
 from textwrap import dedent
 
@@ -59,7 +59,9 @@ def swe_bench(
             The scorer to use when evaluating swe_bench. If None, uses the default scorer. Mostly commonly, this will be a list of scorers to compare to baselines (see the README for more information).
 
     """
-    getLogger().handlers = []  # Swe-bench adds a global logger, which we disable.
+    assert find_spec(
+        "swebench"
+    ), "To run SWE-bench, please install the optional SWE-bench depency, by running `pip install inspect-ai[swe_bench]`"
 
     samples = hf_dataset(
         dataset,

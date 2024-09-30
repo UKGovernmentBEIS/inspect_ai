@@ -254,6 +254,8 @@ async def eval_async(
         # resolve epochs
         if isinstance(epochs, int):
             epochs = Epochs(epochs)
+        if epochs is not None and epochs.epochs < 1:
+            raise ValueError("epochs must be a positive integer.")
 
         # create config
         epochs_reducer = epochs.reducer if epochs else None
