@@ -105,8 +105,9 @@ def verify() -> Scorer:
 
 # extract code from completion (removing markdown and/or signature)
 def find_code(completion: str) -> str:
-    pattern = re.compile(r"```python\n(.*?)```", re.DOTALL)
-    matches = pattern.findall(completion)
+    pattern_1 = re.compile(r"```python\n(.*?)```", re.DOTALL)
+    pattern_2 = re.compile(r"```\n(.*?)```", re.DOTALL)
+    matches = pattern_1.findall(completion) + pattern_2.findall(completion)
     extracted_answer = matches[0] if len(matches) >= 1 else completion
     # remove signature
     extracted_answer = extracted_answer[extracted_answer.find(":\n    ") + 2 :]
