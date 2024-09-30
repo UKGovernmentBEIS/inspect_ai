@@ -65,6 +65,11 @@ def test_valid_log_header():
     read_eval_log(log_path("log_valid"), header_only=True)
 
 
+def test_migrate_length_stop_reason():
+    log = read_eval_log(log_path("log_length_stop_reason"))
+    assert log.samples[0].output.stop_reason == "max_tokens"
+
+
 def check_log_raises(log_file):
     with pytest.raises(ValueError):
         read_eval_log(log_file)

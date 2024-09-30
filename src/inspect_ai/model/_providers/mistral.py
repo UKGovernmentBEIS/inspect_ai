@@ -109,7 +109,7 @@ class MistralAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
         # build request
         request: dict[str, Any] = dict(
             model=self.model_name,
@@ -129,7 +129,13 @@ class MistralAPI(ModelAPI):
             request["random_seed"] = config.seed
 
         # send request
-        response = await self.client.chat.complete_async(**request)
+        try:
+            response = await self.client.chat.complete_async(**request)
+        except SDKError as ex:
+            if ex.status_code == 400:
+                return self.handle_bad_request(ex)
+            else:
+                raise ex
 
         if response is None:
             raise RuntimeError("Mistral model did not return a response from generate.")
@@ -157,6 +163,16 @@ class MistralAPI(ModelAPI):
     @override
     def connection_key(self) -> str:
         return str(self.api_key)
+
+    def handle_bad_request(self, ex: SDKError) -> ModelOutput:
+        if "maximum context length" in ex.body:
+            body = json.loads(ex.body)
+            content = body.get("message", ex.body)
+            return ModelOutput.from_content(
+                model=self.model_name, content=content, stop_reason="model_length"
+            )
+        else:
+            raise ex
 
 
 def mistral_model_call(
@@ -293,9 +309,9 @@ def choice_stop_reason(choice: MistralChatCompletionChoice) -> StopReason:
     match choice.finish_reason:
         case "stop":
             return "stop"
-        case "length" | "model_length":
-            return "length"
-        case "tool_calls":
-            return "tool_calls"
+        case "length":
+            return "max_tokens"
+        case "model_length" | "tool_calls":
+            return choice.finish_reason
         case _:
             return "unknown"

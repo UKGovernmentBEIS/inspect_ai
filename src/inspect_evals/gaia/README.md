@@ -6,7 +6,7 @@ This is an Inspect AI implementation of [the GAIA (General AI Assistants)](https
 1) **Installation** Install the `inspect_evals` Python package with:
 
    ```bash
-   pip install git+https://github.com/UKGovernmentBEIS/inspect_ai[inspect_evals]
+   pip install inspect_ai[inspect_evals]@git+https://github.com/UKGovernmentBEIS/inspect_ai
    ```
 
 2) **Docker Engine** The GAIA task uses [tool calling](https://inspect.ai-safety-institute.org.uk/tools.html) to enable the model to execute bash commands. Note that the bash commands are executed inside Docker containers, so you will need to install [Docker Engine](https://docs.docker.com/engine/install/) in order to run the evaluation.

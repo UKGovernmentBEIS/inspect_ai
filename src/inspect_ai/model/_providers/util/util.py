@@ -18,12 +18,12 @@ def as_stop_reason(reason: str | None) -> StopReason:
     match reason:
         case "stop" | "eos":
             return "stop"
-        case "length" | "content_filter":
-            return reason
-        case "model_length":
-            return "length"
+        case "length":
+            return "max_tokens"
         case "tool_calls" | "function_call":
             return "tool_calls"
+        case "content_filter" | "model_length" | "max_tokens":
+            return reason
         case _:
             return "unknown"
 

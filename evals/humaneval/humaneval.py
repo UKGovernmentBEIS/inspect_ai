@@ -50,7 +50,7 @@ this function.\n
 
 
 @task
-def humaneval():
+def humaneval(sandbox="docker"):
     return Task(
         dataset=hf_dataset(
             path="openai_humaneval", split="test", sample_fields=record_to_sample
@@ -58,7 +58,7 @@ def humaneval():
         epochs=Epochs(NUM_EPOCHS, ["mean", "pass_at_1", "pass_at_2", "pass_at_5"]),
         solver=[generate()],
         scorer=verify(),
-        sandbox="docker",
+        sandbox=sandbox,
     )
 
 

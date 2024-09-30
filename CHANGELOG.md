@@ -2,12 +2,27 @@
 
 ## Unreleased
 
+- Support for `max_tokens` on OpenAI o1 models (map to `max_completion_tokens`).
+
+## v0.3.33 (30 September 2024)
+
+- StopReason: Added "model_length" for exceeding token window and renamed "length" to "max_tokens".
 - Capture solver input params for subtasks created by `fork()`.
+- Option to disable ANSI terminal output with `--no-ansi` or `INSPECT_NO_ANSI`
+- Add chain of thought option to `multiple_choice()` and export `MultipleChoiceTemplate` enumeration
 - Allow Docker sandboxes configured with `x-default` to be referred to by their declared service name.
+- Improved error messages for Docier sandbox initialisation.
+- Improve legibility of Docker sandbox log entries (join rather than displaying as array)
+- Display user message immediately proceding assistant message in model call transcripts.
+- Display images created by tool calls in the Viewer.
+- Fix duplicated tool call output display in Viewer for Gemini and Llama models.
 - Require a `max_messages` for use of `basic_agent()` (as without it, the agent could end up in an infinite loop).
+- Load extension entrypoints per-package (prevent unnecessary imports from packages not being referenced).
 - Track sample task state in solver decorator rather than solver transcript.
 - Display solver input parameters for forked subtasks.
 - Improvements to docker compose down cleanup: timeout, survive missing compose files.
+- Always produce epoch sample reductions even when there is only a single epoch.
+- Scores produced after being reduced retain `answer`, `explanation`, and `metadata` only if equal across all epochs.
 
 ## v0.3.32 (25 September 2024)
 
@@ -32,7 +47,7 @@
 
 ## v0.3.30 (18 September 2024)
 
-- Added [fork()](agents-api.qmd#sec-forking) function to fork a `TaskState` and evaluate it against multiple solvers in parallel.
+- Added [fork()](https://inspect.ai-safety-institute.org.uk/agents-api.html#sec-forking) function to fork a `TaskState` and evaluate it against multiple solvers in parallel.
 - Ensure that Scores produced after being reduced still retain `answer`, `explanation`, and `metadata`.
 - Fix error when running `inspect info log-types`
 - Improve scorer names imported from modules by not including the the module names.

@@ -22,15 +22,17 @@ def gaia(
         "2023_all", "2023_level1", "2023_level2", "2023_level3"
     ] = "2023_all",
     split: Literal["test", "validation"] = "validation",
-    filter: Callable[[Sample], bool] | None = None,
+    instance_ids: list[str] | None = None,
 ) -> Task:
     # read dataset
     dataset = gaia_dataset(
         input_prompt=input_prompt or DEFAULT_INPUT_PROMPT,
         subset=subset,
         split=split,
-        filter=filter if filter else lambda x: True,
     )
+
+    if instance_ids:
+        dataset = dataset.filter(lambda x: x.id in instance_ids)
 
     # provide default plan if required
     if solver is None:
@@ -83,7 +85,9 @@ def gaia_dataset(
     filter: Callable[[Sample], bool] = lambda x: True,
 ) -> Dataset:
     # use user cache dir for dataset
-    GAIA_DATASET_LOCATION = Path(user_cache_dir("gaia_eval")) / "GAIA"
+    GAIA_DATASET_LOCATION = (
+        Path(user_cache_dir("inspect_evals")) / "gaia_dataset" / "GAIA"
+    )
 
     # download dataset if required
     if not os.path.exists(GAIA_DATASET_LOCATION):

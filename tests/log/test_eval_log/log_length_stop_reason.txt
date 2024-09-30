@@ -1,0 +1,321 @@
+{
+  "version": 2,
+  "status": "success",
+  "eval": {
+    "run_id": "jNQ3Z5KuoJScyNa9x6JBYv",
+    "created": "2024-09-25T10:26:43+00:00",
+    "task": "hello_world",
+    "task_id": "g4Midu49ctDtsVPJFFrZjX",
+    "task_version": 0,
+    "task_file": "examples/hello_world.py",
+    "task_attribs": {},
+    "task_args": {},
+    "dataset": {
+      "samples": 1,
+      "shuffled": false
+    },
+    "model": "anthropic/claude-3-5-sonnet-20240620",
+    "model_args": {},
+    "config": {},
+    "revision": {
+      "type": "git",
+      "origin": "git@github.com:UKGovernmentBEIS/inspect_ai.git",
+      "commit": "4f3bd1f7"
+    },
+    "packages": {
+      "inspect_ai": "0.3.25.dev21+g3247021.d20240823"
+    }
+  },
+  "plan": {
+    "name": "plan",
+    "steps": [
+      {
+        "solver": "generate",
+        "params": {}
+      }
+    ],
+    "config": {
+      "max_tokens": 1
+    }
+  },
+  "results": {
+    "total_samples": 1,
+    "completed_samples": 1,
+    "scores": [
+      {
+        "name": "exact",
+        "scorer": "exact",
+        "params": {},
+        "metrics": {
+          "mean": {
+            "name": "mean",
+            "value": 0.0,
+            "options": {}
+          },
+          "stderr": {
+            "name": "stderr",
+            "value": 0.0,
+            "options": {}
+          }
+        }
+      }
+    ]
+  },
+  "stats": {
+    "started_at": "2024-09-25T10:26:43+00:00",
+    "completed_at": "2024-09-25T10:26:44+00:00",
+    "model_usage": {
+      "anthropic/claude-3-5-sonnet-20240620": {
+        "input_tokens": 12,
+        "output_tokens": 1,
+        "total_tokens": 13
+      }
+    }
+  },
+  "samples": [
+    {
+      "id": 1,
+      "epoch": 1,
+      "input": "Just reply with Hello World",
+      "target": "Hello World",
+      "messages": [
+        {
+          "content": "Just reply with Hello World",
+          "source": "input",
+          "role": "user"
+        },
+        {
+          "content": [
+            {
+              "type": "text",
+              "text": "Hello"
+            }
+          ],
+          "source": "generate",
+          "role": "assistant"
+        }
+      ],
+      "output": {
+        "model": "claude-3-5-sonnet-20240620",
+        "choices": [
+          {
+            "message": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Hello"
+                }
+              ],
+              "source": "generate",
+              "role": "assistant"
+            },
+            "stop_reason": "length"
+          }
+        ],
+        "usage": {
+          "input_tokens": 12,
+          "output_tokens": 1,
+          "total_tokens": 13
+        }
+      },
+      "scores": {
+        "exact": {
+          "value": "I",
+          "answer": "Hello"
+        }
+      },
+      "metadata": {},
+      "store": {},
+      "transcript": {
+        "events": [
+          {
+            "timestamp": "2024-09-25T10:26:43.695045+00:00",
+            "event": "sample_init",
+            "sample": {
+              "input": "Just reply with Hello World",
+              "target": "Hello World",
+              "id": 1
+            },
+            "state": {
+              "messages": [
+                {
+                  "content": "Just reply with Hello World",
+                  "source": "input",
+                  "role": "user"
+                }
+              ],
+              "tools": [],
+              "tool_choice": null,
+              "store": {},
+              "output": {
+                "model": "anthropic/claude-3-5-sonnet-20240620",
+                "choices": []
+              },
+              "completed": false,
+              "metadata": {}
+            }
+          },
+          {
+            "timestamp": "2024-09-25T10:26:43.695402+00:00",
+            "event": "step",
+            "action": "begin",
+            "type": "solver",
+            "name": "generate"
+          },
+          {
+            "timestamp": "2024-09-25T10:26:44.362896+00:00",
+            "event": "model",
+            "model": "anthropic/claude-3-5-sonnet-20240620",
+            "input": [
+              {
+                "content": "Just reply with Hello World",
+                "source": "input",
+                "role": "user"
+              }
+            ],
+            "tools": [],
+            "tool_choice": "none",
+            "config": {
+              "max_tokens": 1
+            },
+            "output": {
+              "model": "claude-3-5-sonnet-20240620",
+              "choices": [
+                {
+                  "message": {
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Hello"
+                      }
+                    ],
+                    "source": "generate",
+                    "role": "assistant"
+                  },
+                  "stop_reason": "length"
+                }
+              ],
+              "usage": {
+                "input_tokens": 12,
+                "output_tokens": 1,
+                "total_tokens": 13
+              }
+            },
+            "call": {
+              "request": {
+                "messages": [
+                  {
+                    "role": "user",
+                    "content": "Just reply with Hello World"
+                  }
+                ],
+                "tools": [],
+                "model": "claude-3-5-sonnet-20240620",
+                "max_tokens": 1
+              },
+              "response": {
+                "id": "msg_01VTWDhmKcdu11wjVamoYLgp",
+                "content": [
+                  {
+                    "text": "Hello",
+                    "type": "text"
+                  }
+                ],
+                "model": "claude-3-5-sonnet-20240620",
+                "role": "assistant",
+                "stop_reason": "max_tokens",
+                "stop_sequence": null,
+                "type": "message",
+                "usage": {
+                  "input_tokens": 12,
+                  "output_tokens": 1
+                }
+              }
+            }
+          },
+          {
+            "timestamp": "2024-09-25T10:26:44.363643+00:00",
+            "event": "state",
+            "changes": [
+              {
+                "op": "add",
+                "path": "/messages/1",
+                "value": {
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Hello"
+                    }
+                  ],
+                  "source": "generate",
+                  "role": "assistant"
+                }
+              },
+              {
+                "op": "add",
+                "path": "/output/usage",
+                "value": {
+                  "input_tokens": 12,
+                  "output_tokens": 1,
+                  "total_tokens": 13
+                }
+              },
+              {
+                "op": "replace",
+                "path": "/output/model",
+                "value": "claude-3-5-sonnet-20240620"
+              },
+              {
+                "op": "add",
+                "path": "/output/choices/0",
+                "value": {
+                  "message": {
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Hello"
+                      }
+                    ],
+                    "source": "generate",
+                    "role": "assistant"
+                  },
+                  "stop_reason": "length"
+                }
+              }
+            ]
+          },
+          {
+            "timestamp": "2024-09-25T10:26:44.363685+00:00",
+            "event": "step",
+            "action": "end",
+            "type": "solver",
+            "name": "generate"
+          },
+          {
+            "timestamp": "2024-09-25T10:26:44.363751+00:00",
+            "event": "step",
+            "action": "begin",
+            "type": "scorer",
+            "name": "exact"
+          },
+          {
+            "timestamp": "2024-09-25T10:26:44.364169+00:00",
+            "event": "score",
+            "score": {
+              "value": "I",
+              "answer": "Hello"
+            }
+          },
+          {
+            "timestamp": "2024-09-25T10:26:44.364410+00:00",
+            "event": "step",
+            "action": "end",
+            "type": "scorer",
+            "name": "exact"
+          }
+        ],
+        "content": {}
+      }
+    }
+  ]
+}

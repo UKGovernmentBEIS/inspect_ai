@@ -1,7 +1,7 @@
 import uuid
-from typing import Any, Literal
+from typing import Any, Literal, Type
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai.tool._tool_call import ToolCall
 
@@ -25,7 +25,9 @@ class ModelUsage(BaseModel):
     """Number of tokens retrieved from the cache."""
 
 
-StopReason = Literal["stop", "length", "tool_calls", "content_filter", "unknown"]
+StopReason = Literal[
+    "stop", "max_tokens", "model_length", "tool_calls", "content_filter", "unknown"
+]
 """Reason that the model stopped generating."""
 
 
@@ -75,6 +77,18 @@ class ChatCompletionChoice(BaseModel):
     logprobs: Logprobs | None = Field(default=None)
     """Logprobs."""
 
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_stop_reason(
+        cls: Type["ChatCompletionChoice"], values: dict[str, Any]
+    ) -> dict[str, Any]:
+        if "stop_reason" in values:
+            stop_reason = values["stop_reason"]
+            if stop_reason == "length":
+                values["stop_reason"] = "max_tokens"
+
+        return values
+
 
 class ModelOutput(BaseModel):
     model: str = Field(default="")
@@ -88,6 +102,11 @@ class ModelOutput(BaseModel):
 
     error: str | None = Field(default=None)
     """Error message in the case of content moderation refusals."""
+
+    @property
+    def stop_reason(self) -> StopReason:
+        """First message stop reason."""
+        return self.choices[0].stop_reason
 
     @property
     def message(self) -> ChatMessageAssistant:
