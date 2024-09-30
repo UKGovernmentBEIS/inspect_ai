@@ -11803,7 +11803,7 @@ Prism.languages.json = {
   }
 };
 Prism.languages.webmanifest = Prism.languages.json;
-const ExpandablePanel = ({ collapse, border, lines = 7, children }) => {
+const ExpandablePanel = ({ collapse, border, lines = 10, children }) => {
   const [collapsed, setCollapsed] = h(collapse);
   const [showToggle, setShowToggle] = h(false);
   const contentsRef = A();
