@@ -1,39 +1,39 @@
 import json
 import os
-from pathlib import Path
 
-import pandas as pd
+import pandas as pd  # type: ignore
 from datasets import load_dataset
+from swe_bench_tests import BASELINE_DIR, TEST_DATASET
 
 dataset = load_dataset("princeton-nlp/SWE-bench_Verified")["test"]
 
 # We  create a subset of SWE-bench-verfied which:
 # 1) Contains all of the repositories in SWE-bench verified
 # 2) For each repository, contains an example where swe_agent + Claude 3.5 + Sonnet resolved the issue, and an example where it did not
+# This is used to test that our version of swe_bench has the same behaviour as the original version.
 
 results_per_repo = {}
-baseline_dir = Path(__file__).parent.parent / "baselines"
-logs_dir = baseline_dir / "20240620_sweagent_claude3.5sonnet" / "logs"
+swebench_baseline_logs_dir = BASELINE_DIR / "logs"
 
-if not logs_dir.exists():
-    print(
-        f"Please run the baseline creation script at {baseline_dir / "download_baselines.sh"} to make the baselines to compare your agents against."
+
+if not swebench_baseline_logs_dir.exists():
+    raise FileNotFoundError(
+        f"The baseline directory you are pointing towards does not exist. Please use the script in the README to download the baseline from the SWE-bench baselines directory, and copy it to {BASELINE_DIR}"
     )
-    exit()
 
 
 results = []
 missing_results = []
 
 # Load results from the log directory
-for result in os.listdir(logs_dir):
-    results_path = os.path.join(logs_dir, result, "report.json")
+for result in os.listdir(swebench_baseline_logs_dir):
+    results_path = os.path.join(swebench_baseline_logs_dir, result, "report.json")
     if os.path.exists(results_path):
         with open(results_path, "r") as f:
             result_dict = json.load(f)
             result_name, results_value = next(iter(result_dict.items()))
             output_dict = dict(instance_id=result_name, **results_value)
-            patch_path = os.path.join(logs_dir, result, "patch.diff")
+            patch_path = os.path.join(swebench_baseline_logs_dir, result, "patch.diff")
             with open(patch_path, "r") as f:
                 output_dict["swe_agent_patch"] = f.read()
             results.append(output_dict)
@@ -43,10 +43,10 @@ for result in os.listdir(logs_dir):
 
 # Get repository name from the results
 results = pd.DataFrame.from_records(results)
-results["repo"] = results["instance_id"].apply(lambda x: x.split("__")[0])
+results["repo"] = results["instance_id"].apply(lambda x: x.split("__")[0])  # type: ignore
 
 # Github patches which change binary files cannot actually be applied. We wil remove these entries in the dataset
-results = results[~results["swe_agent_patch"].str.contains("Binary files")]
+results = results[~results["swe_agent_patch"].str.contains("Binary files")]  # type: ignore
 
 # Group by repository, and success. Then pick one from each group.
 results_per_repo = results.groupby(["repo", "resolved"])
@@ -91,7 +91,7 @@ dataset = dataset.filter(lambda x: "psf__requests-1921" not in x["instance_id"])
 accuracy = sum(resolved) / len(resolved)
 
 # Save tbe dataset
-dataset_dir = Path(__file__).parent / "all_repos_swe_agent_50_percent.hf"
+dataset_dir = TEST_DATASET[0]
 os.makedirs(str(dataset_dir), exist_ok=True)
 dataset.to_parquet(dataset_dir / "dataset.parquet")
 

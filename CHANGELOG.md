@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Support for `max_tokens` on OpenAI o1 models (map to `max_completion_tokens`).
+
 ## v0.3.33 (30 September 2024)
 
 - StopReason: Added "model_length" for exceeding token window and renamed "length" to "max_tokens".

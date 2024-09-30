@@ -95,6 +95,8 @@ class Task:
         # resolve epochs / epochs_reducer
         if isinstance(epochs, int):
             epochs = Epochs(epochs)
+        if epochs is not None and epochs.epochs < 1:
+            raise ValueError("epochs must be a positive integer.")
 
         self.dataset: Dataset = (
             dataset if isinstance(dataset, Dataset) else MemoryDataset(list(dataset))
