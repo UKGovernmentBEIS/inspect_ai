@@ -20,7 +20,16 @@ def web_browser(sandbox: str = "web_browser") -> list[Tool]:
        List of tools used for web browser navigation.
 
     """
-    return [web_go(sandbox)]
+    return [
+        web_go(sandbox),
+        web_click(sandbox),
+        web_scroll(sandbox),
+        web_forward(sandbox),
+        web_back(sandbox),
+        web_refresh(sandbox),
+        web_type(sandbox),
+        web_type_submit(sandbox),
+    ]
 
 
 @tool
@@ -46,6 +55,188 @@ def web_go(sandbox: str = "web_browser") -> Tool:
            Web accessibility tree of the visible elements of the web page.
         """
         return await web_browser_cmd(sandbox, "web_go", url)
+
+    return execute
+
+
+@tool
+def web_click(sandbox: str = "web_browser") -> Tool:
+    """Web Browser tool for clicking an element on a web page.
+
+    Args:
+       sandbox (str): Name of sandbox that the web
+         browser is running within. Defaults to
+         "web_browser"
+
+    Returns:
+       Web browser clicking tool.
+    """
+
+    async def execute(element_id: str) -> str:
+        """Click an element on the page currently displayed by the web browser.
+
+        Args:
+           element_id (str): ID of the element to click.
+
+        Returns:
+           Web accessibility tree of the visible elements of the web page.
+        """
+        return await web_browser_cmd(sandbox, "web_click", element_id)
+
+    return execute
+
+
+@tool
+def web_scroll(sandbox: str = "web_browser") -> Tool:
+    """Web Browser tool for scrolling up or down one page.
+
+    Args:
+       sandbox (str): Name of sandbox that the web
+         browser is running within. Defaults to
+         "web_browser"
+
+    Returns:
+       Web browser scrolling tool.
+    """
+
+    async def execute(direction: str) -> str:
+        """Scroll the web browser up or down by one page.
+
+        Args:
+           direction (str): "up" or "down"
+
+        Returns:
+           Web accessibility tree of the visible elements of the web page.
+        """
+        return await web_browser_cmd(sandbox, "web_scroll", direction)
+
+    return execute
+
+
+@tool
+def web_forward(sandbox: str = "web_browser") -> Tool:
+    """Web Browser tool for navigating forward in the browser history.
+
+    Args:
+       sandbox (str): Name of sandbox that the web
+         browser is running within. Defaults to
+         "web_browser"
+
+    Returns:
+       Web browser forward navigation tool.
+    """
+
+    async def execute() -> str:
+        """Navigate the web browser forward in the browser history.
+
+        Returns:
+           Web accessibility tree of the visible elements of the web page.
+        """
+        return await web_browser_cmd(sandbox, "web_forward")
+
+    return execute
+
+
+@tool
+def web_back(sandbox: str = "web_browser") -> Tool:
+    """Web Browser tool for navigating back in the browser history.
+
+    Args:
+       sandbox (str): Name of sandbox that the web
+         browser is running within. Defaults to
+         "web_browser"
+
+    Returns:
+       Web browser back navigation tool.
+    """
+
+    async def execute() -> str:
+        """Navigate the web browser back in the browser history.
+
+        Returns:
+           Web accessibility tree of the visible elements of the web page.
+        """
+        return await web_browser_cmd(sandbox, "web_back")
+
+    return execute
+
+
+@tool
+def web_refresh(sandbox: str = "web_browser") -> Tool:
+    """Web Browser tool for refreshing the current page.
+
+    Args:
+       sandbox (str): Name of sandbox that the web
+         browser is running within. Defaults to
+         "web_browser"
+
+    Returns:
+       Web browser page refresh tool.
+    """
+
+    async def execute() -> str:
+        """Refresh the current page of the web browser.
+
+        Returns:
+           Web accessibility tree of the visible elements of the web page.
+        """
+        return await web_browser_cmd(sandbox, "web_refresh")
+
+    return execute
+
+
+@tool
+def web_type(sandbox: str = "web_browser") -> Tool:
+    """Web Browser tool for typing into inputs.
+
+    Args:
+       sandbox (str): Name of sandbox that the web
+         browser is running within. Defaults to
+         "web_browser"
+
+    Returns:
+       Web browser typing tool.
+    """
+
+    async def execute(element_id: str, text: str) -> str:
+        """Type text into an input on a web browser page.
+
+        Args:
+           element_id (str): ID of the element to type text into.
+           text (str): Text to type.
+
+        Returns:
+           Web accessibility tree of the visible elements of the web page.
+        """
+        return await web_browser_cmd(sandbox, "web_type", element_id, text)
+
+    return execute
+
+
+@tool
+def web_type_submit(sandbox: str = "web_browser") -> Tool:
+    """Web Browser tool for typing and submitting input.
+
+    Args:
+       sandbox (str): Name of sandbox that the web
+         browser is running within. Defaults to
+         "web_browser"
+
+    Returns:
+       Web browser type and submit tool.
+    """
+
+    async def execute(element_id: str, text: str) -> str:
+        """Type text into a form input on a web browser page and press ENTER to submit the form.
+
+        Args:
+           element_id (str): ID of the element to type text into.
+           text (str): Text to type.
+
+        Returns:
+           Web accessibility tree of the visible elements of the web page.
+        """
+        return await web_browser_cmd(sandbox, "web_type_submit", element_id, text)
 
     return execute
 
