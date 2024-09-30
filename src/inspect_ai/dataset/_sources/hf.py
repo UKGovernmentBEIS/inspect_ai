@@ -41,10 +41,10 @@ def hf_dataset(
         data_dir (str | None): data_dir of the dataset configuration
           to read data from.
         split (str | None): Which split of the data to load.
-        sample_fields (SampleFieldSpec | RecordToSample): Method of mapping underlying
+        sample_fields (FieldSpec | RecordToSample): Method of mapping underlying
           fields in the data source to Sample objects. Pass `None` if the data is already
           stored in `Sample` form (i.e. has "input" and "target" columns.); Pass a
-          `SampleFieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
+          `FieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
           handle mapping with a custom function that returns one or more samples.
         shuffle (bool): Randomly shuffle the dataset order.
         seed: (int | None): Seed used for random shuffle.

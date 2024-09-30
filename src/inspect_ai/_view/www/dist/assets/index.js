@@ -17710,10 +17710,6 @@ const SamplesTab = (props) => {
   }, [setSampleDialogVisible, sampleDialogRef]);
   const hideSample = q(() => {
     setSampleDialogVisible(false);
-    const listEl = sampleListRef.current;
-    if (listEl && listEl.base) {
-      listEl.base.focus();
-    }
   }, [setSampleDialogVisible]);
   y(() => {
     const { sorted, order: order2 } = sort(sort$1, filteredSamples, sampleDescriptor);
