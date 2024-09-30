@@ -60,7 +60,6 @@ def swe_bench(
             The scorer to use when evaluating swe_bench. If None, uses the default scorer. Mostly commonly, this will be a list of scorers to compare to baselines (see the README for more information).
 
     """
-    getLogger().handlers = []  # Swe-bench adds a global logger, which we disable.
 
     assert find_spec(
         "swebench"
