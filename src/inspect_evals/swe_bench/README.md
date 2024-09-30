@@ -39,8 +39,10 @@ NOTE: SWE-bench will take a while to run, and uses a lot of tokens. If things ar
 ### Comparing to official swe-bench baselines
 Submissions to [the official SWE-bench leaderboard](https://www.swebench.com/) often come with a set of trajectories and per-swebench-instance results. To download these baselines, you can git clone the official baselines repository, and copy the baselines to a local directory:
 ```bash
-# Download the swe-bench baselines. NOTE: THEY ARE QUITE LARGE. 
-git clone https://github.com/swe-bench/experiments /tmp/swebench_baselines
+# Download the swe-bench baselines. This will take a while. 
+if [ ! -d '/tmp/swebench_baselines_repo' ]; then
+    git clone https://github.com/swe-bench/experiments /tmp/swebench_baselines_repo
+fi
 # Copy to current directory
 mkdir -p swebench_baselines
 cp -r /tmp/swebench_baselines/evaluation/verified/20240620_sweagent_claude3.5sonnet ./swebench_baselines/
