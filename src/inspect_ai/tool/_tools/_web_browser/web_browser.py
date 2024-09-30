@@ -243,7 +243,7 @@ def web_browser_type_submit(sandbox: str = "web_browser") -> Tool:
 
 async def web_browser_cmd(sandbox: str, cmd: str, *args: str) -> str:
     result = await web_browser_sandbox(sandbox).exec(
-        ["python3", "web_client.py", cmd] + list(args)
+        ["python3", "/app/web_browser/web_client.py", cmd] + list(args)
     )
     if not result.success:
         raise RuntimeError(

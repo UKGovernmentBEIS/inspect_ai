@@ -31,8 +31,8 @@ def sandbox(name: str | None = None) -> SandboxEnvironment:
             + "Please specify a sandbox for the sample or a global default sandbox for the task"
         )
 
-    # if there is no name specified take the first environment
-    if name is None:
+    # For 'default' or None take the first environment
+    if name is None or name == "default":
         return list(environments.values())[0]
     else:
         environment = environments.get(name, None)

@@ -16,6 +16,8 @@ RUN playwright install-deps
 # Install other dependancies
 RUN pip install dm-env-rpc pillow bs4 lxml
 
+# Copy Python files alongside the Dockerfile
 COPY *.py ./
 
-CMD ["python3", "web_server.py"]
+# Run the server
+CMD ["python3", "/app/web_browser/web_server.py"]
