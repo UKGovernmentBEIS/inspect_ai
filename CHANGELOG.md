@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.34 (30 September 2024)
 
 - Support for `max_tokens` on OpenAI o1 models (map to `max_completion_tokens`).
 - Fix regression of log and debug options on `inspect view`
