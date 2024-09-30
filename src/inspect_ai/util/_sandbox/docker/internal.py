@@ -8,7 +8,7 @@ INTERNAL_IMAGES = {
     INSPECT_WEB_BROWSER_IMAGE: PKG_PATH
     / "tool"
     / "_tools"
-    / "web_browser"
+    / "_web_browser"
     / "_resources"
 }
 
