@@ -58,10 +58,6 @@ export const SamplesTab = (props) => {
 
   const hideSample = useCallback(() => {
     setSampleDialogVisible(false);
-    const listEl = sampleListRef.current;
-    if (listEl && listEl.base) {
-      listEl.base.focus();
-    }
   }, [setSampleDialogVisible]);
 
   useEffect(() => {
