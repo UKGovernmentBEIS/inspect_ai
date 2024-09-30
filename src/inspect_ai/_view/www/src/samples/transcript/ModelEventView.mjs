@@ -60,7 +60,7 @@ export const ModelEventView = ({ id, event, style }) => {
   return html`
   <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model} style=${style}>
   
-    <div name="Completion" style=${{ margin: "0.5em 0" }}>
+    <div name="Summary" style=${{ margin: "0.5em 0" }}>
     <${ChatView}
       id="${id}-model-output"
       messages=${[...userMessages, ...(outputMessages || [])]}
