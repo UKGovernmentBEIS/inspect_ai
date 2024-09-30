@@ -64,7 +64,7 @@ def swe_bench(
 
     assert find_spec(
         "swebench"
-    ), "To run SWE-bench, please install the optional swebench depency, by running `pip install inspect-ai[swebench]`"
+    ), "To run SWE-bench, please install the optional SWE-bench depency, by running `pip install inspect-ai[swe_bench]`"
 
     samples = hf_dataset(
         dataset,

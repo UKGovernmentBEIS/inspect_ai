@@ -157,8 +157,8 @@ def test_same_scores_as_a_baseline(
                     continue
 
             if result.samples[0].scores:
-                score = result.samples[0].scores["swebench_scorer"]
-                swe_agent_score = result.samples[0].scores["sweagent_baseline"]
+                score = result.samples[0].scores[swe_bench_scorer.__name__]
+                swe_agent_score = result.samples[0].scores[baseline.name]
 
             if score.value != swe_agent_score.value:
                 error_str += f"Result of evaluating {result.samples[0].id} did not agree with the swe_bench ground truth. Our score: '{score.value}'. swe-agent score: '{swe_agent_score.value}' Scorer results: {score.explanation}"
