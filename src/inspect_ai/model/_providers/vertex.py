@@ -82,6 +82,15 @@ class VertexAPI(ModelAPI):
         **model_args: Any,
     ) -> None:
         super().__init__(model_name=model_name, config=config)
+        self.model_api: ModelAPI | None = None
+
+        # delegate to AnthropicAPI for anthropic models
+        if is_anthropic(model_name):
+            from .anthropic import AnthropicAPI
+
+            self.model_api = AnthropicAPI(
+                model_name=model_name, vertex=True, config=config, **model_args
+            )
 
         if VERTEX_INIT_ARGS in model_args:
             vertexai.init(**model_args[VERTEX_INIT_ARGS])
@@ -106,6 +115,18 @@ class VertexAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> tuple[ModelOutput, ModelCall]:
+        if self.model_api:
+            anthropic_response = await self.model_api.generate(
+                input, tools, tool_choice, config
+            )
+            if type(anthropic_response) is ModelOutput:
+                # anthropic.py L184 error case returns only ModelOutput
+                return anthropic_response, ModelCall.create(
+                    request={}, response={}, filter=None
+                )
+            else:
+                return anthropic_response  # type: ignore # Ensuring return type is the tuple case with logic L122
+
         parameters = GenerationConfig(
             candidate_count=config.num_choices,
             temperature=config.temperature,
@@ -412,3 +433,7 @@ def str_to_harm_block_threshold(threshold: str) -> HarmBlockThreshold:
         return HarmBlockThreshold.BLOCK_NONE
     else:
         raise ValueError(f"Unknown HarmBlockThreshold: {threshold}")
+
+
+def is_anthropic(model_name: str) -> bool:
+    return model_name.startswith("claude")

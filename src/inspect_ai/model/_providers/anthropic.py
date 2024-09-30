@@ -8,6 +8,7 @@ from anthropic import (
     APIConnectionError,
     AsyncAnthropic,
     AsyncAnthropicBedrock,
+    AsyncAnthropicVertex,
     BadRequestError,
     InternalServerError,
     RateLimitError,
@@ -64,6 +65,7 @@ class AnthropicAPI(ModelAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         bedrock: bool = False,
+        vertex: bool = False,
         **model_args: Any,
     ):
         super().__init__(
@@ -86,7 +88,9 @@ class AnthropicAPI(ModelAPI):
             if base_region is None:
                 aws_region = os.environ.get("AWS_DEFAULT_REGION", None)
 
-            self.client: AsyncAnthropic | AsyncAnthropicBedrock = AsyncAnthropicBedrock(
+            self.client: (
+                AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex
+            ) = AsyncAnthropicBedrock(
                 base_url=base_url,
                 max_retries=(
                     config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
@@ -94,6 +98,20 @@ class AnthropicAPI(ModelAPI):
                 aws_region=aws_region,
                 **model_args,
             )
+        elif vertex:
+            self.client = AsyncAnthropicVertex(
+                project_id=os.environ.get(
+                    "ANTHROPIC_VERTEX_PROJECT_ID", "No Project ID Set"
+                ),
+                region=os.environ.get(
+                    "ANTHROPIC_VERTEX_REGION", "No Google Cloud Region Set"
+                ),
+                max_retries=(
+                    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
+                ),
+                **model_args,
+            )
+
         else:
             # resolve api_key
             if not self.api_key:
