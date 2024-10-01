@@ -2,10 +2,9 @@ import re
 from textwrap import dedent
 
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.tool._tool import Tool, ToolError, tool
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_with
 from inspect_ai.util._sandbox.docker.internal import INSPECT_WEB_BROWSER_IMAGE
-
-from ..._tool import Tool, ToolError, tool
 
 
 def web_browser_tools() -> list[Tool]:
