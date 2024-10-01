@@ -252,7 +252,7 @@
 - title: "XSTest: A benchmark for identifying exaggerated safety behaviours in LLM's"
   description: |
     Dataset with 250 safe prompts across ten prompt types that well-calibrated models should not refuse, and 200 unsafe prompts as contrasts that models, for most applications, should refuse.
-  path: evals/xstest
+  path: src/inspect_evals/xstest
   arxiv: https://arxiv.org/abs/2308.01263
   cite: röttger2024xstesttestsuiteidentifying
   group: Knowledge
