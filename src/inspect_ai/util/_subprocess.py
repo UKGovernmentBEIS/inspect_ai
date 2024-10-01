@@ -1,12 +1,16 @@
 import asyncio
 import os
 import sys
+from asyncio.subprocess import Process
 from contextvars import ContextVar
 from dataclasses import dataclass
+from logging import getLogger
 from pathlib import Path
-from typing import Generic, Literal, TypeVar, Union, overload
+from typing import AsyncGenerator, Generic, Literal, TypeVar, Union, cast, overload
 
 from ._concurrency import concurrency
+
+logger = getLogger(__name__)
 
 T = TypeVar("T", str, bytes)
 
@@ -89,7 +93,9 @@ async def subprocess(
     input = input.encode() if isinstance(input, str) else input
 
     # function to run command (we may or may not run it w/ concurrency)
-    async def run_command() -> Union[ExecResult[str], ExecResult[bytes]]:
+    async def run_command() -> (
+        AsyncGenerator[Union[Process, ExecResult[str], ExecResult[bytes]], None]
+    ):
         if isinstance(args, str):
             proc = await asyncio.create_subprocess_shell(
                 args,
@@ -110,19 +116,22 @@ async def subprocess(
                 env={**os.environ, **env},
             )
 
-        # wait for it to execute and return result
+        # yield the proc
+        yield proc
+
+        # wait for it to execute and yield result
         stdout, stderr = await proc.communicate(input=input)
         success = proc.returncode == 0
         returncode = proc.returncode if proc.returncode is not None else 1
         if text:
-            return ExecResult[str](
+            yield ExecResult[str](
                 success=success,
                 returncode=returncode,
                 stdout=stdout.decode() if capture_output else "",
                 stderr=stderr.decode() if capture_output else "",
             )
         else:
-            return ExecResult[bytes](
+            yield ExecResult[bytes](
                 success=success,
                 returncode=returncode,
                 stdout=stdout if capture_output else bytes(),
@@ -131,17 +140,40 @@ async def subprocess(
 
     # wrapper for run command that implements timeout
     async def run_command_timeout() -> Union[ExecResult[str], ExecResult[bytes]]:
+        # run the command and capture the process handle
+        rc = run_command()
+        proc = cast(Process, await anext(rc))
+
+        # await result wrapped in timeout handler if requested
         if timeout:
             try:
                 if sys.version_info >= (3, 11):
                     async with asyncio.timeout(timeout):
-                        return await run_command()
+                        result = await anext(rc)
+                        return cast(Union[ExecResult[str], ExecResult[bytes]], result)
                 else:
-                    return await asyncio.wait_for(run_command(), timeout=timeout)
+                    result = await asyncio.wait_for(anext(rc), timeout=timeout)
+                    return cast(Union[ExecResult[str], ExecResult[bytes]], result)
             except asyncio.exceptions.TimeoutError:
+                # terminate timed out process -- try for graceful termination
+                # then be more forceful if requied
+                try:
+                    proc.terminate()
+                    await asyncio.sleep(2)
+                    if proc.returncode is None:
+                        proc.kill()
+                except Exception as ex:
+                    logger.warning(
+                        f"Unexpected error terminating timed out process '{args}': {ex}"
+                    )
+
+                # raise standard Python TimeoutError
                 raise TimeoutError
+
+        # await result without timeout
         else:
-            return await run_command()
+            result = await anext(rc)
+            return cast(Union[ExecResult[str], ExecResult[bytes]], result)
 
     # run command
     async with concurrency("subprocesses", max_subprocesses_context_var.get()):
