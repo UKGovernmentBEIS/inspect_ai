@@ -1,6 +1,6 @@
 import statistics
 from collections import Counter
-from typing import Any, Callable, cast
+from typing import Callable, cast
 
 import numpy as np
 
@@ -331,33 +331,5 @@ def _reduced_score(value: Value, scores: list[Score]) -> Score:
         explanation=scores[0].explanation
         if len(set(score.explanation for score in scores)) == 1
         else None,
-        metadata=scores[0].metadata
-        if len(
-            set(
-                tuple(
-                    (key, _make_hashable(value))
-                    for key, value in score.metadata.items()
-                )
-                for score in scores
-                if score.metadata
-            )
-        )
-        == 1
-        else None,
+        metadata=scores[0].metadata,
     )
-
-
-def _make_hashable(item: Any) -> Any:
-    r"""Recursively convert dictionaries to tuples of tuples to make them hashable.
-
-    Args:
-        item: a dictionary or list of dictionaries
-    """
-    if isinstance(item, dict):
-        return tuple(
-            (key, _make_hashable(value)) for key, value in sorted(item.items())
-        )
-    elif isinstance(item, list):
-        return tuple(_make_hashable(x) for x in item)
-    else:
-        return item
