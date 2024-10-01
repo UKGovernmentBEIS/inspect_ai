@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Catch o1-preview "invalid_prompt" exception and convert to normal content_filter refusal.
+- Support 'anthropoic/bedrock/' service prefix for Anthropic models hosted on AWS Bedrock.
 
 ## v0.3.34 (30 September 2024)
 
