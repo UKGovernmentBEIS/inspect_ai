@@ -13,7 +13,7 @@
 - title: "MBPP: Mostly Basic Python Problems"
   description: |
     Measuring the ability of these models to synthesize short Python programs from natural language descriptions. Demonstrates custom scorers and sandboxing untrusted model code.
-  path: evals/mbpp
+  path: src/inspect_evals/mbpp
   arxiv: https://arxiv.org/abs/2108.07732
   cite: Kub_t_2021
   group: Coding
@@ -113,7 +113,7 @@
 - title: "PIQA: Reasoning about Physical Commonsense in Natural Language"
   description: |
     Measure physical commonsense reasoning (e.g. "To apply eyeshadow without a brush, should I use a cotton swab or a toothpick?")
-  path: evals/piqa
+  path: src/inspect_evals/piqa
   arxiv: https://arxiv.org/abs/1911.11641
   cite: bisk2019piqareasoningphysicalcommonsense
   group: Reasoning
