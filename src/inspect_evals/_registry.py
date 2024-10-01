@@ -13,3 +13,4 @@ from .mathvista import mathvista
 from .mmmu import mmmu_multiple_choice, mmmu_open
 from .race_h import race_h
 from .swe_bench import swe_bench
+from .truthfulqa import truthfulqa
