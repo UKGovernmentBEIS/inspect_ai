@@ -6,8 +6,10 @@ Yonatan Bisk, Rowan Zellers, Ronan Le Bras, Jianfeng Gao, Yejin Choi
 https://arxiv.org/abs/1911.11641
 
 # eval piqa validation set
-inspect eval piq.py
+inspect eval inspect_evals/piqa
 """
+
+from typing import Any
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
@@ -30,7 +32,8 @@ explain how to achieve the statement.
 
 
 @task
-def piqa():
+def piqa() -> Task:
+    """Inspect Task implementation of PIQA"""
     dataset = hf_dataset(
         path="piqa",
         sample_fields=record_to_sample,
@@ -46,7 +49,7 @@ def piqa():
     )
 
 
-def record_to_sample(record):
+def record_to_sample(record: dict[str, Any]) -> Sample:
     return Sample(
         input=record["goal"],
         target="A" if record["label"] == 0 else "B",

@@ -11,6 +11,8 @@ inspect eval truthfulqa.py
 inspect eval truthfulqa.py -T target=mc2
 """
 
+from typing import Any, Literal
+
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.scorer import choice
@@ -18,8 +20,15 @@ from inspect_ai.solver import multiple_choice
 
 
 @task
-def truthfulqa(target="mc1"):
-    def record_to_sample(record):
+def truthfulqa(target: Literal["mc1", "mc2"] = "mc1") -> Task:
+    """
+    Inspect Task implementation for the TruthfulQA benchmark
+
+    Args:
+        target (Literal["mc1", "mc2"]): Whether to use the mc1 or mc2 targets
+    """
+
+    def record_to_sample(record: dict[str, Any]) -> Sample:
         return Sample(
             input=record["question"],
             choices=record[f"{target}_targets"]["choices"],
