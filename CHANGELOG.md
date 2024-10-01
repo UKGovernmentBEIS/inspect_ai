@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Catch o1-preview "invalid_prompt" exception and convert to normal content_filter refusal.
+- Revert change to score reducers to address regression in what types are supported in scorer metadata.
 
 ## v0.3.34 (30 September 2024)
 
