@@ -31,7 +31,7 @@ from .compose import (
     compose_up,
 )
 from .config import CONFIG_FILES
-from .internal import build_internal_image, is_internal_image, is_internal_image_built
+from .internal import build_internal_image, is_internal_image
 from .prereqs import validate_prereqs
 from .util import ComposeProject, sandbox_log, task_project_name
 
@@ -69,8 +69,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 # build internal images
                 image = service.get("image", None)
                 if image and is_internal_image(image):
-                    if not await is_internal_image_built(image):
-                        await build_internal_image(image)
+                    await build_internal_image(image)
                 # pull any remote images
                 elif (
                     service.get("build", None) is None
