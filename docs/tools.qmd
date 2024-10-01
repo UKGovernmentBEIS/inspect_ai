@@ -268,7 +268,7 @@ Under the hood, the web browser is an instance of [Chromium](https://www.chromiu
 
 ``` {.yaml filename="compose.yaml"}
 services:
-  web_browser:
+  default:
     image: inspect_web_browser:0.5
     init: true
 ```
