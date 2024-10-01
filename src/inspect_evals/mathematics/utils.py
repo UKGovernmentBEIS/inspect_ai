@@ -4,9 +4,6 @@ import signal
 from types import FrameType
 from typing import Any, Literal, Type
 
-import sympy  # type: ignore
-from sympy.parsing.latex import parse_latex  # type: ignore
-
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.model import Model, get_model
 from inspect_ai.scorer import (
@@ -165,6 +162,9 @@ class timeout:
 
 async def is_equiv_sympy(x1: str, x2: str) -> bool:
     """x1 and x2 are normalized latex string"""
+    import sympy  # type: ignore
+    from sympy.parsing.latex import parse_latex  # type: ignore
+
     try:
         with timeout(seconds=5):
             try:
