@@ -18,6 +18,7 @@ from inspect_ai.tool import bash, python, web_browser_tools
 def gaia(
     solver: Solver | None = None,
     input_prompt: str | None = None,
+    max_attempts: int = 3,
     max_messages: int = 30,
     subset: Literal[
         "2023_all", "2023_level1", "2023_level2", "2023_level3"
@@ -50,6 +51,7 @@ def gaia(
                 """)
             ),
             tools=[bash(CODE_TIMEOUT), python(CODE_TIMEOUT)] + web_browser_tools(),
+            max_attempts=max_attempts,
         )
 
     # resolve scorer (test split has no answers)
