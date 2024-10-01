@@ -8,10 +8,11 @@ from platformdirs import user_cache_dir
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Dataset, Sample, hf_dataset
-from inspect_ai.scorer import match
 from inspect_ai.solver import Solver, basic_agent, system_message
 from inspect_ai.tool import bash, web_search
+
 from .gaia_scorer import gaia_scorer
+
 
 @task
 def gaia(
@@ -45,7 +46,7 @@ def gaia(
         )
 
     # resolve scorer (test split has no answers)
-    scorer = match() if split == "validation" else None
+    scorer = gaia_scorer() if split == "validation" else None
 
     # docker compose file is alongside
     COMPOSE_FILE = Path(__file__).parent / "compose.yaml"
