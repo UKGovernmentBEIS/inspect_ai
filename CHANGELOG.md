@@ -2,7 +2,17 @@
 
 ## Unreleased
 
+- [Web Browser](https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-browser) tool which provides a headless Chromimum browser that supports navigation, history, and mouse/keyboard interactions.
+
+## v0.3.35 (1 October 2024)
+
 - Catch o1-preview "invalid_prompt" exception and convert to normal content_filter refusal.
+- Terminate timed out subprocesses.
+- Support 'anthropoic/bedrock/' service prefix for Anthropic models hosted on AWS Bedrock.
+- Change score reducer behavior to always reduce score metadata to the value of the `metadata` field in the first epoch
+- Improve task termination message (provide eval-retry prompt for tasks published in packages)
+- Preserve type for functions decorated with `@task`.
+- Various improvements to layout and display for Inspect View transcript.
 
 ## v0.3.34 (30 September 2024)
 

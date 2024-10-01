@@ -66,6 +66,14 @@ class AnthropicAPI(ModelAPI):
         bedrock: bool = False,
         **model_args: Any,
     ):
+        # extract any service prefix from model name
+        parts = model_name.split("/")
+        if len(parts) > 1:
+            service = parts[0]
+            bedrock = service == "bedrock"
+            model_name = "/".join(parts[1:])
+
+        # call super
         super().__init__(
             model_name=model_name,
             base_url=base_url,

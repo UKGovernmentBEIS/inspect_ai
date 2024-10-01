@@ -25,7 +25,7 @@ def hf_dataset(
     seed: int | None = None,
     limit: int | None = None,
     trust: bool = False,
-    **kwargs: dict[str, Any],
+    **kwargs: Any,
 ) -> Dataset:
     """Datasets read using the Hugging Face `datasets` package.
 

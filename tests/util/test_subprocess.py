@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
+from random import random
 
+import psutil
 import pytest
 
 from inspect_ai.util import subprocess
@@ -60,8 +62,22 @@ async def test_subprocess_env():
 
 @pytest.mark.asyncio
 async def test_subprocess_timeout():
+    def process_found(pattern: str) -> bool:
+        return any(
+            pattern in " ".join(p.info["cmdline"] or [])
+            for p in psutil.process_iter(["cmdline"])
+        )
+
+    timeout_length = random() * 60
+    subprocess_cmds = ["sleep", f"{2+timeout_length}"]
+
+    if process_found(" ".join(subprocess_cmds)):
+        raise Exception(
+            f"There is already a process matching {subprocess_cmds}; the test isn't going to work"
+        )
     try:
-        await subprocess(["sleep", "2"], timeout=1)
+        await subprocess(subprocess_cmds, timeout=1)
         assert False
     except TimeoutError:
-        pass
+        if process_found(" ".join(subprocess_cmds)):
+            assert False, "Process was not killed"

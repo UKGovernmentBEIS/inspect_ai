@@ -1,0 +1,9 @@
+services:
+  default:
+    image: "python:3.12-bookworm"
+    init: true
+    command: "tail -f /dev/null"
+  web_browser:
+    image: inspect_web_browser
+    init: true
+  
