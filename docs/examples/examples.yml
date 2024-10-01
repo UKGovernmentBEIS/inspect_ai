@@ -173,7 +173,7 @@
 - title: "SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles"
   description: |
     Set of 100,000+ questions posed by crowdworkers on a set of Wikipedia articles, where the answer to each question is a segment of text from the corresponding reading passage.
-  path: evals/squad
+  path: src/inspect_evals/squad
   arxiv: https://arxiv.org/abs/1606.05250
   cite: rajpurkar2016squad100000questionsmachine
   group: Reasoning
