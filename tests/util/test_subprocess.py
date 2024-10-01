@@ -1,8 +1,8 @@
 import os
 from pathlib import Path
 from random import random
-import psutil
 
+import psutil
 import pytest
 
 from inspect_ai.util import subprocess
