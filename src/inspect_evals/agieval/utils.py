@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 from inspect_ai import Task
 from inspect_ai.dataset import Dataset, Sample, json_dataset
@@ -8,6 +9,7 @@ from inspect_ai.scorer import (
     INCORRECT,
     AnswerPattern,
     Score,
+    Scorer,
     Target,
     accuracy,
     choice,
@@ -70,7 +72,7 @@ Answer the following multiple choice question. The last line of your response sh
 CHOICE_PREFIX = ["(A)", "(B)", "(C)", "(D)", "(E)"]
 
 
-def record_to_sample(record):
+def record_to_sample(record: dict[str, Any]) -> Sample:
     input_str = (
         str(record["question"])
         if record["passage"] is None
@@ -145,7 +147,10 @@ def agieval_solver(
 
 
 def task_template(
-    dataset_name, cot: bool = False, fewshot: int | None = None, fewshot_seed: int = 42
+    dataset_name: str,
+    cot: bool = False,
+    fewshot: int | None = None,
+    fewshot_seed: int = 42,
 ) -> Task:
     # Load the dataset
     dataset = json_dataset(
@@ -210,8 +215,8 @@ def convert_math_str(input_string: str) -> str:
 # adapt scorer to the type of task
 # # https://github.com/UKGovernmentBEIS/inspect_ai/blob/52688ccdc88b1dee6abaaa1144e731257b637f6b/benchmarks/mathematics.py
 @scorer(metrics=[accuracy(), stderr()])
-def expression_equivalence():
-    async def score(state: TaskState, target: Target):
+def expression_equivalence() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
         # extract answer
         match = re.search(AnswerPattern.LINE, state.output.completion)
         if match:
