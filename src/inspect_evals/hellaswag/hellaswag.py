@@ -5,6 +5,8 @@ Rowan Zellers, Ari Holtzman, Yonatan Bisk, Ali Farhadi, Yejin Choi
 https://arxiv.org/abs/1905.07830
 """
 
+from typing import Any
+
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.scorer import choice
@@ -16,7 +18,8 @@ Choose the most plausible continuation for the story.
 
 
 @task
-def hellaswag():
+def hellaswag() -> Task:
+    """Inspect Task implementing the HellaSwag benchmark"""
     # dataset
     dataset = hf_dataset(
         path="hellaswag",
@@ -34,7 +37,7 @@ def hellaswag():
     )
 
 
-def record_to_sample(record):
+def record_to_sample(record: dict[str, Any]) -> Sample:
     return Sample(
         input=record["ctx"],
         target=chr(ord("A") + int(record["label"])),
