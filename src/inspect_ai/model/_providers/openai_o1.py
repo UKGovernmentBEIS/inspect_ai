@@ -4,7 +4,7 @@ import textwrap
 from logging import getLogger
 from typing import Any
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, BadRequestError
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionAssistantMessageParam,
@@ -45,18 +45,36 @@ async def generate_o1(
     # create chatapi handler
     handler = O1PreviewChatAPIHandler()
 
+    # map max_tokens => max_completion_tokens
+    max_tokens = params.get("max_tokens", None)
+    if max_tokens:
+        params["max_completion_tokens"] = max_tokens
+        del params["max_tokens"]
+
     # call model
-    response = await client.chat.completions.create(
-        model=model,
-        messages=chat_messages(input, tools, handler),
-        **params,
-    )
+    try:
+        response = await client.chat.completions.create(
+            model=model,
+            messages=chat_messages(input, tools, handler),
+            **params,
+        )
+    except BadRequestError as ex:
+        return handle_bad_request(model, ex)
 
     # return model output
     return ModelOutput(
         model=response.model,
         choices=chat_choices_from_response(response, tools, handler),
     )
+
+
+def handle_bad_request(model: str, ex: BadRequestError) -> ModelOutput:
+    if ex.code == "invalid_prompt":
+        return ModelOutput.from_content(
+            model=model, content=str(ex), stop_reason="content_filter"
+        )
+    else:
+        raise ex
 
 
 def chat_messages(

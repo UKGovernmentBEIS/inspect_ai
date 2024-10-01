@@ -74,14 +74,6 @@ Here are the possible values for `StopReason` :
 
 : {tbl-colwidths=\[35,65\]}
 
-::: {.callout-note apperance="simple:}
-Note that the `model_length` and `max_tokens` stop reasons are currently only available in the development version of Inspect. You can install the development version with:
-
-```bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 ### Error Handling
 
 By default expected errors (e.g. file not found, insufficient, permission , timeouts, etc.) are forwarded to the model for possible recovery. If you would like to intervene in the default error handling then rather than immediately appending the list of assistant messages returned from `call_tools()` to `state.messages` (as shown above), check the error property of these messages (which will be `None` in the case of no error) and proceed accordingly.

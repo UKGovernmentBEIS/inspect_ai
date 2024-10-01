@@ -49,7 +49,7 @@ asyncio_default_fixture_loop_scope = "function"
 log_level = "warning"
 
 [tool.mypy]
-exclude = ["tests/test_package", "evals", "build"]
+exclude = ["tests/test_package", "evals", "build", "(?:^|/)_resources/"]
 warn_unused_ignores = true
 no_implicit_reexport = true
 strict_equality = true
@@ -78,7 +78,7 @@ extra_checks = true
 disable_error_code = "unused-ignore"
 
 [tool.check-wheel-contents]
-ignore = ["W009"]
+ignore = ["W002", "W009"]
 
 [project]
 name = "inspect_ai"
@@ -111,10 +111,12 @@ inspect = "inspect_ai._cli.main:main"
 
 [project.optional-dependencies]
 inspect_evals = [
-    "datasets",
+    "datasets>=2.21", # This is the last version of HuggingFace datasets befor the v3.0.0 release. Needed for a working datasets.load_dataset call for several of the evals.
     "pillow"
 ]
 swe_bench = ["inspect_ai[inspect_evals]", "swebench","docker"]
+mathematics = ["inspect_ai[inspect_evals]", "sympy"]
+ifeval = ["inspect_ai[inspect_evals]", "instruction-following-eval @ git+https://github.com/josejg/instruction_following_eval.git"]
 
 dev = [
     "anthropic", 
@@ -146,7 +148,8 @@ dev = [
     "types-Pillow",
     "types-protobuf",
     "types-psutil",
-    "types-python-dateutil"
+    "types-python-dateutil",
+    "types-requests"
 ]
 doc = ["quarto-cli", "jupyter"]
 dist = ["twine", "build"]

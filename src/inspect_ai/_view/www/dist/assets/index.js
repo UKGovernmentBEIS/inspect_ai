@@ -11803,7 +11803,7 @@ Prism.languages.json = {
   }
 };
 Prism.languages.webmanifest = Prism.languages.json;
-const ExpandablePanel = ({ collapse, border, lines = 7, children }) => {
+const ExpandablePanel = ({ collapse, border, lines = 10, children }) => {
   const [collapsed, setCollapsed] = h(collapse);
   const [showToggle, setShowToggle] = h(false);
   const contentsRef = A();
@@ -12131,15 +12131,19 @@ const messageRenderers = {
     }
   }
 };
-const ChatView = ({ id, messages, style, indented }) => {
+const ChatView = ({
+  id,
+  messages,
+  style,
+  indented,
+  numbered = true
+}) => {
   const resolvedMessages = [];
   for (const message of messages) {
     if (message.role === "tool") {
       if (resolvedMessages.length > 0) {
         const msg = resolvedMessages[resolvedMessages.length - 1];
         msg.toolOutput = message;
-      } else {
-        console.warn("Received a tool message without a preceding message.");
       }
     } else {
       resolvedMessages.push({ message });
@@ -12170,7 +12174,7 @@ const ChatView = ({ id, messages, style, indented }) => {
   const result = m$1`
     <div style=${style}>
       ${collapsedMessages.map((msg, index) => {
-    if (collapsedMessages.length > 1) {
+    if (collapsedMessages.length > 1 && numbered) {
       return m$1` <div
             style=${{
         display: "grid",
@@ -16269,14 +16273,23 @@ const ModelEventView = ({ id, event, style }) => {
     alignSelf: "start",
     justifySelf: "start"
   };
+  const userMessages = [];
+  for (const msg of event.input.reverse()) {
+    if (msg.role === "user") {
+      userMessages.push(msg);
+    } else {
+      break;
+    }
+  }
   return m$1`
   <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model} style=${style}>
   
-    <div name="Completion" style=${{ margin: "0.5em 0" }}>
+    <div name="Summary" style=${{ margin: "0.5em 0" }}>
     <${ChatView}
       id="${id}-model-output"
-      messages=${[...outputMessages || []]}
+      messages=${[...userMessages, ...outputMessages || []]}
       style=${{ paddingTop: "1em" }}
+      numbered=${false}
       />
     </div>
 
@@ -17704,10 +17717,6 @@ const SamplesTab = (props) => {
   }, [setSampleDialogVisible, sampleDialogRef]);
   const hideSample = q(() => {
     setSampleDialogVisible(false);
-    const listEl = sampleListRef.current;
-    if (listEl && listEl.base) {
-      listEl.base.focus();
-    }
   }, [setSampleDialogVisible]);
   y(() => {
     const { sorted, order: order2 } = sort(sort$1, filteredSamples, sampleDescriptor);

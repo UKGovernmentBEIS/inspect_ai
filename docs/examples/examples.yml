@@ -3,7 +3,7 @@
 - title: "HumanEval: Evaluating Large Language Models Trained on Code"
   description: |
     Evaluating correctness for synthesizing Python programs from docstrings. Demonstrates custom scorers and sandboxing untrusted model code.
-  path: evals/humaneval
+  path: src/inspect_evals/humaneval
   arxiv: https://arxiv.org/abs/2107.03374
   cite: chen2021evaluatinglargelanguagemodels
   group: Coding
@@ -13,7 +13,7 @@
 - title: "MBPP: Mostly Basic Python Problems"
   description: |
     Measuring the ability of these models to synthesize short Python programs from natural language descriptions. Demonstrates custom scorers and sandboxing untrusted model code.
-  path: evals/mbpp
+  path: src/inspect_evals/mbpp
   arxiv: https://arxiv.org/abs/2108.07732
   cite: Kub_t_2021
   group: Coding
@@ -24,7 +24,7 @@
   description: |
     Software engineering problems drawn from real GitHub issues and corresponding pull requests across 12 popular Python repositories.
     Demonstrates sandboxing untrusted model code.
-  path: evals/swe_bench
+  path: src/inspect_evals/swe_bench
   arxiv: https://arxiv.org/abs/2310.06770
   cite: jimenez2024swebenchlanguagemodelsresolve
   group: Coding
@@ -44,7 +44,7 @@
 - title: "InterCode: Capture the Flag"
   description: |
     Measure expertise in coding, cryptography (i.e. binary exploitation, forensics), reverse engineering, and recognizing security vulnerabilities. Demonstrates tool use and sandboxing untrusted model code.
-  path: evals/gdm_capabilities/intercode_ctf
+  path: src/inspect_evals/gdm_capabilities/intercode_ctf
   arxiv: https://arxiv.org/abs/2306.14898
   cite: yang2023intercodestandardizingbenchmarkinginteractive
   group: Cybersecurity
@@ -54,7 +54,7 @@
 - title: "GDM Dangerous Capabilities: Capture the Flag"
   description: |
     CTF challenges covering web app vulnerabilities, off-the-shelf exploits, databases, Linux privilege escalation, password cracking and spraying. Demonstrates tool use and sandboxing untrusted model code.
-  path: evals/gdm_capabilities/in_house_ctf
+  path: src/inspect_evals/gdm_capabilities/in_house_ctf
   arxiv: https://arxiv.org/abs/2403.13793
   cite: phuong2024evaluatingfrontiermodelsdangerous
   group: Cybersecurity
@@ -64,7 +64,7 @@
 - title: "MATH: Measuring Mathematical Problem Solving"
   description: |
     Dataset of 12,500 challenging competition mathematics problems. Demonstrates fewshot prompting and custom scorers.
-  path: evals/mathematics
+  path: src/inspect_evals/mathematics
   arxiv: https://arxiv.org/abs/2103.03874
   cite: hendrycks2021measuringmathematicalproblemsolving
   group: Mathematics
@@ -74,7 +74,7 @@
 - title: "GSM8K: Training Verifiers to Solve Math Word Problems"
   description: |
     Dataset of 8.5K high quality linguistically diverse grade school math word problems. Demostrates fewshot prompting.
-  path: evals/gsm8k
+  path: src/inspect_evals/gsm8k
   arxiv: https://arxiv.org/abs/2110.14168
   cite: cobbe2021trainingverifierssolvemath
   group: Mathematics
@@ -93,7 +93,7 @@
 
 - title: "ARC: AI2 Reasoning Challenge"
   description: Dataset of natural, grade-school science multiple-choice questions (authored for human tests).
-  path: evals/arc
+  path: src/inspect_evals/arc
   arxiv: https://arxiv.org/abs/1803.05457
   cite: clark2018thinksolvedquestionanswering
   group: Reasoning
@@ -113,7 +113,7 @@
 - title: "PIQA: Reasoning about Physical Commonsense in Natural Language"
   description: |
     Measure physical commonsense reasoning (e.g. "To apply eyeshadow without a brush, should I use a cotton swab or a toothpick?")
-  path: evals/piqa
+  path: src/inspect_evals/piqa
   arxiv: https://arxiv.org/abs/1911.11641
   cite: bisk2019piqareasoningphysicalcommonsense
   group: Reasoning
@@ -123,7 +123,7 @@
 - title: "BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions"
   description: |
     Reading comprehension dataset that queries for complex, non-factoid information, and require difficult entailment-like inference to solve.
-  path: evals/boolq
+  path: src/inspect_evals/boolq
   arxiv: https://arxiv.org/abs/1905.10044
   cite: clark2019boolqexploringsurprisingdifficulty
   group: Reasoning
@@ -143,7 +143,7 @@
 - title: "WINOGRANDE: An Adversarial Winograd Schema Challenge at Scale"
   description: |
     Set of 273 expert-crafted pronoun resolution problems originally designed to be unsolvable for statistical models that rely on selectional preferences or word associations.
-  path: evals/winogrande
+  path: src/inspect_evals/winogrande
   arxiv: https://arxiv.org/abs/1907.10641
   cite: sakaguchi2019winograndeadversarialwinogradschema
   group: Reasoning
@@ -173,7 +173,7 @@
 - title: "SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles"
   description: |
     Set of 100,000+ questions posed by crowdworkers on a set of Wikipedia articles, where the answer to each question is a segment of text from the corresponding reading passage.
-  path: evals/squad
+  path: src/inspect_evals/squad
   arxiv: https://arxiv.org/abs/1606.05250
   cite: rajpurkar2016squad100000questionsmachine
   group: Reasoning
@@ -182,7 +182,7 @@
 - title: "IFEval: Instruction-Following Evaluation for Large Language Models"
   description: |
     Evaluates the ability to follow a set of "verifiable instructions" such as "write in more than 400 words" and "mention the keyword of AI at least 3 times. Demonstrates custom scoring.
-  path: evals/ifeval
+  path: src/inspect_evals/ifeval
   arxiv: https://arxiv.org/abs/2311.07911
   cite: zhou2023instructionfollowingevaluationlargelanguage
   group: Reasoning
@@ -232,7 +232,7 @@
 - title: "CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge"
   description: |
     Measure question answering with commonsense prior knowledge.
-  path: evals/commonsense_qa
+  path: src/inspect_evals/commonsense_qa
   arxiv: https://arxiv.org/abs/1811.00937
   cite: talmor2019commonsenseqaquestionansweringchallenge
   group: Knowledge
@@ -242,7 +242,7 @@
 - title: "TruthfulQA: Measuring How Models Mimic Human Falsehoods"
   description: |
     Measure whether a language model is truthful in generating answers to questions using questions that some humans would answer falsely due to a false belief or misconception.
-  path: evals/truthfulqa
+  path: src/inspect_evals/truthfulqa
   arxiv: https://arxiv.org/abs/2109.07958v2
   cite: lin2022truthfulqameasuringmodelsmimic
   group: Knowledge
@@ -252,7 +252,7 @@
 - title: "XSTest: A benchmark for identifying exaggerated safety behaviours in LLM's"
   description: |
     Dataset with 250 safe prompts across ten prompt types that well-calibrated models should not refuse, and 200 unsafe prompts as contrasts that models, for most applications, should refuse.
-  path: evals/xstest
+  path: src/inspect_evals/xstest
   arxiv: https://arxiv.org/abs/2308.01263
   cite: röttger2024xstesttestsuiteidentifying
   group: Knowledge
@@ -262,7 +262,7 @@
 - title: "PubMedQA: A Dataset for Biomedical Research Question Answering"
   description: |
     Novel biomedical question answering (QA) dataset collected from PubMed abstracts.
-  path: bookmarks/pubmedqa
+  path: src/inspect_evals/pubmedqa
   arxiv: https://arxiv.org/abs/1909.06146
   cite: jin2019pubmedqadatasetbiomedicalresearch
   group: Knowledge
