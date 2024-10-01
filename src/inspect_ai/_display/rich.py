@@ -553,8 +553,8 @@ def task_interrupted(profile: TaskProfile, samples_completed: int) -> Renderable
     theme = rich_theme()
     message = f"[bold][{theme.error}]Task interrupted ("
     if samples_completed > 0:
-        message = f"{message}{samples_completed} completed samples logged before interruption)."
-        if task_can_retry_from_filesystem(profile):
+        message = f"{message}{samples_completed:,} of {profile.samples:,} total samples logged before interruption)."
+        if task_can_retry(profile):
             message = (
                 f"{message} Resume task with:[/{theme.error}][/bold]\n\n"
                 + f"[bold][{theme.light}]inspect eval-retry {log_location}[/{theme.light}][/bold]"
@@ -569,8 +569,8 @@ def task_interrupted(profile: TaskProfile, samples_completed: int) -> Renderable
     return message
 
 
-def task_can_retry_from_filesystem(profile: TaskProfile) -> bool:
-    return profile.file is not None
+def task_can_retry(profile: TaskProfile) -> bool:
+    return profile.file is not None or "/" in profile.name
 
 
 def task_results(profile: TaskProfile, success: TaskSuccess) -> RenderableType:
