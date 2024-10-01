@@ -12,6 +12,8 @@ inspect eval gsm8k.py -T fewshot=5
 inspect eval gsm8k.py -T fewshot=false
 """
 
+from typing import Any
+
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.scorer import match
@@ -30,7 +32,13 @@ Reasoning:
 
 
 @task
-def gsm8k(fewshot=10, fewshot_seed=42):
+def gsm8k(fewshot: int = 10, fewshot_seed: int = 42) -> Task:
+    """Inspect Task definition for the GSM8K benchmark
+
+    Args:
+        fewshot (int): The number of few shots to include
+        fewshot_seed (int): The seed for generating few shots
+    """
     # build solver dynamically (may or may not be doing fewshot)
     solver = [prompt_template(MATH_PROMPT_TEMPLATE), generate()]
     if fewshot:
@@ -63,7 +71,7 @@ def gsm8k(fewshot=10, fewshot_seed=42):
     )
 
 
-def record_to_sample(record):
+def record_to_sample(record: dict[str, Any]) -> Sample:
     DELIM = "####"
     input = record["question"]
     answer = record["answer"].split(DELIM)
@@ -72,9 +80,12 @@ def record_to_sample(record):
     return Sample(input=input, target=target, metadata={"reasoning": reasoning.strip()})
 
 
-def sample_to_fewshot(sample):
-    return (
-        f"{sample.input}\n\nReasoning:\n"
-        + f"{sample.metadata['reasoning']}\n\n"
-        + f"ANSWER: {sample.target}"
-    )
+def sample_to_fewshot(sample: Sample) -> str:
+    if sample.metadata:
+        return (
+            f"{sample.input}\n\nReasoning:\n"
+            + f"{sample.metadata['reasoning']}\n\n"
+            + f"ANSWER: {sample.target}"
+        )
+    else:
+        return ""
