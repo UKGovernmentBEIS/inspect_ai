@@ -27,7 +27,7 @@ async def check_stop_reason(model_name):
     assert response.choices[0].stop_reason == "stop"
 
     response = await generate_token_limit(model_name)
-    assert response.choices[0].stop_reason == "length"
+    assert response.choices[0].stop_reason == "max_tokens"
 
 
 @pytest.mark.asyncio
