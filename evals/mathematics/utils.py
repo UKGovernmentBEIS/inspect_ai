@@ -126,7 +126,11 @@ def sample_to_fewshot(sample: Sample) -> str:
     ), "Solution not found in sample, make sure to include it in the 'sample.metadata' dict."
     soln_str = f"""SOLUTION:\n{soln}"""
     ans_str = f"""ANSWER: {sample.target}"""
-    return f"""{prob_str}\n\n{soln_str}\n{ans_str}"""
+
+    # return fewshot (escaping {} used in latex to avoid interpretation as metadata variables)
+    return f"""{prob_str}\n\n{soln_str}\n{ans_str}""".replace("{", "{{").replace(
+        "}", "}}"
+    )
 
 
 # From here till normalize_final_answer() is borrowed from:
