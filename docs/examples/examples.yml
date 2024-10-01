@@ -113,7 +113,7 @@
 - title: "PIQA: Reasoning about Physical Commonsense in Natural Language"
   description: |
     Measure physical commonsense reasoning (e.g. "To apply eyeshadow without a brush, should I use a cotton swab or a toothpick?")
-  path: evals/piqa
+  path: src/inspect_evals/piqa
   arxiv: https://arxiv.org/abs/1911.11641
   cite: bisk2019piqareasoningphysicalcommonsense
   group: Reasoning
