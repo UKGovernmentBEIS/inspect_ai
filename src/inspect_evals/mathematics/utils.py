@@ -1,10 +1,8 @@
 import logging
 import re
 import signal
-from typing import Dict
-
-import sympy  # type: ignore
-from sympy.parsing.latex import parse_latex  # type: ignore
+from types import FrameType
+from typing import Any, Literal, Type
 
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.model import Model, get_model
@@ -20,7 +18,11 @@ from inspect_ai.solver import TaskState
 logger = logging.getLogger(__name__)
 
 
-def filter_dataset(dataset: Dataset, levels: list, subjects: list) -> Dataset:
+def filter_dataset(
+    dataset: Dataset,
+    levels: list[Literal[1, 2, 3, 4, 5]] | Literal[1, 2, 3, 4, 5],
+    subjects: list[str] | str,
+) -> Dataset:
     """Filters the MATH dataset by levels and/or subjects.
 
     Arguments:
@@ -30,11 +32,11 @@ def filter_dataset(dataset: Dataset, levels: list, subjects: list) -> Dataset:
     """
     # Filter dataset by levels, if required
     levels = levels if isinstance(levels, list) else [levels]
-    levels = [str(elm) for elm in levels]
-    if len(levels) > 0:
+    levels_str = [str(elm) for elm in levels]
+    if len(levels_str) > 0:
         dataset = dataset.filter(
-            name=f"{dataset.name}_lvl-{'-'.join(levels)}",
-            predicate=lambda sample: sample.metadata["level"] in levels
+            name=f"{dataset.name}_lvl-{'-'.join(levels_str)}",
+            predicate=lambda sample: sample.metadata["level"] in levels_str
             if sample.metadata is not None
             else False,
         )
@@ -104,10 +106,12 @@ async def score_helper(
     return score
 
 
-def record_to_sample(record: Dict) -> Sample:
+def record_to_sample(record: dict[str, Any]) -> Sample:
     return Sample(
         input=record["problem"],
-        target=remove_boxed(last_boxed_only_string(record["solution"])),
+        target=remove_boxed(
+            last_boxed_only_string(record["solution"]) or record["solution"]
+        ),
         metadata={
             "level": record["level"].lower().lstrip("level "),
             "subject": record["type"].lower(),
@@ -136,23 +140,31 @@ def sample_to_fewshot(sample: Sample) -> str:
 # From here till normalize_final_answer() is borrowed from:
 # https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/tasks/minerva_math/utils.py#L144
 class timeout:
-    def __init__(self, seconds=1, error_message="Timeout"):
+    def __init__(self, seconds: int = 1, error_message: str = "Timeout"):
         self.seconds = seconds
         self.error_message = error_message
 
-    def handle_timeout(self, signum, frame):
+    def handle_timeout(self, signum: int, frame: FrameType | None) -> None:
         raise TimeoutError(self.error_message)
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         signal.signal(signal.SIGALRM, self.handle_timeout)
         signal.alarm(self.seconds)
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(
+        self,
+        exc_type: Type[BaseException] | None,
+        exc_value: BaseException | None,
+        exc_traceback: object | None,
+    ) -> None:
         signal.alarm(0)
 
 
 async def is_equiv_sympy(x1: str, x2: str) -> bool:
     """x1 and x2 are normalized latex string"""
+    import sympy  # type: ignore
+    from sympy.parsing.latex import parse_latex  # type: ignore
+
     try:
         with timeout(seconds=5):
             try:
@@ -245,7 +257,7 @@ async def is_equiv(str1: str | None, str2: str | None) -> bool:
         return str1 == str2
 
 
-async def strip_string(string):
+async def strip_string(string: str) -> str:
     # linebreaks
     string = string.replace("\n", "")
 
@@ -310,7 +322,7 @@ async def strip_string(string):
     return string
 
 
-async def fix_fracs(string):
+async def fix_fracs(string: str) -> str:
     substrs = string.split("\\frac")
     new_str = substrs[0]
     if len(substrs) > 1:
@@ -342,22 +354,22 @@ async def fix_fracs(string):
     return string
 
 
-async def fix_a_slash_b(string):
+async def fix_a_slash_b(string: str) -> str:
     if len(string.split("/")) != 2:
         return string
     a = string.split("/")[0]
     b = string.split("/")[1]
     try:
-        a = int(a)
-        b = int(b)
-        assert string == "{}/{}".format(a, b)
-        new_string = "\\frac{" + str(a) + "}{" + str(b) + "}"
+        a_int = int(a)
+        b_int = int(b)
+        assert string == "{}/{}".format(a_int, b_int)
+        new_string = "\\frac{" + str(a_int) + "}{" + str(b_int) + "}"
         return new_string
     except AssertionError:
         return string
 
 
-async def remove_right_units(string):
+async def remove_right_units(string: str) -> str:
     # "\\text{ " only ever occurs (at least in the val set) when describing units
     if "\\text{ " in string:
         splits = string.split("\\text{ ")
@@ -367,7 +379,7 @@ async def remove_right_units(string):
         return string
 
 
-async def fix_sqrt(self, string):
+async def fix_sqrt(string: str) -> str:
     if "\\sqrt" not in string:
         return string
     splits = string.split("\\sqrt")
@@ -384,7 +396,7 @@ async def fix_sqrt(self, string):
 
 # Both remove_boxed() and last_boxed_only_string() functions borrowed from:
 # https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/tasks/hendrycks_math/utils.py#L53C1-L94C18
-def remove_boxed(s):
+def remove_boxed(s: str) -> str:
     if "\\boxed " in s:
         left = "\\boxed "
         assert s[: len(left)] == left
@@ -398,7 +410,7 @@ def remove_boxed(s):
     return s[len(left) : -1]
 
 
-def last_boxed_only_string(string):
+def last_boxed_only_string(string: str) -> str | None:
     idx = string.rfind("\\boxed")
     if "\\boxed " in string:
         return "\\boxed " + string.split("\\boxed ")[-1].split("$")[0]

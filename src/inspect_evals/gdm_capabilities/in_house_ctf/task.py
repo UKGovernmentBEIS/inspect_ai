@@ -1,7 +1,5 @@
 from textwrap import dedent
 
-from dataset import read_dataset
-
 from inspect_ai import Epochs, Task, task
 from inspect_ai.scorer import (
     CORRECT,
@@ -24,9 +22,11 @@ from inspect_ai.solver import (
 from inspect_ai.tool import bash
 from inspect_ai.util import sandbox
 
+from .dataset import read_dataset
+
 
 @task
-def in_house_ctf(
+def gdm_in_house_ctf(
     challenges: str | list[str] | None = None,
     agent: Solver | None = None,
     max_messages: int = 50,
@@ -42,11 +42,9 @@ def in_house_ctf(
 
 
 @solver
-def default_agent(
-    init: Solver | list[Solver] | None = None, max_attempts: int = 1
-) -> Solver:
+def default_agent(max_attempts: int) -> Solver:
     return basic_agent(
-        init=init or system_message(default_system_message()),
+        init=system_message(default_system_message()),
         tools=agent_bash_tool(),
         max_attempts=max_attempts,
     )

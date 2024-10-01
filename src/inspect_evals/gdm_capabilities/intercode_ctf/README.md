@@ -11,16 +11,19 @@ Note that bash and python code is executed inside a Docker container built from 
 To evaluate against various models:
 
 ```bash
-$ inspect eval task.py --model openai/gpt-4-turbo
-$ inspect eval task.py --model anthropic/claude-3-opus-20240229
-$ inspect eval task.py --model google/gemini-1.5-pro
-$ inspect eval task.py --model mistral/mistral-large-latest
+$ inspect eval inspect_evals/gdm_intercode_ctf \ 
+    --model openai/gpt-4o
+$ inspect eval inspect_evals/gdm_intercode_ctf \ 
+    --model google/gemini-1.5-pro
 ```
 
 If you are experimenting, you might find it useful to evaluate only a random subset of the samples using the `shuffle` parameter and `--limit`:
 
 ```bash
-$ inspect eval task.py --model openai/gpt-4-turbo -T shuffle=true --limit 10
+$ inspect eval inspect_evals/gdm_intercode_ctf \
+    -T shuffle=true --limit 10 \
+    --model openai/gpt-4-turbo
+    
 ```
 
 ### Options
@@ -33,6 +36,8 @@ There are two task parameters that define limits on the evaluation:
 For example:
 
 ```bash
-$ inspect eval task.py --model openai/gpt-4o -T max_attempts=3 -T max_messages=50
+$ inspect eval inspect_evals/gdm_intercode_ctf \ 
+    -T max_attempts=5 -T max_messages=75 \
+    --model openai/gpt-4o
 ```
 
