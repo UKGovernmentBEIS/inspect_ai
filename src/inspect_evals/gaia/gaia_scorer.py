@@ -4,7 +4,6 @@ import warnings
 
 from inspect_ai.scorer import Score, Scorer, Target, scorer
 from inspect_ai.solver import TaskState
-from inspect_evals import gaia
 
 
 @scorer
@@ -15,6 +14,7 @@ def gaia_scorer() -> Scorer:
             value=question_scorer(model_answer=answer, ground_truth=target.text),
             answer=answer,
         )
+
     return gaia_scorer
 
 
