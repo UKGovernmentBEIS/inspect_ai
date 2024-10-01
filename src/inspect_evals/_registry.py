@@ -16,4 +16,5 @@ from .piqa import piqa
 from .pubmedqa import pubmedqa
 from .race_h import race_h
 from .swe_bench import swe_bench
+from .winogrande import winogrande
 from .xstest import xstest
