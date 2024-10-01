@@ -242,7 +242,7 @@
 - title: "TruthfulQA: Measuring How Models Mimic Human Falsehoods"
   description: |
     Measure whether a language model is truthful in generating answers to questions using questions that some humans would answer falsely due to a false belief or misconception.
-  path: evals/truthfulqa
+  path: src/inspect_evals/truthfulqa
   arxiv: https://arxiv.org/abs/2109.07958v2
   cite: lin2022truthfulqameasuringmodelsmimic
   group: Knowledge
