@@ -329,6 +329,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#sec-reducing-epochs" id="toc-sec-reducing-epochs" class="nav-link" data-scroll-target="#sec-reducing-epochs">Reducing Epochs</a>
   <ul class="collapse">
   <li><a href="#built-in-reducers" id="toc-built-in-reducers" class="nav-link" data-scroll-target="#built-in-reducers">Built-in Reducers</a></li>
+  <li><a href="#custom-reducers" id="toc-custom-reducers" class="nav-link" data-scroll-target="#custom-reducers">Custom Reducers</a></li>
   </ul></li>
   <li><a href="#sec-scorer-workflow" id="toc-sec-scorer-workflow" class="nav-link" data-scroll-target="#sec-scorer-workflow">Workflow</a>
   <ul class="collapse">
@@ -917,9 +918,28 @@ Note
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>The built in reducers will compute a reduced <code>value</code> for the score and populate the remaining fields (<code>answer</code>, <code>explanation</code>, and <code>metadata</code> using the values from the first score that is being reduced)</p>
+<p>The built in reducers will compute a reduced <code>value</code> for the score and populate the fields <code>answer</code> and <code>explanation</code> only if their value is equal across all epochs. The <code>metadata</code> field will always be reduced to the value of <code>metadata</code> in the first epoch. If your custom metrics function needs differing behavior for reducing fields, you should also implement your own custom reducer and merge or preserve fields in some way.</p>
 </div>
 </div>
+</section>
+<section id="custom-reducers" class="level3">
+<h3 class="anchored" data-anchor-id="custom-reducers">Custom Reducers</h3>
+<p>You can also add your own reducer with <code>@score_reducer</code> decorated functions. Here’s a somewhat simplified version of the code for the <code>mean</code> reducer:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> statistics</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> Score, ScoreReducer, score_reducer</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="at">@score_reducer</span>(name<span class="op">=</span><span class="st">"mean"</span>)</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mean_score() <span class="op">-&gt;</span> ScoreReducer:</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="bu">reduce</span>(scores: <span class="bu">list</span>[Score]) <span class="op">-&gt;</span> Score:</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Compute a mean value of all scores."""</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>        values <span class="op">=</span> [<span class="bu">float</span>(score.value) <span class="cf">for</span> score <span class="kw">in</span> scores]</span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>        mean_value <span class="op">=</span> statistics.mean(values)</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> Score(value<span class="op">=</span>mean_value)</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">reduce</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
 <section id="sec-scorer-workflow" class="level2">
@@ -927,13 +947,13 @@ Note
 <section id="score-command" class="level3">
 <h3 class="anchored" data-anchor-id="score-command">Score Command</h3>
 <p>By default, model output in evaluations is automatically scored. However, you can separate generation and scoring by using the <code>--no-score</code> option. For example:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval popularity.py <span class="at">--model</span> openai/gpt-4 <span class="at">--no-score</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval popularity.py <span class="at">--model</span> openai/gpt-4 <span class="at">--no-score</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can score an evaluation previously run this way using the <code>inspect score</code> command:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># score last eval</span></span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> score popularity.py</span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="co"># score specific log file</span></span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> score popularity.py ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.json</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb18"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># score last eval</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> score popularity.py</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="co"># score specific log file</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> score popularity.py ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.json</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="callout callout-style-default callout-tip callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -951,27 +971,27 @@ Tip
 <section id="log-overwriting" class="level3">
 <h3 class="anchored" data-anchor-id="log-overwriting">Log Overwriting</h3>
 <p>By default, <code>inspect score</code> overwrites the file it scores. If don’t want to overwrite target files, pass the <code>--no-overwrite</code> flag:</p>
-<div class="sourceCode" id="cb18"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> score popularity.py <span class="at">--no-overwrite</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb19"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> score popularity.py <span class="at">--no-overwrite</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>When specifying <code>--no-overwrite</code>, a <code>-scored</code> suffix will be added to the original log file name:</p>
-<div class="sourceCode" id="cb19"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./logs/2024-02-23_task_gpt-4_TUhnCn473c6-scored.json</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./logs/2024-02-23_task_gpt-4_TUhnCn473c6-scored.json</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that the <code>--no-overwrite</code> flag does not apply to log files that already have the <code>-scored</code> suffix—those files are always overwritten by <code>inspect score</code>. If you plan on scoring multiple times and you want to save each scoring output, you will want to copy the log to another location before re-scoring.</p>
 </section>
 <section id="python-api" class="level3">
 <h3 class="anchored" data-anchor-id="python-api">Python API</h3>
 <p>If you are exploring the performance of different scorers, you might find it more useful to call the <code>score()</code> function using varying scorers or scorer options. For example:</p>
-<div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)[<span class="dv">0</span>]</span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>grader_models <span class="op">=</span> [</span>
-<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"openai/gpt-4"</span>,</span>
-<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"anthropic/claude-3-opus-20240229"</span>,</span>
-<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"google/gemini-1.0-pro"</span>,</span>
-<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"mistral/mistral-large-latest"</span></span>
-<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>scoring_logs <span class="op">=</span> [score(log, model_graded_qa(model<span class="op">=</span>model)) </span>
-<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>                <span class="cf">for</span> model <span class="kw">in</span> grader_models]</span>
-<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>plot_results(scoring_logs)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)[<span class="dv">0</span>]</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>grader_models <span class="op">=</span> [</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"openai/gpt-4"</span>,</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"anthropic/claude-3-opus-20240229"</span>,</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"google/gemini-1.0-pro"</span>,</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"mistral/mistral-large-latest"</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>scoring_logs <span class="op">=</span> [score(log, model_graded_qa(model<span class="op">=</span>model)) </span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>                <span class="cf">for</span> model <span class="kw">in</span> grader_models]</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>plot_results(scoring_logs)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>
