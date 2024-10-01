@@ -1,5 +1,6 @@
 # ruff: noqa: F401
 
+from .arc import arc_challenge, arc_easy
 from .drop import drop
 from .gaia import gaia
 from .gpqa import gpqa_diamond

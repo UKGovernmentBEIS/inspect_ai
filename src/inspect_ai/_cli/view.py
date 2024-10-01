@@ -10,16 +10,18 @@ from .common import CommonOptions, common_options, resolve_common_options
 
 # Define the base command group
 @click.group(name="view", invoke_without_command=True)
+@common_options
 @click.pass_context
-def view_command(ctx: click.Context) -> None:
+def view_command(ctx: click.Context, **kwargs: Unpack[CommonOptions]) -> None:
     """View command group."""
     if ctx.invoked_subcommand is None:
-        ctx.invoke(start)
+        ctx.invoke(start, **kwargs)
     else:
         pass
 
 
 @view_command.command("start")
+@common_options
 @click.option(
     "--recursive",
     type=bool,
@@ -33,7 +35,6 @@ def view_command(ctx: click.Context) -> None:
     help="Tcp/Ip host",
 )
 @click.option("--port", default=DEFAULT_VIEW_PORT, help="TCP/IP port")
-@common_options
 def start(
     recursive: bool,
     host: str,
@@ -51,11 +52,7 @@ def start(
 
 
 @view_command.command("bundle")
-@click.option(
-    "--log-dir",
-    default="logs",
-    help="The directory of log files to bundle.",
-)
+@common_options
 @click.option(
     "--output-dir",
     required=True,
@@ -68,7 +65,13 @@ def start(
     default=False,
     help="Overwrite files in the output directory.",
 )
-def bundle_command(log_dir: str, output_dir: str, overwrite: bool) -> None:
+def bundle_command(
+    output_dir: str,
+    overwrite: bool,
+    **kwargs: Unpack[CommonOptions],
+) -> None:
     """Bundle evaluation logs"""
     # read common options
+    (log_dir, log_level) = resolve_common_options(kwargs)
+
     bundle_log_dir(output_dir=output_dir, log_dir=log_dir, overwrite=overwrite)
