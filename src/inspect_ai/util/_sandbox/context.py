@@ -1,6 +1,6 @@
 from contextvars import ContextVar
 from logging import getLogger
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 from shortuuid import uuid
 
@@ -18,21 +18,18 @@ def sandbox(name: str | None = None) -> SandboxEnvironment:
     """Get the SandboxEnvironment for the current sample.
 
     Args:
-       name (str | None): Optional sandbox environmnent name.
+      name (str | None): Optional sandbox environmnent name.
 
     Return:
-    SandboxEnvironment instance.
+      SandboxEnvironment instance.
     """
     # verify we have a context
     environments = sandbox_environments_context_var.get(None)
     if not environments:
-        raise RuntimeError(
-            "No sandbox environment has been provided for the current sample or task. "
-            + "Please specify a sandbox for the sample or a global default sandbox for the task"
-        )
+        raise raise_no_sandbox()
 
-    # if there is no name specified take the first environment
-    if name is None:
+    # For 'default' or None take the first environment
+    if name is None or name == "default":
         return list(environments.values())[0]
     else:
         environment = environments.get(name, None)
@@ -41,6 +38,58 @@ def sandbox(name: str | None = None) -> SandboxEnvironment:
                 f"SandboxEnvironment '{name}' is not a recoginized environment name."
             )
         return environment
+
+
+async def sandbox_with(file: str) -> SandboxEnvironment | None:
+    """Get the SandboxEnvironment for the current sample that has the specified file.
+
+    Args:
+      file (str): Path to file to check for.
+
+    Return:
+      SandboxEnvironment instance or None if no sandboxes had the file.
+    """
+    # get environments and with mapping
+    environments = sandbox_environments_context_var.get(None)
+    if environments is None:
+        raise_no_sandbox()
+    environments_with = sandbox_with_environments_context_var.get(None)
+    if environments_with is None:
+        raise_no_sandbox()
+
+    # if we've already disovered the sandbox for this file then return it
+    environment = environments_with.get(file, None)
+    if environment is not None:
+        return environment
+
+    # look in each sandbox
+    for _, environment in environments.items():
+        try:
+            # can we read the file?
+            await environment.read_file(file)
+
+            # if so this is our environment, cache and return it
+            environments_with[file] = environment
+            return environment
+
+        # allow exception types known to be raised from read_file
+        except (
+            FileNotFoundError,
+            UnicodeDecodeError,
+            PermissionError,
+            IsADirectoryError,
+        ):
+            pass
+
+    # not found
+    return None
+
+
+def raise_no_sandbox() -> NoReturn:
+    raise RuntimeError(
+        "No sandbox environment has been provided for the current sample or task. "
+        + "Please specify a sandbox for the sample or a global default sandbox for the task"
+    )
 
 
 async def init_sandbox_environments_sample(
@@ -72,6 +121,7 @@ async def init_sandbox_environments_sample(
 
         # set context
         sandbox_environments_context_var.set(environments)
+        sandbox_with_environments_context_var.set({})
 
         # return environments
         return environments
@@ -157,4 +207,8 @@ def validate_sandbox_environments(
 
 sandbox_environments_context_var = ContextVar[dict[str, SandboxEnvironment]](
     "sandbox_environments"
+)
+
+sandbox_with_environments_context_var = ContextVar[dict[str, SandboxEnvironment]](
+    "sandbox_with_environments"
 )

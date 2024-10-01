@@ -12,6 +12,18 @@ Inspect natively supports registering Python functions as tools and providing th
 One application of tools is to run them within an agent scaffold that pursues an objective over multiple interactions with a model. The scaffold uses the model to help make decisions about which tools to use and when, and orchestrates calls to the model to use the tools. This is covered in more depth in the [Agents](#sec-agents) section.
 :::
 
+## Built-In Tools
+
+Inspect has several built-in tools, including:
+
+-   [Bash and Python](#sec-bash-and-python) for executing arbitrary shell and Python code.
+
+-   [Web Browser](#sec-web-browser), which provides the model with a headless Chromimum web browser that supports navigation, history, and mouse/keyboard interactions.
+
+-   [Web Search](#sec-web-search), which uses the Google Search API to execute and summarise web searches.
+
+If you are only interested in using the built-in tools, check out their respective documentation links above. To learn more about creating your own tools read on immediately below.
+
 ## Tool Basics
 
 To demonstrate the use of tools, we'll define a simple tool that adds two numbers, using the `@tool` decorator to register it with the system.
@@ -207,15 +219,145 @@ my_add = tool_with(add(), parameters={"x": "the x argument"})
 
 Note that the `tool_with()` function returns a copy of the passed tool with modified descriptions (the passed tool retains its original descriptions).
 
-## Built-In Tools
+## Bash and Python {#sec-bash-and-python}
 
-Inspect has several built-in tools, including:
+The `bash()` and `python()` tools enable execution of arbitrary shell commands and Python code, respectively. These tools require the use of a [Sandbox Environment](#sec-sandbox-environments) for the execution of untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:
 
--   `web_search()`, which uses the Google Search API to execute and summarise web searches.
+``` python
+from inspect_ai.tool import bash, python
 
--   `bash()` and `python()`, for executing arbitrary shell and Python code.
+CMD_TIMEOUT = 180
 
-### Web Search {#sec-web-search}
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([
+                bash(CMD_TIMEOUT), 
+                python(CMD_TIMEOUT)
+            ]),
+            generate(),
+        ],
+        scorer=includes(),
+        max_messages=30,
+        sandbox="docker",
+    )
+```
+
+We specify a 3-minute timeout for execution of the bash and python tools to ensure that they don't perform extremely long running operations.
+
+See the [Agents](#sec-agents) section for more details on how to build evaluations that allow models to take arbitrary actions over a longer time horizon.
+
+## Web Browser {#sec-web-browser}
+
+::: {.callout-note apperance="\"simple:"}
+Note that the web browser tool described below is currently only available in the development version of Inspect. You can install the development version with:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+The web browser tool provides models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.
+
+### Configuration
+
+Under the hood, the web browser is an instance of [Chromium](https://www.chromium.org/chromium-projects/) orchestrated by [Playwright](https://playwright.dev/), and runs in its own dedicated Docker container. Therefore, to use the web_browser tool you should reference the `inspect_web_browser` Docker image provided with Inspect in your `compose.yaml`. For example, here we use it as our default image:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default:
+    image: inspect_web_browser:0.5
+    init: true
+```
+
+Here, we add a dedicated `web_browser` service:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default:
+    image: "python:3.12-bookworm"
+    init: true
+    command: "tail -f /dev/null"
+  web_browser:
+    image: inspect_web_browser:0.5
+    init: true
+```
+
+Rather than using the `inspect_web_browser` image, you can also just include the web browser service components in a custom image (see [Custom Images](#sec-custom-images) below for details).
+
+### Task
+
+A task configured to use the web browser tool might look like this:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import match
+from inspect_ai.solver import generate, use_tools
+from inspect_ai.tool import bash, web_browser_tools
+
+@task
+def browser_task():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            use_tools([bash()] + web_browser_tools()),
+            generate(),
+        ],
+        scorer=match(),
+        sandbox=("docker", "compose.yaml"),
+    )
+```
+
+Note that we pass `web_browser_tools()` to `use_tools()`, which provides a list of web browsing tools (e.g. `web_browser_go()`, `web_browser_click()`, etc.). 
+
+### Browsing
+
+If you review the transcripts of a sample with access to the web browser tool, you'll notice that there are several distinct tools made available for control of the web browser. These tools include:
+
+| Tool | Description |
+|------------------------------------|------------------------------------|
+| `web_browser_go()` | Navigate the web browser to a URL. |
+| `web_browser_click()` | Click an element on the page currently displayed by the web browser. |
+| `web_browser_scroll()` | Scroll the web browser up or down by one page. |
+| `web_browser_forward()` | Navigate the web browser forward in the browser history. |
+| `web_browser_back()` | Navigate the web browser back in the browser history. |
+| `web_browser_refresh()` | Refresh the current page of the web browser. |
+| `web_browser_type()` | Type text into an input on a web browser page. |
+| `web_browser_type_submit()` | Type text into a form input on a web browser page and press ENTER to submit the form. |
+
+: {tbl-colwidths=\[35,65\]}
+
+If you like, you can enable a subset of these tools rather than calling `web_browser_tools()` to use all of them.
+
+The return value of each of these tools is a [web accessibility tree](https://web.dev/articles/the-accessibility-tree) for the page, which provides a clean view of the content, links, and form fields available on the page (you can look at the accessibility tree for any web page using [Chrome Developer Tools](https://developer.chrome.com/blog/full-accessibility-tree)).
+
+### Custom Images {#sec-custom-image}
+
+Above we demonstrated how to use the pre-configured Inspect web browser container. If you prefer to incorporate the headless web browser and its dependencies into another container that is also supported. 
+
+To do this, reference the [Dockerfile](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_tools/_web_browser/_resources/Dockerfile) used in the built-in web browser container and ensure that the dependencies, application files, and server run command it uses are also in your container definition:
+
+``` dockerfile
+# Install playwright
+RUN pip install playwright 
+RUN playwright install
+RUN playwright install-deps 
+
+# Install other dependancies
+RUN pip install dm-env-rpc pillow bs4 lxml
+
+# Copy Python files alongside the Dockerfile
+COPY *.py ./
+
+# Run the server
+CMD ["python3", "/app/web_browser/web_server.py"]
+```
+
+
+## Web Search {#sec-web-search}
 
 The `web_search()` tool provides models the ability to enhance their context window by performing a search. By default web searches retrieve 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the `web_search()` function:
 
@@ -260,34 +402,3 @@ The `web_search()` tool uses [Google Programmable Search Engine](https://program
 -   `GOOGLE_CSE_ID` — Google Custom Search Engine ID
 
 -   `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
-
-### Bash and Python {#sec-bash-and-python}
-
-The `bash()` and `python()` tools enable execution of arbitrary shell commands and Python code, respectively. These tools require the use of a [Sandbox Environment](#sec-sandbox-environments) for the execution of untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:
-
-``` python
-from inspect_ai.tool import bash, python
-
-CMD_TIMEOUT = 180
-
-@task
-def intercode_ctf():
-    return Task(
-        dataset=read_dataset(),
-        solver=[
-            system_message("system.txt"),
-            use_tools([
-                bash(CMD_TIMEOUT), 
-                python(CMD_TIMEOUT)
-            ]),
-            generate(),
-        ],
-        scorer=includes(),
-        max_messages=30,
-        sandbox="docker",
-    )
-```
-
-We specify a 3-minute timeout for execution of the bash and python tools to ensure that they don't perform extremely long running operations.
-
-See the [Agents](#sec-agents) section for more details on how to build evaluations that allow models to take arbitrary actions over a longer time horizon.

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- [Web Browser](https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-browser) tool which provides a headless Chromimum browser that supports navigation, history, and mouse/keyboard interactions.
+
 ## v0.3.35 (1 October 2024)
 
 - Catch o1-preview "invalid_prompt" exception and convert to normal content_filter refusal.
