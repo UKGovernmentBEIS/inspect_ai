@@ -19,7 +19,7 @@ def gaia(
     solver: Solver | None = None,
     input_prompt: str | None = None,
     max_attempts: int = 3,
-    max_messages: int = 30,
+    max_messages: int = 50,
     subset: Literal[
         "2023_all", "2023_level1", "2023_level2", "2023_level3"
     ] = "2023_all",
@@ -68,6 +68,21 @@ def gaia(
         sandbox=("docker", COMPOSE_FILE.as_posix()),
         max_messages=max_messages,
     )
+
+
+@task
+def gaia_level1(**kwargs: Any) -> Task:
+    return gaia(subset="2023_level1", **kwargs)
+
+
+@task
+def gaia_level2(**kwargs: Any) -> Task:
+    return gaia(subset="2023_level2", **kwargs)
+
+
+@task
+def gaia_level3(**kwargs: Any) -> Task:
+    return gaia(subset="2023_level3", **kwargs)
 
 
 CODE_TIMEOUT = 180
