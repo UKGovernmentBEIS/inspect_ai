@@ -202,7 +202,7 @@
 - title: "MMLU: Measuring Massive Multitask Language Understanding"
   description: |
     Evaluate models on 57 tasks including elementary mathematics, US history, computer science, law, and more.
-  path: evals/mmlu
+  path: src/inspect_evals/mmlu
   arxiv: https://arxiv.org/abs/2009.03300
   cite: hendrycks2021measuringmassivemultitasklanguage
   group: Knowledge
