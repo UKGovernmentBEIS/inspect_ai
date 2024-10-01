@@ -1,3 +1,7 @@
+from collections import namedtuple
+from dataclasses import dataclass
+from datetime import datetime
+from enum import Enum
 from functools import reduce
 
 from inspect_ai import Epochs, Task, eval
@@ -118,7 +122,7 @@ def test_reducer_preserve_metadata() -> None:
         reduced = reducer(simple_scores)
         assert reduced.answer is None
         assert reduced.explanation is None
-        assert reduced.metadata is None
+        assert reduced.metadata == simple_scores[0].metadata
         # reduce all scores _except_ the last one
         reduced = reducer(simple_scores[:-1])
         assert reduced.answer == simple_scores[0].answer
@@ -131,6 +135,85 @@ def test_reducer_preserve_metadata() -> None:
         assert reduced.answer == simple_scores[0].answer
         assert reduced.explanation == simple_scores[0].explanation
         assert reduced.metadata == simple_scores[0].metadata
+
+
+@dataclass
+class Foo:
+    foo: bool
+
+
+class DifficultyLevel(Enum):
+    EASY = 1
+    MEDIUM = 2
+    HARD = 3
+
+
+Point = namedtuple("Point", ["x", "y"])  # noqa: F821
+
+
+def test_complex_metadata_reduce():
+    list_scores = [
+        Score(
+            value=1,
+            answer="A",
+            explanation="It is A",
+            metadata={
+                "foo": Foo(foo=True),
+                "count": 5,
+                "probability": 0.75,
+                "tags": ["math", "algebra"],
+                "user": {"id": 123, "name": "John"},
+                "timestamp": datetime.now(),
+                "difficulty": DifficultyLevel.MEDIUM,
+                "optional_data": None,
+                "stats": {"attempts": 3, "success_rate": 0.67},
+                "frozen_set": frozenset([1, 2, 3]),
+                "point": Point(x=1, y=2),
+            },
+        ),
+        Score(
+            value=1,
+            answer="A",
+            explanation="It is A",
+            metadata={
+                "foo": Foo(foo=True),
+                "count": 5,
+                "probability": 0.75,
+                "tags": ["math", "algebra"],
+                "user": {"id": 123, "name": "John"},
+                "timestamp": datetime.now(),
+                "difficulty": DifficultyLevel.MEDIUM,
+                "optional_data": None,
+                "stats": {"attempts": 3, "success_rate": 0.67},
+                "frozen_set": frozenset([1, 2, 3]),
+                "point": Point(x=1, y=2),
+            },
+        ),
+        Score(
+            value=1,
+            answer="A",
+            explanation="It is A",
+            metadata={
+                "foo": Foo(foo=True),
+                "count": 5,
+                "probability": 0.75,
+                "tags": ["math", "algebra"],
+                "user": {"id": 123, "name": "John"},
+                "timestamp": datetime.now(),
+                "difficulty": DifficultyLevel.MEDIUM,
+                "optional_data": None,
+                "stats": {"attempts": 3, "success_rate": 0.67},
+                "frozen_set": frozenset([1, 2, 3]),
+                "point": Point(x=1, y=2),
+            },
+        ),
+    ]
+
+    reduced = avg_reducer(list_scores)
+    assert reduced.value == 1
+    assert reduced.answer == "A"
+    assert reduced.explanation == "It is A"
+    assert reduced.metadata == list_scores[0].metadata
 
 
 @score_reducer(name="add_em_up")
