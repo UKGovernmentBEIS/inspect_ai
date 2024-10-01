@@ -8,6 +8,8 @@ https://arxiv.org/pdf/1811.00937v2
 inspect eval commonsense_qa.py --limit 500
 """
 
+from typing import Any
+
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.model import GenerateConfig
@@ -16,7 +18,8 @@ from inspect_ai.solver import multiple_choice
 
 
 @task
-def commonsense_qa():
+def commonsense_qa() -> Task:
+    """Inspect task implementing the CommonsenseQA benchmark."""
     dataset = hf_dataset(
         path="tau/commonsense_qa",
         split="validation",
@@ -33,7 +36,7 @@ def commonsense_qa():
     )
 
 
-def record_to_sample(record):
+def record_to_sample(record: dict[str, Any]) -> Sample:
     return Sample(
         input=record["question"],
         choices=[
