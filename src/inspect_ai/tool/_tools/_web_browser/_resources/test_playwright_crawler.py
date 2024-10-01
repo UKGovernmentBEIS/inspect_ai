@@ -47,3 +47,45 @@ class TestPlaywrightCrawler(parameterized.TestCase):
                 '  [12] link "More information..." [url: https://www.iana.org/domains/example]'
             )
         )
+
+    def test_click_adjusts_to_scrolling_position(self):
+        test_html = """
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="UTF-8">
+              <title>Scrolling Test Page</title>
+              <style>
+                body { height: 3000px; }
+                .my-button { position: absolute; top: 1500px; }
+              </style>
+            </head>
+            <body>
+              <button class="my-button" onclick="changeText(this)">Click Me</button>
+              <script>
+                function changeText(button) {
+                  button.textContent = "Text Changed!";
+                }
+              </script>
+            </body>
+            </html>
+            """
+        self._crawler._page.set_content(test_html)
+        self._crawler.update()
+        at_before_scroll = self._crawler.render(
+            playwright_crawler.CrawlerOutputFormat.AT
+        )
+        self.assertIn("Scrolling Test Page", at_before_scroll)
+        self.assertNotIn("Click Me", at_before_scroll)
+
+        self._crawler.scroll("down")
+        self._crawler.update()
+        at_after_scroll = self._crawler.render(
+            playwright_crawler.CrawlerOutputFormat.AT
+        )
+        self.assertIn("Click Me", at_after_scroll)
+
+        self._crawler.click("17")
+        self._crawler.update()
+        at_after_click = self._crawler.render(playwright_crawler.CrawlerOutputFormat.AT)
+        self.assertIn("Text Changed!", at_after_click)

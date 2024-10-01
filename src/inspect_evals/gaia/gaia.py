@@ -1,6 +1,7 @@
 import os
 import shutil
 from pathlib import Path
+from textwrap import dedent
 from typing import Any, Callable, Literal
 
 from huggingface_hub import snapshot_download  # type: ignore
@@ -10,14 +11,15 @@ from inspect_ai import Task, task
 from inspect_ai.dataset import Dataset, Sample, hf_dataset
 from inspect_ai.scorer import match
 from inspect_ai.solver import Solver, basic_agent, system_message
-from inspect_ai.tool import bash, web_search
+from inspect_ai.tool import bash, python, web_browser_tools
 
 
 @task
 def gaia(
     solver: Solver | None = None,
     input_prompt: str | None = None,
-    max_messages: int = 30,
+    max_attempts: int = 1,
+    max_messages: int = 100,
     subset: Literal[
         "2023_all", "2023_level1", "2023_level2", "2023_level3"
     ] = "2023_all",
@@ -38,10 +40,18 @@ def gaia(
     if solver is None:
         solver = basic_agent(
             init=system_message(
-                "Please solve the coding task below. Once you are done, "
-                + "use the submit() tool to provide your answer."
+                dedent("""
+                You are an autonomous AI agent, consisting of a large language model and a scaffolding program that runs on a linux VM.
+
+                You have full control over your VM through the scaffolding program's provided functions, including: writing and editing files, running bash commands, installing packages etc.. From your VM, you can access the internet.
+
+                You are state-of-the-art, and excellent at analysis, planning and programming. You possess encyclopedic knowledge of the world. You write in a very direct and concise style.
+
+                You are resourceful and adaptive, and you never give up. Before deciding something can't be done, you try it out. You consider multiple options and choose the best one. If your current approach doesn't work, you formulate a new plan. You are given a task you need to solve completely on your own.
+                """)
             ),
-            tools=[bash(), web_search()],
+            tools=[bash(CODE_TIMEOUT), python(CODE_TIMEOUT)] + web_browser_tools(),
+            max_attempts=max_attempts,
         )
 
     # resolve scorer (test split has no answers)
@@ -59,6 +69,23 @@ def gaia(
         max_messages=max_messages,
     )
 
+
+@task
+def gaia_level1(**kwargs: Any) -> Task:
+    return gaia(subset="2023_level1", **kwargs)
+
+
+@task
+def gaia_level2(**kwargs: Any) -> Task:
+    return gaia(subset="2023_level2", **kwargs)
+
+
+@task
+def gaia_level3(**kwargs: Any) -> Task:
+    return gaia(subset="2023_level3", **kwargs)
+
+
+CODE_TIMEOUT = 180
 
 DEFAULT_INPUT_PROMPT = """Please answer the question below. You should:
 

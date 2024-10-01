@@ -7,11 +7,31 @@ from ._tool_choice import ToolChoice, ToolFunction
 from ._tool_info import ToolInfo, ToolParam, ToolParams
 from ._tool_with import tool_with
 from ._tools._execute import bash, python
+from ._tools._web_browser import (
+    web_browser_back,
+    web_browser_click,
+    web_browser_forward,
+    web_browser_go,
+    web_browser_refresh,
+    web_browser_scroll,
+    web_browser_tools,
+    web_browser_type,
+    web_browser_type_submit,
+)
 from ._tools._web_search import web_search
 
 __all__ = [
     "bash",
     "python",
+    "web_browser_tools",
+    "web_browser_go",
+    "web_browser_click",
+    "web_browser_scroll",
+    "web_browser_forward",
+    "web_browser_back",
+    "web_browser_refresh",
+    "web_browser_type",
+    "web_browser_type_submit",
     "web_search",
     "tool",
     "tool_with",
