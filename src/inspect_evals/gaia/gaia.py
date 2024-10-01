@@ -11,7 +11,7 @@ from inspect_ai.dataset import Dataset, Sample, hf_dataset
 from inspect_ai.scorer import match
 from inspect_ai.solver import Solver, basic_agent, system_message
 from inspect_ai.tool import bash, web_search
-
+from .gaia_scorer import gaia_scorer
 
 @task
 def gaia(
@@ -79,9 +79,11 @@ is the question:
 
 
 def gaia_dataset(
-    input_prompt: str,
-    subset: str,
-    split: str,
+    input_prompt: str = DEFAULT_INPUT_PROMPT,
+    subset: Literal[
+        "2023_all", "2023_level1", "2023_level2", "2023_level3"
+    ] = "2023_all",
+    split: Literal["test", "validation"] = "validation",
     filter: Callable[[Sample], bool] = lambda x: True,
 ) -> Dataset:
     # use user cache dir for dataset
