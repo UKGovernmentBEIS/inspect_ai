@@ -143,7 +143,7 @@
 - title: "WINOGRANDE: An Adversarial Winograd Schema Challenge at Scale"
   description: |
     Set of 273 expert-crafted pronoun resolution problems originally designed to be unsolvable for statistical models that rely on selectional preferences or word associations.
-  path: evals/winogrande
+  path: src/inspect_evals/winogrande
   arxiv: https://arxiv.org/abs/1907.10641
   cite: sakaguchi2019winograndeadversarialwinogradschema
   group: Reasoning

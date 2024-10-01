@@ -17,7 +17,7 @@ inspect eval winogrande/winogrande.py -T fewshot=false
 inspect eval winogrande/winogrande.py -T dataset_name=winogrande_l
 """
 
-from typing import Dict
+from typing import Any
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
@@ -109,7 +109,7 @@ def winogrande_solver(
     return solver
 
 
-def record_to_sample(record: Dict) -> Sample:
+def record_to_sample(record: dict[str, Any]) -> Sample:
     input = f"""Sentence: {record["sentence"].replace("_", BLANK_TAG)}"""
     target = ANSWER_TO_LETTER[record["answer"]]
     choices = [record["option1"], record["option2"]]  # Order is IMP
