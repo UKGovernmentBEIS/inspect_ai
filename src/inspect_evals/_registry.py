@@ -15,6 +15,7 @@ from .mmmu import mmmu_multiple_choice, mmmu_open
 from .piqa import piqa
 from .pubmedqa import pubmedqa
 from .race_h import race_h
+from .squad import squad
 from .swe_bench import swe_bench
 from .truthfulqa import truthfulqa
 from .winogrande import winogrande
