@@ -78,7 +78,7 @@ extra_checks = true
 disable_error_code = "unused-ignore"
 
 [tool.check-wheel-contents]
-ignore = ["W009"]
+ignore = ["W002", "W009"]
 
 [project]
 name = "inspect_ai"
