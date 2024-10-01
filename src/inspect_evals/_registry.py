@@ -12,8 +12,8 @@ from .ifeval import ifeval
 from .mathvista import mathvista
 from .mbpp import mbpp
 from .mmmu import mmmu_multiple_choice, mmmu_open
-from .pubmedqa import pubmedqa
 from .piqa import piqa
+from .pubmedqa import pubmedqa
 from .race_h import race_h
 from .swe_bench import swe_bench
 from .xstest import xstest
