@@ -13,7 +13,7 @@
 - title: "MBPP: Mostly Basic Python Problems"
   description: |
     Measuring the ability of these models to synthesize short Python programs from natural language descriptions. Demonstrates custom scorers and sandboxing untrusted model code.
-  path: evals/mbpp
+  path: src/inspect_evals/mbpp
   arxiv: https://arxiv.org/abs/2108.07732
   cite: Kub_t_2021
   group: Coding
@@ -113,7 +113,7 @@
 - title: "PIQA: Reasoning about Physical Commonsense in Natural Language"
   description: |
     Measure physical commonsense reasoning (e.g. "To apply eyeshadow without a brush, should I use a cotton swab or a toothpick?")
-  path: evals/piqa
+  path: src/inspect_evals/piqa
   arxiv: https://arxiv.org/abs/1911.11641
   cite: bisk2019piqareasoningphysicalcommonsense
   group: Reasoning
@@ -143,7 +143,7 @@
 - title: "WINOGRANDE: An Adversarial Winograd Schema Challenge at Scale"
   description: |
     Set of 273 expert-crafted pronoun resolution problems originally designed to be unsolvable for statistical models that rely on selectional preferences or word associations.
-  path: evals/winogrande
+  path: src/inspect_evals/winogrande
   arxiv: https://arxiv.org/abs/1907.10641
   cite: sakaguchi2019winograndeadversarialwinogradschema
   group: Reasoning
@@ -173,7 +173,7 @@
 - title: "SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles"
   description: |
     Set of 100,000+ questions posed by crowdworkers on a set of Wikipedia articles, where the answer to each question is a segment of text from the corresponding reading passage.
-  path: evals/squad
+  path: src/inspect_evals/squad
   arxiv: https://arxiv.org/abs/1606.05250
   cite: rajpurkar2016squad100000questionsmachine
   group: Reasoning
@@ -242,7 +242,7 @@
 - title: "TruthfulQA: Measuring How Models Mimic Human Falsehoods"
   description: |
     Measure whether a language model is truthful in generating answers to questions using questions that some humans would answer falsely due to a false belief or misconception.
-  path: evals/truthfulqa
+  path: src/inspect_evals/truthfulqa
   arxiv: https://arxiv.org/abs/2109.07958v2
   cite: lin2022truthfulqameasuringmodelsmimic
   group: Knowledge
@@ -252,7 +252,7 @@
 - title: "XSTest: A benchmark for identifying exaggerated safety behaviours in LLM's"
   description: |
     Dataset with 250 safe prompts across ten prompt types that well-calibrated models should not refuse, and 200 unsafe prompts as contrasts that models, for most applications, should refuse.
-  path: evals/xstest
+  path: src/inspect_evals/xstest
   arxiv: https://arxiv.org/abs/2308.01263
   cite: röttger2024xstesttestsuiteidentifying
   group: Knowledge
@@ -262,7 +262,7 @@
 - title: "PubMedQA: A Dataset for Biomedical Research Question Answering"
   description: |
     Novel biomedical question answering (QA) dataset collected from PubMed abstracts.
-  path: bookmarks/pubmedqa
+  path: src/inspect_evals/pubmedqa
   arxiv: https://arxiv.org/abs/1909.06146
   cite: jin2019pubmedqadatasetbiomedicalresearch
   group: Knowledge

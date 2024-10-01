@@ -22,12 +22,12 @@ book:
       image: /images/inspect.png
    sidebar:
       header: >
-         [![](/images/aisi-logo.png){fig-alt="UK AI Safety Institute Website"}](https://www.gov.uk/government/organisations/ai-safety-institute)
+         [![](/images/aisi-logo.png){fig-alt="UK AI Safety Institute Website"}](https://aisi.gov.uk/)
 
    page-footer: 
       left: 
          - text: UK AI Safety Institute
-           href: https://www.gov.uk/government/organisations/ai-safety-institute
+           href: https://aisi.gov.uk/
       center: 
          - text: Code
            href: https://github.com/UKGovernmentBEIS/inspect_ai
