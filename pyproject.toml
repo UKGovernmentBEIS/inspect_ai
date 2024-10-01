@@ -122,6 +122,7 @@ dev = [
     "google-cloud-aiplatform",
     "google-generativeai", 
     "groq", 
+    "ijson",
     "ipython",
     "mistralai",
     "moto[server]",

@@ -1,5 +1,6 @@
 # ruff: noqa: F401
 
+from .boolq import boolq
 from .drop import drop
 from .gaia import gaia
 from .gpqa import gpqa_diamond
