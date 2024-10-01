@@ -304,7 +304,13 @@ class PlaywrightCrawler:
           element_id: The id for the element we want to click on.
         """
         element = self.lookup_node(element_id)
-        self._page.mouse.click(element.bounds.center_x, element.bounds.center_y)
+        # Mouse.click() requires coordinates relative to the viewport:
+        # https://playwright.dev/python/docs/api/class-mouse#mouse-click,
+        # thus adjusting the Y coordinate since we only scroll up/down.
+        scroll_y = self._page.evaluate("window.scrollY")
+        self._page.mouse.click(
+            element.bounds.center_x, element.bounds.center_y - scroll_y
+        )
 
     def clear(self, element_id: int) -> None:
         """Clears text within a field."""
