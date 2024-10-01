@@ -147,7 +147,8 @@ dev = [
     "types-Pillow",
     "types-protobuf",
     "types-psutil",
-    "types-python-dateutil"
+    "types-python-dateutil",
+    "types-requests"
 ]
 doc = ["quarto-cli", "jupyter"]
 dist = ["twine", "build"]
