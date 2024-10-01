@@ -78,7 +78,7 @@ extra_checks = true
 disable_error_code = "unused-ignore"
 
 [tool.check-wheel-contents]
-ignore = ["W009"]
+ignore = ["W002", "W009"]
 
 [project]
 name = "inspect_ai"
@@ -147,7 +147,8 @@ dev = [
     "types-Pillow",
     "types-protobuf",
     "types-psutil",
-    "types-python-dateutil"
+    "types-python-dateutil",
+    "types-requests"
 ]
 doc = ["quarto-cli", "jupyter"]
 dist = ["twine", "build"]

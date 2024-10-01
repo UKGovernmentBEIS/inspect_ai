@@ -11,20 +11,23 @@ Each task runs using the task-specific `compose.yaml` files, which pulls the rem
 Evaluate all 13 challenges against any model with:
 
 ``` bash
-$ inspect eval challenges.py --model google/gemini-1.5-pro
+$ inspect eval inspect_evals/gdm_in_house_ctf \
+    --model google/gemini-1.5-pro
 ```
 
 You can also evaluate multiple models at once:
 
 ``` bash
-$ inspect eval challenges.py --model openai/gpt-4o,google/gemini-1.5-pro
+$ inspect eval inspect_evals/gdm_in_house_ctf \
+    --model openai/gpt-4o,google/gemini-1.5-pro
 ```
 
-To evaluate individual challenges specify them with \@:
+To evaluate one or moreindividual challenges use a task parameter:
 
 ``` bash
-$ inspect eval challenges.py@db_3 --model google/gemini-1.5-pro
-$ inspect eval challenges.py@idor --model openai/gpt-4o 
+$ inspect eval inspect_evals/gdm_in_house_ctf \
+    -T grafana,db_3 \
+    --model google/gemini-1.5-pro
 ```
 
 ### Agent
@@ -34,13 +37,17 @@ The challenges are by default evaluated using a basic ReAct agent that implement
 For example:
 
 ``` bash
-$ inspect eval challenges.py --model openai/gpt-4o -T max_messages=75
+$ inspect eval inspect_evals/gdm_in_house_ctf \
+    -T max_messages=75 \
+    --model openai/gpt-4o
 ```
 
 You can also run the task with an entirely different solver agent suing the `--solver` option. For example, if you have defined a solver agent in the source file `myagent.py`:
 
 ```bash
-$ inspect eval challenges.py --solver myagent.py --model google/gemini-1.5-pro
+$ inspect eval inspect_evals/gdm_in_house_ctf \
+    --solver myagent.py \
+    --model google/gemini-1.5-pro
 ```
 
 ### Epochs
@@ -48,7 +55,9 @@ $ inspect eval challenges.py --solver myagent.py --model google/gemini-1.5-pro
 The GDM paper evaluated each challenge 10 times, reporting success if at least 1 challenge of the 10 was successful. The same default number of epochs (10) is used here, however you can modify this with the `--epochs` option:
 
 ``` bash
-$ inspect eval challenges.py --epochs=5 --model openai/gpt-4o 
+$ inspect eval inspect_evals/gdm_in_house_ctf \
+    --epochs=5 \
+    --model openai/gpt-4o 
 ```
 
 
