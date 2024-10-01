@@ -18,7 +18,7 @@ Inspect has several built-in tools, including:
 
 -   [Bash and Python](#sec-bash-and-python) for executing arbitrary shell and Python code.
 
--   [Web Browser](#sec-web-browser), which provides the model with a headless web browser that supports navigation, history, and form fields.
+-   [Web Browser](#sec-web-browser), which provides the model with a headless Chromimum web browser that supports navigation, history, and mouse/keyboard interactions.
 
 -   [Web Search](#sec-web-search), which uses the Google Search API to execute and summarise web searches.
 
@@ -260,7 +260,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
-The web browser tool provides models with the ability to browse the web using a headless browser. Navigation, history, and form fields are all supported.
+The web browser tool provides models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.
 
 ### Configuration
 
