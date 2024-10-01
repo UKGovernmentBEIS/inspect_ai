@@ -8,13 +8,12 @@ https://arxiv.org/pdf/2311.07911
 Based on: https://github.com/google-research/google-research/tree/master/instruction_following_eval
 """
 
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 from instruction_following_eval.evaluation import (  # type: ignore
-    InstructionResult,
-    test_instruction_following_loose,
-    test_instruction_following_strict,
+    InputExample,
+    test_instruction_following,
 )
 
 from inspect_ai import Task, task
@@ -24,7 +23,8 @@ from inspect_ai.solver import TaskState, generate
 
 
 @task
-def ifeval():
+def ifeval() -> Task:
+    """Inspect Task implementation for the Instruction-Following benchmark"""
     return Task(
         dataset=hf_dataset(
             path="google/IFEval", split="train", sample_fields=record_to_sample
@@ -54,7 +54,7 @@ def if_metric() -> Metric:
 
         # calculate prompt-level accuracies/stds
         for key in prompt_keys:
-            score_lst = [cast(dict, score.value)[key] for score in scores]
+            score_lst = [cast(dict[str, Any], score.value)[key] for score in scores]
             statistics.append(np.mean(score_lst).item())
             statistics.append(np.std(score_lst).item())
 
@@ -62,7 +62,7 @@ def if_metric() -> Metric:
         for key in instruct_keys:
             flattened = []
             for score in scores:
-                value = cast(dict, score.value)
+                value = cast(dict[str, Any], score.value)
                 num_correct = int(value[key])
                 num_incorrect = int(value["num_instructions"] - value[key])
                 flattened.extend([True] * num_correct + [False] * num_incorrect)
@@ -83,17 +83,20 @@ def if_metric() -> Metric:
 def instruction_following() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         # construct the input to IFEval's evaluation functions using the data class
-        eval_input = InstructionResult(
-            state.sample_id,
-            state.metadata["instruction_id_list"],
-            state.metadata["prompt"],
-            state.output.completion,
-            state.metadata["kwargs"],
+        eval_input = InputExample(
+            key=state.sample_id,
+            instruction_id_list=state.metadata["instruction_id_list"],
+            prompt=state.metadata["prompt"],
+            kwargs=state.metadata["kwargs"],
         )
 
         # retrieve evaluated outputs
-        out_strict = test_instruction_following_strict(eval_input)
-        out_loose = test_instruction_following_loose(eval_input)
+        out_strict = test_instruction_following(
+            eval_input, state.output.completion, strict=True
+        )
+        out_loose = test_instruction_following(
+            eval_input, state.output.completion, strict=False
+        )
         ret_value = {
             "prompt_level_strict": out_strict.follow_all_instructions,
             "inst_level_strict": sum(out_strict.follow_instruction_list),
@@ -114,7 +117,7 @@ def instruction_following() -> Scorer:
 
 
 # map ifeval record into inspect sample
-def record_to_sample(record):
+def record_to_sample(record: dict[str, Any]) -> Sample:
     new_kwargs = {}
     for index in range(len(record["instruction_id_list"])):
         # remove None values from kwargs to avoid unexpected keyword argument errors
