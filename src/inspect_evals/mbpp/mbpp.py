@@ -11,11 +11,12 @@ Based on: https://github.com/google-research/google-research/tree/master/mbpp
 inspect eval mbpp.py
 
 # Specify temperature
-inspect eval mbpp.py -T temperature=0.0
+inspect eval inspect_evals/mbpp -T temperature=0.0
 """
 
 import re
 import textwrap
+from typing import Any
 
 from datasets import load_dataset  # type: ignore
 
@@ -53,6 +54,12 @@ Python function. Only use imports that are included in Python's standard library
 def mbpp(
     temperature: float = 0.5,
 ) -> Task:
+    """
+    Inspect Task implementation of MBPP
+
+    Args:
+        temperature (float): The temperature when generating completions
+    """
     template = PROMPT_TEMPLATE
     template += "\n\nFor example:\n\n"
 
@@ -181,15 +188,14 @@ def find_code(completion: str) -> str:
     matches = pattern.findall(completion)
     extracted_answer = matches[0] if len(matches) >= 1 else completion
 
-    return extracted_answer
+    return str(extracted_answer)
 
 
-def record_to_sample(record):
+def record_to_sample(record: dict[str, Any]) -> Sample:
     return Sample(
         input=record["prompt"],
         target=record["test_list"],
         id=record["task_id"],
-        answer="Hello there\n" + record["code"],
         metadata={
             "prompt": record["prompt"],
             "test_list": record["test_list"],

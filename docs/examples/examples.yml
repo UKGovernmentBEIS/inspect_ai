@@ -13,7 +13,7 @@
 - title: "MBPP: Mostly Basic Python Problems"
   description: |
     Measuring the ability of these models to synthesize short Python programs from natural language descriptions. Demonstrates custom scorers and sandboxing untrusted model code.
-  path: evals/mbpp
+  path: src/inspect_evals/mbpp
   arxiv: https://arxiv.org/abs/2108.07732
   cite: Kub_t_2021
   group: Coding
