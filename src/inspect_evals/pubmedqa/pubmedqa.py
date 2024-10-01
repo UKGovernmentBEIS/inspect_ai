@@ -1,8 +1,10 @@
 """
 PubMedQA: A Dataset for Biomedical Research Question Answering
 
-# inspect eval pubmedqa/pubmedqa.py
+# inspect eval inspect_evals/pubmedqa
 """
+
+from typing import Any
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
@@ -21,7 +23,8 @@ The entire content of your response should be of the following format: 'ANSWER: 
 
 
 @task
-def pubmedqa():
+def pubmedqa() -> Task:
+    """Inspect Task implementation of the PubMedQA Eval"""
     dataset = hf_dataset(
         path="bigbio/pubmed_qa",
         # Note: Each of 10 folds has a different `train` and `validation` set,
@@ -39,7 +42,7 @@ def pubmedqa():
     )
 
 
-def record_to_sample(record) -> Sample:
+def record_to_sample(record: dict[str, Any]) -> Sample:
     choices = {
         "yes": "A",
         "no": "B",

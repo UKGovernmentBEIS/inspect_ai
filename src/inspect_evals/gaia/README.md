@@ -45,7 +45,7 @@ from inspect_ai.tool import bash, web_search
 from inspect_evals.gaia import gaia
 
 agent = basic_agent(tools=[bash()])
-task = gaia(plan=agent)
+task = gaia(solver=agent)
 
 eval(task, model="openai/gpt-4o")
 ```
