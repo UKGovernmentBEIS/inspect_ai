@@ -1,6 +1,7 @@
 # ruff: noqa: F401
 
 from .arc import arc_challenge, arc_easy
+from .boolq import boolq
 from .commonsense_qa import commonsense_qa
 from .drop import drop
 from .gaia import gaia, gaia_level1, gaia_level2, gaia_level3

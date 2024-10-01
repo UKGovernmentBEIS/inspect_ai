@@ -10,6 +10,8 @@ https://arxiv.org/abs/1905.10044
 inspect eval boolq.py
 """
 
+from typing import Any
+
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.scorer import pattern
@@ -23,7 +25,8 @@ Question: {prompt}
 
 
 @task
-def boolq():
+def boolq() -> Task:
+    """Inspect task implementing the BoolQ benchmark."""
     dataset = hf_dataset(
         path="boolq",
         sample_fields=record_to_sample,
@@ -38,7 +41,7 @@ def boolq():
     )
 
 
-def record_to_sample(record):
+def record_to_sample(record: dict[str, Any]) -> Sample:
     if record["answer"]:
         target = "Yes"
     else:
