@@ -3,7 +3,7 @@
 - title: "HumanEval: Evaluating Large Language Models Trained on Code"
   description: |
     Evaluating correctness for synthesizing Python programs from docstrings. Demonstrates custom scorers and sandboxing untrusted model code.
-  path: evals/humaneval
+  path: src/inspect_evals/humaneval
   arxiv: https://arxiv.org/abs/2107.03374
   cite: chen2021evaluatinglargelanguagemodels
   group: Coding

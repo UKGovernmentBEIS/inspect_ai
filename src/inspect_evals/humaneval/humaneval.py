@@ -19,6 +19,7 @@ Based on: https://github.com/openai/simple-evals/blob/main/humaneval_eval.py
 """
 
 import re
+from typing import Any
 
 from inspect_ai import Epochs, Task, task
 from inspect_ai.dataset import Sample, hf_dataset
@@ -50,7 +51,13 @@ this function.\n
 
 
 @task
-def humaneval(sandbox="docker"):
+def humaneval(sandbox: str = "docker") -> Task:
+    """
+    Inspect Task implementation for the HumanEval benchmark
+
+    Args:
+        sandbox (String): The sandbox to use for this evaluation
+    """
     return Task(
         dataset=hf_dataset(
             path="openai_humaneval", split="test", sample_fields=record_to_sample
@@ -111,11 +118,11 @@ def find_code(completion: str) -> str:
     extracted_answer = matches[0] if len(matches) >= 1 else completion
     # remove signature
     extracted_answer = extracted_answer[extracted_answer.find(":\n    ") + 2 :]
-    return extracted_answer
+    return str(extracted_answer)
 
 
 # map humaneval record into inspect sample
-def record_to_sample(record):
+def record_to_sample(record: dict[str, Any]) -> Sample:
     return Sample(
         id=record["task_id"],
         input=INSTRUCTION + record["prompt"],
