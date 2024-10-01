@@ -115,6 +115,7 @@ inspect_evals = [
     "pillow"
 ]
 swe_bench = ["inspect_ai[inspect_evals]", "swebench","docker"]
+mathematics = ["inspect_ai[inspect_evals]", "sympy", "antlr4-python3-runtime"]
 
 dev = [
     "anthropic", 

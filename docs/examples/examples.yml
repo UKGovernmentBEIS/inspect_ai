@@ -64,7 +64,7 @@
 - title: "MATH: Measuring Mathematical Problem Solving"
   description: |
     Dataset of 12,500 challenging competition mathematics problems. Demonstrates fewshot prompting and custom scorers.
-  path: evals/mathematics
+  path: src/inspect_evals/mathematics
   arxiv: https://arxiv.org/abs/2103.03874
   cite: hendrycks2021measuringmathematicalproblemsolving
   group: Mathematics
