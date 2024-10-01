@@ -24,7 +24,7 @@
   description: |
     Software engineering problems drawn from real GitHub issues and corresponding pull requests across 12 popular Python repositories.
     Demonstrates sandboxing untrusted model code.
-  path: evals/swe_bench
+  path: src/inspect_evals/swe_bench
   arxiv: https://arxiv.org/abs/2310.06770
   cite: jimenez2024swebenchlanguagemodelsresolve
   group: Coding
@@ -74,7 +74,7 @@
 - title: "GSM8K: Training Verifiers to Solve Math Word Problems"
   description: |
     Dataset of 8.5K high quality linguistically diverse grade school math word problems. Demostrates fewshot prompting.
-  path: evals/gsm8k
+  path: src/inspect_evals/gsm8k
   arxiv: https://arxiv.org/abs/2110.14168
   cite: cobbe2021trainingverifierssolvemath
   group: Mathematics
@@ -93,7 +93,7 @@
 
 - title: "ARC: AI2 Reasoning Challenge"
   description: Dataset of natural, grade-school science multiple-choice questions (authored for human tests).
-  path: evals/arc
+  path: src/inspect_evals/arc
   arxiv: https://arxiv.org/abs/1803.05457
   cite: clark2018thinksolvedquestionanswering
   group: Reasoning
@@ -123,7 +123,7 @@
 - title: "BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions"
   description: |
     Reading comprehension dataset that queries for complex, non-factoid information, and require difficult entailment-like inference to solve.
-  path: evals/boolq
+  path: src/inspect_evals/boolq
   arxiv: https://arxiv.org/abs/1905.10044
   cite: clark2019boolqexploringsurprisingdifficulty
   group: Reasoning
@@ -232,7 +232,7 @@
 - title: "CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge"
   description: |
     Measure question answering with commonsense prior knowledge.
-  path: evals/commonsense_qa
+  path: src/inspect_evals/commonsense_qa
   arxiv: https://arxiv.org/abs/1811.00937
   cite: talmor2019commonsenseqaquestionansweringchallenge
   group: Knowledge
