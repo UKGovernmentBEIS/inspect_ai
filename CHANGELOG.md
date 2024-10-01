@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.35 (1 October 2024)
 
 - Catch o1-preview "invalid_prompt" exception and convert to normal content_filter refusal.
 - Terminate timed out subprocesses.
