@@ -115,6 +115,7 @@ inspect_evals = [
     "pillow"
 ]
 swe_bench = ["inspect_ai[inspect_evals]", "swebench","docker"]
+mathematics = ["inspect_ai[inspect_evals]", "sympy"]
 ifeval = ["inspect_ai[inspect_evals]", "instruction-following-eval @ git+https://github.com/josejg/instruction_following_eval.git"]
 
 dev = [
