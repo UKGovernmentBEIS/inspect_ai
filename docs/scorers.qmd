@@ -565,7 +565,7 @@ Inspect includes several built in reducers which are summarised below.
 
 :::{.callout-note}
 
-The built in reducers will compute a reduced `value` for the score and populate the remaining fields (`answer`, `explanation`, and `metadata`) only if equal across all epochs. If your custom metrics function relies on these fields, you should also implement your own custom reducer and merge or preserve these fields in some way.
+The built in reducers will compute a reduced `value` for the score and populate the fields `answer` and `explanation` only if their value is equal across all epochs. The `metadata` field will always be reduced to the value of `metadata` in the first epoch. If your custom metrics function needs differing behavior for reducing fields, you should also implement your own custom reducer and merge or preserve fields in some way.
 
 :::
 
