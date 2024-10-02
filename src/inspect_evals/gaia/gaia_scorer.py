@@ -2,11 +2,11 @@ import re
 import string
 import warnings
 
-from inspect_ai.scorer import Score, Scorer, Target, scorer
+from inspect_ai.scorer import Score, Scorer, Target, scorer, mean, std
 from inspect_ai.solver import TaskState
 
 
-@scorer
+@scorer(metrics=[mean(), std()])
 def gaia_scorer() -> Scorer:
     async def gaia_scorer(state: TaskState, target: Target) -> Score:
         answer = state.output.completion
