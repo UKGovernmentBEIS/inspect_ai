@@ -1,18 +1,36 @@
 import re
 import string
-import warnings
+from logging import getLogger
+from typing import Any
 
-from inspect_ai.scorer import Score, Scorer, Target, scorer, mean, std
+from inspect_ai.scorer import (
+    CORRECT,
+    INCORRECT,
+    Score,
+    Scorer,
+    Target,
+    mean,
+    scorer,
+    std,
+)
 from inspect_ai.solver import TaskState
+
+logger = getLogger(__name__)
 
 
 @scorer(metrics=[mean(), std()])
 def gaia_scorer() -> Scorer:
     async def gaia_scorer(state: TaskState, target: Target) -> Score:
         answer = state.output.completion
+
+        score, explanation = question_scorer(
+            model_answer=answer, ground_truth=target.text
+        )
+
         return Score(
-            value=question_scorer(model_answer=answer, ground_truth=target.text),
+            value=CORRECT if score else INCORRECT,
             answer=answer,
+            explanation=explanation,
         )
 
     return gaia_scorer
@@ -22,14 +40,14 @@ def gaia_scorer() -> Scorer:
 
 
 def normalize_number_str(number_str: str) -> float:
-    # we replace these common units and commas to allow
+    # we replacex these common units and commas to allow
     # conversion to float
     for char in ["$", "%", ","]:
         number_str = number_str.replace(char, "")
     try:
         return float(number_str)
     except ValueError:
-        print(f"String {number_str} cannot be normalized to number str.")
+        logger.warning(f"String {number_str} cannot be normalized to number str.")
         return float("inf")
 
 
@@ -44,8 +62,8 @@ def split_string(
 def question_scorer(
     model_answer: str,
     ground_truth: str,
-) -> bool:
-    def is_float(element: any) -> bool:
+) -> tuple[bool, str]:
+    def is_float(element: Any) -> bool:
         try:
             float(element)
             return True
@@ -54,24 +72,24 @@ def question_scorer(
 
     # if gt is a number
     if is_float(ground_truth):
-        print(f"Evaluating {model_answer} as a number.")
         normalized_answer = normalize_number_str(model_answer)
-        return normalized_answer == float(ground_truth)
+        return (
+            normalized_answer == float(ground_truth),
+            f"Evaluated {model_answer} as a number.",
+        )
 
     # if gt is a list
     elif any(char in ground_truth for char in [",", ";"]):
-        print(f"Evaluating {model_answer} as a comma separated list.")
         # question with the fish: normalization removes punct
-
         gt_elems = split_string(ground_truth)
         ma_elems = split_string(model_answer)
 
         # check length is the same
         if len(gt_elems) != len(ma_elems):
-            warnings.warn(
-                "Answer lists have different lengths, returning False.", UserWarning
+            return (
+                False,
+                f"Evaluated {model_answer} as a comma separated list, returned False because lists have different lenghts.",
             )
-            return False
 
         # compare each element as float or str
         comparisons = []
@@ -85,15 +103,17 @@ def question_scorer(
                     normalize_str(ma_elem, remove_punct=False)
                     == normalize_str(gt_elem, remove_punct=False)
                 )
-        return all(comparisons)
+        return all(comparisons), f"Evaluated {model_answer} as a comma separated list."
 
     # if gt is a str
     else:
-        print(f"Evaluating {model_answer} as a string.")
-        return normalize_str(model_answer) == normalize_str(ground_truth)
+        return (
+            normalize_str(model_answer) == normalize_str(ground_truth),
+            f"Evaluated {model_answer} as a string.",
+        )
 
 
-def normalize_str(input_str, remove_punct=True) -> str:
+def normalize_str(input_str: str, remove_punct: bool = True) -> str:
     """
     Normalize a string by:
     - Removing all white spaces
