@@ -91,6 +91,7 @@ def winogrande_solver(
             split="train",
             trust=True,
             sample_fields=record_to_sample,
+            auto_id=True,
             shuffle=True,
             seed=fewshot_seed,
             limit=fewshot,

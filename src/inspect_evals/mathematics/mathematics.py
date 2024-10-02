@@ -84,6 +84,7 @@ def math(
         split="test",
         trust=True,
         sample_fields=record_to_sample,
+        auto_id=True,
         shuffle=True,
     )
     # Subset the data based on levels and/or subjects

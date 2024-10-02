@@ -136,11 +136,18 @@ class TaskLogger:
         error: EvalError | None,
         log_images: bool,
     ) -> None:
+        # sample must have id to be logged
+        id = sample.id
+        if id is None:
+            raise ValueError(
+                f"Samples without IDs cannot be logged: {sample.model_dump_json()}"
+            )
+
         # log
         self.log(
             "sample",
             EvalSample(
-                id=sample.id if isinstance(sample.id, int) else str(sample.id),
+                id=id,
                 epoch=epoch,
                 input=sample.input,
                 choices=sample.choices,

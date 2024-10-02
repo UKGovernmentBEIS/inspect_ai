@@ -19,6 +19,7 @@ from .._util import data_to_samples, record_to_sample_fn
 def csv_dataset(
     csv_file: str,
     sample_fields: FieldSpec | RecordToSample | None = None,
+    auto_id: bool = False,
     shuffle: bool = False,
     seed: int | None = None,
     limit: int | None = None,
@@ -38,6 +39,7 @@ def csv_dataset(
             stored in `Sample` form (i.e. has "input" and "target" columns.); Pass a
             `FieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
             handle mapping with a custom function that returns one or more samples.
+        auto_id (bool): Assign an auto-incrementing ID for each sample.
         shuffle (bool): Randomly shuffle the dataset order.
         seed: (int | None): Seed used for random shuffle.
         limit (int | None): Limit the number of records to read.
@@ -65,7 +67,7 @@ def csv_dataset(
         ]
         name = name if name else Path(csv_file).stem
         dataset = MemoryDataset(
-            samples=data_to_samples(valid_data, data_to_sample),
+            samples=data_to_samples(valid_data, data_to_sample, auto_id),
             name=name,
             location=csv_file,
         )

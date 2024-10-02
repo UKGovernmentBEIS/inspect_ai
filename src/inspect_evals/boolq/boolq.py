@@ -31,6 +31,7 @@ def boolq() -> Task:
         path="boolq",
         sample_fields=record_to_sample,
         split="validation",
+        auto_id=True,
         shuffle=True,
     )
 

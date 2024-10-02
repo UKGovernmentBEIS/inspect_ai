@@ -39,6 +39,7 @@ def race_h() -> Task:
         name="high",
         sample_fields=record_to_sample,
         split="test",
+        auto_id=True,
         shuffle=True,
     )
 
