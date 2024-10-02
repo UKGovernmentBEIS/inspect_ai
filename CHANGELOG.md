@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Move evals into [inspect_evals](https://github.com/UKGovernmentBEIS/inspect_evals) package.
+
 ## v0.3.36 (2 October 2024)
 
 - [Web Browser](https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-browser) tool which provides a headless Chromimum browser that supports navigation, history, and mouse/keyboard interactions.
@@ -78,7 +82,7 @@
 - Catch and propagate Anthropic content filter exceptions as normal "content_filter" responses.
 - Fix issue with failure to report metrics if all samples had a score value of 0.
 - Improve concurrency of Bedrock models by using aioboto3.
-- Added [SWE Bench](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_evals/swe_bench), [GAIA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_evals/gaia), and [GDM CTF](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_evals/gdm_capabilities/in_house_ctf) evals.
+- Added [SWE Bench](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/swe_bench), [GAIA](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gaia), and [GDM CTF](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_capabilities/in_house_ctf) evals.
 
 ## v0.3.29 (16 September 2024)
 
@@ -109,7 +113,7 @@
 - Cleanup Docker containers that fail during sample init.
 - Add support for computing metrics for both individual keys within a dictionary but also for the dictionary as a whole
 - Fix for Vertex tool calling (don't pass 'additionalProperties').
-- Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_evals/squad), [AGIEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_evals/agieval), [IFEval](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_evals/ifeval/), [PubMedQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_evals/pubmedqa), and [MBPP](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_evals/mbpp) benchmarks.
+- Added [SQuAD](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/squad), [AGIEval](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/agieval), [IFEval](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_evals/ifeval/), [PubMedQA](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/pubmedqa), and [MBPP](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mbpp) benchmarks.
 
 ## v0.3.27 (6 September 2024)
 
@@ -117,7 +121,7 @@
 - Correct rounding behavior for `f1()` and `exact()` scorers.
 - Correct normalized text comparison for `exact()` scorer.
 - Improved appearance and navigation for sample transcript view.
-- Added [MathVista](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_evals/mathvista) benchmark.
+- Added [MathVista](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mathvista) benchmark.
 
 ## v0.3.26 (6 September 2024)
 
@@ -138,7 +142,7 @@
 - Remove `chdir` option from `@tasks` (tasks now always chdir during execution).
 - Do not process `.env` files in task directories (all required vars should be specified in the global `.env`).
 - Only enable `strict` mode for OpenAI tool calls when all function parameters are required.
-- Added [MMMU](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_evals/mmmu), [CommonsenseQA](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_evals/commonsense_qa), [MMLU-Pro](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_evals/mmlu_pro), and [XSTest](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_evals/xstest) benchmarks.
+- Added [MMMU](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mmmu), [CommonsenseQA](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/commonsense_qa), [MMLU-Pro](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mmlu_pro), and [XSTest](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/xstest) benchmarks.
 
 
 ## v0.3.25 (25 August 2024)
@@ -150,7 +154,7 @@
 - [fail_on_error](https://inspect.ai-safety-institute.org.uk/errors-and-limits.html#failure-threshold) option to tolerate some threshold of sample failures without failing the evaluation.
 - Specify `init` value in default Docker compose file so that exit signals are handled correctly (substantially improves container shutdown performance).
 - Add `function` field to `ChatMessageTool` to indicate the name of the function called.
-- Added [RACE](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_evals/race-h/) benchmark.
+- Added [RACE](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/race-h/) benchmark.
 
 ## v0.3.24 (18 August 2024)
 
@@ -169,7 +173,7 @@
 - Eliminate Bedrock dependency on anthropic package (unless using an Anthropic model).
 - Improved resolution of AWS region for Bedrock (respecting already defined AWS_REGION and AWS_DEFAULT_REGION)
 - Fix bug in match scorer whereby numeric values with periods aren't correctly recognized.
-- Added [HumanEval](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_evals/humaneval), [WinoGrande](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_evals/winogrande) and [Drop](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_evals/drop) benchmarks.
+- Added [HumanEval](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/humaneval), [WinoGrande](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/winogrande) and [Drop](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/drop) benchmarks.
 
 ## v0.3.22 (07 August 2024)
 

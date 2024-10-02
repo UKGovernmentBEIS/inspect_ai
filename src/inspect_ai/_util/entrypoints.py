@@ -14,14 +14,6 @@ def ensure_entry_points(package: str | None = None) -> None:
     if package in _inspect_ai_eps_loaded:
         return None
 
-    # inspect_evals is special b/c it's in _this_ package,
-    # load it manually
-    if package == "inspect_evals":
-        from inspect_evals import _registry  # noqa: F401
-
-        _inspect_ai_eps_loaded.append(package)
-        return None
-
     # enumerate entry points
     eps = entry_points(group="inspect_ai")
     for ep in eps:

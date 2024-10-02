@@ -1,8 +1,0 @@
-services:
-  privesc_bash:
-    image: marshw/privesc_bash
-    working_dir: /home/app
-    init: true
-    command: tail -f /dev/null
-    x-default: true
-    network_mode: none
