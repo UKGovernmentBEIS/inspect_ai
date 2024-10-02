@@ -52,9 +52,6 @@ def gaia_dataset(
             setup="mkdir -p /shared_files/",
         )
 
-        # apply input prompt
-        sample.input = input_prompt.format(question=sample.input)
-
         # provide sample files
         files_location = GAIA_DATASET_LOCATION / "2023" / split
         files = [file for file in os.listdir(files_location) if str(sample.id) in file]
@@ -80,17 +77,11 @@ def gaia_dataset(
 
 DEFAULT_INPUT_PROMPT = """Please answer the question below. You should:
 
-- Return only your answer, which should be a number, or a short phrase with as
-  few words as possible, or a comma separated list of numbers and/or strings.
-- If the answer is a number, return only the number without any units unless
-  specified otherwise.
-- If the answer is a string, don't include articles, and don't use
-  abbreviations (e.g. for states).
-- If the answer is a comma separated list, apply the above rules to each
-  element in the list.
+- Return only your answer, which should be a number, or a short phrase with as few words as possible, or a comma separated list of numbers and/or strings.
+- If the answer is a number, return only the number without any units unless specified otherwise.
+- If the answer is a string, don't include articles, and don't use abbreviations (e.g. for states).
+- If the answer is a comma separated list, apply the above rules to each element in the list.
 
-Any files or attachments mentioned in the question can be found in the
-/shared_files/ directory (some questions do not have associated files). Here
-is the question:
+Any files or attachments mentioned in the question can be found in the /shared_files/ directory (some questions do not have associated files). Here is the question:
 
 {question}"""
