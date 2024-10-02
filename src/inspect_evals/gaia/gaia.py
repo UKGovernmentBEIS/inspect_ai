@@ -1,17 +1,13 @@
-import os
-import shutil
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Callable, Literal
-
-from huggingface_hub import snapshot_download  # type: ignore
-from platformdirs import user_cache_dir
+from typing import Any, Literal
 
 from inspect_ai import Task, task
-from inspect_ai.dataset import Dataset, Sample, hf_dataset
-from inspect_ai.scorer import match
 from inspect_ai.solver import Solver, basic_agent, system_message
 from inspect_ai.tool import bash, python, web_browser_tools
+
+from .dataset import gaia_dataset
+from .scorer import gaia_scorer
 
 
 @task
@@ -28,36 +24,22 @@ def gaia(
 ) -> Task:
     # read dataset
     dataset = gaia_dataset(
-        input_prompt=input_prompt or DEFAULT_INPUT_PROMPT,
+        input_prompt=input_prompt,
         subset=subset,
         split=split,
     )
 
+    # filter by instance id if requested
     if instance_ids:
         dataset = dataset.filter(lambda x: x.id in instance_ids)
 
-    # provide default plan if required
-    if solver is None:
-        solver = basic_agent(
-            init=system_message(
-                dedent("""
-                You are an autonomous AI agent, consisting of a large language model and a scaffolding program that runs on a linux VM.
-
-                You have full control over your VM through the scaffolding program's provided functions, including: writing and editing files, running bash commands, installing packages etc.. From your VM, you can access the internet.
-
-                You are state-of-the-art, and excellent at analysis, planning and programming. You possess encyclopedic knowledge of the world. You write in a very direct and concise style.
-
-                You are resourceful and adaptive, and you never give up. Before deciding something can't be done, you try it out. You consider multiple options and choose the best one. If your current approach doesn't work, you formulate a new plan. You are given a task you need to solve completely on your own.
-                """)
-            ),
-            tools=[bash(CODE_TIMEOUT), python(CODE_TIMEOUT)] + web_browser_tools(),
-            max_attempts=max_attempts,
-        )
+    # resolve solver
+    solver = solver or default_solver(max_attempts)
 
     # resolve scorer (test split has no answers)
-    scorer = match() if split == "validation" else None
+    scorer = gaia_scorer() if split == "validation" else None
 
-    # docker compose file is alongside
+    # docker compose file is alongside the src file
     COMPOSE_FILE = Path(__file__).parent / "compose.yaml"
 
     # return task
@@ -85,85 +67,19 @@ def gaia_level3(**kwargs: Any) -> Task:
     return gaia(subset="2023_level3", **kwargs)
 
 
-CODE_TIMEOUT = 180
+def default_solver(max_attempts: int, code_timeout: int = 180) -> Solver:
+    return basic_agent(
+        init=system_message(
+            dedent("""
+                You are an autonomous AI agent, consisting of a large language model and a scaffolding program that runs on a linux VM.
 
-DEFAULT_INPUT_PROMPT = """Please answer the question below. You should:
+                You have full control over your VM through the scaffolding program's provided functions, including: writing and editing files, running bash commands, installing packages etc.. From your VM, you can access the internet.
 
-- Return only your answer, which should be a number, or a short phrase with as
-  few words as possible, or a comma separated list of numbers and/or strings.
-- If the answer is a number, return only the number without any units unless
-  specified otherwise.
-- If the answer is a string, don't include articles, and don't use
-  abbreviations (e.g. for states).
-- If the answer is a comma separated list, apply the above rules to each
-  element in the list.
+                You are state-of-the-art, and excellent at analysis, planning and programming. You possess encyclopedic knowledge of the world. You write in a very direct and concise style.
 
-Any files or attachments mentioned in the question can be found in the
-/shared_files/ directory (some questions do not have associated files). Here
-is the question:
-
-{question}"""
-
-
-def gaia_dataset(
-    input_prompt: str,
-    subset: str,
-    split: str,
-    filter: Callable[[Sample], bool] = lambda x: True,
-) -> Dataset:
-    # use user cache dir for dataset
-    GAIA_DATASET_LOCATION = (
-        Path(user_cache_dir("inspect_evals")) / "gaia_dataset" / "GAIA"
+                You are resourceful and adaptive, and you never give up. Before deciding something can't be done, you try it out. You consider multiple options and choose the best one. If your current approach doesn't work, you formulate a new plan. You are given a task you need to solve completely on your own.
+                """)
+        ),
+        tools=[bash(code_timeout), python(code_timeout)] + web_browser_tools(),
+        max_attempts=max_attempts,
     )
-
-    # download dataset if required
-    if not os.path.exists(GAIA_DATASET_LOCATION):
-        GAIA_DATASET_LOCATION.mkdir(parents=True, exist_ok=True)
-        try:
-            snapshot_download(
-                repo_id="gaia-benchmark/GAIA",
-                repo_type="dataset",
-                local_dir=GAIA_DATASET_LOCATION,
-            )
-        except Exception as ex:
-            shutil.rmtree(GAIA_DATASET_LOCATION, True)
-            raise ex
-
-    # map record to sample
-    def record_to_sample(record: dict[str, Any]) -> Sample:
-        # map fields
-        sample = Sample(
-            input=input_prompt.format(question=record["Question"]),
-            target=record["Final answer"],
-            id=record["task_id"],
-            metadata={
-                "level": record["Level"],
-                "Annotator Metadata": record["Annotator Metadata"],
-            },
-            setup="mkdir -p /shared_files/",
-        )
-
-        # apply input prompt
-        sample.input = input_prompt.format(question=sample.input)
-
-        # provide sample files
-        files_location = GAIA_DATASET_LOCATION / "2023" / split
-        files = [file for file in os.listdir(files_location) if str(sample.id) in file]
-        if len(files) > 0:
-            sample.files = {
-                "/shared_files/" + files[0]: (files_location / files[0]).as_posix()
-            }
-
-        return sample
-
-    # read dataset
-    dataset = hf_dataset(
-        GAIA_DATASET_LOCATION.as_posix(),
-        name=subset,
-        split=split,
-        sample_fields=record_to_sample,
-        trust=True,  # Trust GAIA's remote code execution during dataset loading
-    )
-
-    # apply filter (if any) and return
-    return dataset.filter(filter)

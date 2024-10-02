@@ -1,4 +1,5 @@
 # GAIA
+
 This is an Inspect AI implementation of [the GAIA (General AI Assistants)](https://arxiv.org/abs/2311.12983) benchmark, consisting of 450 questions testing tool use on realistic assistant tasks (mostly web browsing).
 
 ## Prerequisites
@@ -35,7 +36,7 @@ $ inspect eval inspect_evals/gaia --model openai/gpt-4o --limit 5
 
 ## Development
 
-If you want to develop solver for the GAIA task, import the `@task` from the `gaia` module and pass your own solver to it. For example:
+If you want to develop a solver for the GAIA task, import the `@task` from the `gaia` module and pass your own solver to it. For example:
 
 ```python
 from inspect_ai import eval
