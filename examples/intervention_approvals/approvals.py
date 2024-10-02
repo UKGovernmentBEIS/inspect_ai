@@ -1,20 +1,19 @@
-from typing import Protocol, Optional, Literal
+from typing import Any, Protocol, Optional, Literal, Set
 from pydantic import BaseModel
 from rich.panel import Panel
-from rich.console import Group, RenderableType
-from rich.markdown import Markdown
-from rich.syntax import Syntax
-from rich.prompt import Confirm, Prompt
+from rich.prompt import  Prompt
 import sys
 import shlex
 import ast
+from typing import Optional, List, cast
+from functools import wraps
+from utils import print_approval_message, print_escalation_message, print_rejection_message, print_termination_message, get_tool_calls_from_state
+from inspect_ai.tool import Tool, ToolResult
 from inspect_ai.util import input_screen
 from inspect_ai.solver._task_state import sample_state
 from inspect_ai.solver import TaskState
-from inspect_ai.model import ModelOutput
 from inspect_ai.tool import ToolCall
-import sys
-import shlex
+
 
 class Approval(BaseModel):
     decision: Literal["approve", "reject", "escalate", "terminate"]
@@ -37,7 +36,7 @@ class Approver(Protocol):
         """
         ...
 
-def allow_list_approver(allowed_commands: list[str], allow_sudo: bool = False, command_specific_rules: Optional[dict[str, list[str]]] = None) -> Approver:
+def bash_allowlist_approver(allowed_commands: list[str], allow_sudo: bool = False, command_specific_rules: Optional[dict[str, list[str]]] = None) -> Approver:
     """
     Create an approver that checks if a bash command is in an allowed list.
 
@@ -231,140 +230,58 @@ def get_approval(approvers: list[Approver], tool_call: ToolCall, state: Optional
     print_rejection_message(tool_call, final_message)
     return False, final_message
 
-def print_approval_message(tool_call: ToolCall, reason: str):
+
+def wrap_approvers(tool: Tool, approvers: Optional[List[Approver]] = None) -> Tool:
     """
-    Print an approval message for a tool call.
+    Wrap a tool with approvers to add an approval process before execution.
+
+    This function takes a tool and a list of approvers, and returns a new tool that
+    includes an approval process. The wrapped tool will check for approval before
+    executing the original tool's functionality.
 
     Args:
-        tool_call (ToolCall): The approved tool call.
-        reason (str): The reason for approval.
-    """
-    with input_screen() as console:
-        console.print(Panel.fit(
-            f"Tool call approved:\nFunction: {tool_call.function}\nArguments: {tool_call.arguments}\nReason: {reason}",
-            title="Tool Execution",
-            subtitle="Approved"
-        ))
+        tool (Tool): The original tool to be wrapped.
+        approvers (Optional[List[Approver]]): A list of approver functions to be applied.
 
-def print_rejection_message(tool_call: ToolCall, reason: str):
+    Returns:
+        Tool: A new tool that includes the approval process.
     """
-    Print a rejection message for a tool call.
+    @wraps(tool)
+    async def wrapped_tool(*args: Any, **kwargs: Any) -> ToolResult:
+        
+        if hasattr(tool, '__qualname__'):
+            qualname = tool.__qualname__
+            function_name = qualname.split('.')[0]
+        else:
+            function_name = getattr(tool, "__name__")
 
-    Args:
-        tool_call (ToolCall): The rejected tool call.
-        reason (str): The reason for rejection.
-    """
-    with input_screen() as console:
-        console.print(Panel.fit(
-            f"Tool call rejected:\nFunction: {tool_call.function}\nArguments: {tool_call.arguments}\nReason: {reason}",
-            title="Tool Execution",
-            subtitle="Rejected"
-        ))
-
-def print_escalation_message(tool_call: ToolCall, reason: str):
-    """
-    Print an escalation message for a tool call.
-
-    Args:
-        tool_call (ToolCall): The escalated tool call.
-        reason (str): The reason for escalation.
-    """
-    with input_screen() as console:
-        console.print(Panel.fit(
-            f"Tool call escalated:\nFunction: {tool_call.function}\nArguments: {tool_call.arguments}\nReason: {reason}",
-            title="Tool Execution",
-            subtitle="Escalated"
-        ))
-
-def print_termination_message(reason: str):
-    """
-    Print a termination message.
-
-    Args:
-        reason (str): The reason for termination.
-    """
-    with input_screen() as console:
-        console.print(Panel.fit(
-            f"Execution terminated.\nReason: {reason}",
-            title="Execution Terminated",
-            subtitle="System Shutdown"
-        ))
+        if approvers:
+            state = sample_state()
+            if state is None:
+                return "Error: No state found."
             
-def print_tool_response_and_get_authorization(output: ModelOutput) -> bool:
-    """
-    Print the model's response and tool calls, and ask for user authorization.
+            tool_calls = get_tool_calls_from_state(state)
+            if tool_calls is None:
+                return "Error: No tool calls found in the current state."
 
-    Args:
-        output (ModelOutput): The model's output containing the response and tool calls.
+            # Find the corresponding tool call
+            tool_call = next((tc for tc in tool_calls if tc.function == function_name), None)
+            
+            if tool_call:
+                approved, reason = get_approval(approvers, tool_call, state)
+            else:
+                return f"Error: No {function_name} tool call found in the current state."
+            
+            if not approved:
+                return f"Command rejected by the approval system. Reason: {reason}"
+        
+        with input_screen() as console:
+            console.print(Panel.fit(
+                f"Executing command: {args[0] if args else kwargs.get('cmd', 'Unknown command')}",
+                title=f"{function_name.capitalize()} Execution",
+                subtitle="Command Approved"
+            ))
+        
+        return await tool(*args, **kwargs)
 
-    Returns:
-        bool: True if the user authorizes the execution, False otherwise.
-    """
-    renderables: list[RenderableType] = []
-    if output.message.content != "":
-        renderables.append(
-            Panel.fit(
-                Markdown(str(output.message.content)), title="Textual Response"
-            )
-        )
-
-    renderables.append(
-        Panel.fit(
-            Group(
-                *format_human_readable_tool_calls(output.message.tool_calls or []),
-                fit=True,
-            ),
-            title="Tool Calls",
-        )
-    )
-    with input_screen() as console:
-        console.print(Panel.fit(Group(*renderables, fit=True), title="Model Response"))
-
-        return Confirm.ask(
-            "Do you FULLY understand these tool calls and approve their execution?"
-        )
-
-def format_human_readable_tool_calls(tool_calls: list[ToolCall]) -> list[RenderableType]:
-    """
-    Format tool calls into human-readable renderable objects.
-
-    Args:
-        tool_calls (list[ToolCall]): List of tool calls to format.
-
-    Returns:
-        list[RenderableType]: A list of renderable objects representing the formatted tool calls.
-    """
-    output_renderables: list[RenderableType] = []
-    for i, tool_call in enumerate(tool_calls):
-        panel_contents = []
-        for i, (argument, value) in enumerate(tool_call.arguments.items()):
-            argument_contents = []
-            match (tool_call.function, argument):
-                case ("python", "code"):
-                    argument_contents.append(
-                        Syntax(
-                            value,
-                            "python",
-                            theme="monokai",
-                            line_numbers=True,
-                        )
-                    )
-                case ("bash", "cmd"):
-                    argument_contents.append(Syntax(value, "bash", theme="monokai"))
-                case _:
-                    argument_contents.append(value)
-            panel_contents.append(
-                Panel.fit(
-                    Group(*argument_contents, fit=True),
-                    title=f"Argument #{i}: [bold]{argument}[/bold]",
-                )
-            )
-        if tool_call.parse_error is not None:
-            output_renderables.append(f"Parse error: {tool_call.parse_error}")
-        output_renderables.append(
-            Panel.fit(
-                Group(*panel_contents, fit=True),
-                title=f"Tool Call #{i}: [bold]{tool_call.function}[/bold]",
-            )
-        )
-    return output_renderables
+    return cast(Tool, wrapped_tool)
