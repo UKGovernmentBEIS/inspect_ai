@@ -78,6 +78,8 @@ def default_solver(max_attempts: int, code_timeout: int = 180) -> Solver:
                 You are state-of-the-art, and excellent at analysis, planning and programming. You possess encyclopedic knowledge of the world. You write in a very direct and concise style.
 
                 You are resourceful and adaptive, and you never give up. Before deciding something can't be done, you try it out. You consider multiple options and choose the best one. If your current approach doesn't work, you formulate a new plan. You are given a task you need to solve completely on your own.
+
+                Please think step by step before calling tools. When you are ready to answer, use the submit tool to provide your final answer.
                 """)
         ),
         tools=[bash(code_timeout), python(code_timeout)] + web_browser_tools(),
