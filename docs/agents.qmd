@@ -397,15 +397,8 @@ The value of the `dict` can be either the file contents, a file path, or a base6
 
 #### Script
 
-If there is a Sample `setup` script it will be executed within the default sandbox environment after any Sample `files` are copied into the environment. The `setup` field can be either the script contents, a file path containing the script, or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+If there is a Sample `setup` bash script it will be executed within the default sandbox environment after any Sample `files` are copied into the environment. The `setup` field can be either the script contents, a file path containing the script, or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
 
-The `setup` script is by default interpreted as a bash script, however you can have it executed by another interpreter using a shebang comment. For example, this will be executed as a Python script:
-
-``` bash
-#!/usr/bin/env python3
-
-print('hello from python')
-```
 
 ### Docker Configuration {#sec-docker-configuration}
 
