@@ -17,7 +17,7 @@ inspect eval mmlu_pro/mmlu_pro.py -T fewshot=5
 inspect eval mmlu_pro/mmlu_pro.py -T subjects=math,physics
 """
 
-from typing import Dict
+from typing import Any, Dict
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Dataset, Sample, hf_dataset
@@ -52,13 +52,13 @@ Options:
 
 @task
 def mmlu_pro(
-    subjects: list = [],
+    subjects: str | list[str] = [],
     fewshot: int = 0,
-):
+) -> Task:
     """Inspect task implementing the MMLU-Pro benchmark.
 
     Args:
-        subjects (List): List of subjects to evaluate on.
+        subjects (list[str]): List of subjects to evaluate on.
         fewshot (int): Number of few shot examples to use.
     """
     dataset = hf_dataset(
@@ -117,7 +117,7 @@ def mmlu_pro_system_message(dataset: Dataset, fewshot: int) -> Solver:
     return solve
 
 
-def filter_dataset(dataset: Dataset, subjects: list) -> Dataset:
+def filter_dataset(dataset: Dataset, subjects: list[str]) -> Dataset:
     """Filters the MMLU-Pro dataset by subjects.
 
     Args:
@@ -159,7 +159,7 @@ def mmlu_pro_solver(
     return solver
 
 
-def record_to_sample(record: Dict) -> Sample:
+def record_to_sample(record: Dict[str, Any]) -> Sample:
     return Sample(
         input=record["question"],
         choices=record["options"],

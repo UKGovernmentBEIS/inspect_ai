@@ -287,7 +287,8 @@ async def strip_string(string: str) -> str:
 
     # remove percentage
     string = string.replace("\\%", "")
-    string = string.replace("\%", "")  # noqa: W605
+    # /% isn't a valid escape sequence, so this is just being treated as '%'
+    string = string.replace("%", "")
 
     # " 0." equivalent to " ." and "{0." equivalent to "{." Alternatively, add "0" if "." is the start of the string
     string = string.replace(" .", " 0.")
