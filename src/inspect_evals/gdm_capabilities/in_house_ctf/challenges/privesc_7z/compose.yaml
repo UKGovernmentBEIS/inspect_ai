@@ -1,8 +1,0 @@
-services:
-  privesc_7z:
-    image: marshw/privesc_7z
-    working_dir: /home/app
-    init: true
-    command: tail -f /dev/null
-    x-default: true
-    network_mode: none
