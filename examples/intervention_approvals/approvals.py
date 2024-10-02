@@ -5,6 +5,9 @@ from rich.console import Group, RenderableType
 from rich.markdown import Markdown
 from rich.syntax import Syntax
 from rich.prompt import Confirm, Prompt
+import sys
+import shlex
+import ast
 from inspect_ai.util import input_screen
 from inspect_ai.solver._task_state import sample_state
 from inspect_ai.solver import TaskState
@@ -89,6 +92,75 @@ def allow_list_approver(allowed_commands: list[str], allow_sudo: bool = False, c
         return Approval(decision="approve", explanation=f"Command '{command}' is approved.")
 
     return approve
+
+def python_allowlist_approver(
+    allowed_modules: List[str],
+    allowed_functions: List[str],
+    disallowed_builtins: Optional[Set[str]] = None,
+    sensitive_modules: Optional[Set[str]] = None,
+    allow_system_state_modification: bool = False
+    ) -> Approver:
+    """
+    Create an approver that checks if Python code uses only allowed modules and functions,
+    and applies additional safety checks.
+
+    Args:
+        allowed_modules (List[str]): List of allowed Python modules.
+        allowed_functions (List[str]): List of allowed built-in functions.
+        disallowed_builtins (Optional[Set[str]]): Set of disallowed built-in functions.
+        sensitive_modules (Optional[Set[str]]): Set of sensitive modules to be blocked.
+        allow_system_state_modification (bool): Whether to allow modification of system state.
+
+    Returns:
+        Approver: A function that approves or rejects Python code based on the allowed list and rules.
+    """
+    allowed_modules_set = set(allowed_modules)
+    allowed_functions_set = set(allowed_functions)
+    disallowed_builtins = disallowed_builtins or {'eval', 'exec', 'compile', '__import__', 'open', 'input'}
+    sensitive_modules = sensitive_modules or {'os', 'sys', 'subprocess', 'socket', 'requests'}
+
+    def approve(tool_call: ToolCall, state: Optional[TaskState] = None) -> Approval:
+        if tool_call.function != "python":
+            return Approval(decision="escalate", explanation=f"PythonAllowListApprover only handles Python code, got {tool_call.function}")
+
+        code = tool_call.arguments.get("code", "").strip()
+        if not code:
+            return Approval(decision="reject", explanation="Empty code")
+
+        try:
+            tree = ast.parse(code)
+        except SyntaxError as e:
+            return Approval(decision="reject", explanation=f"Invalid Python syntax: {str(e)}")
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name not in allowed_modules_set:
+                        return Approval(decision="escalate", explanation=f"Module '{alias.name}' is not in the allowed list. Allowed modules: {', '.join(allowed_modules_set)}")
+                    if alias.name in sensitive_modules:
+                        return Approval(decision="escalate", explanation=f"Module '{alias.name}' is considered sensitive and not allowed.")
+            elif isinstance(node, ast.ImportFrom):
+                if node.module not in allowed_modules_set:
+                    return Approval(decision="escalate", explanation=f"Module '{node.module}' is not in the allowed list. Allowed modules: {', '.join(allowed_modules_set)}")
+                if node.module in sensitive_modules:
+                    return Approval(decision="escalate", explanation=f"Module '{node.module}' is considered sensitive and not allowed.")
+            elif isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name):
+                    if node.func.id not in allowed_functions_set:
+                        return Approval(decision="escalate", explanation=f"Function '{node.func.id}' is not in the allowed list. Allowed functions: {', '.join(allowed_functions_set)}")
+                    if node.func.id in disallowed_builtins:
+                        return Approval(decision="escalate", explanation=f"Built-in function '{node.func.id}' is not allowed for security reasons.")
+            
+            if not allow_system_state_modification:
+                if isinstance(node, ast.Assign):
+                    for target in node.targets:
+                        if isinstance(target, ast.Attribute) and target.attr.startswith('__'):
+                            return Approval(decision="escalate", explanation="Modification of system state (dunder attributes) is not allowed.")
+
+        return Approval(decision="approve", explanation="Python code is approved.")
+
+    return approve
+
 
 def human_approver() -> Approver:
     """
