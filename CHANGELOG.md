@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Improve prompting for `</too_call>` end sequence for Llama models. 
+
 ## v0.3.37 (2 October 2024)
 
 - Move evals into [inspect_evals](https://github.com/UKGovernmentBEIS/inspect_evals) package.
