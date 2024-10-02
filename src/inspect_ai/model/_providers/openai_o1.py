@@ -164,7 +164,7 @@ class O1PreviewChatAPIHandler(ChatAPIHandler):
             - Function calls MUST follow the specified format, start with <{TOOL_CALL}> and end with </{TOOL_CALL}>.
             - Please call only one function at a time.
             - It's fine to include some reasoning about which function to call and why.
-            - Please ensure that the function call is the last content in the message (there should be no text after it).
+            - Please ensure that </{TOOL_CALL}> is the last content in the message (there should be no text after it).
             - Please be absolutely sure that the function name you have specified matches one of the functions described in <tools>.
             - All function parameters MUST be specified.
             - If there is no function call available, answer the question like normal with your current knowledge and do not tell the user about function calls
