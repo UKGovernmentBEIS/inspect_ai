@@ -14,7 +14,7 @@ inspect eval inspect_evals/mmlu --limit 500
 inspect eval inspect_evals/mmlu --limit 500 -T cot=true
 
 # eval selected subjects
-inspect eval inspect_evals/mmluy -T subjects=anatomy
+inspect eval inspect_evals/mmlu -T subjects=anatomy
 inspect eval inspect_evals/mmlu -T subjects=astronomy
 inspect eval inspect_evals/mmlu -T subjects=anatomy,astronomy
 """
