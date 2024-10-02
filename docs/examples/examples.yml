@@ -212,7 +212,7 @@
 - title: "MMLU-Pro: A More Robust and Challenging Multi-Task Language Understanding Benchmark"
   description: |
     An enhanced dataset designed to extend the mostly knowledge-driven MMLU benchmark by integrating more challenging, reasoning-focused questions and expanding the choice set from four to ten options.
-  path: evals/mmlu_pro
+  path: src/inspect_evals/mmlu_pro
   arxiv: https://arxiv.org/abs/2406.01574
   cite: wang2024mmluprorobustchallengingmultitask
   group: Knowledge
