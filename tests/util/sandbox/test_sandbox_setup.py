@@ -12,7 +12,7 @@ from inspect_ai.util import sandbox
 
 SANDBOX_SETUP_FILE = (Path(__file__).parent / "sandbox_setup.sh").as_posix()
 
-with open(SANDBOX_SETUP_FILE, 'r') as f:
+with open(SANDBOX_SETUP_FILE, "r") as f:
     sandbox_setup = f.read()
 
 
