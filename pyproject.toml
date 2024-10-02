@@ -10,7 +10,7 @@ dependencies = { file = ["requirements.txt"] }
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["inspect_ai*", "inspect_evals*"]
+include = ["inspect_ai*"]
 
 
 [tool.ruff]
@@ -49,7 +49,7 @@ asyncio_default_fixture_loop_scope = "function"
 log_level = "warning"
 
 [tool.mypy]
-exclude = ["tests/test_package", "evals", "build", "(?:^|/)_resources/"]
+exclude = ["tests/test_package", "build", "(?:^|/)_resources/"]
 warn_unused_ignores = true
 no_implicit_reexport = true
 strict_equality = true
@@ -65,7 +65,7 @@ warn_unused_configs = true
 mypy_path = "tests"
 
 [[tool.mypy.overrides]]
-module = ["inspect_ai.*", "inspect_evals.*"]
+module = ["inspect_ai.*"]
 warn_return_any = true
 disallow_untyped_defs = true
 disallow_any_generics = true
@@ -110,13 +110,6 @@ Documentation = "https://inspect.ai-safety-institute.org.uk/"
 inspect = "inspect_ai._cli.main:main"
 
 [project.optional-dependencies]
-inspect_evals = [
-    "datasets>=2.21", # This is the last version of HuggingFace datasets befor the v3.0.0 release. Needed for a working datasets.load_dataset call for several of the evals.
-    "pillow"
-]
-swe_bench = ["inspect_ai[inspect_evals]", "swebench","docker"]
-mathematics = ["inspect_ai[inspect_evals]", "sympy"]
-
 dev = [
     "anthropic", 
     "aioboto3", 
@@ -144,11 +137,9 @@ dev = [
     "types-botocore",
     "types-jsonpatch",
     "types-jsonschema",
-    "types-Pillow",
     "types-protobuf",
     "types-psutil",
-    "types-python-dateutil",
-    "types-requests"
+    "types-python-dateutil"
 ]
 doc = ["quarto-cli", "jupyter"]
 dist = ["twine", "build"]
