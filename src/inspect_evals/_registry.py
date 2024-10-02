@@ -24,6 +24,7 @@ from .ifeval import ifeval
 from .mathematics import math
 from .mathvista import mathvista
 from .mbpp import mbpp
+from .mmlu import mmlu
 from .mmmu import mmmu_multiple_choice, mmmu_open
 from .piqa import piqa
 from .pubmedqa import pubmedqa
