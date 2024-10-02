@@ -1,9 +1,12 @@
 import re
 from functools import partial
+from typing import Callable
 
 from inspect_ai._util.dict import omit
 from inspect_ai.model import ChatMessageUser, Model, get_model
+from inspect_ai.solver._question import no_solver
 from inspect_ai.solver._task_state import TaskState
+from inspect_ai.solver._solver import Solver
 from inspect_ai.util import resource
 
 from ._metric import INCORRECT, Score
@@ -19,6 +22,7 @@ def model_graded_fact(
     instructions: str | None = None,
     grade_pattern: str | None = None,
     partial_credit: bool = False,
+    question_solver: Solver | None = None,
     model: list[str | Model] | str | Model | None = None,
 ) -> Scorer:
     """Score a question/answer task with a fact response using a model.
@@ -43,6 +47,12 @@ def model_graded_fact(
          to `False`. Note that this parameter is only used
          with the default `instructions` (as custom instructions
          provide their own prompts for grades).
+      question_solver (Solver): Solver called before resolving
+         the question from the first user prompt. Normally, this
+         is where the task definition is, but in other cases
+         (such as chat evaluation), the task needs to be formulated
+         first (such as summarized from the whole chat). This can
+         be done by question_solver.
       model (list[str | Model] | str | Model | None): Model or Models to use for grading. If multiple models are passed, a majority vote of their grade will be returned. By default the model being evaluated is used.
     """
     return model_graded_qa(
@@ -50,6 +60,7 @@ def model_graded_fact(
         instructions=instructions,
         grade_pattern=grade_pattern,
         partial_credit=partial_credit,
+        question_solver=question_solver,
         model=model,
     )
 
@@ -60,6 +71,7 @@ def model_graded_qa(
     instructions: str | None = None,
     grade_pattern: str | None = None,
     partial_credit: bool = False,
+    question_solver: Solver | None = None,
     model: list[str | Model] | str | Model | None = None,
 ) -> Scorer:
     """Score a question/answer task using a model.
@@ -84,11 +96,18 @@ def model_graded_qa(
         to `False`. Note that this parameter is only used
         with the default `instructions` (as custom instructions
         provide their own prompts for grades).
+      question_solver (Solver): Solver called before resolving
+         the question from the first user prompt. Normally, this
+         is where the task definition is, but in other cases
+         (such as chat evaluation), the task needs to be formulated
+         first (such as summarized from the whole chat). This can
+         be done by question_solver.
       model (list[str | Model] | str | Model | None): Model or Models to use for grading. If     multiple models are passed, a majority vote of their grade will be returned. By default the model being evaluated is used.
     """
     # bind variables
     get_scorer = partial(
-        _model_graded_qa_single, template, instructions, grade_pattern, partial_credit
+        _model_graded_qa_single, template, instructions, grade_pattern,
+        partial_credit, question_solver
     )
     # if only a single model is passed, return a single scorer
     if model is None or not isinstance(model, list):
@@ -106,6 +125,7 @@ def _model_graded_qa_single(
     instructions: str | None = None,
     grade_pattern: str | None = None,
     partial_credit: bool = False,
+    question_solver: Solver | None = None,
     model: str | Model | None = None,
 ) -> Scorer:
     # returns a scorer that does model graded qa for a single model
@@ -113,21 +133,25 @@ def _model_graded_qa_single(
     # resolve model
     grader_model = get_model(model)
 
-    # resolve grading template, instructions, and grade_pattern
+    # resolve grading template, instructions, grade_pattern and question solver
     template = template if template else DEFAULT_MODEL_GRADED_QA_TEMPLATE
     grading_template = resource(template)
     instructions = (
         instructions if instructions else default_instructions(partial_credit)
     )
+    question_solver = question_solver if question_solver else no_solver()
 
     async def score(state: TaskState, target: Target) -> Score:
+        # resolve question to score, possibly based on the whole chat
+        question = await question_solver(state, grader_model.generate)
+
         # metadata without grading template variables
         metadata = omit(
             state.metadata, ["question", "answer", "criterion", "instructions"]
         )
         # format the scoring template
         score_prompt = grading_template.format(
-            question=state.input_text,
+            question=question.user_prompt.content,
             answer=state.output.completion,
             criterion=target.text,
             instructions=instructions,

@@ -11,6 +11,7 @@ from ._prompt import (
     prompt_template,
     system_message,
 )
+from ._question import no_solver, chat_summary
 from ._solver import Generate, Solver, SolverSpec, generate, solver
 from ._task_state import Choice, Choices, TaskState
 from ._use_tools import use_tools
@@ -36,6 +37,8 @@ __all__ = [
     "TaskState",
     "Generate",
     "MultipleChoiceTemplate",
+    "no_solver",
+    "chat_summary",
 ]
 
 
