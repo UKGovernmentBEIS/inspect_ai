@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.36 (2 October 2024)
 
 - [Web Browser](https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-browser) tool which provides a headless Chromimum browser that supports navigation, history, and mouse/keyboard interactions.
 - `auto_id` option for dataset readers to assign an auto-incrementing ID to records.
