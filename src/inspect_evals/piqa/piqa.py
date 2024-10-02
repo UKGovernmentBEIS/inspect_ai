@@ -39,6 +39,7 @@ def piqa() -> Task:
         sample_fields=record_to_sample,
         trust=True,
         split="validation",
+        auto_id=True,
         shuffle=True,
     )
 

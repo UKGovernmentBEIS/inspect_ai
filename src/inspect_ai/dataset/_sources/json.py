@@ -21,6 +21,7 @@ from .util import resolve_sample_files
 def json_dataset(
     json_file: str,
     sample_fields: FieldSpec | RecordToSample | None = None,
+    auto_id: bool = False,
     shuffle: bool = False,
     seed: int | None = None,
     limit: int | None = None,
@@ -44,6 +45,7 @@ def json_dataset(
         stored in `Sample` form (i.e. object with "input" and "target" fields); Pass a
         `FieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
         handle mapping with a custom function that returns one or more samples.
+      auto_id (bool): Assign an auto-incrementing ID for each sample.
       shuffle (bool): Randomly shuffle the dataset order.
       seed: (int | None): Seed used for random shuffle.
       limit (int | None): Limit the number of records to read.
@@ -71,7 +73,7 @@ def json_dataset(
     with file(json_file, "r", encoding=encoding, fs_options=fs_options) as f:
         name = name if name else Path(json_file).stem
         dataset = MemoryDataset(
-            samples=data_to_samples(dataset_reader(f), data_to_sample),
+            samples=data_to_samples(dataset_reader(f), data_to_sample, auto_id),
             name=name,
             location=json_file,
         )

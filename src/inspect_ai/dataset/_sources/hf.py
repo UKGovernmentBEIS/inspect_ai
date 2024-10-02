@@ -21,6 +21,7 @@ def hf_dataset(
     data_dir: str | None = None,
     split: str | None = None,
     sample_fields: FieldSpec | RecordToSample | None = None,
+    auto_id: bool = False,
     shuffle: bool = False,
     seed: int | None = None,
     limit: int | None = None,
@@ -46,6 +47,7 @@ def hf_dataset(
           stored in `Sample` form (i.e. has "input" and "target" columns.); Pass a
           `FieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
           handle mapping with a custom function that returns one or more samples.
+        auto_id (bool): Assign an auto-incrementing ID for each sample.
         shuffle (bool): Randomly shuffle the dataset order.
         seed: (int | None): Seed used for random shuffle.
         limit (int | None): Limit the number of records to read.
@@ -92,7 +94,7 @@ def hf_dataset(
 
     # return the dataset
     return MemoryDataset(
-        samples=data_to_samples(dataset.to_list(), data_to_sample),
+        samples=data_to_samples(dataset.to_list(), data_to_sample, auto_id),
         name=Path(path).stem if Path(path).exists() else path,
         location=path,
     )

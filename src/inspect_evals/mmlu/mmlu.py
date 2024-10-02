@@ -48,6 +48,7 @@ def record_to_sample(record: dict[str, Any]) -> Sample:
 dataset = csv_dataset(
     csv_file="https://openaipublic.blob.core.windows.net/simple-evals/mmlu.csv",
     sample_fields=record_to_sample,
+    auto_id=True,
     shuffle=True,
 )
 

@@ -25,6 +25,7 @@ def commonsense_qa() -> Task:
         split="validation",
         sample_fields=record_to_sample,
         trust=True,
+        auto_id=True,
         shuffle=True,
     )
 

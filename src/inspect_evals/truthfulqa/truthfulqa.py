@@ -40,6 +40,7 @@ def truthfulqa(target: Literal["mc1", "mc2"] = "mc1") -> Task:
         name="multiple_choice",
         sample_fields=record_to_sample,
         split="validation",
+        auto_id=True,
         shuffle=True,
     )
 

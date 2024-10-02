@@ -47,6 +47,7 @@ def gsm8k(fewshot: int = 10, fewshot_seed: int = 42) -> Task:
             data_dir="main",
             split="train",
             sample_fields=record_to_sample,
+            auto_id=True,
             shuffle=True,
             seed=fewshot_seed,
             limit=fewshot,
