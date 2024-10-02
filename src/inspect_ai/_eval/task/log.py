@@ -66,6 +66,11 @@ class TaskLogger:
         )
         packages = {PKG_NAME: importlib_metadata.version(PKG_NAME)}
 
+        # remove api_key from model_args
+        model_args = model_args.copy()
+        if "api_key" in model_args:
+            del model_args["api_key"]
+
         # create eval spec
         self.eval = EvalSpec(
             run_id=run_id,
