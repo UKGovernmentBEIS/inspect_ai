@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.38 (3 October 2024)
 
 - Rename `web_browser_tools()` to `web_browser()`, and don't export individual web browsing tools.
 - Add `parallel` option to `@tool` decorator and specify `parallel=False` for web browsing tools.
