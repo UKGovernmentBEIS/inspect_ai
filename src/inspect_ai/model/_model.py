@@ -32,7 +32,7 @@ from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.util import concurrency
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
-from ._call_tools import tools_info
+from ._call_tools import disable_parallel_tools, tools_info
 from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -234,6 +234,10 @@ class Model:
         config.max_tokens = (
             config.max_tokens if config.max_tokens else self.api.max_tokens()
         )
+
+        # disable parallel tool calls if requested by any of our tools
+        if disable_parallel_tools(tools):
+            config.parallel_tool_calls = False
 
         # normalize input to chat
         if isinstance(input, str):

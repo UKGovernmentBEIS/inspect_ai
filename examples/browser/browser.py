@@ -1,8 +1,7 @@
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
-from inspect_ai.solver import generate
-from inspect_ai.solver._use_tools import use_tools
+from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import web_browser
 
 
