@@ -35,6 +35,7 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, DEFAULT_MAX_RETRIES
 from inspect_ai._util.content import Content
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.images import image_as_data_uri
 from inspect_ai._util.url import is_data_uri, is_http_url
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
@@ -50,7 +51,12 @@ from .._model_output import (
     ModelUsage,
 )
 from .openai_o1 import generate_o1
-from .util import as_stop_reason, model_base_url, parse_tool_call
+from .util import (
+    as_stop_reason,
+    environment_prerequisite_error,
+    model_base_url,
+    parse_tool_call,
+)
 
 OPENAI_API_KEY = "OPENAI_API_KEY"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
@@ -92,8 +98,12 @@ class OpenAIAPI(ModelAPI):
             else:
                 self.api_key = os.environ.get(OPENAI_API_KEY, None)
                 if not self.api_key:
-                    raise ValueError(
-                        f"No {OPENAI_API_KEY} or {AZUREAI_OPENAI_API_KEY} found."
+                    raise environment_prerequisite_error(
+                        "OpenAI",
+                        [
+                            OPENAI_API_KEY,
+                            AZUREAI_OPENAI_API_KEY,
+                        ],
                     )
 
         # azure client
@@ -108,8 +118,8 @@ class OpenAIAPI(ModelAPI):
                 ],
             )
             if not base_url:
-                raise ValueError(
-                    "You must provide a base URL when using OpenAI on Azure. Use the AZUREAI_OPENAI_BASE_URL "
+                raise PrerequisiteError(
+                    "ERROR: You must provide a base URL when using OpenAI on Azure. Use the AZUREAI_OPENAI_BASE_URL "
                     + "environment variable or the --model-base-url CLI flag to set the base URL."
                 )
 

@@ -45,7 +45,7 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .util import model_base_url, parse_tool_call
+from .util import environment_prerequisite_error, model_base_url, parse_tool_call
 
 AZURE_MISTRAL_API_KEY = "AZURE_MISTRAL_API_KEY"
 AZUREAI_MISTRAL_API_KEY = "AZUREAI_MISTRAL_API_KEY"
@@ -85,8 +85,8 @@ class MistralAPI(ModelAPI):
                     AZUREAI_MISTRAL_API_KEY, os.environ.get(AZURE_MISTRAL_API_KEY, None)
                 )
                 if not self.api_key:
-                    raise ValueError(
-                        f"{MISTRAL_API_KEY} or {AZUREAI_MISTRAL_API_KEY} environment variable not found."
+                    raise environment_prerequisite_error(
+                        "Mistral", [MISTRAL_API_KEY, AZUREAI_MISTRAL_API_KEY]
                     )
                 base_url = model_base_url(base_url, "AZUREAI_MISTRAL_BASE_URL")
                 if not base_url:

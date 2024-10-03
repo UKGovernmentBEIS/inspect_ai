@@ -31,7 +31,12 @@ from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
-from .util import as_stop_reason, model_base_url, parse_tool_call
+from .util import (
+    as_stop_reason,
+    environment_prerequisite_error,
+    model_base_url,
+    parse_tool_call,
+)
 
 GROQ_API_KEY = "GROQ_API_KEY"
 
@@ -56,7 +61,7 @@ class GroqAPI(ModelAPI):
         if not self.api_key:
             self.api_key = os.environ.get(GROQ_API_KEY)
         if not self.api_key:
-            raise ValueError(f"{GROQ_API_KEY} environment variable not found.")
+            raise environment_prerequisite_error("Groq", GROQ_API_KEY)
 
         self.client = AsyncGroq(
             api_key=self.api_key,
