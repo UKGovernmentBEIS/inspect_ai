@@ -52,6 +52,8 @@ def web_browser_go() -> Tool:
 
         web_browser_type_submit(21, "dogs")
 
+        You should only attempt to navigate the web browser one page at a time (parallel calls to web browser tools are not permitted).
+
         Args:
           url (str): URL to navigate to.
 

@@ -6,6 +6,7 @@
 - Provide setter for `max_messages` on `TaskState`. 
 - Provide `max_messages` option for `basic_agent()` (defaulting to 50) and use it rather than any task `max_messages` defined.
 - Improve quality of error messages when a model API key environment variable is missing.
+- Improve prompting around letting the model know it should not attempt parallel web browser calls.
 
 ## v0.3.38 (3 October 2024)
 
