@@ -218,6 +218,15 @@ def tools_info(tools: list[Tool] | list[ToolInfo]) -> list[ToolInfo]:
         return []
 
 
+def disable_parallel_tools(tools: list[Tool] | list[ToolInfo]) -> bool:
+    for tool in tools:
+        if isinstance(tool, Tool):
+            _, _, parallel = tool_registry_info(tool)
+            if not parallel:
+                return True
+    return False
+
+
 def tool_defs(tools: list[Tool]) -> list[ToolDef]:
     return [tool_def(tool) for tool in tools]
 
