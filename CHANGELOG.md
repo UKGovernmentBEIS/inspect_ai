@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The sample transcript will now display the target for scoring in the Score Event (for newly run evaluations).
+
 ## v0.3.38 (3 October 2024)
 
 - Rename `web_browser_tools()` to `web_browser()`, and don't export individual web browsing tools.
