@@ -7,7 +7,7 @@ from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_with
 from inspect_ai.util._sandbox.docker.internal import INSPECT_WEB_BROWSER_IMAGE
 
 
-def web_browser_tools() -> list[Tool]:
+def web_browser() -> list[Tool]:
     """Tools used for web browser navigation.
 
     Returns:
@@ -26,7 +26,7 @@ def web_browser_tools() -> list[Tool]:
     ]
 
 
-@tool
+@tool(parallel=False)
 def web_browser_go() -> Tool:
     """Web Browser tool for navigation to a URL.
 
@@ -63,7 +63,7 @@ def web_browser_go() -> Tool:
     return execute
 
 
-@tool
+@tool(parallel=False)
 def web_browser_click() -> Tool:
     """Web Browser tool for clicking an element on a web page.
 
@@ -98,7 +98,7 @@ def web_browser_click() -> Tool:
     return execute
 
 
-@tool
+@tool(parallel=False)
 def web_browser_type_submit() -> Tool:
     """Web Browser tool for typing and submitting input.
 
@@ -136,7 +136,7 @@ def web_browser_type_submit() -> Tool:
     return execute
 
 
-@tool
+@tool(parallel=False)
 def web_browser_type() -> Tool:
     """Web Browser tool for typing into inputs.
 
@@ -174,7 +174,7 @@ def web_browser_type() -> Tool:
     return execute
 
 
-@tool
+@tool(parallel=False)
 def web_browser_scroll() -> Tool:
     """Web Browser tool for scrolling up or down one page.
 
@@ -204,7 +204,7 @@ def web_browser_scroll() -> Tool:
     return execute
 
 
-@tool
+@tool(parallel=False)
 def web_browser_back() -> Tool:
     """Web Browser tool for navigating back in the browser history.
 
@@ -225,7 +225,7 @@ def web_browser_back() -> Tool:
     return execute
 
 
-@tool
+@tool(parallel=False)
 def web_browser_forward() -> Tool:
     """Web Browser tool for navigating forward in the browser history.
 
@@ -246,7 +246,7 @@ def web_browser_forward() -> Tool:
     return execute
 
 
-@tool
+@tool(parallel=False)
 def web_browser_refresh() -> Tool:
     """Web Browser tool for refreshing the current page.
 

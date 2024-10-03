@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Rename `web_browser_tools()` to `web_browser()`, and don't export individual web browsing tools.
+- Add `parallel` option to `@tool` decorator and specify `parallel=False` for web browsing tools.
 - Improve prompting for web browser tools using more explicit examples.
 - Improve prompting for `</tool_call>` end sequence for Llama models. 
 - Fix issue with failure to execute sample setup scripts.

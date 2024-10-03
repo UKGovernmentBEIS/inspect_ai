@@ -3,7 +3,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
 from inspect_ai.solver import generate
 from inspect_ai.solver._use_tools import use_tools
-from inspect_ai.tool import web_browser_tools
+from inspect_ai.tool import web_browser
 
 
 @task
@@ -15,7 +15,7 @@ def browser():
             )
         ],
         solver=[
-            use_tools(web_browser_tools()),
+            use_tools(web_browser()),
             generate(),
         ],
         scorer=includes(),

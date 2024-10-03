@@ -9,7 +9,7 @@ from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import web_browser_tools
+from inspect_ai.tool import web_browser
 from inspect_ai.util import SandboxEnvironmentSpec
 
 
@@ -18,8 +18,8 @@ from inspect_ai.util import SandboxEnvironmentSpec
 def test_web_browser_navigation():
     task = Task(
         dataset=[Sample(input="Please use the web_browser tool")],
-        solver=[use_tools(web_browser_tools()), generate()],
-        sandbox=test_sandbox(),
+        solver=[use_tools(web_browser()), generate()],
+        sandbox=web_browser_sandbox(),
     )
 
     log = eval(
@@ -113,8 +113,8 @@ def test_web_browser_click():
                 input="Please use the web browser tool to navigate to https://inspect.ai-safety-institute.org.uk/. Then, once there, use the web_browser_click tool to click the link to the documentation on Solvers."
             )
         ],
-        solver=[use_tools(web_browser_tools()), generate()],
-        sandbox=test_sandbox(),
+        solver=[use_tools(web_browser()), generate()],
+        sandbox=web_browser_sandbox(),
     )
 
     log = eval(task, model="openai/gpt-4o")[0]
@@ -136,8 +136,8 @@ def test_web_browser_input():
                 input="Please use the web browser tool to navigate to https://inspect.ai-safety-institute.org.uk/. Then, once there, use the page's search interface to search for 'solvers'"
             )
         ],
-        solver=[use_tools(web_browser_tools()), generate()],
-        sandbox=test_sandbox(),
+        solver=[use_tools(web_browser()), generate()],
+        sandbox=web_browser_sandbox(),
     )
 
     log = eval(task, model="openai/gpt-4o")[0]
@@ -146,7 +146,7 @@ def test_web_browser_input():
     assert type_call
 
 
-def test_sandbox() -> SandboxEnvironmentSpec:
+def web_browser_sandbox() -> SandboxEnvironmentSpec:
     return (
         "docker",
         (Path(__file__).parent / "test_web_browser_compose.yaml").as_posix(),

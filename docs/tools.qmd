@@ -219,6 +219,18 @@ my_add = tool_with(add(), parameters={"x": "the x argument"})
 
 Note that the `tool_with()` function returns a copy of the passed tool with modified descriptions (the passed tool retains its original descriptions).
 
+## Parallel Tool Calls
+
+Some model APIs including OpenAI and Gemini support executing multiple tool calls in parallel. While this can provide a performance improvement, it might not be compatible with semantics of some tools (for example, if they manage some global state between calls).
+
+You can opt-out of parallel tool calling by adding `parallel=False` to the `@tool` decorator. For example, the built in web browsing tools do this as follows:
+
+```python
+@tool(parallel=False)
+def web_browser_go() -> Tool:
+    ...
+```
+
 ## Bash and Python {#sec-bash-and-python}
 
 The `bash()` and `python()` tools enable execution of arbitrary shell commands and Python code, respectively. These tools require the use of a [Sandbox Environment](#sec-sandbox-environments) for the execution of untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:
@@ -253,14 +265,14 @@ See the [Agents](#sec-agents) section for more details on how to build evaluatio
 ## Web Browser {#sec-web-browser}
 
 ::: {.callout-note apperance="\"simple:"}
-Note that the web browser tool described below is currently only available in the development version of Inspect. You can install the development version with:
+Note that the web browser tools described below is currently only available in the development version of Inspect. You can install the development version with:
 
 ``` bash
 pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
-The web browser tool provides models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.
+The web browser tools provids models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.
 
 ### Configuration
 
@@ -290,20 +302,20 @@ Rather than using the `inspect_web_browser` image, you can also just include the
 
 ### Task
 
-A task configured to use the web browser tool might look like this:
+A task configured to use the web browser tools might look like this:
 
 ``` python
 from inspect_ai import Task, task
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import bash, web_browser_tools
+from inspect_ai.tool import bash, python, web_browser
 
 @task
 def browser_task():
     return Task(
         dataset=read_dataset(),
         solver=[
-            use_tools([bash()] + web_browser_tools()),
+            use_tools([bash(), python()] + web_browser()),
             generate(),
         ],
         scorer=match(),
@@ -311,7 +323,7 @@ def browser_task():
     )
 ```
 
-Note that we pass `web_browser_tools()` to `use_tools()`, which provides a list of web browsing tools (e.g. `web_browser_go()`, `web_browser_click()`, etc.). 
+Note that unlike some other tool functions like `bash()`, the `web_browser()` function returns a list of tools. Therefore, we concatenate it with a list of the other tools we are using in the call to `use_tools()`.
 
 ### Browsing
 
@@ -319,18 +331,17 @@ If you review the transcripts of a sample with access to the web browser tool, y
 
 | Tool | Description |
 |------------------------------------|------------------------------------|
-| `web_browser_go()` | Navigate the web browser to a URL. |
-| `web_browser_click()` | Click an element on the page currently displayed by the web browser. |
-| `web_browser_scroll()` | Scroll the web browser up or down by one page. |
+| `web_browser_go(url)` | Navigate the web browser to a URL. |
+| `web_browser_click(element_id)` | Click an element on the page currently displayed by the web browser. |
+| `web_browser_type(element_id)` | Type text into an input on a web browser page. |
+| `web_browser_type_submit(element_id, text)` | Type text into a form input on a web browser page and press ENTER to submit the form. |
+| `web_browser_scroll(direction)` | Scroll the web browser up or down by one page. |
 | `web_browser_forward()` | Navigate the web browser forward in the browser history. |
 | `web_browser_back()` | Navigate the web browser back in the browser history. |
 | `web_browser_refresh()` | Refresh the current page of the web browser. |
-| `web_browser_type()` | Type text into an input on a web browser page. |
-| `web_browser_type_submit()` | Type text into a form input on a web browser page and press ENTER to submit the form. |
 
 : {tbl-colwidths=\[35,65\]}
 
-If you like, you can enable a subset of these tools rather than calling `web_browser_tools()` to use all of them.
 
 The return value of each of these tools is a [web accessibility tree](https://web.dev/articles/the-accessibility-tree) for the page, which provides a clean view of the content, links, and form fields available on the page (you can look at the accessibility tree for any web page using [Chrome Developer Tools](https://developer.chrome.com/blog/full-accessibility-tree)).
 
@@ -356,6 +367,7 @@ COPY *.py ./
 CMD ["python3", "/app/web_browser/web_server.py"]
 ```
 
+Note that all of the Python files in the [_resources](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_tools/_web_browser/_resources/) directory alongside the `Dockerfile` need to be available for copying when building the container.
 
 ## Web Search {#sec-web-search}
 
