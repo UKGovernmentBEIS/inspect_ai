@@ -5,6 +5,7 @@ from typing import Any
 
 import yaml
 
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -93,4 +94,26 @@ def parse_tool_call(
         arguments=arguments_dict,
         type="function",
         parse_error=error,
+    )
+
+
+def environment_prerequisite_error(
+    client: str, env_vars: str | list[str]
+) -> PrerequisiteError:
+    def fmt(key: str) -> str:
+        return f"[bold][blue]{key}[/blue][/bold]"
+
+    env_vars = [env_vars] if isinstance(env_vars, str) else env_vars
+    if len(env_vars) == 1:
+        env_vars_list = fmt(env_vars[0])
+    else:
+        env_vars_list = (
+            ", ".join([fmt(env_bar) for env_bar in env_vars[:-1]])
+            + ("," if len(env_vars) > 2 else "")
+            + " or "
+            + fmt(env_vars[-1])
+        )
+
+    return PrerequisiteError(
+        f"ERROR: Unable to initialise {client} client\n\nNo {env_vars_list} defined in the environment."
     )

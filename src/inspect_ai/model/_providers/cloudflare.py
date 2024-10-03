@@ -15,6 +15,7 @@ from .util import (
     Llama31Handler,
     chat_api_input,
     chat_api_request,
+    environment_prerequisite_error,
     is_chat_api_rate_limit,
     model_base_url,
 )
@@ -43,13 +44,11 @@ class CloudFlareAPI(ModelAPI):
         )
         self.account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID")
         if not self.account_id:
-            raise RuntimeError("CLOUDFLARE_ACCOUNT_ID environment variable not set")
+            raise environment_prerequisite_error("CloudFlare", "CLOUDFLARE_ACCOUNT_ID")
         if not self.api_key:
             self.api_key = os.getenv(CLOUDFLARE_API_TOKEN)
             if not self.api_key:
-                raise RuntimeError(
-                    f"{CLOUDFLARE_API_TOKEN} environment variable not set"
-                )
+                raise environment_prerequisite_error("CloudFlare", CLOUDFLARE_API_TOKEN)
         self.client = httpx.AsyncClient()
         base_url = model_base_url(base_url, "CLOUDFLARE_BASE_URL")
         self.base_url = (
