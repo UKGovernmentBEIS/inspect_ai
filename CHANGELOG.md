@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- Improve prompting for `</too_call>` end sequence for Llama models. 
+- Improve prompting for web browser tools using more explicit examples.
+- Improve prompting for `</tool_call>` end sequence for Llama models. 
 - Fix issue with failure to execute sample setup scripts.
 
 ## v0.3.37 (2 October 2024)
