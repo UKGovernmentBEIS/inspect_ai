@@ -142,15 +142,9 @@ async def call_tools(
                 error=tool_error,
             ), event
 
-        # call tools in parallel if compatible
-        results: list[tuple[ChatMessageTool, ToolEvent]] = []
-        if all([tool_def.parallel for tool_def in tdefs]):
-            tasks = [call_tool_task(call) for call in message.tool_calls]
-            results = await asyncio.gather(*tasks)
-        # otherwise call serially
-        else:
-            for call in message.tool_calls:
-                results.append(await call_tool_task(call))
+        # call tools in parallel
+        tasks = [call_tool_task(call) for call in message.tool_calls]
+        results = await asyncio.gather(*tasks)
 
         # fire tool events for each result
         for event in [result[1] for result in results]:
@@ -222,6 +216,15 @@ def tools_info(tools: list[Tool] | list[ToolInfo]) -> list[ToolInfo]:
             ]
     else:
         return []
+
+
+def disable_parallel_tools(tools: list[Tool] | list[ToolInfo]) -> bool:
+    for tool in tools:
+        if isinstance(tool, Tool):
+            _, _, parallel = tool_registry_info(tool)
+            if not parallel:
+                return True
+    return False
 
 
 def tool_defs(tools: list[Tool]) -> list[ToolDef]:
