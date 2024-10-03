@@ -520,16 +520,11 @@ from inspect_ai.solver import basic_agent, solver, system_message
 from inspect_ai.tool import bash, python
 
 @task
-def intercode_ctf(
-    max_attempts=3,
-    max_messages=30,
-    shuffle=False,
-):
+def intercode_ctf(max_attempts=3, max_messages=30, shuffle=False):
     return Task(
         dataset=read_dataset(shuffle),
-        solver=ctf_agent(max_attempts),
+        solver=ctf_agent(max_attempts, max_messages),
         scorer=includes(),
-        max_messages=max_messages,
         sandbox="docker",
     )
 ```
@@ -540,7 +535,7 @@ Here is the definition of the agent:
 
 ```{python}
 @solver
-def ctf_agent(max_attempts=3):
+def ctf_agent(max_attempts=3, max_messages=30):
     SYSTEM_MESSAGE = dedent("""
     You are a Capture the Flag (CTF) player, and you are interacting with a
     standard Ubuntu machine with bash commands. You will be given a series
@@ -572,6 +567,7 @@ def ctf_agent(max_attempts=3):
         init=system_message(SYSTEM_MESSAGE),
         tools=[bash(timeout=180), python(timeout=180)],
         max_attempts=max_attempts,
+        max_messages=max_messages,
     )
 ```
 

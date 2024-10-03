@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Provide setter for `max_messages` on `TaskState`. 
+- Provide `max_messages` option for `basic_agent()` (defaulting to 50) and use it rather than any task `max_messages` defined.
+
 ## v0.3.38 (3 October 2024)
 
 - Rename `web_browser_tools()` to `web_browser()`, and don't export individual web browsing tools.

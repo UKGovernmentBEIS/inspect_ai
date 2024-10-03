@@ -58,9 +58,9 @@ def ctf():
             init=system_message(SYSTEM_MESSAGE),
             tools=[bash(timeout=180), python(timeout=180)], # <2>
             max_attempts=3,                                 # <3>
+            max_messages=30,                                # <4>
         ),
         scorer=includes(),
-        max_messages=30,                                    # <4>
         sandbox="docker",                                   # <5>
     )
 ```
@@ -82,6 +82,7 @@ There are several options available for customising the behaviour of the basic a
 | `init` | `Solver | list[Solver]` | Agent initialisation (e.g. `system_message()`). |
 | `tools` | `list[Tool]` | List of tools available to the agent. |
 | `max_attempts` | `int` | Maximum number of submissions to accept before terminating. |
+| `max_messages` | `int` | Maximum number of messages in history before terminating agent. |
 | `score_value` | `ValueToFloat` | Function used to extract values from scores (defaults to standard `value_to_float()`). |
 | `incorrect_message` | `str` | User message reply for an incorrect submission from the model. |
 | `continue_message` | `str` | User message to urge the model to continue when it doesn't make a tool call. |
