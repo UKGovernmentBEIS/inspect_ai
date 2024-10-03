@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.39 (3 October 2024)
 
 - The sample transcript will now display the target for scoring in the Score Event (for newly run evaluations).
 - Provide setter for `max_messages` on `TaskState`. 
