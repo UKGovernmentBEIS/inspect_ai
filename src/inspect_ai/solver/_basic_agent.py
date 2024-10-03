@@ -1,3 +1,5 @@
+from logging import getLogger
+
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._call_tools import call_tools
 from inspect_ai.model._chat_message import ChatMessageTool, ChatMessageUser
@@ -12,6 +14,8 @@ from ._prompt import system_message
 from ._solver import Generate, Solver, solver
 from ._task_state import TaskState
 from ._use_tools import use_tools
+
+logger = getLogger(__name__)
 
 DEFAULT_SYSTEM_MESSAGE = """
 You are a helpful assistant attempting to submit the correct answer. You have
@@ -41,6 +45,7 @@ def basic_agent(
     tools: list[Tool] | Solver | None = None,
     cache: bool | CachePolicy = False,
     max_attempts: int = 1,
+    max_messages: int = 50,
     score_value: ValueToFloat | None = None,
     incorrect_message: str = DEFAULT_INCORRECT_MESSAGE,
     continue_message: str = DEFAULT_CONTINUE_MESSAGE,
@@ -60,10 +65,6 @@ def basic_agent(
     "C" becomes 1.0) using the standard value_to_float() function. Provide an
     alternate conversion scheme as required via `score_value`.
 
-    Note that when using the `basic_agent()`, you should always establish a boundary
-    on model activity (e.g. setting the task `max_messages`) to prevent it from
-    continuing on in a loop interminably.
-
     Args:
        init: (Solver | list[Solver] | None): Agent initialisation
          (defaults to system_message with basic ReAct prompt)
@@ -72,6 +73,7 @@ def basic_agent(
        cache: (bool | CachePolicy): Caching behaviour for generate responses
          (defaults to no caching).
        max_attempts (int): Maximum number of submissions to accept before terminating.
+       max_messages (int): Maximum number of messages in history before terminating agent.
        score_value (ValueToFloat): Function used to extract float from scores (defaults
          to standard value_to_float())
        incorrect_message (str): User message reply for an incorrect submission from
@@ -132,11 +134,17 @@ def basic_agent(
     @solver
     def basic_agent_loop() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            # validate that there is a max_messages
-            if state.max_messages is None:
-                raise RuntimeError(
-                    "max_messages must be set when using basic_agent (without max_messages providing a termination condition it's possible the agent could end up in an infinite loop)"
+            # if the task had max_messages it will be overridden, so print a warning and let the user know they should use the basic_agent option instead
+            if state.max_messages is not None:
+                from inspect_ai._util.logger import warn_once
+
+                warn_once(
+                    logger,
+                    f"Task max_messages ({state.max_messages}) will be overridden by basic_agent() max_messages ({max_messages}). Please use the basic_agent() max_messages in preference to task max_messages.",
                 )
+
+            # set max_messages
+            state.max_messages = max_messages
 
             # track attempts
             attempts = 0
