@@ -189,7 +189,7 @@ def web_browser_scroll() -> Tool:
 
         web_browser_scroll("down")
 
-        You can then return to the top of the page with:
+        You can then return to the previous scroll position with:
 
         web_browser_scroll("up")
 
