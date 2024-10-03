@@ -23,7 +23,7 @@ from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.registry import registry_info
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
-from inspect_ai.tool._tool import TOOL_PROMPT, ToolParsingError
+from inspect_ai.tool._tool import TOOL_PARALLEL, TOOL_PROMPT, ToolParsingError
 from inspect_ai.tool._tool_call import ToolCallError
 from inspect_ai.tool._tool_info import (
     ToolParams,
@@ -142,9 +142,15 @@ async def call_tools(
                 error=tool_error,
             ), event
 
-        # call tools in parallel
-        tasks = [call_tool_task(call) for call in message.tool_calls]
-        results = await asyncio.gather(*tasks)
+        # call tools in parallel if compatible
+        results: list[tuple[ChatMessageTool, ToolEvent]] = []
+        if all([tool_def.parallel for tool_def in tdefs]):
+            tasks = [call_tool_task(call) for call in message.tool_calls]
+            results = await asyncio.gather(*tasks)
+        # otherwise call serially
+        else:
+            for call in message.tool_calls:
+                results.append(await call_tool_task(call))
 
         # fire tool events for each result
         for event in [result[1] for result in results]:
@@ -167,6 +173,9 @@ class ToolDef:
 
     parameters: ToolParams
     """Tool parameters"""
+
+    parallel: bool
+    """Supports parallel execution."""
 
     tool: Callable[..., Any]
     """Callable to execute tool."""
@@ -221,7 +230,7 @@ def tool_defs(tools: list[Tool]) -> list[ToolDef]:
 
 def tool_def(tool: Tool) -> ToolDef:
     # get tool_info
-    name, prompt = tool_name_and_prompt(tool)
+    name, prompt, parallel = tool_registry_info(tool)
     tool_info = parse_tool_info(tool)
 
     # if there is a description then append any prompt to the
@@ -269,15 +278,17 @@ def tool_def(tool: Tool) -> ToolDef:
         name=name,
         description=tool_info.description,
         parameters=tool_info.parameters,
+        parallel=parallel,
         tool=tool,
     )
 
 
-def tool_name_and_prompt(tool: Tool) -> tuple[str, str | None]:
-    tool_registry_info = registry_info(tool)
-    name = tool_registry_info.name.split("/")[-1]
-    prompt = tool_registry_info.metadata.get(TOOL_PROMPT, None)
-    return name, prompt
+def tool_registry_info(tool: Tool) -> tuple[str, str | None, bool]:
+    info = registry_info(tool)
+    name = info.name.split("/")[-1]
+    prompt = info.metadata.get(TOOL_PROMPT, None)
+    parallel = info.metadata.get(TOOL_PARALLEL, True)
+    return name, prompt, parallel
 
 
 def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, Any]:
