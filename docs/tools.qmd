@@ -264,14 +264,6 @@ See the [Agents](#sec-agents) section for more details on how to build evaluatio
 
 ## Web Browser {#sec-web-browser}
 
-::: {.callout-note apperance="\"simple:"}
-Note that the web browser tools described below is currently only available in the development version of Inspect. You can install the development version with:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 The web browser tools provids models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.
 
 ### Configuration
