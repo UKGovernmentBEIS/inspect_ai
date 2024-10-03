@@ -254,6 +254,11 @@ class TaskState:
         """max_messages before task is marked completed."""
         return self._max_messages
 
+    @max_messages.setter
+    def max_messages(self, messages: int | None) -> None:
+        """Set max_messages before task is marked complete."""
+        self._max_messages = messages
+
     @property
     def completed(self) -> bool:
         """Is the task completed."""

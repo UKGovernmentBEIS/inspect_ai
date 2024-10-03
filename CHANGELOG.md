@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Provide setter for `max_messages` on `TaskState`.
+
 ## v0.3.38 (3 October 2024)
 
 - Rename `web_browser_tools()` to `web_browser()`, and don't export individual web browsing tools.
