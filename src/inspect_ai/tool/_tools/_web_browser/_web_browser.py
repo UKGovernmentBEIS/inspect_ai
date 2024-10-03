@@ -37,7 +37,7 @@ def web_browser_go() -> Tool:
     async def execute(url: str) -> str:
         """Navigate the web browser to a URL.
 
-        Once you have navigated to a page, you will be presented with a web accessiblity tree of the elements on the page. Each element has an ID, which is displayed in brackets at the beginning of its line. For example:
+        Once you have navigated to a page, you will be presented with a web accessibilty tree of the elements on the page. Each element has an ID, which is displayed in brackets at the beginning of its line. For example:
 
         ```
         [1] RootWebArea "Google" [focused: True, url: https://www.google.com/]
@@ -185,7 +185,7 @@ def web_browser_scroll() -> Tool:
     async def execute(direction: str) -> str:
         """Scroll the web browser up or down by one page.
 
-        Pccasionally some very long pages don't display all of their content at once. To see additioanl content you can scroll the page down with:
+        Occasionally some very long pages don't display all of their content at once. To see additional content you can scroll the page down with:
 
         web_browser_scroll("down")
 
