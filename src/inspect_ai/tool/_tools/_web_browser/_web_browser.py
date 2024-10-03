@@ -7,7 +7,7 @@ from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_with
 from inspect_ai.util._sandbox.docker.internal import INSPECT_WEB_BROWSER_IMAGE
 
 
-def web_browser_tools() -> list[Tool]:
+def web_browser() -> list[Tool]:
     """Tools used for web browser navigation.
 
     Returns:
