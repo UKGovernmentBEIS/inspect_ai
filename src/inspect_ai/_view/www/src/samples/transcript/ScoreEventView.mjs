@@ -16,6 +16,12 @@ import { TextStyle } from "../../appearance/Fonts.mjs";
  * @returns {import("preact").JSX.Element} The component.
  */
 export const ScoreEventView = ({ id, event, style }) => {
+  const resolvedTarget = event.target
+    ? Array.isArray(event.target)
+      ? event.target.join("\n")
+      : event.target
+    : undefined;
+
   return html`
   <${EventPanel} id=${id} title="Score" icon=${ApplicationIcons.scorer} style=${style}>
   
@@ -23,6 +29,18 @@ export const ScoreEventView = ({ id, event, style }) => {
       name="Explanation"
       style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "0.5em 0" }}
     >
+      ${
+        event.target
+          ? html` <div
+                style=${{
+                  gridColumn: "1 / -1",
+                  borderBottom: "solid 1px var(--bs-light-border-subtle",
+                }}
+              ></div>
+              <div style=${{ ...TextStyle.label }}>Target</div>
+              <div><${MarkdownDiv} markdown=${resolvedTarget} /></div>`
+          : ""
+      }
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Answer</div>
       <div><${MarkdownDiv} markdown=${event.score.answer}/></div>

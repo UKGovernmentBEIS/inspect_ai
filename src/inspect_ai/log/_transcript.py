@@ -192,6 +192,9 @@ class ScoreEvent(BaseEvent):
     score: Score
     """Sample score."""
 
+    target: str | list[str] | None = Field(default=None)
+    """"Sample target."""
+
 
 class StepEvent(BaseEvent):
     """Step within current sample or subtask."""

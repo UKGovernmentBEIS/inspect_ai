@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The sample transcript will now display the target for scoring in the Score Event (for newly run evaluations).
 - Provide setter for `max_messages` on `TaskState`. 
 - Provide `max_messages` option for `basic_agent()` (defaulting to 50) and use it rather than any task `max_messages` defined.
 
