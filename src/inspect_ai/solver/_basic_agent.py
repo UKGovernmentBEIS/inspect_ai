@@ -1,6 +1,5 @@
 from logging import getLogger
 
-from inspect_ai._util.logger import warn_once
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._call_tools import call_tools
 from inspect_ai.model._chat_message import ChatMessageTool, ChatMessageUser
@@ -137,6 +136,8 @@ def basic_agent(
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             # if the task had max_messages it will be overridden, so print a warning and let the user know they should use the basic_agent option instead
             if state.max_messages is not None:
+                from inspect_ai._util.logger import warn_once
+
                 warn_once(
                     logger,
                     f"Task max_messages ({state.max_messages}) will be overridden by basic_agent() max_messages ({max_messages}). Please use the basic_agent() max_messages in preference to task max_messages.",
