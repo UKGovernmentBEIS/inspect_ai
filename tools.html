@@ -315,6 +315,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#sandboxing" id="toc-sandboxing" class="nav-link" data-scroll-target="#sandboxing">Sandboxing</a></li>
   <li><a href="#tool-choice" id="toc-tool-choice" class="nav-link" data-scroll-target="#tool-choice">Tool Choice</a></li>
   <li><a href="#tool-descriptions" id="toc-tool-descriptions" class="nav-link" data-scroll-target="#tool-descriptions">Tool Descriptions</a></li>
+  <li><a href="#parallel-tool-calls" id="toc-parallel-tool-calls" class="nav-link" data-scroll-target="#parallel-tool-calls">Parallel Tool Calls</a></li>
   <li><a href="#sec-bash-and-python" id="toc-sec-bash-and-python" class="nav-link" data-scroll-target="#sec-bash-and-python">Bash and Python</a></li>
   <li><a href="#sec-web-browser" id="toc-sec-web-browser" class="nav-link" data-scroll-target="#sec-web-browser">Web Browser</a>
   <ul class="collapse">
@@ -598,49 +599,43 @@ Tools and Agents
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>my_add <span class="op">=</span> tool_with(add(), parameters<span class="op">=</span>{<span class="st">"x"</span>: <span class="st">"the x argument"</span>})</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that the <code>tool_with()</code> function returns a copy of the passed tool with modified descriptions (the passed tool retains its original descriptions).</p>
 </section>
+<section id="parallel-tool-calls" class="level2">
+<h2 class="anchored" data-anchor-id="parallel-tool-calls">Parallel Tool Calls</h2>
+<p>Some model APIs including OpenAI and Gemini support executing multiple tool calls in parallel. While this can provide a performance improvement, it might not be compatible with semantics of some tools (for example, if they manage some global state between calls).</p>
+<p>You can opt-out of parallel tool calling by adding <code>parallel=False</code> to the <code>@tool</code> decorator. For example, the built in web browsing tools do this as follows:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span>(parallel<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> web_browser_go() <span class="op">-&gt;</span> Tool:</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
 <section id="sec-bash-and-python" class="level2">
 <h2 class="anchored" data-anchor-id="sec-bash-and-python">Bash and Python</h2>
 <p>The <code>bash()</code> and <code>python()</code> tools enable execution of arbitrary shell commands and Python code, respectively. These tools require the use of a <a href="agents.html#sec-sandbox-environments">Sandbox Environment</a> for the execution of untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash, python</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>CMD_TIMEOUT <span class="op">=</span> <span class="dv">180</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> intercode_ctf():</span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>read_dataset(),</span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>[</span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>            system_message(<span class="st">"system.txt"</span>),</span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>            use_tools([</span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>                bash(CMD_TIMEOUT), </span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>                python(CMD_TIMEOUT)</span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>            ]),</span>
-<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>            generate(),</span>
-<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>        ],</span>
-<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>includes(),</span>
-<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>        max_messages<span class="op">=</span><span class="dv">30</span>,</span>
-<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>        sandbox<span class="op">=</span><span class="st">"docker"</span>,</span>
-<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash, python</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>CMD_TIMEOUT <span class="op">=</span> <span class="dv">180</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> intercode_ctf():</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>read_dataset(),</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>[</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>            system_message(<span class="st">"system.txt"</span>),</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>            use_tools([</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>                bash(CMD_TIMEOUT), </span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>                python(CMD_TIMEOUT)</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>            ]),</span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>            generate(),</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>        ],</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>includes(),</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>        max_messages<span class="op">=</span><span class="dv">30</span>,</span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>        sandbox<span class="op">=</span><span class="st">"docker"</span>,</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>We specify a 3-minute timeout for execution of the bash and python tools to ensure that they don’t perform extremely long running operations.</p>
 <p>See the <a href="agents.html">Agents</a> section for more details on how to build evaluations that allow models to take arbitrary actions over a longer time horizon.</p>
 </section>
 <section id="sec-web-browser" class="level2">
 <h2 class="anchored" data-anchor-id="sec-web-browser">Web Browser</h2>
-<div class="callout callout-style-default callout-note callout-titled" data-apperance="&quot;simple:">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Note
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>Note that the web browser tool described below is currently only available in the development version of Inspect. You can install the development version with:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</div>
-<p>The web browser tool provides models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.</p>
+<p>The web browser tools provids models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.</p>
 <section id="configuration" class="level3">
 <h3 class="anchored" data-anchor-id="configuration">Configuration</h3>
 <p>Under the hood, the web browser is an instance of <a href="https://www.chromium.org/chromium-projects/">Chromium</a> orchestrated by <a href="https://playwright.dev/">Playwright</a>, and runs in its own dedicated Docker container. Therefore, to use the web_browser tool you should reference the <code>inspect_web_browser</code> Docker image provided with Inspect in your <code>compose.yaml</code>. For example, here we use it as our default image:</p>
@@ -671,24 +666,24 @@ Note
 </section>
 <section id="task" class="level3">
 <h3 class="anchored" data-anchor-id="task">Task</h3>
-<p>A task configured to use the web browser tool might look like this:</p>
+<p>A task configured to use the web browser tools might look like this:</p>
 <div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> match</span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> generate, use_tools</span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash, web_browser_tools</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash, python, web_browser</span>
 <span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> browser_task():</span>
 <span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
 <span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>read_dataset(),</span>
 <span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>[</span>
-<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>            use_tools([bash()] <span class="op">+</span> web_browser_tools()),</span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>            use_tools([bash(), python()] <span class="op">+</span> web_browser()),</span>
 <span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>            generate(),</span>
 <span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>        ],</span>
 <span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>match(),</span>
 <span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>        sandbox<span class="op">=</span>(<span class="st">"docker"</span>, <span class="st">"compose.yaml"</span>),</span>
 <span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that we pass <code>web_browser_tools()</code> to <code>use_tools()</code>, which provides a list of web browsing tools (e.g.&nbsp;<code>web_browser_go()</code>, <code>web_browser_click()</code>, etc.).</p>
+<p>Note that unlike some other tool functions like <code>bash()</code>, the <code>web_browser()</code> function returns a list of tools. Therefore, we concatenate it with a list of the other tools we are using in the call to <code>use_tools()</code>.</p>
 </section>
 <section id="browsing" class="level3">
 <h3 class="anchored" data-anchor-id="browsing">Browsing</h3>
@@ -706,15 +701,23 @@ Note
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>web_browser_go()</code></td>
+<td><code>web_browser_go(url)</code></td>
 <td>Navigate the web browser to a URL.</td>
 </tr>
 <tr class="even">
-<td><code>web_browser_click()</code></td>
+<td><code>web_browser_click(element_id)</code></td>
 <td>Click an element on the page currently displayed by the web browser.</td>
 </tr>
 <tr class="odd">
-<td><code>web_browser_scroll()</code></td>
+<td><code>web_browser_type(element_id)</code></td>
+<td>Type text into an input on a web browser page.</td>
+</tr>
+<tr class="even">
+<td><code>web_browser_type_submit(element_id, text)</code></td>
+<td>Type text into a form input on a web browser page and press ENTER to submit the form.</td>
+</tr>
+<tr class="odd">
+<td><code>web_browser_scroll(direction)</code></td>
 <td>Scroll the web browser up or down by one page.</td>
 </tr>
 <tr class="even">
@@ -729,17 +732,8 @@ Note
 <td><code>web_browser_refresh()</code></td>
 <td>Refresh the current page of the web browser.</td>
 </tr>
-<tr class="odd">
-<td><code>web_browser_type()</code></td>
-<td>Type text into an input on a web browser page.</td>
-</tr>
-<tr class="even">
-<td><code>web_browser_type_submit()</code></td>
-<td>Type text into a form input on a web browser page and press ENTER to submit the form.</td>
-</tr>
 </tbody>
 </table>
-<p>If you like, you can enable a subset of these tools rather than calling <code>web_browser_tools()</code> to use all of them.</p>
 <p>The return value of each of these tools is a <a href="https://web.dev/articles/the-accessibility-tree">web accessibility tree</a> for the page, which provides a clean view of the content, links, and form fields available on the page (you can look at the accessibility tree for any web page using <a href="https://developer.chrome.com/blog/full-accessibility-tree">Chrome Developer Tools</a>).</p>
 </section>
 <section id="sec-custom-image" class="level3">
@@ -759,6 +753,7 @@ Note
 <span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Run the server</span></span>
 <span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a><span class="kw">CMD</span> [<span class="st">"python3"</span>, <span class="st">"/app/web_browser/web_server.py"</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that all of the Python files in the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_tools/_web_browser/_resources/">_resources</a> directory alongside the <code>Dockerfile</code> need to be available for copying when building the container.</p>
 </section>
 </section>
 <section id="sec-web-search" class="level2">
