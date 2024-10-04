@@ -14,9 +14,7 @@ export type TaskId = string;
 export type TaskVersion = number;
 export type TaskFile = string | null;
 export type Solver = string | null;
-export type SolverArgs = {
-  [k: string]: unknown;
-} | null;
+export type SolverArgs = {} | null;
 export type Name = string | null;
 export type Location = string | null;
 export type Samples = number | null;
@@ -39,9 +37,7 @@ export type LogBuffer = number | null;
 export type Type = "git";
 export type Origin = string;
 export type Commit = string;
-export type Metadata = {
-  [k: string]: unknown;
-} | null;
+export type Metadata = {} | null;
 export type Name1 = string;
 export type Solver1 = string;
 export type Steps = EvalPlanStep[];
@@ -75,16 +71,10 @@ export type Scorer = string;
 export type Reducer = string | null;
 export type Name3 = string;
 export type Value = number;
-export type Metadata1 = {
-  [k: string]: unknown;
-} | null;
-export type Metadata2 = {
-  [k: string]: unknown;
-} | null;
+export type Metadata1 = {} | null;
+export type Metadata2 = {} | null;
 export type Scores = EvalScore[];
-export type Metadata3 = {
-  [k: string]: unknown;
-} | null;
+export type Metadata3 = {} | null;
 export type SampleReductions = EvalSampleReductions[] | null;
 export type Scorer1 = string;
 export type Reducer1 = string | null;
@@ -98,9 +88,7 @@ export type Value1 =
     };
 export type Answer = string | null;
 export type Explanation = string | null;
-export type Metadata4 = {
-  [k: string]: unknown;
-} | null;
+export type Metadata4 = {} | null;
 export type SampleId = string | number | null;
 export type Samples1 = SampleScore[];
 export type StartedAt = string;
@@ -199,9 +187,7 @@ export type Value2 =
     };
 export type Answer1 = string | null;
 export type Explanation1 = string | null;
-export type Metadata5 = {
-  [k: string]: unknown;
-} | null;
+export type Metadata5 = {} | null;
 export type Timestamp = string;
 export type Event = "sample_init";
 export type Input1 =
@@ -215,9 +201,7 @@ export type Input1 =
 export type Choices2 = string[] | null;
 export type Target1 = string | string[];
 export type Id2 = number | string | null;
-export type Metadata7 = {
-  [k: string]: unknown;
-} | null;
+export type Metadata7 = {} | null;
 export type Sandbox2 = string | [unknown, unknown] | null;
 export type Files1 = {
   [k: string]: string;
@@ -274,16 +258,21 @@ export type Function2 = string;
 export type Result = string | number | boolean | (ContentText | ContentImage)[];
 export type Truncated = [unknown, unknown] | null;
 export type Timestamp5 = string;
-export type Event5 = "input";
+export type Event5 = "approval";
+export type Approver = string;
+export type Decision = "approve" | "reject" | "escalate" | "terminate";
+export type Explanation2 = string | null;
+export type Timestamp6 = string;
+export type Event6 = "input";
 export type Input3 = string;
 export type InputAnsi = string;
-export type Timestamp6 = string;
-export type Event6 = "score";
-export type Target2 = string | string[] | null;
 export type Timestamp7 = string;
-export type Event7 = "error";
+export type Event7 = "score";
+export type Target2 = string | string[] | null;
 export type Timestamp8 = string;
-export type Event8 = "logger";
+export type Event8 = "error";
+export type Timestamp9 = string;
+export type Event9 = "logger";
 export type Name6 = string | null;
 export type Level =
   | "debug"
@@ -298,15 +287,15 @@ export type Created1 = number;
 export type Filename = string;
 export type Module = string;
 export type Lineno = number;
-export type Timestamp9 = string;
-export type Event9 = "info";
 export type Timestamp10 = string;
-export type Event10 = "step";
+export type Event10 = "info";
+export type Timestamp11 = string;
+export type Event11 = "step";
 export type Action = "begin" | "end";
 export type Type8 = string | null;
 export type Name7 = string;
-export type Timestamp11 = string;
-export type Event11 = "subtask";
+export type Timestamp12 = string;
+export type Event12 = "subtask";
 export type Name8 = string;
 export type Type9 = string | null;
 export type Events2 = (
@@ -315,6 +304,7 @@ export type Events2 = (
   | StoreEvent
   | ModelEvent
   | ToolEvent
+  | ApprovalEvent
   | InputEvent
   | ScoreEvent
   | ErrorEvent
@@ -329,6 +319,7 @@ export type Events1 = (
   | StoreEvent
   | ModelEvent
   | ToolEvent
+  | ApprovalEvent
   | InputEvent
   | ScoreEvent
   | ErrorEvent
@@ -343,6 +334,7 @@ export type Events = (
   | StoreEvent
   | ModelEvent
   | ToolEvent
+  | ApprovalEvent
   | InputEvent
   | ScoreEvent
   | ErrorEvent
@@ -361,7 +353,6 @@ export interface EvalLog {
   stats?: EvalStats;
   error?: EvalError | null;
   samples?: Samples2;
-  [k: string]: unknown;
 }
 export interface EvalSpec {
   run_id: RunId;
@@ -384,21 +375,15 @@ export interface EvalSpec {
   packages: Packages;
   metadata: Metadata;
 }
-export interface TaskAttribs {
-  [k: string]: unknown;
-}
-export interface TaskArgs {
-  [k: string]: unknown;
-}
+export interface TaskAttribs {}
+export interface TaskArgs {}
 export interface EvalDataset {
   name: Name;
   location: Location;
   samples: Samples;
   shuffled: Shuffled;
 }
-export interface ModelArgs {
-  [k: string]: unknown;
-}
+export interface ModelArgs {}
 export interface EvalConfig {
   limit: Limit;
   epochs: Epochs;
@@ -431,9 +416,7 @@ export interface EvalPlanStep {
   solver: Solver1;
   params: Params;
 }
-export interface Params {
-  [k: string]: unknown;
-}
+export interface Params {}
 /**
  * Base class for model generation configs.
  */
@@ -475,9 +458,7 @@ export interface EvalScore {
   metrics: Metrics;
   metadata: Metadata2;
 }
-export interface Params1 {
-  [k: string]: unknown;
-}
+export interface Params1 {}
 export interface Metrics {
   [k: string]: EvalMetric;
 }
@@ -487,9 +468,7 @@ export interface EvalMetric {
   options: Options;
   metadata: Metadata1;
 }
-export interface Options {
-  [k: string]: unknown;
-}
+export interface Options {}
 export interface EvalSampleReductions {
   scorer: Scorer1;
   reducer: Reducer1;
@@ -577,9 +556,7 @@ export interface ToolCall {
   type: Type3;
   parse_error: ParseError;
 }
-export interface Arguments {
-  [k: string]: unknown;
-}
+export interface Arguments {}
 export interface ChatMessageTool {
   content: Content3;
   source: Source3;
@@ -641,12 +618,8 @@ export interface Score {
   explanation: Explanation1;
   metadata: Metadata5;
 }
-export interface Metadata6 {
-  [k: string]: unknown;
-}
-export interface Store {
-  [k: string]: unknown;
-}
+export interface Metadata6 {}
+export interface Store {}
 export interface EvalEvents {
   events: Events;
   content: Content5;
@@ -853,11 +826,22 @@ export interface Arguments1 {
   [k: string]: JsonValue;
 }
 /**
+ * Tool approval.
+ */
+export interface ApprovalEvent {
+  timestamp: Timestamp5;
+  event: Event5;
+  tool_call: ToolCall;
+  approver: Approver;
+  decision: Decision;
+  explanation: Explanation2;
+}
+/**
  * Input screen interaction.
  */
 export interface InputEvent {
-  timestamp: Timestamp5;
-  event: Event5;
+  timestamp: Timestamp6;
+  event: Event6;
   input: Input3;
   input_ansi: InputAnsi;
 }
@@ -865,8 +849,8 @@ export interface InputEvent {
  * Event with sample score.
  */
 export interface ScoreEvent {
-  timestamp: Timestamp6;
-  event: Event6;
+  timestamp: Timestamp7;
+  event: Event7;
   score: Score;
   target: Target2;
 }
@@ -874,16 +858,16 @@ export interface ScoreEvent {
  * Event with sample error.
  */
 export interface ErrorEvent {
-  timestamp: Timestamp7;
-  event: Event7;
+  timestamp: Timestamp8;
+  event: Event8;
   error: EvalError;
 }
 /**
  * Log message recorded with Python logger.
  */
 export interface LoggerEvent {
-  timestamp: Timestamp8;
-  event: Event8;
+  timestamp: Timestamp9;
+  event: Event9;
   message: LoggingMessage;
 }
 export interface LoggingMessage {
@@ -899,16 +883,16 @@ export interface LoggingMessage {
  * Event with custom info/data.
  */
 export interface InfoEvent {
-  timestamp: Timestamp9;
-  event: Event9;
+  timestamp: Timestamp10;
+  event: Event10;
   data: JsonValue;
 }
 /**
  * Step within current sample or subtask.
  */
 export interface StepEvent {
-  timestamp: Timestamp10;
-  event: Event10;
+  timestamp: Timestamp11;
+  event: Event11;
   action: Action;
   type: Type8;
   name: Name7;
@@ -917,17 +901,15 @@ export interface StepEvent {
  * Subtask spawned.
  */
 export interface SubtaskEvent {
-  timestamp: Timestamp11;
-  event: Event11;
+  timestamp: Timestamp12;
+  event: Event12;
   name: Name8;
   type: Type9;
   input: Input4;
   result: Result1;
   events: Events2;
 }
-export interface Input4 {
-  [k: string]: unknown;
-}
+export interface Input4 {}
 export interface Result1 {
   [k: string]: unknown;
 }

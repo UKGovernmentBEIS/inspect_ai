@@ -1,16 +1,9 @@
-from typing import Literal, Protocol
-
-from pydantic import BaseModel, Field
+from typing import Protocol
 
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall
 
-ApprovalDecision = Literal["approve", "reject", "escalate", "terminate"]
-
-
-class Approval(BaseModel):
-    decision: ApprovalDecision
-    explanation: str | None = Field(default=None)
+from ._approval import Approval
 
 
 class Approver(Protocol):

@@ -19,7 +19,6 @@ from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.json import JsonChange, json_changes
 from inspect_ai._util.url import is_data_uri
-from inspect_ai.approval._approver import ApprovalDecision
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._message import LoggingMessage
 from inspect_ai.model._chat_message import ChatMessage
@@ -153,7 +152,7 @@ class ApprovalEvent(BaseEvent):
     approver: str
     """Aprover name."""
 
-    decision: ApprovalDecision
+    decision: Literal["approve", "reject", "escalate", "terminate"]
     """Decision of approver."""
 
     explanation: str | None = Field(default=None)

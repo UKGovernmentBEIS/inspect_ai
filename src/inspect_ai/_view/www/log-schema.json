@@ -1,5 +1,64 @@
 {
   "$defs": {
+    "ApprovalEvent": {
+      "description": "Tool approval.",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "approval",
+          "default": "approval",
+          "enum": [
+            "approval"
+          ],
+          "title": "Event",
+          "type": "string"
+        },
+        "tool_call": {
+          "$ref": "#/$defs/ToolCall"
+        },
+        "approver": {
+          "title": "Approver",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "approve",
+            "reject",
+            "escalate",
+            "terminate"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Explanation"
+        }
+      },
+      "required": [
+        "timestamp",
+        "event",
+        "tool_call",
+        "approver",
+        "decision",
+        "explanation"
+      ],
+      "title": "ApprovalEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
     "ChatCompletionChoice": {
       "properties": {
         "message": {
@@ -702,6 +761,9 @@
               },
               {
                 "$ref": "#/$defs/ToolEvent"
+              },
+              {
+                "$ref": "#/$defs/ApprovalEvent"
               },
               {
                 "$ref": "#/$defs/InputEvent"
@@ -2958,6 +3020,9 @@
                 "$ref": "#/$defs/ToolEvent"
               },
               {
+                "$ref": "#/$defs/ApprovalEvent"
+              },
+              {
                 "$ref": "#/$defs/InputEvent"
               },
               {
@@ -3192,6 +3257,9 @@
               },
               {
                 "$ref": "#/$defs/ToolEvent"
+              },
+              {
+                "$ref": "#/$defs/ApprovalEvent"
               },
               {
                 "$ref": "#/$defs/InputEvent"

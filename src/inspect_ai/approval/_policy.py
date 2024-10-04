@@ -11,7 +11,8 @@ from inspect_ai._util.registry import registry_log_name
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall
 
-from ._approver import Approval, Approver
+from ._approval import Approval
+from ._approver import Approver
 from ._config import approval_policies_from_config
 
 

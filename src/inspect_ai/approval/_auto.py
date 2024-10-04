@@ -1,7 +1,8 @@
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall
 
-from ._approver import Approval, ApprovalDecision, Approver
+from ._approval import Approval, ApprovalDecision
+from ._approver import Approver
 from ._registry import approver
 
 
