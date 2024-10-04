@@ -2,7 +2,6 @@ import pprint
 from textwrap import indent
 from typing import Any
 
-from rich import print
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.syntax import Syntax
