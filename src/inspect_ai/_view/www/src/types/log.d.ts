@@ -25,6 +25,9 @@ export type ModelBaseUrl = string | null;
 export type Limit = number | [unknown, unknown] | null;
 export type Epochs = number | null;
 export type EpochsReducer = string[] | null;
+export type Name1 = string;
+export type Tools = string | string[];
+export type Approvers = ApproverPolicyConfig[];
 export type FailOnError = boolean | number | null;
 export type MaxMessages = number | null;
 export type MaxSamples = number | null;
@@ -38,7 +41,7 @@ export type Type = "git";
 export type Origin = string;
 export type Commit = string;
 export type Metadata = {} | null;
-export type Name1 = string;
+export type Name2 = string;
 export type Solver1 = string;
 export type Steps = EvalPlanStep[];
 export type MaxRetries = number | null;
@@ -66,10 +69,10 @@ export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
 export type TotalSamples = number;
 export type CompletedSamples = number;
-export type Name2 = string;
+export type Name3 = string;
 export type Scorer = string;
 export type Reducer = string | null;
-export type Name3 = string;
+export type Name4 = string;
 export type Value = number;
 export type Metadata1 = {} | null;
 export type Metadata2 = {} | null;
@@ -143,6 +146,7 @@ export type Type4 =
   | "permission"
   | "file_not_found"
   | "is_a_directory"
+  | "approval"
   | "unknown";
 export type Message1 = string;
 export type Choices = string[] | null;
@@ -226,7 +230,7 @@ export type Input2 = (
   | ChatMessageAssistant
   | ChatMessageTool
 )[];
-export type Name4 = string;
+export type Name5 = string;
 export type Description = string;
 export type Type5 = "object";
 export type Type6 =
@@ -246,9 +250,9 @@ export type Anyof = ToolParam[] | null;
 export type Required = string[] | null;
 export type Required1 = string[];
 export type Additionalproperties1 = boolean;
-export type Tools = ToolInfo[];
+export type Tools1 = ToolInfo[];
 export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
-export type Name5 = string;
+export type Name6 = string;
 export type Cache = ("read" | "write") | null;
 export type Timestamp4 = string;
 export type Event4 = "tool";
@@ -273,7 +277,7 @@ export type Timestamp8 = string;
 export type Event8 = "error";
 export type Timestamp9 = string;
 export type Event9 = "logger";
-export type Name6 = string | null;
+export type Name7 = string | null;
 export type Level =
   | "debug"
   | "http"
@@ -293,10 +297,10 @@ export type Timestamp11 = string;
 export type Event11 = "step";
 export type Action = "begin" | "end";
 export type Type8 = string | null;
-export type Name7 = string;
+export type Name8 = string;
 export type Timestamp12 = string;
 export type Event12 = "subtask";
-export type Name8 = string;
+export type Name9 = string;
 export type Type9 = string | null;
 export type Events2 = (
   | SampleInitEvent
@@ -388,6 +392,7 @@ export interface EvalConfig {
   limit: Limit;
   epochs: Epochs;
   epochs_reducer: EpochsReducer;
+  approval: ApprovalPolicyConfig | null;
   fail_on_error: FailOnError;
   max_messages: MaxMessages;
   max_samples: MaxSamples;
@@ -398,6 +403,15 @@ export interface EvalConfig {
   log_images: LogImages;
   log_buffer: LogBuffer;
 }
+export interface ApprovalPolicyConfig {
+  approvers: Approvers;
+}
+export interface ApproverPolicyConfig {
+  name: Name1;
+  tools: Tools;
+  params: Params;
+}
+export interface Params {}
 export interface EvalRevision {
   type: Type;
   origin: Origin;
@@ -407,16 +421,16 @@ export interface Packages {
   [k: string]: string;
 }
 export interface EvalPlan {
-  name: Name1;
+  name: Name2;
   steps: Steps;
   finish: EvalPlanStep | null;
   config: GenerateConfig;
 }
 export interface EvalPlanStep {
   solver: Solver1;
-  params: Params;
+  params: Params1;
 }
-export interface Params {}
+export interface Params1 {}
 /**
  * Base class for model generation configs.
  */
@@ -451,19 +465,19 @@ export interface EvalResults {
   sample_reductions: SampleReductions;
 }
 export interface EvalScore {
-  name: Name2;
+  name: Name3;
   scorer: Scorer;
   reducer: Reducer;
-  params: Params1;
+  params: Params2;
   metrics: Metrics;
   metadata: Metadata2;
 }
-export interface Params1 {}
+export interface Params2 {}
 export interface Metrics {
   [k: string]: EvalMetric;
 }
 export interface EvalMetric {
-  name: Name3;
+  name: Name4;
   value: Value;
   options: Options;
   metadata: Metadata1;
@@ -699,7 +713,7 @@ export interface ModelEvent {
   event: Event3;
   model: Model2;
   input: Input2;
-  tools: Tools;
+  tools: Tools1;
   tool_choice: ToolChoice;
   config: GenerateConfig1;
   output: ModelOutput;
@@ -733,7 +747,7 @@ export interface ModelEvent {
  * ```
  */
 export interface ToolInfo {
-  name: Name4;
+  name: Name5;
   description: Description;
   parameters: ToolParams;
 }
@@ -766,7 +780,7 @@ export interface Default {
   [k: string]: unknown;
 }
 export interface ToolFunction {
-  name: Name5;
+  name: Name6;
 }
 /**
  * Base class for model generation configs.
@@ -871,7 +885,7 @@ export interface LoggerEvent {
   message: LoggingMessage;
 }
 export interface LoggingMessage {
-  name: Name6;
+  name: Name7;
   level: Level;
   message: Message2;
   created: Created1;
@@ -895,7 +909,7 @@ export interface StepEvent {
   event: Event11;
   action: Action;
   type: Type8;
-  name: Name7;
+  name: Name8;
 }
 /**
  * Subtask spawned.
@@ -903,7 +917,7 @@ export interface StepEvent {
 export interface SubtaskEvent {
   timestamp: Timestamp12;
   event: Event12;
-  name: Name8;
+  name: Name9;
   type: Type9;
   input: Input4;
   result: Result1;

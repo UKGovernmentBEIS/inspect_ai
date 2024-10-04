@@ -59,6 +59,57 @@
       "type": "object",
       "additionalProperties": false
     },
+    "ApprovalPolicyConfig": {
+      "properties": {
+        "approvers": {
+          "items": {
+            "$ref": "#/$defs/ApproverPolicyConfig"
+          },
+          "title": "Approvers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "approvers"
+      ],
+      "title": "ApprovalPolicyConfig",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ApproverPolicyConfig": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "tools": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Tools"
+        },
+        "params": {
+          "title": "Params",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "tools",
+        "params"
+      ],
+      "title": "ApproverPolicyConfig",
+      "type": "object",
+      "additionalProperties": false
+    },
     "ChatCompletionChoice": {
       "properties": {
         "message": {
@@ -527,6 +578,17 @@
           "default": null,
           "title": "Epochs Reducer"
         },
+        "approval": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ApprovalPolicyConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "fail_on_error": {
           "anyOf": [
             {
@@ -645,6 +707,7 @@
         "limit",
         "epochs",
         "epochs_reducer",
+        "approval",
         "fail_on_error",
         "max_messages",
         "max_samples",
@@ -3118,6 +3181,7 @@
             "permission",
             "file_not_found",
             "is_a_directory",
+            "approval",
             "unknown"
           ],
           "title": "Type",

@@ -35,7 +35,9 @@ def approver_from_config(policy_config: str) -> Approver:
     return policy_approver(policies)
 
 
-def approval_policies_from_config(policy_config: str) -> list[ApprovalPolicy]:
+def approval_policies_from_config(
+    policy_config: str | ApprovalPolicyConfig,
+) -> list[ApprovalPolicy]:
     # map config -> policy
     def policy_from_config(config: ApproverPolicyConfig) -> ApprovalPolicy:
         approver = cast(
@@ -43,11 +45,31 @@ def approval_policies_from_config(policy_config: str) -> list[ApprovalPolicy]:
         )
         return ApprovalPolicy(approver=approver, tools=config.tools)
 
+    # resolve config if its a file
+    if isinstance(policy_config, str):
+        policy_config = read_policy_config(policy_config)
+
     # resolve into approval policies
-    return [
-        policy_from_config(config)
-        for config in read_policy_config(policy_config).approvers
-    ]
+    return [policy_from_config(config) for config in policy_config.approvers]
+
+
+def config_from_approval_policies(
+    policies: list[ApprovalPolicy],
+) -> ApprovalPolicyConfig:
+    from inspect_ai._util.registry import (
+        registry_log_name,
+        registry_params,
+    )
+
+    approvers: list[ApproverPolicyConfig] = []
+    for policy in policies:
+        name = registry_log_name(policy.approver)
+        params = registry_params(policy.approver)
+        approvers.append(
+            ApproverPolicyConfig(name=name, tools=policy.tools, params=params)
+        )
+
+    return ApprovalPolicyConfig(approvers=approvers)
 
 
 def read_policy_config(policy_config: str) -> ApprovalPolicyConfig:

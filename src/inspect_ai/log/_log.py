@@ -16,6 +16,7 @@ from rich.traceback import Traceback
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, PKG_NAME
 from inspect_ai._util.error import EvalError, exception_message
 from inspect_ai._util.logger import warn_once
+from inspect_ai.approval._config import ApprovalPolicyConfig
 from inspect_ai.model import (
     ChatMessage,
     GenerateConfig,
@@ -41,6 +42,9 @@ class EvalConfig(BaseModel):
 
     epochs_reducer: list[str] | None = Field(default=None)
     """Reducers for aggregating per-sample scores."""
+
+    approval: ApprovalPolicyConfig | None = Field(default=None)
+    """Approval policy for tool use."""
 
     fail_on_error: bool | float | None = Field(default=None)
     """Fail eval when sample errors occur.

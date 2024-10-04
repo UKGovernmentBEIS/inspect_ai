@@ -37,6 +37,11 @@ class ToolParsingError(ToolError):
         super().__init__(message)
 
 
+class ToolApprovalError(ToolError):
+    def __init__(self, message: str | None) -> None:
+        super().__init__(message or "Tool call not approved.")
+
+
 @runtime_checkable
 class Tool(Protocol):
     async def __call__(

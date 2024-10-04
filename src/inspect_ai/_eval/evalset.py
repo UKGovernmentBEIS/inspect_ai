@@ -17,6 +17,7 @@ from typing_extensions import Unpack
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem
+from inspect_ai.approval._policy import ApprovalPolicy
 from inspect_ai.log import EvalLog
 from inspect_ai.log._bundle import bundle_log_dir
 from inspect_ai.log._file import (
@@ -56,6 +57,7 @@ def eval_set(
     sandbox: SandboxEnvironmentSpec | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
+    approval: str | list[ApprovalPolicy] | None = None,
     score: bool = True,
     log_level: str | None = None,
     limit: int | tuple[int, int] | None = None,
@@ -102,6 +104,9 @@ def eval_set(
           (defaults to True)
         solver (Solver | list[Solver] | SolverSpec | None): Alternative solver(s) for
            evaluating task(s). ptional (uses task solver by default).
+        approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
+          Either a path to an approval policy config file or a list of approval policies.
+          Defaults to no approval policy.
         score (bool): Score output (defaults to True)
         log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
            or "critical" (defaults to "info")
@@ -153,6 +158,7 @@ def eval_set(
             sandbox=sandbox,
             sandbox_cleanup=sandbox_cleanup,
             solver=solver,
+            approval=approval,
             log_level=log_level,
             log_dir=log_dir,
             limit=limit,

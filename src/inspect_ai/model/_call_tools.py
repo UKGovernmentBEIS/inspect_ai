@@ -23,7 +23,12 @@ from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.registry import registry_info
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
-from inspect_ai.tool._tool import TOOL_PARALLEL, TOOL_PROMPT, ToolParsingError
+from inspect_ai.tool._tool import (
+    TOOL_PARALLEL,
+    TOOL_PROMPT,
+    ToolApprovalError,
+    ToolParsingError,
+)
 from inspect_ai.tool._tool_call import ToolCallError
 from inspect_ai.tool._tool_info import (
     ToolParams,
@@ -99,6 +104,8 @@ async def call_tools(
                 tool_error = ToolCallError("is_a_directory", message)
             except ToolParsingError as ex:
                 tool_error = ToolCallError("parsing", ex.message)
+            except ToolApprovalError as ex:
+                tool_error = ToolCallError("approval", ex.message)
             except ToolError as ex:
                 tool_error = ToolCallError("unknown", ex.message)
 
@@ -184,6 +191,13 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
     tool_def = next((tool for tool in tools if tool.name == call.function), None)
     if tool_def is None:
         raise ToolParsingError(f"Tool {call.function} not found")
+
+    # if we have a tool approver, apply it now
+    from inspect_ai.approval._apply import apply_tool_approval
+
+    approved, message = await apply_tool_approval(call, tool_def)
+    if not approved:
+        raise ToolApprovalError(message)
 
     # validate the schema of the passed object
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
