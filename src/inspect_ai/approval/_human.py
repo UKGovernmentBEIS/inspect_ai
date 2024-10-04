@@ -11,7 +11,7 @@ from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.util._console import input_screen
 
 from ._approval import Approval, ApprovalDecision
-from ._approver import Approver
+from ._approver import Approver, ApproverToolView
 from ._registry import approver
 
 
@@ -26,7 +26,7 @@ def human_approver(
     """
 
     async def approve(
-        tool_call: ToolCall, tool_view: str, state: TaskState | None = None
+        tool_call: ToolCall, tool_view: ApproverToolView, state: TaskState | None = None
     ) -> Approval:
         with input_screen() as console:
             console.print(

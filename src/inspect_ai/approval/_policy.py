@@ -15,7 +15,7 @@ from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.util._resource import resource
 
 from ._approval import Approval
-from ._approver import Approver
+from ._approver import Approver, ApproverToolView
 from ._call import call_approver, record_approval
 
 
@@ -48,7 +48,7 @@ def policy_approver(
                 yield policy_matcher[1]
 
     async def approve(
-        tool_call: ToolCall, tool_view: str, state: TaskState | None = None
+        tool_call: ToolCall, tool_view: ApproverToolView, state: TaskState | None = None
     ) -> Approval:
         # process approvers for this tool call (continue loop on "escalate")
         has_approver = False

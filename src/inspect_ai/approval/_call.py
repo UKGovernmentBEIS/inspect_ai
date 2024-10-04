@@ -3,11 +3,14 @@ from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall
 
 from ._approval import Approval
-from ._approver import Approver
+from ._approver import Approver, ApproverToolView
 
 
 async def call_approver(
-    approver: Approver, tool_call: ToolCall, tool_view: str, state: TaskState | None
+    approver: Approver,
+    tool_call: ToolCall,
+    tool_view: ApproverToolView,
+    state: TaskState | None,
 ) -> Approval:
     # run approver
     approval = await approver(tool_call, tool_view, state)
