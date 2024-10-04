@@ -5,7 +5,7 @@ from inspect_ai.approval._approval import Approval
 from inspect_ai.model._call_tools import ToolDef
 from inspect_ai.tool._tool_call import ToolCall
 
-from ._approver import Approver, ApproverToolView
+from ._approver import Approver
 from ._policy import ApprovalPolicy, policy_approver
 
 
@@ -18,7 +18,7 @@ async def apply_tool_approval(
     if approver:
         approval = await approver(
             tool_call=tool_call,
-            tool_view=ApproverToolView(type="text", content="view"),
+            tool_view=None,
             state=sample_state(),
         )
         match approval.decision:

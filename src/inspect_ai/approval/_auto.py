@@ -18,7 +18,9 @@ def auto_approver(decision: ApprovalDecision = "approve") -> Approver:
     """
 
     async def approve(
-        tool_call: ToolCall, tool_view: ApproverToolView, state: TaskState | None = None
+        tool_call: ToolCall,
+        tool_view: ApproverToolView | None = None,
+        state: TaskState | None = None,
     ) -> Approval:
         return Approval(decision=decision)
 

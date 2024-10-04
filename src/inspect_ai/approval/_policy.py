@@ -18,6 +18,16 @@ from ._approval import Approval
 from ._approver import Approver, ApproverToolView
 from ._call import call_approver, record_approval
 
+"""
+approvers:
+   - name: human
+     tools: web_browser*, bash, pyhton
+
+   - name: auto
+     tools: *
+     decision: approve
+"""
+
 
 @dataclass
 class ApprovalPolicy:
@@ -48,7 +58,9 @@ def policy_approver(
                 yield policy_matcher[1]
 
     async def approve(
-        tool_call: ToolCall, tool_view: ApproverToolView, state: TaskState | None = None
+        tool_call: ToolCall,
+        tool_view: ApproverToolView | None = None,
+        state: TaskState | None = None,
     ) -> Approval:
         # process approvers for this tool call (continue loop on "escalate")
         has_approver = False
@@ -64,7 +76,7 @@ def policy_approver(
             explanation=f"No {'approval granted' if has_approver else 'approvers registered'} for tool {tool_call.function}",
         )
         # record and return the rejection
-        record_approval("policy", tool_call, tool_view, reject)
+        record_approval("policy", tool_call, reject, tool_view)
         return reject
 
     return approve

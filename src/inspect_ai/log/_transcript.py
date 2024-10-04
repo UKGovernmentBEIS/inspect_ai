@@ -150,7 +150,7 @@ class ApprovalEvent(BaseEvent):
     tool_call: ToolCall
     """Tool call being approved."""
 
-    tool_view: ApproverToolView
+    tool_view: ApproverToolView | None = Field(default=None)
     """View presented for approval."""
 
     approver: str

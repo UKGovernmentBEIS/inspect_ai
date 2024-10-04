@@ -26,7 +26,9 @@ def human_approver(
     """
 
     async def approve(
-        tool_call: ToolCall, tool_view: ApproverToolView, state: TaskState | None = None
+        tool_call: ToolCall,
+        tool_view: ApproverToolView | None = None,
+        state: TaskState | None = None,
     ) -> Approval:
         with input_screen() as console:
             console.print(
