@@ -17526,6 +17526,27 @@ const SampleList = (props) => {
     <div>Answer</div>
     <div>Score</div>
   </div>`;
+  const sampleCount = items == null ? void 0 : items.reduce((prev, current) => {
+    if (current.type === "sample") {
+      return prev + 1;
+    } else {
+      return prev;
+    }
+  }, 0);
+  const footerRow = m$1` <div
+    style=${{
+    borderTop: "solid var(--bs-light-border-subtle) 1px",
+    background: "var(--bs-light-bg-subtle)",
+    fontSize: FontSize.smaller,
+    display: "grid",
+    gridTemplateColumns: "max-content",
+    justifyContent: "end",
+    alignContent: "end",
+    padding: "0.2em 1em"
+  }}
+  >
+    <div>${sampleCount} Samples</div>
+  </div>`;
   const errorCount = items == null ? void 0 : items.reduce((previous, item) => {
     if (item.data.error) {
       return previous + 1;
@@ -17533,7 +17554,6 @@ const SampleList = (props) => {
       return previous;
     }
   }, 0);
-  const sampleCount = items == null ? void 0 : items.length;
   const percentError = errorCount / sampleCount * 100;
   const warningMessage = errorCount > 0 ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : void 0;
   const warningRow = warningMessage ? m$1`<${WarningBand} message=${warningMessage} />` : "";
@@ -17550,6 +17570,7 @@ const SampleList = (props) => {
       rowMap=${rowMap}
       style=${listStyle}
     />
+    ${footerRow}
   </div>`;
 };
 const SeparatorRow = ({ id, title, height }) => {
