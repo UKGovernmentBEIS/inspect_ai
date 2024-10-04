@@ -10,11 +10,11 @@ from typing_extensions import Unpack
 from inspect_ai._util.file import absolute_file_path
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup
-from inspect_ai.approval._config import (
+from inspect_ai.approval._policy import (
+    ApprovalPolicy,
     approval_policies_from_config,
     config_from_approval_policies,
 )
-from inspect_ai.approval._policy import ApprovalPolicy
 from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo, read_eval_log
 from inspect_ai.log._file import JSONRecorder
 from inspect_ai.model import (

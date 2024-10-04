@@ -16,7 +16,7 @@ from rich.traceback import Traceback
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, PKG_NAME
 from inspect_ai._util.error import EvalError, exception_message
 from inspect_ai._util.logger import warn_once
-from inspect_ai.approval._config import ApprovalPolicyConfig
+from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.model import (
     ChatMessage,
     GenerateConfig,

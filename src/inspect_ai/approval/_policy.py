@@ -2,13 +2,14 @@ import fnmatch
 import json
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from re import Pattern
 from typing import Any, Generator, cast
 
 import yaml
 from pydantic import BaseModel, Field
 
-from inspect_ai._util.registry import registry_create
+from inspect_ai._util.registry import registry_create, registry_lookup
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.util._resource import resource
@@ -27,7 +28,7 @@ class ApprovalPolicy:
 def policy_approver(
     policies: str | list[ApprovalPolicy], print: bool = True, log: bool = True
 ) -> Approver:
-    # if policies is a str then its a config file
+    # if policies is a str, it is a config file or an approver
     if isinstance(policies, str):
         policies = approval_policies_from_config(policies)
 
@@ -50,7 +51,9 @@ def policy_approver(
         tool_call: ToolCall, tool_view: str, state: TaskState | None = None
     ) -> Approval:
         # process approvers for this tool call (continue loop on "escalate")
+        has_approver = False
         for approver in tool_approvers(tool_call):
+            has_approver = True
             approval = await call_approver(
                 approver, tool_call, tool_view, state, print, log
             )
@@ -60,7 +63,7 @@ def policy_approver(
         # if there are no approvers then we reject
         reject = Approval(
             decision="reject",
-            explanation=f"No approvers registered for tool {tool_call.function}",
+            explanation=f"No {'approval granted' if has_approver else 'approvers registered'} for tool {tool_call.function}",
         )
         # record and return the rejection
         record_approval("policy", reject, tool_call, print, log)
@@ -97,16 +100,27 @@ def approver_from_config(policy_config: str) -> Approver:
 def approval_policies_from_config(
     policy_config: str | ApprovalPolicyConfig,
 ) -> list[ApprovalPolicy]:
+    # create approver policy
+    def create_approval_policy(
+        name: str, tools: str | list[str], params: dict[str, Any] = {}
+    ) -> ApprovalPolicy:
+        approver = cast(Approver, registry_create("approver", name, **params))
+        return ApprovalPolicy(approver, tools)
+
     # map config -> policy
     def policy_from_config(config: ApproverPolicyConfig) -> ApprovalPolicy:
-        approver = cast(
-            Approver, registry_create("approver", config.name, **config.params)
-        )
-        return ApprovalPolicy(approver=approver, tools=config.tools)
+        return create_approval_policy(config.name, config.tools, config.params)
 
-    # resolve config if its a file
+    # resolve config if its a string
     if isinstance(policy_config, str):
-        policy_config = read_policy_config(policy_config)
+        if Path(policy_config).exists():
+            policy_config = read_policy_config(policy_config)
+        elif registry_lookup("approver", policy_config):
+            policy_config = ApprovalPolicyConfig(
+                approvers=[ApproverPolicyConfig(name=policy_config, tools="*")]
+            )
+        else:
+            raise ValueError(f"Invalid approval policy: {policy_config}")
 
     # resolve into approval policies
     return [policy_from_config(config) for config in policy_config.approvers]
@@ -135,8 +149,8 @@ def read_policy_config(policy_config: str) -> ApprovalPolicyConfig:
     # save specified policy for error message
     specified_policy_config = policy_config
 
-    # accept string or filename
-    policy_config = resource(policy_config)
+    # read config file
+    policy_config = resource(policy_config, type="file")
 
     # detect json vs. yaml
     is_json = policy_config.strip().startswith("{")
