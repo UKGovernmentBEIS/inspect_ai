@@ -19,6 +19,7 @@ from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.json import JsonChange, json_changes
 from inspect_ai._util.url import is_data_uri
+from inspect_ai.approval._approver import ApproverToolView
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._message import LoggingMessage
 from inspect_ai.model._chat_message import ChatMessage
@@ -148,6 +149,9 @@ class ApprovalEvent(BaseEvent):
 
     tool_call: ToolCall
     """Tool call being approved."""
+
+    tool_view: ApproverToolView
+    """View presented for approval."""
 
     approver: str
     """Aprover name."""

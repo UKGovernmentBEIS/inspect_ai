@@ -64,7 +64,7 @@ def policy_approver(
             explanation=f"No {'approval granted' if has_approver else 'approvers registered'} for tool {tool_call.function}",
         )
         # record and return the rejection
-        record_approval("policy", tool_call, reject)
+        record_approval("policy", tool_call, tool_view, reject)
         return reject
 
     return approve
