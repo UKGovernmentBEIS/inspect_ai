@@ -1,7 +1,7 @@
 import csv
 from io import TextIOWrapper
 from pathlib import Path
-from typing import Any, List
+from typing import Any
 
 from inspect_ai._util.file import file
 from inspect_ai.dataset._sources.util import resolve_sample_files
@@ -52,7 +52,7 @@ def csv_dataset(
             to the filesystem provider (e.g. `S3FileSystem`). Use `{"anon": True }`
             if you are accessing a public S3 bucket with no credentials.
         fieldnames (list[str] | None): Optional. A list of fieldnames to use for the CSV.
-            If None, the values in the first row of file f will be used as the fieldnames.
+            If None, the values in the first row of the file will be used as the fieldnames.
             Useful for files without a header.
 
     Returns:
@@ -91,6 +91,6 @@ def csv_dataset(
 
 
 def csv_dataset_reader(
-    file: TextIOWrapper, dialect: str = "unix", fieldnames: List[str] | None = None
+    file: TextIOWrapper, dialect: str = "unix", fieldnames: list[str] | None = None
 ) -> DatasetReader:
     return csv.DictReader(file, dialect=dialect, fieldnames=fieldnames)
