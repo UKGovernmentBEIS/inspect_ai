@@ -7,6 +7,7 @@
 - Add support for reading CSV files of dialect 'excel-tab'.
 - Improve prompting for Python tool to emphasise the need to print output.
 - For `basic_agent()`, defer to task `max_messages` if none is specified for the agent (default to 50 is the task does not specify `max_messages`).
+- Add optional `content` parameter to `ModelOutput.for_tool_call()`.
 
 ## v0.3.39 (3 October 2024)
 
