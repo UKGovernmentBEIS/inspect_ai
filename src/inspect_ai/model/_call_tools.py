@@ -18,9 +18,6 @@ from typing import (
 
 from jsonschema import Draft7Validator
 from pydantic import BaseModel
-from rich import print
-from rich.panel import Panel
-from rich.pretty import Pretty
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.registry import registry_info
@@ -31,7 +28,6 @@ from inspect_ai.tool._tool import (
     TOOL_PROMPT,
     ToolApprovalError,
     ToolParsingError,
-    ToolResult,
 )
 from inspect_ai.tool._tool_call import ToolCallError
 from inspect_ai.tool._tool_info import (
@@ -213,10 +209,6 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
 
     # call the tool
     result = await tool_def.tool(**arguments)
-
-    # if we have an interactive approver then show tool output
-    if approval and approval.interactive:
-        print_tool_result(result)
 
     # return result
     return result
@@ -440,15 +432,3 @@ def truncate_tool_output(
         )
     else:
         return None
-
-
-def print_tool_result(result: ToolResult) -> None:
-    print(
-        Panel(
-            Pretty(result) if isinstance(result, list) else str(result),
-            title="[bold][blue]Tool Call Output[/blue][/bold]",
-            highlight=True,
-            expand=True,
-        )
-    )
-    print("")

@@ -29,29 +29,31 @@ def human_approver(
     async def approve(
         tool_call: ToolCall, tool_view: str, state: TaskState | None = None
     ) -> Approval:
-        print(
-            Panel(
-                Syntax(
-                    code=format_function_call(tool_call.function, tool_call.arguments),
-                    lexer="python",
-                    theme="emacs",
-                    background_color="default",
-                ),
-                title="[bold][blue]Tool Call Approval[/blue][/bold]",
-                highlight=True,
-                expand=True,
-            )
-        )
-
-        # provide choices
-        prompts: dict[str, str] = {}
-        for choice in choices:
-            prompts[choice[0]] = f"{choice.capitalize()} ({choice[0]})"
-        values = list(prompts.values())
-        prompt = ", ".join(values[:-1])
-        prompt = f"{prompt}, or {values[-1]}"
-
         with input_screen() as console:
+            console.print(
+                Panel(
+                    Syntax(
+                        code=format_function_call(
+                            tool_call.function, tool_call.arguments
+                        ),
+                        lexer="python",
+                        theme="emacs",
+                        background_color="default",
+                    ),
+                    title="[bold][blue]Tool Call Approval[/blue][/bold]",
+                    highlight=True,
+                    expand=True,
+                )
+            )
+
+            # provide choices
+            prompts: dict[str, str] = {}
+            for choice in choices:
+                prompts[choice[0]] = f"{choice.capitalize()} ({choice[0]})"
+            values = list(prompts.values())
+            prompt = ", ".join(values[:-1])
+            prompt = f"{prompt}, or {values[-1]}"
+
             while True:
                 decision = Prompt.ask(
                     prompt,
