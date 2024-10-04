@@ -14,9 +14,7 @@ export type TaskId = string;
 export type TaskVersion = number;
 export type TaskFile = string | null;
 export type Solver = string | null;
-export type SolverArgs = {
-  [k: string]: unknown;
-} | null;
+export type SolverArgs = {} | null;
 export type Name = string | null;
 export type Location = string | null;
 export type Samples = number | null;
@@ -39,9 +37,7 @@ export type LogBuffer = number | null;
 export type Type = "git";
 export type Origin = string;
 export type Commit = string;
-export type Metadata = {
-  [k: string]: unknown;
-} | null;
+export type Metadata = {} | null;
 export type Name1 = string;
 export type Solver1 = string;
 export type Steps = EvalPlanStep[];
@@ -75,16 +71,10 @@ export type Scorer = string;
 export type Reducer = string | null;
 export type Name3 = string;
 export type Value = number;
-export type Metadata1 = {
-  [k: string]: unknown;
-} | null;
-export type Metadata2 = {
-  [k: string]: unknown;
-} | null;
+export type Metadata1 = {} | null;
+export type Metadata2 = {} | null;
 export type Scores = EvalScore[];
-export type Metadata3 = {
-  [k: string]: unknown;
-} | null;
+export type Metadata3 = {} | null;
 export type SampleReductions = EvalSampleReductions[] | null;
 export type Scorer1 = string;
 export type Reducer1 = string | null;
@@ -98,9 +88,7 @@ export type Value1 =
     };
 export type Answer = string | null;
 export type Explanation = string | null;
-export type Metadata4 = {
-  [k: string]: unknown;
-} | null;
+export type Metadata4 = {} | null;
 export type SampleId = string | number | null;
 export type Samples1 = SampleScore[];
 export type StartedAt = string;
@@ -199,9 +187,7 @@ export type Value2 =
     };
 export type Answer1 = string | null;
 export type Explanation1 = string | null;
-export type Metadata5 = {
-  [k: string]: unknown;
-} | null;
+export type Metadata5 = {} | null;
 export type Timestamp = string;
 export type Event = "sample_init";
 export type Input1 =
@@ -215,9 +201,7 @@ export type Input1 =
 export type Choices2 = string[] | null;
 export type Target1 = string | string[];
 export type Id2 = number | string | null;
-export type Metadata7 = {
-  [k: string]: unknown;
-} | null;
+export type Metadata7 = {} | null;
 export type Sandbox2 = string | [unknown, unknown] | null;
 export type Files1 = {
   [k: string]: string;
@@ -361,7 +345,6 @@ export interface EvalLog {
   stats?: EvalStats;
   error?: EvalError | null;
   samples?: Samples2;
-  [k: string]: unknown;
 }
 export interface EvalSpec {
   run_id: RunId;
@@ -384,21 +367,15 @@ export interface EvalSpec {
   packages: Packages;
   metadata: Metadata;
 }
-export interface TaskAttribs {
-  [k: string]: unknown;
-}
-export interface TaskArgs {
-  [k: string]: unknown;
-}
+export interface TaskAttribs {}
+export interface TaskArgs {}
 export interface EvalDataset {
   name: Name;
   location: Location;
   samples: Samples;
   shuffled: Shuffled;
 }
-export interface ModelArgs {
-  [k: string]: unknown;
-}
+export interface ModelArgs {}
 export interface EvalConfig {
   limit: Limit;
   epochs: Epochs;
@@ -431,9 +408,7 @@ export interface EvalPlanStep {
   solver: Solver1;
   params: Params;
 }
-export interface Params {
-  [k: string]: unknown;
-}
+export interface Params {}
 /**
  * Base class for model generation configs.
  */
@@ -475,9 +450,7 @@ export interface EvalScore {
   metrics: Metrics;
   metadata: Metadata2;
 }
-export interface Params1 {
-  [k: string]: unknown;
-}
+export interface Params1 {}
 export interface Metrics {
   [k: string]: EvalMetric;
 }
@@ -487,9 +460,7 @@ export interface EvalMetric {
   options: Options;
   metadata: Metadata1;
 }
-export interface Options {
-  [k: string]: unknown;
-}
+export interface Options {}
 export interface EvalSampleReductions {
   scorer: Scorer1;
   reducer: Reducer1;
@@ -577,9 +548,7 @@ export interface ToolCall {
   type: Type3;
   parse_error: ParseError;
 }
-export interface Arguments {
-  [k: string]: unknown;
-}
+export interface Arguments {}
 export interface ChatMessageTool {
   content: Content3;
   source: Source3;
@@ -641,12 +610,8 @@ export interface Score {
   explanation: Explanation1;
   metadata: Metadata5;
 }
-export interface Metadata6 {
-  [k: string]: unknown;
-}
-export interface Store {
-  [k: string]: unknown;
-}
+export interface Metadata6 {}
+export interface Store {}
 export interface EvalEvents {
   events: Events;
   content: Content5;
@@ -925,9 +890,7 @@ export interface SubtaskEvent {
   result: Result1;
   events: Events2;
 }
-export interface Input4 {
-  [k: string]: unknown;
-}
+export interface Input4 {}
 export interface Result1 {
   [k: string]: unknown;
 }
