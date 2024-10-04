@@ -22,7 +22,11 @@ from inspect_ai.model import (
     ChatMessageUser,
     ModelOutput,
 )
-from inspect_ai.model._providers.util import (
+from inspect_ai.tool import ToolCall, ToolInfo
+
+from .._model_call import ModelCall
+from .._model_output import ModelUsage
+from .._providers.util import (
     ChatAPIHandler,
     ChatAPIMessage,
     as_stop_reason,
@@ -30,7 +34,6 @@ from inspect_ai.model._providers.util import (
     parse_tool_call,
     tool_parse_error_message,
 )
-from inspect_ai.tool import ToolCall, ToolInfo
 
 logger = getLogger(__name__)
 
@@ -41,7 +44,7 @@ async def generate_o1(
     input: list[ChatMessage],
     tools: list[ToolInfo],
     **params: Any,
-) -> ModelOutput:
+) -> ModelOutput | tuple[ModelOutput, ModelCall]:
     # create chatapi handler
     handler = O1PreviewChatAPIHandler()
 
@@ -52,12 +55,13 @@ async def generate_o1(
         del params["max_tokens"]
 
     # call model
+    request = dict(
+        model=model,
+        messages=chat_messages(input, tools, handler),
+        **params,
+    )
     try:
-        response = await client.chat.completions.create(
-            model=model,
-            messages=chat_messages(input, tools, handler),
-            **params,
-        )
+        response: ChatCompletion = await client.chat.completions.create(**request)
     except BadRequestError as ex:
         return handle_bad_request(model, ex)
 
@@ -65,6 +69,16 @@ async def generate_o1(
     return ModelOutput(
         model=response.model,
         choices=chat_choices_from_response(response, tools, handler),
+        usage=ModelUsage(
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+            total_tokens=response.usage.total_tokens,
+        )
+        if response.usage
+        else None,
+    ), ModelCall.create(
+        request=request,
+        response=response.model_dump(),
     )
 
 
