@@ -21,6 +21,7 @@ RegistryType = Literal[
     "tool",
     "sandboxenv",
     "score_reducer",
+    "approver",
 ]
 
 
