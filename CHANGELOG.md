@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `interactive` option to `web_browser()` for disabling interactive tools (clicking, typing, and submitting forms).
 - Provide token usage and raw model API calls for OpenAI o1-preview.
 - Add support for reading CSV files of dialect 'excel-tab'.
 - Improve prompting for Python tool to emphasise the need to print output.

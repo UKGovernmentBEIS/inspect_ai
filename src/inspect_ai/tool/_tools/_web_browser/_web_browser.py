@@ -3,22 +3,40 @@ from textwrap import dedent
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.tool._tool import Tool, ToolError, tool
+from inspect_ai.tool._tool_info import parse_tool_info
+from inspect_ai.tool._tool_with import tool_with
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_with
 from inspect_ai.util._sandbox.docker.internal import INSPECT_WEB_BROWSER_IMAGE
 
 
-def web_browser() -> list[Tool]:
+def web_browser(interactive: bool = True) -> list[Tool]:
     """Tools used for web browser navigation.
+
+    Args:
+       interactive (bool): Provide interactive tools (enable
+         clicking, typing, and submitting forms). Defaults
+         to True.
 
     Returns:
        List of tools used for web browser navigation.
 
     """
-    return [
-        web_browser_go(),
-        web_browser_click(),
-        web_browser_type_submit(),
-        web_browser_type(),
+    # start with go tool (excluding interactive docs if necessary)
+    go = web_browser_go()
+    if not interactive:
+        go = go_without_interactive_docs(go)
+    tools = [go]
+
+    # add interactive tools if requested
+    if interactive:
+        tools = tools + [
+            web_browser_click(),
+            web_browser_type_submit(),
+            web_browser_type(),
+        ]
+
+    # add navigational tools
+    return tools + [
         web_browser_scroll(),
         web_browser_back(),
         web_browser_forward(),
@@ -46,7 +64,7 @@ def web_browser_go() -> Tool:
             [4] StaticText "Gmail"
           [91] button "Google apps" [expanded: False]
           [21] combobox "Search" [editable: plaintext, autocomplete: both, hasPopup: listbox, required: False, expanded: False, controls: Alh6id]
-         ```
+        ```
 
         To execute a Google Search for 'dogs', you would type into the "Search" combobox with element ID 21 and then press ENTER using the web_browser_type_submit tool:
 
@@ -63,6 +81,15 @@ def web_browser_go() -> Tool:
         return await web_browser_cmd("web_go", url)
 
     return execute
+
+
+def go_without_interactive_docs(tool: Tool) -> Tool:
+    tool_info = parse_tool_info(tool)
+    description_lines = tool_info.description.splitlines()
+    description_lines = [
+        line for line in description_lines if "web_browser_type_submit" not in line
+    ]
+    return tool_with(tool, description="\n".join(description_lines))
 
 
 @tool(parallel=False)
