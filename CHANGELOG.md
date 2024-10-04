@@ -4,6 +4,7 @@
 
 - Provide token usage and raw model API calls for OpenAI o1-preview.
 - Add support for reading CSV files of dialect 'excel-tab'.
+- For `basic_agent()`, defer to task `max_messages` if none is specified for the agent (default to 50 is the task does not specify `max_messages`).
 
 ## v0.3.39 (3 October 2024)
 
