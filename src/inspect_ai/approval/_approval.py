@@ -7,4 +7,10 @@ ApprovalDecision = Literal["approve", "reject", "escalate", "terminate"]
 
 class Approval(BaseModel):
     decision: ApprovalDecision
+    """Approval decision."""
+
     explanation: str | None = Field(default=None)
+    """Explanation for decision."""
+
+    interactive: bool | None = Field(default=None)
+    """Aprroved through interactive terminal."""

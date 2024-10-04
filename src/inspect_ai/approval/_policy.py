@@ -54,9 +54,7 @@ def policy_approver(
         has_approver = False
         for approver in tool_approvers(tool_call):
             has_approver = True
-            approval = await call_approver(
-                approver, tool_call, tool_view, state, print, log
-            )
+            approval = await call_approver(approver, tool_call, tool_view, state)
             if approval.decision != "escalate":
                 return approval
 
@@ -66,20 +64,10 @@ def policy_approver(
             explanation=f"No {'approval granted' if has_approver else 'approvers registered'} for tool {tool_call.function}",
         )
         # record and return the rejection
-        record_approval("policy", reject, tool_call, print, log)
+        record_approval("policy", tool_call, reject)
         return reject
 
     return approve
-
-
-"""
-approvers:
-   - name: human
-     tools: [bash, python, web_browser*]
-
-   - name: auto
-     tools: *
-"""
 
 
 class ApproverPolicyConfig(BaseModel):
