@@ -7,7 +7,7 @@ from typing import Generator
 from rich import print
 from rich.panel import Panel
 
-from inspect_ai._util.registry import registry_info
+from inspect_ai._util.registry import registry_log_name
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall
 
@@ -79,7 +79,7 @@ async def call_approver(
 
     # record as required
     record_approval(
-        approver_name=registry_info(approver).name,
+        approver_name=registry_log_name(approver),
         approval=approval,
         tool_call=tool_call,
         print=print,
@@ -124,6 +124,19 @@ def record_approval(
                     tool_call=tool_call,
                     explanation=approval.explanation,
                 )
+
+    # log if requested
+    if log:
+        from inspect_ai.log._transcript import ApprovalEvent, transcript
+
+        transcript()._event(
+            ApprovalEvent(
+                tool_call=tool_call,
+                approver=approver_name,
+                decision=approval.decision,
+                explanation=approval.explanation,
+            )
+        )
 
 
 def print_approve_message(

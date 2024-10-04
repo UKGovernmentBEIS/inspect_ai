@@ -19,6 +19,7 @@ from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.json import JsonChange, json_changes
 from inspect_ai._util.url import is_data_uri
+from inspect_ai.approval._approver import ApprovalDecision
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._message import LoggingMessage
 from inspect_ai.model._chat_message import ChatMessage
@@ -28,7 +29,7 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._metric import Score
 from inspect_ai.solver._task_state import state_jsonable
 from inspect_ai.tool._tool import ToolResult
-from inspect_ai.tool._tool_call import ToolCallError
+from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._store import store, store_changes, store_jsonable
@@ -140,6 +141,25 @@ class ToolEvent(BaseEvent):
     """Transcript of events for tool."""
 
 
+class ApprovalEvent(BaseEvent):
+    """Tool approval."""
+
+    event: Literal["approval"] = Field(default="approval")
+    """Event type"""
+
+    tool_call: ToolCall
+    """Tool call being approved."""
+
+    approver: str
+    """Aprover name."""
+
+    decision: ApprovalDecision
+    """Decision of approver."""
+
+    explanation: str | None = Field(default=None)
+    """Explanation for decision."""
+
+
 class InputEvent(BaseEvent):
     """Input screen interaction."""
 
@@ -240,6 +260,7 @@ Event: TypeAlias = Union[
     | StoreEvent
     | ModelEvent
     | ToolEvent
+    | ApprovalEvent
     | InputEvent
     | ScoreEvent
     | ErrorEvent
