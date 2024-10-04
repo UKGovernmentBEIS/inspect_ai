@@ -4,6 +4,7 @@
 
 - Provide token usage and raw model API calls for OpenAI o1-preview.
 - Add support for reading CSV files of dialect 'excel-tab'.
+- Improve prompting for Python tool to emphasise the need to print output.
 
 ## v0.3.39 (3 October 2024)
 
