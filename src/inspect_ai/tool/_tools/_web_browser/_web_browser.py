@@ -7,18 +7,26 @@ from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_with
 from inspect_ai.util._sandbox.docker.internal import INSPECT_WEB_BROWSER_IMAGE
 
 
-def web_browser() -> list[Tool]:
+def web_browser(interactive: bool = True) -> list[Tool]:
     """Tools used for web browser navigation.
+
+    Args:
+       interactive (bool): Provide interactive tools (enable
+         clicking, typing, and submitting forms). Defaults
+         to True.
 
     Returns:
        List of tools used for web browser navigation.
 
     """
-    return [
-        web_browser_go(),
-        web_browser_click(),
-        web_browser_type_submit(),
-        web_browser_type(),
+    tools = [web_browser_go()]
+    if interactive:
+        tools = tools + [
+            web_browser_click(),
+            web_browser_type_submit(),
+            web_browser_type(),
+        ]
+    return tools + [
         web_browser_scroll(),
         web_browser_back(),
         web_browser_forward(),
