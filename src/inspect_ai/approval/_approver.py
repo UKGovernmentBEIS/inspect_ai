@@ -5,9 +5,11 @@ from pydantic import BaseModel, Field
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall
 
+ApprovalDecision = Literal["approve", "reject", "escalate", "terminate"]
+
 
 class Approval(BaseModel):
-    decision: Literal["approve", "reject", "escalate", "terminate"]
+    decision: ApprovalDecision
     explanation: str | None = Field(default=None)
 
 

@@ -8,6 +8,7 @@ __all__ = [
     "Approver",
     "Approval",
     "ApproverPolicy",
+    "ApprovalDecision",
     "ApprovalPolicy",
     "approver",
     "human_approver",
