@@ -45,7 +45,7 @@ def basic_agent(
     tools: list[Tool] | Solver | None = None,
     cache: bool | CachePolicy = False,
     max_attempts: int = 1,
-    max_messages: int = 50,
+    max_messages: int | None = None,
     score_value: ValueToFloat | None = None,
     incorrect_message: str = DEFAULT_INCORRECT_MESSAGE,
     continue_message: str = DEFAULT_CONTINUE_MESSAGE,
@@ -74,6 +74,7 @@ def basic_agent(
          (defaults to no caching).
        max_attempts (int): Maximum number of submissions to accept before terminating.
        max_messages (int): Maximum number of messages in history before terminating agent.
+         If not specified, will use max_messages defined for the task. If there is none defined for the task, 50 will be used as a default.
        score_value (ValueToFloat): Function used to extract float from scores (defaults
          to standard value_to_float())
        incorrect_message (str): User message reply for an incorrect submission from
@@ -134,17 +135,9 @@ def basic_agent(
     @solver
     def basic_agent_loop() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            # if the task had max_messages it will be overridden, so print a warning and let the user know they should use the basic_agent option instead
-            if state.max_messages is not None:
-                from inspect_ai._util.logger import warn_once
-
-                warn_once(
-                    logger,
-                    f"Task max_messages ({state.max_messages}) will be overridden by basic_agent() max_messages ({max_messages}). Please use the basic_agent() max_messages in preference to task max_messages.",
-                )
-
-            # set max_messages
-            state.max_messages = max_messages
+            # resolve max_messages -- prefer parameter then fall back to task
+            # (if there is no max_messages then default to 50)
+            state.max_messages = max_messages or state.max_messages or 50
 
             # track attempts
             attempts = 0
