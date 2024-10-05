@@ -4,29 +4,27 @@ from textwrap import indent
 from typing import Any
 
 from inspect_ai.approval._approval import Approval
-from inspect_ai.model._call_tools import ToolDef
-from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
+from inspect_ai.tool._tool_call import (
+    ToolCall,
+    ToolCallContent,
+    ToolCallView,
+    ToolCallViewer,
+)
 
 from ._approver import Approver
 from ._policy import ApprovalPolicy, policy_approver
 
 
 async def apply_tool_approval(
-    content: str, tool_call: ToolCall, tool_def: ToolDef
+    content: str, call: ToolCall, viewer: ToolCallViewer | None
 ) -> tuple[bool, Approval | None]:
     from inspect_ai.solver._task_state import sample_state
 
     approver = _tool_approver.get(None)
     if approver:
-        # create default view
-        view = ToolCallView(
-            call=ToolCallContent(
-                format="markdown",
-                content="```python\n"
-                + format_function_call(tool_call.function, tool_call.arguments)
-                + "\n```\n",
-            )
-        )
+        # resolve view
+        viewer = viewer or default_tool_call_viewer
+        view = viewer(call)
 
         # current sample state
         state = sample_state()
@@ -34,7 +32,7 @@ async def apply_tool_approval(
         # call approver
         approval = await approver(
             content=content,
-            call=tool_call,
+            call=call,
             view=view,
             state=state,
         )
@@ -53,6 +51,17 @@ async def apply_tool_approval(
     # no approval system registered
     else:
         return True, None
+
+
+def default_tool_call_viewer(call: ToolCall) -> ToolCallView:
+    return ToolCallView(
+        call=ToolCallContent(
+            format="markdown",
+            content="```python\n"
+            + format_function_call(call.function, call.arguments)
+            + "\n```\n",
+        )
+    )
 
 
 def format_function_call(

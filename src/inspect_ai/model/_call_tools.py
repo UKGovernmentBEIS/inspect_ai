@@ -26,10 +26,11 @@ from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
 from inspect_ai.tool._tool import (
     TOOL_PARALLEL,
     TOOL_PROMPT,
+    TOOL_VIEWER,
     ToolApprovalError,
     ToolParsingError,
 )
-from inspect_ai.tool._tool_call import ToolCallError
+from inspect_ai.tool._tool_call import ToolCallError, ToolCallViewer
 from inspect_ai.tool._tool_info import (
     ToolParams,
     parse_docstring,
@@ -178,6 +179,9 @@ class ToolDef:
     parallel: bool
     """Supports parallel execution."""
 
+    viewer: ToolCallViewer | None
+    """Custom viewer for tool call"""
+
     tool: Callable[..., Any]
     """Callable to execute tool."""
 
@@ -195,7 +199,7 @@ async def call_tool(tools: list[ToolDef], content: str, call: ToolCall) -> Any:
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import apply_tool_approval
 
-    approved, approval = await apply_tool_approval(content, call, tool_def)
+    approved, approval = await apply_tool_approval(content, call, tool_def.viewer)
     if not approved:
         raise ToolApprovalError(approval.explanation if approval else None)
 
@@ -235,7 +239,7 @@ def tools_info(tools: list[Tool] | list[ToolInfo]) -> list[ToolInfo]:
 def disable_parallel_tools(tools: list[Tool] | list[ToolInfo]) -> bool:
     for tool in tools:
         if isinstance(tool, Tool):
-            _, _, parallel = tool_registry_info(tool)
+            _, _, parallel, _ = tool_registry_info(tool)
             if not parallel:
                 return True
     return False
@@ -247,7 +251,7 @@ def tool_defs(tools: list[Tool]) -> list[ToolDef]:
 
 def tool_def(tool: Tool) -> ToolDef:
     # get tool_info
-    name, prompt, parallel = tool_registry_info(tool)
+    name, prompt, parallel, viewer = tool_registry_info(tool)
     tool_info = parse_tool_info(tool)
 
     # if there is a description then append any prompt to the
@@ -296,16 +300,20 @@ def tool_def(tool: Tool) -> ToolDef:
         description=tool_info.description,
         parameters=tool_info.parameters,
         parallel=parallel,
+        viewer=viewer,
         tool=tool,
     )
 
 
-def tool_registry_info(tool: Tool) -> tuple[str, str | None, bool]:
+def tool_registry_info(
+    tool: Tool,
+) -> tuple[str, str | None, bool, ToolCallViewer | None]:
     info = registry_info(tool)
     name = info.name.split("/")[-1]
     prompt = info.metadata.get(TOOL_PROMPT, None)
     parallel = info.metadata.get(TOOL_PARALLEL, True)
-    return name, prompt, parallel
+    viewer = info.metadata.get(TOOL_VIEWER, None)
+    return name, prompt, parallel, viewer
 
 
 def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, Any]:
