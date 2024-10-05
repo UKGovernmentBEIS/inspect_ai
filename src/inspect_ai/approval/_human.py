@@ -1,4 +1,5 @@
 from rich.console import Group, RenderableType
+from rich.highlighter import ReprHighlighter
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.prompt import Prompt
@@ -23,6 +24,8 @@ def human_approver(
     Returns:
        Approver: Interactive human approver.
     """
+    # text highlither
+    text_highlighter = ReprHighlighter()
 
     async def approve(
         content: str,
@@ -40,7 +43,8 @@ def human_approver(
                             Markdown(view_content.content, code_theme="vs")
                         )
                     else:
-                        renderables.append(Text(view_content.content))
+                        text_content = text_highlighter(Text(view_content.content))
+                        renderables.append(text_content)
 
             if content:
                 renderables.append(Text.from_markup("[bold]Assistant[/bold]\n"))

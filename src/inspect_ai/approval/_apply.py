@@ -23,8 +23,12 @@ async def apply_tool_approval(
     approver = _tool_approver.get(None)
     if approver:
         # resolve view
-        viewer = viewer or default_tool_call_viewer
-        view = viewer(call)
+        if viewer:
+            view = viewer(call)
+            if not view.call:
+                view.call = default_tool_call_viewer(call).call
+        else:
+            view = default_tool_call_viewer(call)
 
         # current sample state
         state = sample_state()

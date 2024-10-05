@@ -4,6 +4,7 @@ from .._tool import Tool, tool
 from .._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
 
 
+# custom viewer for bash and python code blocks
 def code_viewer(language: str, code_param: str) -> ToolCallViewer:
     def viewer(tool_call: ToolCall) -> ToolCallView:
         code = tool_call.arguments.get(code_param, tool_call.function).strip()
