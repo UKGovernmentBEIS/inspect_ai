@@ -8,8 +8,6 @@ from rich.text import Text
 
 from inspect_ai._util.error import PrerequisiteError
 
-TRACE_CODE_THEME = "vs"
-
 
 def trace_multiple_samples_error() -> PrerequisiteError:
     return PrerequisiteError(
@@ -61,7 +59,7 @@ class TracePanel(Panel):
         # use vs theme for markdown code
         for c in content:
             if isinstance(c, Markdown):
-                c.code_theme = "vs"
+                c.code_theme = "xcode"
 
         super().__init__(
             Group(*content),
