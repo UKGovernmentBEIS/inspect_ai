@@ -10,6 +10,7 @@
 - Add optional `content` parameter to `ModelOutput.for_tool_call()`.
 - Display total samples in Inspect View
 - Prune `sample_reductions` when returning eval logs with `header_only=True`.
+- Improved error message for undecorated solvers.
 - For simple matching scorers, only include explanation if it differs from answer.
 
 ## v0.3.39 (3 October 2024)

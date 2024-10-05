@@ -233,11 +233,15 @@ def registry_info(o: object) -> RegistryInfo:
     Returns:
         RegistryInfo for object.
     """
-    info = getattr(o, REGISTRY_INFO)
-    if info:
+    info = getattr(o, REGISTRY_INFO, None)
+    if info is not None:
         return cast(RegistryInfo, info)
     else:
-        raise ValueError("Object does not have registry info")
+        name = getattr(o, "__name__", "unknown")
+        decorator = " @solver " if name == "solve" else ""
+        raise ValueError(
+            f"Object '{name}' does not have registry info. Did you forget to add a{decorator}decorator somewhere?"
+        )
 
 
 def registry_params(o: object) -> dict[str, Any]:
