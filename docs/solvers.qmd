@@ -447,7 +447,7 @@ When creating custom solvers, it's critical that you understand Inspect's concur
 
 ## Early Termination
 
-In some cases a solver has the context available to request an early termination of the sample (i.e. don't call the rest of the solvers). In this case, setting the `TaskState.completed` field will result in forgoing remaining solvers. For example, here's a simple solver that terminates the smaple early:
+In some cases a solver has the context available to request an early termination of the sample (i.e. don't call the rest of the solvers). In this case, setting the `TaskState.completed` field will result in forgoing remaining solvers. For example, here's a simple solver that terminates the sample early:
 
 ``` python
 @solver
