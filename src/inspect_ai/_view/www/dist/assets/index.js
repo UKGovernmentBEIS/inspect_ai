@@ -11803,7 +11803,7 @@ Prism.languages.json = {
   }
 };
 Prism.languages.webmanifest = Prism.languages.json;
-const ExpandablePanel = ({ collapse, border, lines = 10, children }) => {
+const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
   const [collapsed, setCollapsed] = h(collapse);
   const [showToggle, setShowToggle] = h(false);
   const contentsRef = A();
@@ -11933,7 +11933,7 @@ const ToolCallView = ({
             <div style=${{ marginLeft: `${codeIndent}` }}>
             <${ToolInput} type=${inputType} contents=${input}/>
             ${output ? m$1`
-              <${ExpandablePanel} collapse=${true} border=${true} lines=10>
+              <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
               <${MessageContent} contents=${output} />
               </${ExpandablePanel}>` : ""}
             </div>
@@ -16539,7 +16539,7 @@ const ToolEventView = ({ id, event, style, depth }) => {
   <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
     <div name="Summary" style=${{ width: "100%", margin: "0.5em 0" }}>
         ${!output ? "(No output)" : m$1`
-          <${ExpandablePanel} collapse=${true} border=${true} lines=10>
+          <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
             <${ToolOutput}
               output=${output}
             />
