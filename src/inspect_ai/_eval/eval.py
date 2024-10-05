@@ -10,7 +10,6 @@ from typing_extensions import Unpack
 from inspect_ai._util.file import absolute_file_path
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup
-from inspect_ai._util.trace import trace_multiple_samples_error
 from inspect_ai.approval._policy import (
     ApprovalPolicy,
     approval_policies_from_config,
@@ -28,6 +27,7 @@ from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentSpec
+from inspect_ai.util._trace import trace_multiple_samples_error
 
 from .context import init_eval_context
 from .loader import ResolvedTask, resolve_tasks

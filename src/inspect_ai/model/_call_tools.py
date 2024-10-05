@@ -22,7 +22,7 @@ from pydantic import BaseModel
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.registry import registry_info
 from inspect_ai._util.text import truncate_string_to_bytes
-from inspect_ai._util.trace import trace_message
+from inspect_ai.model._trace import trace_tool_mesage
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
 from inspect_ai.tool._tool import (
     TOOL_PARALLEL,
@@ -157,10 +157,7 @@ async def call_tools(
 
         # trace and fire tool events for each result
         for tool_message, event in [result for result in results]:
-            trace_message(
-                f"[bold]Tool[/bold]: {tool_message.function}",
-                tool_message.error.message if tool_message.error else tool_message.text,
-            )
+            trace_tool_mesage(tool_message)
             transcript()._event(event)
 
         # return tool messages

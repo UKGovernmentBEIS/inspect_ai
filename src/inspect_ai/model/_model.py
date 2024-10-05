@@ -28,7 +28,6 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai._util.retry import log_rate_limit_retry
-from inspect_ai._util.trace import trace_message
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.util import concurrency
 
@@ -47,6 +46,7 @@ from ._generate_config import (
 )
 from ._model_call import ModelCall
 from ._model_output import ModelOutput, ModelUsage
+from ._trace import trace_assistant_message
 
 logger = logging.getLogger(__name__)
 
@@ -324,7 +324,7 @@ class Model:
                 )
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
-                    await self._model_transcript(
+                    await self._record_model_interaction(
                         input=input,
                         tools=tools,
                         tool_choice=tool_choice,
@@ -348,7 +348,7 @@ class Model:
                 call = None
 
             # write to transcript
-            await self._model_transcript(
+            await self._record_model_interaction(
                 input=input,
                 tools=tools,
                 tool_choice=tool_choice,
@@ -402,7 +402,7 @@ class Model:
             key=f"Model{self.api.connection_key()}",
         )
 
-    async def _model_transcript(
+    async def _record_model_interaction(
         self,
         input: list[ChatMessage],
         tools: list[ToolInfo],
@@ -414,8 +414,7 @@ class Model:
     ) -> None:
         from inspect_ai.log._transcript import ModelEvent, transcript
 
-        # TODO: go back
-        trace_message("Assistant", output.completion)
+        trace_assistant_message(input, output.choices[0].message)
 
         transcript()._event(
             ModelEvent(

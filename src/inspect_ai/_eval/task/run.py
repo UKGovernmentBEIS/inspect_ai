@@ -28,7 +28,6 @@ from inspect_ai._util.registry import (
     is_registry_object,
     registry_log_name,
 )
-from inspect_ai._util.trace import trace_multiple_samples_error
 from inspect_ai._view.view import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
@@ -65,6 +64,7 @@ from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import set_sample_state, state_jsonable
 from inspect_ai.util._subtask import init_subtask
+from inspect_ai.util._trace import trace_multiple_samples_error
 
 from ..context import init_task_context
 from ..task import Task
