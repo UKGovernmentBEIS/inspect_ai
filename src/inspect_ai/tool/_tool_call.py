@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol
+from typing import Any, Callable, Literal, Protocol, TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -49,7 +49,11 @@ class ToolCallContent(BaseModel):
 
 
 class ToolCallView(BaseModel):
-    """Enhance view of a tool call"""
+    """Custom view of a tool call.
+
+    Both `context` and `call` are optional. If `call` is not specified
+    then the view will default to a syntax highlighted Python function call.
+    """
 
     context: ToolCallContent | None = Field(default=None)
     """Context for the tool call (i.e. current tool state)."""
@@ -58,17 +62,5 @@ class ToolCallView(BaseModel):
     """Custom representation of tool call."""
 
 
-class ToolCallViewer(Protocol):
-    """Render a custom view of a tool call.
-
-    Both `context` and `call` are optional. If `call` is not specified
-    then the view will default to a syntax highlighted Python function call.
-
-    Args:
-       call (ToolCall): ToolCall to render custom view of.
-
-    Returns:
-       ToolCallView: Custom view of tool call.
-    """
-
-    def __call__(self, call: ToolCall) -> ToolCallView: ...
+ToolCallViewer = Callable[[ToolCall], ToolCallView]
+"""Custom view renderer for tool calls."""
