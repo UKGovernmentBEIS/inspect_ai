@@ -55,37 +55,46 @@ def human_approver(
             prompt = ", ".join(values[:-1])
             prompt = f"{prompt}, or {values[-1]}"
 
+            def render_approval(approval: Approval) -> Approval:
+                console.print(f"Decision: {approval.decision.capitalize()}")
+                return approval
+
             while True:
                 decision = Prompt.ask(
                     prompt,
                     console=console,
                     choices=list(prompts.keys()),
                     default="a",
+                    case_sensitive=False,
                 ).lower()
 
                 if decision == "a":
-                    return Approval(
-                        decision="approve",
-                        explanation="Human operator approved tool call.",
-                        interactive=True,
+                    return render_approval(
+                        Approval(
+                            decision="approve",
+                            explanation="Human operator approved tool call.",
+                        )
                     )
                 elif decision == "r":
-                    return Approval(
-                        decision="reject",
-                        explanation="Human operator rejected the tool call.",
-                        interactive=True,
+                    return render_approval(
+                        Approval(
+                            decision="reject",
+                            explanation="Human operator rejected the tool call.",
+                        )
                     )
                 elif decision == "t":
-                    return Approval(
-                        decision="terminate",
-                        explanation="Human operator asked that the evaluation be terminated.",
-                        interactive=True,
+                    return render_approval(
+                        Approval(
+                            decision="terminate",
+                            explanation="Human operator asked that the evaluation be terminated.",
+                        )
                     )
                 elif decision == "e":
-                    return Approval(
-                        decision="escalate",
-                        explanation="Human operator escalated the tool call approval.",
-                        interactive=True,
+                    return render_approval(
+                        Approval(
+                            decision="escalate",
+                            explanation="Human operator escalated the tool call approval.",
+                        )
                     )
 
     return approve
