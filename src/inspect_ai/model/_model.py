@@ -159,16 +159,6 @@ class ModelAPI(abc.ABC):
         """Any tool use in a message stream means that tools must be passed."""
         return False
 
-    def provides_event(self) -> bool:
-        """Indicates that this model provider yields a ModelEvent.
-
-        This is done so the code that wraps ModelAPI calls knows that it
-        doesn't need to record a ModelEvent. A model provider would provide
-        its own model events if it wanted to populate the raw request
-        and response fields of the ModelEvent (which only it knows about)
-        """
-        return False
-
 
 class Model:
     """Model interface."""
@@ -423,19 +413,18 @@ class Model:
     ) -> None:
         from inspect_ai.log._transcript import ModelEvent, transcript
 
-        if not self.api.provides_event():
-            transcript()._event(
-                ModelEvent(
-                    model=str(self),
-                    input=input,
-                    tools=tools,
-                    tool_choice=tool_choice,
-                    config=config,
-                    output=output,
-                    cache=cache,
-                    call=call,
-                )
+        transcript()._event(
+            ModelEvent(
+                model=str(self),
+                input=input,
+                tools=tools,
+                tool_choice=tool_choice,
+                config=config,
+                output=output,
+                cache=cache,
+                call=call,
             )
+        )
 
 
 class ModelName:
