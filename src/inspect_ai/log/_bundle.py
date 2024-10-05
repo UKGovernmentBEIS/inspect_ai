@@ -148,6 +148,10 @@ def copy_log_files(
         eval_logs = log_files_from_ls(
             log_fs.ls(log_dir, recursive=True), [".json"], True
         )
+        if len(eval_logs) == 0:
+            raise PrerequisiteError(
+                f"The log directory {log_dir} doesn't contain any log files."
+            )
 
         base_log_dir = log_fs.info(log_dir).name
         with progress_adapter(p, 200, len(eval_logs)) as tick:
