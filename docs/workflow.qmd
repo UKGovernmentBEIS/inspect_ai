@@ -105,7 +105,7 @@ $ insepct eval theory.py -T "test.csv" --model openai/gpt-4o
 
 ### Solvers
 
-You can very the solver used for a task using the `--solver` flag. For example:
+You can vary the solver used for a task using the `--solver` flag. For example:
 
 ``` bash
 $ inspect eval theory.py --solver=tree_of_thought --model=openai/gpt-4o
