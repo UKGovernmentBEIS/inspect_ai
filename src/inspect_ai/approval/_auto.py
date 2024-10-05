@@ -20,7 +20,7 @@ def auto_approver(decision: ApprovalDecision = "approve") -> Approver:
     async def approve(
         content: str,
         call: ToolCall,
-        view: ToolCallView | None = None,
+        view: ToolCallView,
         state: TaskState | None = None,
     ) -> Approval:
         return Approval(decision=decision)

@@ -10,7 +10,7 @@ async def call_approver(
     approver: Approver,
     content: str,
     call: ToolCall,
-    view: ToolCallView | None = None,
+    view: ToolCallView,
     state: TaskState | None = None,
 ) -> Approval:
     # run approver

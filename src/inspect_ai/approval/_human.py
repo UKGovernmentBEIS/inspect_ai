@@ -1,7 +1,3 @@
-import pprint
-from textwrap import indent
-from typing import Any
-
 from rich.console import Group, RenderableType
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -10,7 +6,7 @@ from rich.rule import Rule
 from rich.text import Text
 
 from inspect_ai.solver._task_state import TaskState
-from inspect_ai.tool._tool_call import ToolCall, ToolCallView
+from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 from inspect_ai.util._console import input_screen
 
 from ._approval import Approval, ApprovalDecision
@@ -31,24 +27,28 @@ def human_approver(
     async def approve(
         content: str,
         call: ToolCall,
-        view: ToolCallView | None = None,
+        view: ToolCallView,
         state: TaskState | None = None,
     ) -> Approval:
         with input_screen(width=None) as console:
             renderables: list[RenderableType] = []
+
+            def add_view_content(view_content: ToolCallContent | None) -> None:
+                if view_content:
+                    if view_content.format == "markdown":
+                        renderables.append(
+                            Markdown(view_content.content, code_theme="vs")
+                        )
+                    else:
+                        renderables.append(Text(view_content.content))
+
             if content:
                 renderables.append(Text.from_markup("[bold]Assistant[/bold]\n"))
                 renderables.append(Text(f"{content.strip()}\n"))
                 renderables.append(Rule("", style="bold", align="left"))
             renderables.append(Text())
-            renderables.append(
-                Markdown(
-                    "```python\n"
-                    + format_function_call(call.function, call.arguments)
-                    + "\n```\n",
-                    code_theme="vs",
-                )
-            )
+            add_view_content(view.context)
+            add_view_content(view.call)
             renderables.append(Text())
 
             console.print(
@@ -111,28 +111,3 @@ def human_approver(
                     )
 
     return approve
-
-
-def format_function_call(
-    func_name: str, args_dict: dict[str, Any], indent_spaces: int = 4
-) -> str:
-    formatted_args = []
-    for key, value in args_dict.items():
-        formatted_value = format_value(value)
-        formatted_args.append(f"{key}={formatted_value}")
-
-    args_str = ", ".join(formatted_args)
-
-    if len(args_str) <= 79 - len(func_name) - 2:  # 2 for parentheses
-        return f"{func_name}({args_str})"
-    else:
-        indented_args = indent(",\n".join(formatted_args), " " * indent_spaces)
-        return f"{func_name}(\n{indented_args}\n)"
-
-
-def format_value(value: object) -> str:
-    if isinstance(value, str):
-        return f"'{value}'"
-    elif isinstance(value, list | tuple | dict):
-        return pprint.pformat(value)
-    return str(value)

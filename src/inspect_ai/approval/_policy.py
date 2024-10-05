@@ -50,7 +50,7 @@ def policy_approver(
     async def approve(
         content: str,
         call: ToolCall,
-        view: ToolCallView | None = None,
+        view: ToolCallView,
         state: TaskState | None = None,
     ) -> Approval:
         # process approvers for this tool call (continue loop on "escalate")
