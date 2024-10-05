@@ -77,7 +77,7 @@ async def call_tools(
             tool_error: ToolCallError | None = None
             try:
                 with track_store_changes():
-                    result = await call_tool(tdefs, call)
+                    result = await call_tool(tdefs, message.text, call)
             except TimeoutError:
                 tool_error = ToolCallError(
                     "timeout", "Command timed out before completing."
@@ -88,20 +88,20 @@ async def call_tools(
                     f"Error decoding bytes to {ex.encoding}: {ex.reason}",
                 )
             except PermissionError as ex:
-                message = f"{ex.strerror}."
+                err = f"{ex.strerror}."
                 if isinstance(ex.filename, str):
-                    message = f"{message} Filename '{ex.filename}'."
-                tool_error = ToolCallError("permission", message)
+                    err = f"{err} Filename '{ex.filename}'."
+                tool_error = ToolCallError("permission", err)
             except FileNotFoundError as ex:
                 tool_error = ToolCallError(
                     "file_not_found",
                     f"File '{ex.filename}' was not found.",
                 )
             except IsADirectoryError as ex:
-                message = f"{ex.strerror}."
+                err = f"{ex.strerror}."
                 if isinstance(ex.filename, str):
-                    message = f"{message} Filename '{ex.filename}'."
-                tool_error = ToolCallError("is_a_directory", message)
+                    err = f"{err} Filename '{ex.filename}'."
+                tool_error = ToolCallError("is_a_directory", err)
             except ToolParsingError as ex:
                 tool_error = ToolCallError("parsing", ex.message)
             except ToolApprovalError as ex:
@@ -182,7 +182,7 @@ class ToolDef:
     """Callable to execute tool."""
 
 
-async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
+async def call_tool(tools: list[ToolDef], content: str, call: ToolCall) -> Any:
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
         raise ToolParsingError(call.parse_error)
@@ -195,7 +195,7 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import apply_tool_approval
 
-    approved, approval = await apply_tool_approval(call, tool_def)
+    approved, approval = await apply_tool_approval(content, call, tool_def)
     if not approved:
         raise ToolApprovalError(approval.explanation if approval else None)
 

@@ -2,9 +2,12 @@ import pprint
 from textwrap import indent
 from typing import Any
 
+from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.prompt import Prompt
+from rich.rule import Rule
 from rich.syntax import Syntax
+from rich.text import Text
 
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall
@@ -26,21 +29,31 @@ def human_approver(
     """
 
     async def approve(
-        tool_call: ToolCall,
-        tool_view: ApproverToolView | None = None,
+        content: str,
+        call: ToolCall,
+        view: ApproverToolView | None = None,
         state: TaskState | None = None,
     ) -> Approval:
         with input_screen() as console:
+            renderables: list[RenderableType] = []
+            if content:
+                renderables.append(Text.from_markup("[bold]Assistant[/bold]\n"))
+                renderables.append(Text(f"{content.strip()}\n"))
+                renderables.append(Rule("", style="bold", align="left"))
+            renderables.append(Text())
+            renderables.append(
+                Syntax(
+                    code=format_function_call(call.function, call.arguments),
+                    lexer="python",
+                    theme="emacs",
+                    background_color="default",
+                ),
+            )
+            renderables.append(Text())
+
             console.print(
                 Panel(
-                    Syntax(
-                        code=format_function_call(
-                            tool_call.function, tool_call.arguments
-                        ),
-                        lexer="python",
-                        theme="emacs",
-                        background_color="default",
-                    ),
+                    Group(*renderables),
                     title="[bold][blue]Tool Call Approval[/blue][/bold]",
                     highlight=True,
                     expand=True,

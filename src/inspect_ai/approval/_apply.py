@@ -1,4 +1,3 @@
-import sys
 from contextvars import ContextVar
 
 from inspect_ai.approval._approval import Approval
@@ -10,7 +9,7 @@ from ._policy import ApprovalPolicy, policy_approver
 
 
 async def apply_tool_approval(
-    tool_call: ToolCall, tool_def: ToolDef
+    content: str, tool_call: ToolCall, tool_def: ToolDef
 ) -> tuple[bool, Approval | None]:
     from inspect_ai.solver._task_state import sample_state
 
@@ -18,8 +17,9 @@ async def apply_tool_approval(
     if approver:
         state = sample_state()
         approval = await approver(
-            tool_call=tool_call,
-            tool_view=None,
+            content=content,
+            call=tool_call,
+            view=None,
             state=state,
         )
         match approval.decision:
