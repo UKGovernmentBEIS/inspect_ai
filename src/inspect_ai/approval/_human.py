@@ -45,7 +45,7 @@ def human_approver(
                 Syntax(
                     code=format_function_call(call.function, call.arguments),
                     lexer="python",
-                    theme="emacs",
+                    theme="vs",
                     background_color="default",
                 ),
             )
