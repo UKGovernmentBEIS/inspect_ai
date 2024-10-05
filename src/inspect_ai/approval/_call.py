@@ -1,16 +1,16 @@
 from inspect_ai._util.registry import registry_log_name
 from inspect_ai.solver._task_state import TaskState
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 from ._approval import Approval
-from ._approver import Approver, ApproverToolView
+from ._approver import Approver
 
 
 async def call_approver(
     approver: Approver,
     content: str,
     call: ToolCall,
-    view: ApproverToolView | None = None,
+    view: ToolCallView | None = None,
     state: TaskState | None = None,
 ) -> Approval:
     # run approver
@@ -27,7 +27,7 @@ def record_approval(
     approver_name: str,
     content: str,
     call: ToolCall,
-    view: ApproverToolView | None,
+    view: ToolCallView | None,
     approval: Approval,
 ) -> None:
     from inspect_ai.log._transcript import ApprovalEvent, transcript

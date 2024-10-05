@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
+
+from pydantic import BaseModel, Field
 
 
 @dataclass
@@ -34,3 +36,39 @@ class ToolCallError:
     ]
 
     message: str
+
+
+class ToolCallContent(BaseModel):
+    """Content to include in tool call view."""
+
+    format: Literal["text", "markdown"]
+    """Format."""
+
+    content: str
+    """Content."""
+
+
+class ToolCallView(BaseModel):
+    """Enhance view of a tool call"""
+
+    context: ToolCallContent | None = Field(default=None)
+    """Context for the tool call (i.e. current tool state)."""
+
+    call: ToolCallContent | None = Field(default=None)
+    """Custom representation of tool call."""
+
+
+class ToolCallViewer(Protocol):
+    """Render a custom view of a tool call.
+
+    Both `context` and `call` are optional. If `call` is not specified
+    then the view will default to a syntax highlighted Python function call.
+
+    Args:
+       call (ToolCall): ToolCall to render custom view of.
+
+    Returns:
+       ToolCallView: Custom view of tool call.
+    """
+
+    def __call__(self, call: ToolCall) -> ToolCallView: ...

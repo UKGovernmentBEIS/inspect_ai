@@ -1,8 +1,8 @@
 from inspect_ai.solver._task_state import TaskState
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 from ._approval import Approval, ApprovalDecision
-from ._approver import Approver, ApproverToolView
+from ._approver import Approver
 from ._registry import approver
 
 
@@ -20,7 +20,7 @@ def auto_approver(decision: ApprovalDecision = "approve") -> Approver:
     async def approve(
         content: str,
         call: ToolCall,
-        view: ApproverToolView | None = None,
+        view: ToolCallView | None = None,
         state: TaskState | None = None,
     ) -> Approval:
         return Approval(decision=decision)

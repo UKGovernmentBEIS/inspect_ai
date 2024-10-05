@@ -10,11 +10,11 @@ from rich.syntax import Syntax
 from rich.text import Text
 
 from inspect_ai.solver._task_state import TaskState
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.util._console import input_screen
 
 from ._approval import Approval, ApprovalDecision
-from ._approver import Approver, ApproverToolView
+from ._approver import Approver
 from ._registry import approver
 
 
@@ -31,7 +31,7 @@ def human_approver(
     async def approve(
         content: str,
         call: ToolCall,
-        view: ApproverToolView | None = None,
+        view: ToolCallView | None = None,
         state: TaskState | None = None,
     ) -> Approval:
         with input_screen(width=None) as console:

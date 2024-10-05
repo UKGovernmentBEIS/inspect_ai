@@ -11,11 +11,11 @@ from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai._util.registry import registry_create, registry_lookup
 from inspect_ai.solver._task_state import TaskState
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.util._resource import resource
 
 from ._approval import Approval
-from ._approver import Approver, ApproverToolView
+from ._approver import Approver
 from ._call import call_approver, record_approval
 
 
@@ -50,7 +50,7 @@ def policy_approver(
     async def approve(
         content: str,
         call: ToolCall,
-        view: ApproverToolView | None = None,
+        view: ToolCallView | None = None,
         state: TaskState | None = None,
     ) -> Approval:
         # process approvers for this tool call (continue loop on "escalate")

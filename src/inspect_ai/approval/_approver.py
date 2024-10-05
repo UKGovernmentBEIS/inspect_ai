@@ -1,21 +1,9 @@
-from typing import Literal, Protocol
-
-from pydantic import BaseModel, Field
+from typing import Protocol
 
 from inspect_ai.solver._task_state import TaskState
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 from ._approval import Approval
-
-
-class ApproverContent(BaseModel):
-    type: Literal["text", "markdown"]
-    content: str
-
-
-class ApproverToolView(BaseModel):
-    context: ApproverContent | None = Field(default=None)
-    call: ApproverContent | None = Field(default=None)
 
 
 class Approver(Protocol):
@@ -25,7 +13,7 @@ class Approver(Protocol):
         self,
         content: str,
         call: ToolCall,
-        view: ApproverToolView | None = None,
+        view: ToolCallView | None = None,
         state: TaskState | None = None,
     ) -> Approval:
         """
@@ -34,7 +22,7 @@ class Approver(Protocol):
         Args:
             content (str): Content genreated by the model along with the tool call.
             call (ToolCall): The tool call to be approved.
-            view (ApproverToolView): Custom rendering of tool context and call.
+            view (ToolView): Custom rendering of tool context and call.
             state (state | None): The current task state, if available.
 
         Returns:
