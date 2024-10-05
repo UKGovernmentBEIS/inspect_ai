@@ -36,26 +36,26 @@ def human_approver(
         with input_screen(width=None) as console:
             renderables: list[RenderableType] = []
 
-            def add_view_content(view_content: ToolCallContent | None) -> None:
-                if view_content:
-                    if view_content.format == "markdown":
-                        renderables.append(
-                            Markdown(view_content.content, code_theme="vs")
-                        )
-                    else:
-                        text_content = text_highlighter(Text(view_content.content))
-                        renderables.append(text_content)
+            def add_view_content(view_content: ToolCallContent) -> None:
+                if view_content.format == "markdown":
+                    renderables.append(Markdown(view_content.content, code_theme="vs"))
+                else:
+                    text_content = text_highlighter(Text(view_content.content))
+                    renderables.append(text_content)
 
             if content:
                 renderables.append(Text.from_markup("[bold]Assistant[/bold]\n"))
                 renderables.append(Text(f"{content.strip()}\n"))
-                renderables.append(Rule("", style="bold", align="left"))
-            renderables.append(Text())
-            add_view_content(view.context)
             if view.context:
+                add_view_content(view.context)
                 renderables.append(Text())
-            add_view_content(view.call)
-            renderables.append(Text())
+
+            if view.call:
+                if content or view.context:
+                    renderables.append(Rule("", style="bold", align="left"))
+                renderables.append(Text())
+                add_view_content(view.call)
+                renderables.append(Text())
 
             console.print(
                 Panel(
