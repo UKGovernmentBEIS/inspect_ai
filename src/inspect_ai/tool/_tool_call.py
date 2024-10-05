@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Callable, Literal, Protocol, TypeVar
+from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, Field
 

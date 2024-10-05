@@ -29,7 +29,7 @@ def human_approver(
     text_highlighter = ReprHighlighter()
 
     async def approve(
-        content: str,
+        message: str,
         call: ToolCall,
         view: ToolCallView,
         state: TaskState | None = None,
@@ -38,7 +38,7 @@ def human_approver(
             renderables: list[RenderableType] = []
 
             # ignore content if trace enabled
-            content = content if not trace_enabled() else ""
+            message = message if not trace_enabled() else ""
 
             def add_view_content(view_content: ToolCallContent) -> None:
                 if view_content.format == "markdown":
@@ -48,9 +48,9 @@ def human_approver(
                     renderables.append(text_content)
 
             # assistant content (don't add if trace_enabled as we already have it in that case)
-            if content:
+            if message:
                 renderables.append(Text.from_markup("[bold]Assistant[/bold]\n"))
-                renderables.append(Text(f"{content.strip()}"))
+                renderables.append(Text(f"{message.strip()}"))
 
             # extra context provided by tool view
             if view.context:
@@ -60,7 +60,7 @@ def human_approver(
 
             # tool call view
             if view.call:
-                if content or view.context:
+                if message or view.context:
                     renderables.append(Rule("", style="bold", align="left"))
                 renderables.append(Text())
                 add_view_content(view.call)

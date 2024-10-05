@@ -48,7 +48,7 @@ def policy_approver(
                 yield policy_matcher[1]
 
     async def approve(
-        content: str,
+        message: str,
         call: ToolCall,
         view: ToolCallView,
         state: TaskState | None = None,
@@ -57,7 +57,7 @@ def policy_approver(
         has_approver = False
         for approver in tool_approvers(call):
             has_approver = True
-            approval = await call_approver(approver, content, call, view, state)
+            approval = await call_approver(approver, message, call, view, state)
             if approval.decision != "escalate":
                 return approval
 
@@ -67,7 +67,7 @@ def policy_approver(
             explanation=f"No {'approval granted' if has_approver else 'approvers registered'} for tool {call.function}",
         )
         # record and return the rejection
-        record_approval("policy", content, call, view, reject)
+        record_approval("policy", message, call, view, reject)
         return reject
 
     return approve

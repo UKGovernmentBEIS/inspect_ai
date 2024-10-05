@@ -16,7 +16,7 @@ from ._policy import ApprovalPolicy, policy_approver
 
 
 async def apply_tool_approval(
-    content: str, call: ToolCall, viewer: ToolCallViewer | None
+    message: str, call: ToolCall, viewer: ToolCallViewer | None
 ) -> tuple[bool, Approval | None]:
     from inspect_ai.solver._task_state import sample_state
 
@@ -35,7 +35,7 @@ async def apply_tool_approval(
 
         # call approver
         approval = await approver(
-            content=content,
+            message=message,
             call=call,
             view=view,
             state=state,

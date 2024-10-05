@@ -11,7 +11,7 @@ class Approver(Protocol):
 
     async def __call__(
         self,
-        content: str,
+        message: str,
         call: ToolCall,
         view: ToolCallView,
         state: TaskState | None = None,
@@ -20,7 +20,7 @@ class Approver(Protocol):
         Approve or reject a tool call.
 
         Args:
-            content (str): Content genreated by the model along with the tool call.
+            message (str): Message genreated by the model along with the tool call.
             call (ToolCall): The tool call to be approved.
             view (ToolView): Custom rendering of tool context and call.
             state (state | None): The current task state, if available.

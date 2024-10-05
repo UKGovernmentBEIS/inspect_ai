@@ -8,16 +8,16 @@ from ._approver import Approver
 
 async def call_approver(
     approver: Approver,
-    content: str,
+    message: str,
     call: ToolCall,
     view: ToolCallView,
     state: TaskState | None = None,
 ) -> Approval:
     # run approver
-    approval = await approver(content, call, view, state)
+    approval = await approver(message, call, view, state)
 
     # record
-    record_approval(registry_log_name(approver), content, call, view, approval)
+    record_approval(registry_log_name(approver), message, call, view, approval)
 
     # return approval
     return approval
@@ -25,7 +25,7 @@ async def call_approver(
 
 def record_approval(
     approver_name: str,
-    content: str,
+    message: str,
     call: ToolCall,
     view: ToolCallView | None,
     approval: Approval,
@@ -34,7 +34,7 @@ def record_approval(
 
     transcript()._event(
         ApprovalEvent(
-            content=content,
+            message=message,
             call=call,
             view=view,
             approver=approver_name,

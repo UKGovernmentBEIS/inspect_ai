@@ -18,7 +18,7 @@ def auto_approver(decision: ApprovalDecision = "approve") -> Approver:
     """
 
     async def approve(
-        content: str,
+        message: str,
         call: ToolCall,
         view: ToolCallView,
         state: TaskState | None = None,
