@@ -491,7 +491,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>graders <span class="op">=</span> [model.generate(prompt) <span class="cf">for</span> model <span class="kw">in</span> models]</span>
 <span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>grader_outputs <span class="op">=</span> <span class="cf">await</span> asyncio.gather(<span class="op">*</span>graders)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that we don’t await the call to <code>model.generate()</code> when building our list of graders. Rather the call to <code>asyncio.gather()</code> will await each of these requests and return when they have all completed. Inspect’s internal handling of <code>max_connections</code> for model APIs will apply to these requests, so you need now worry about how many you put in flight, they will be throttled as appropriate.</p>
+<p>Note that we don’t await the call to <code>model.generate()</code> when building our list of graders. Rather the call to <code>asyncio.gather()</code> will await each of these requests and return when they have all completed. Inspect’s internal handling of <code>max_connections</code> for model APIs will throttle these requests, so there is no need to worry about how many you put in flight.</p>
 </section>
 <section id="web-requests" class="level4">
 <h4 class="anchored" data-anchor-id="web-requests">Web Requests</h4>
