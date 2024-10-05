@@ -3,10 +3,10 @@ from textwrap import indent
 from typing import Any
 
 from rich.console import Group, RenderableType
+from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.rule import Rule
-from rich.syntax import Syntax
 from rich.text import Text
 
 from inspect_ai.solver._task_state import TaskState
@@ -42,12 +42,12 @@ def human_approver(
                 renderables.append(Rule("", style="bold", align="left"))
             renderables.append(Text())
             renderables.append(
-                Syntax(
-                    code=format_function_call(call.function, call.arguments),
-                    lexer="python",
-                    theme="vs",
-                    background_color="default",
-                ),
+                Markdown(
+                    "```python\n"
+                    + format_function_call(call.function, call.arguments)
+                    + "\n```\n",
+                    code_theme="vs",
+                )
             )
             renderables.append(Text())
 

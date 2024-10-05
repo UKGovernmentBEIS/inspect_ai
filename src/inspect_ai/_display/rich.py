@@ -6,8 +6,9 @@ from dataclasses import dataclass
 from typing import Any, Callable, Iterator, Set
 
 import rich
-from rich.console import Console, Group, RenderableType
+from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
 from rich.live import Live
+from rich.markdown import CodeBlock, Markdown
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
@@ -17,6 +18,7 @@ from rich.progress import (
 )
 from rich.progress import Progress as RProgress
 from rich.segment import Segment
+from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 from typing_extensions import override
@@ -689,10 +691,30 @@ def rich_no_color() -> bool:
 
 
 def rich_initialise() -> None:
+    # reflect ansi prefs
     if no_ansi():
         rich.reconfigure(no_color=True, force_terminal=False, force_interactive=False)
     elif rich_no_color():
         rich.reconfigure(no_color=True)
+
+    # disable markdown code bock backgrounds (don't work well across light/dark themes)
+    class CustomCodeBlock(CodeBlock):
+        @override
+        def __rich_console__(
+            self, console: Console, options: ConsoleOptions
+        ) -> RenderResult:
+            code = str(self.text).rstrip()
+            syntax = Syntax(
+                code,
+                self.lexer_name,
+                theme=self.theme,
+                word_wrap=True,
+                background_color="default",
+            )
+            yield syntax
+
+    Markdown.elements["fence"] = CustomCodeBlock
+    Markdown.elements["code_block"] = CustomCodeBlock
 
 
 def rich_theme() -> Theme:
