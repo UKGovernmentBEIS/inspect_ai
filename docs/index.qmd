@@ -110,7 +110,7 @@ from inspect_ai.solver import (
   prompt_template, generate, self_critique   
 )                                             
 
-DEFAULT_PROMPT="<prompt>"
+DEFAULT_PROMPT="{prompt}"
 
 @task
 def theory_of_mind():
@@ -187,7 +187,7 @@ from inspect_ai.solver import (
   solver, chain, prompt_template, generate, self_critique
 )
 
-DEFAULT_PROMPT="<prompt>"
+DEFAULT_PROMPT="{prompt}"
 
 from tree_of_thought import TREE_PROMPT, generate_tree
 

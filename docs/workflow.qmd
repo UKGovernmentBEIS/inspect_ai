@@ -18,7 +18,7 @@ from inspect_ai.solver import (
   chain, prompt_template, generate, self_critique   
 ) 
 
-DEFAULT_PROMPT="<prompt>"
+DEFAULT_PROMPT="{prompt}"
 
 from tree_of_thought imoprt TREE_PROMPT, generate_tree
 
