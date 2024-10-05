@@ -25,9 +25,7 @@ class ApprovalPolicy:
     tools: str | list[str]
 
 
-def policy_approver(
-    policies: str | list[ApprovalPolicy], print: bool = True, log: bool = True
-) -> Approver:
+def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
     # if policies is a str, it is a config file or an approver
     if isinstance(policies, str):
         policies = approval_policies_from_config(policies)
