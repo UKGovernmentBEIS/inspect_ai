@@ -52,6 +52,8 @@ def human_approver(
                 renderables.append(Rule("", style="bold", align="left"))
             renderables.append(Text())
             add_view_content(view.context)
+            if view.context:
+                renderables.append(Text())
             add_view_content(view.call)
             renderables.append(Text())
 

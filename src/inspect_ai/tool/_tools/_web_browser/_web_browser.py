@@ -102,10 +102,29 @@ WEB_BROWSER_AT = "web_browser:at"
 
 
 def web_at_viewer(call: ToolCall) -> ToolCallView:
+    # get the web accessiblity tree, if we have it create a view from it
     web_at = store().get(WEB_BROWSER_AT, "")
-    return ToolCallView(
-        context=ToolCallContent(format="text", content=web_at) if web_at else None
-    )
+    element_id = call.arguments.get("element_id", 0)
+    if web_at and element_id:
+        lines = web_at.splitlines()
+        pattern = re.compile(rf"^\s+\[{element_id}\] .*$")
+        for i, line in enumerate(lines):
+            if pattern.match(line):
+                snippet = (
+                    lines[0:1]
+                    + ["  ..."]
+                    + lines[max(i - 2, 1) : i]
+                    + [line.replace(" ", "*", 1)]
+                    + lines[i + 1 : min(i + 3, len(lines))]
+                    + ["  ..."]
+                )
+
+                return ToolCallView(
+                    context=ToolCallContent(format="text", content="\n".join(snippet))
+                )
+
+    # no view found
+    return ToolCallView()
 
 
 @tool(viewer=web_at_viewer, parallel=False)
