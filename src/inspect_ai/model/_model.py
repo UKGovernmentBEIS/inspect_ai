@@ -28,6 +28,7 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai._util.retry import log_rate_limit_retry
+from inspect_ai._util.trace import trace_message
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.util import concurrency
 
@@ -412,6 +413,9 @@ class Model:
         call: ModelCall | None,
     ) -> None:
         from inspect_ai.log._transcript import ModelEvent, transcript
+
+        # TODO: go back
+        trace_message("Assistant", output.completion)
 
         transcript()._event(
             ModelEvent(

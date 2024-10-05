@@ -57,6 +57,7 @@ def eval_set(
     sandbox: SandboxEnvironmentSpec | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
+    trace: bool | None = None,
     approval: str | list[ApprovalPolicy] | None = None,
     score: bool = True,
     log_level: str | None = None,
@@ -104,6 +105,7 @@ def eval_set(
           (defaults to True)
         solver (Solver | list[Solver] | SolverSpec | None): Alternative solver(s) for
            evaluating task(s). ptional (uses task solver by default).
+        trace: (bool | None): Trace message interactions with evaluated model to terminal.
         approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
           Either a path to an approval policy config file or a list of approval policies.
           Defaults to no approval policy.
@@ -158,6 +160,7 @@ def eval_set(
             sandbox=sandbox,
             sandbox_cleanup=sandbox_cleanup,
             solver=solver,
+            trace=trace,
             approval=approval,
             log_level=log_level,
             log_dir=log_dir,

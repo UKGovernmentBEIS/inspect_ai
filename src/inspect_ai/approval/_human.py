@@ -6,6 +6,7 @@ from rich.prompt import Prompt
 from rich.rule import Rule
 from rich.text import Text
 
+from inspect_ai._util.trace import trace_enabled
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 from inspect_ai.util._console import input_screen
@@ -36,6 +37,9 @@ def human_approver(
         with input_screen(width=None) as console:
             renderables: list[RenderableType] = []
 
+            # ignore content if trace enabled
+            content = content if not trace_enabled() else ""
+
             def add_view_content(view_content: ToolCallContent) -> None:
                 if view_content.format == "markdown":
                     renderables.append(Markdown(view_content.content, code_theme="vs"))
@@ -43,13 +47,18 @@ def human_approver(
                     text_content = text_highlighter(Text(view_content.content))
                     renderables.append(text_content)
 
+            # assistant content (don't add if trace_enabled as we already have it in that case)
             if content:
                 renderables.append(Text.from_markup("[bold]Assistant[/bold]\n"))
-                renderables.append(Text(f"{content.strip()}\n"))
+                renderables.append(Text(f"{content.strip()}"))
+
+            # extra context provided by tool view
             if view.context:
+                renderables.append(Text())
                 add_view_content(view.context)
                 renderables.append(Text())
 
+            # tool call view
             if view.call:
                 if content or view.context:
                     renderables.append(Rule("", style="bold", align="left"))
