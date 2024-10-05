@@ -23,6 +23,6 @@ def auto_approver(decision: ApprovalDecision = "approve") -> Approver:
         view: ToolCallView,
         state: TaskState | None = None,
     ) -> Approval:
-        return Approval(decision=decision)
+        return Approval(decision=decision, explanation="Automatic decision.")
 
     return approve
