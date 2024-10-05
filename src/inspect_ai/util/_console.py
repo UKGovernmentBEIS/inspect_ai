@@ -16,7 +16,7 @@ from rich.console import Console
 def input_screen(
     header: str | None = None,
     transient: bool = True,
-    width: int = CONSOLE_DISPLAY_WIDTH,
+    width: int | None = CONSOLE_DISPLAY_WIDTH,
 ) -> Iterator[Console]:
     """Input screen for receiving user input.
 

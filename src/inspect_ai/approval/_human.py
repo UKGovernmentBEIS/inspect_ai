@@ -34,7 +34,7 @@ def human_approver(
         view: ApproverToolView | None = None,
         state: TaskState | None = None,
     ) -> Approval:
-        with input_screen() as console:
+        with input_screen(width=None) as console:
             renderables: list[RenderableType] = []
             if content:
                 renderables.append(Text.from_markup("[bold]Assistant[/bold]\n"))

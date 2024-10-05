@@ -183,7 +183,7 @@ class RichTaskScreen(TaskScreen):
         self,
         header: str | None = None,
         transient: bool = True,
-        width: int = CONSOLE_DISPLAY_WIDTH,
+        width: int | None = CONSOLE_DISPLAY_WIDTH,
     ) -> Iterator[Console]:
         # clear live task status and transient status
         self.live.update("", refresh=True)
@@ -193,8 +193,10 @@ class RichTaskScreen(TaskScreen):
         self.live.console.show_cursor(True)
 
         # set width
-        old_width = self.live.console.width
-        self.live.console.width = min(old_width, width)
+        old_width: int | None = None
+        if width:
+            old_width = self.live.console.width
+            self.live.console.width = min(old_width, width)
 
         # record console activity for event
         self.live.console.record = True
@@ -221,7 +223,8 @@ class RichTaskScreen(TaskScreen):
             self.live.console.print("")
 
             # reset width
-            self.live.console.width = old_width
+            if old_width:
+                self.live.console.width = old_width
 
             # disable cursor while not collecting input
             self.live.console.show_cursor(False)

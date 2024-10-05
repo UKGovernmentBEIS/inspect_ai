@@ -66,7 +66,7 @@ class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
         self,
         header: str | None = None,
         transient: bool = True,
-        width: int = CONSOLE_DISPLAY_WIDTH,
+        width: int | None = CONSOLE_DISPLAY_WIDTH,
     ) -> Iterator[Console]: ...
 
 
