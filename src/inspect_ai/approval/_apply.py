@@ -1,7 +1,4 @@
-import pprint
 from contextvars import ContextVar
-from textwrap import indent
-from typing import Any
 
 from inspect_ai._util.format import format_function_call
 from inspect_ai.approval._approval import Approval
