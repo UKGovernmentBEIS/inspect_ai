@@ -16,10 +16,11 @@ async def apply_tool_approval(
 
     approver = _tool_approver.get(None)
     if approver:
+        state = sample_state()
         approval = await approver(
             tool_call=tool_call,
             tool_view=None,
-            state=sample_state(),
+            state=state,
         )
         match approval.decision:
             case "approve":
@@ -27,7 +28,9 @@ async def apply_tool_approval(
             case "reject":
                 return False, approval
             case _:
-                sys.exit(1)
+                if state:
+                    state.completed = True
+                return False, approval
     else:
         return True, None
 

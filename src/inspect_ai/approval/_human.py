@@ -17,7 +17,7 @@ from ._registry import approver
 
 @approver(name="human")
 def human_approver(
-    choices: list[ApprovalDecision] = ["approve", "reject"],
+    choices: list[ApprovalDecision] = ["approve", "reject", "terminate"],
 ) -> Approver:
     """Interactive human approver.
 
@@ -86,7 +86,7 @@ def human_approver(
                     return render_approval(
                         Approval(
                             decision="terminate",
-                            explanation="Human operator asked that the evaluation be terminated.",
+                            explanation="Human operator asked that the sample be terminated.",
                         )
                     )
                 elif decision == "e":
