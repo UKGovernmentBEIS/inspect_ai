@@ -7,7 +7,7 @@ from re import Pattern
 from typing import Any, Generator, cast
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai._util.registry import registry_create, registry_lookup
 from inspect_ai.solver._task_state import TaskState
@@ -17,16 +17,6 @@ from inspect_ai.util._resource import resource
 from ._approval import Approval
 from ._approver import Approver, ApproverToolView
 from ._call import call_approver, record_approval
-
-"""
-approvers:
-   - name: human
-     tools: web_browser*, bash, pyhton
-
-   - name: auto
-     tools: *
-     decision: approve
-"""
 
 
 @dataclass
@@ -83,9 +73,46 @@ def policy_approver(
 
 
 class ApproverPolicyConfig(BaseModel):
+    """
+    Configuration format for approver policies.
+
+    For example, here is a configuration in YAML:
+
+    ```yaml
+    approvers:
+      - name: human
+        tools: web_browser*, bash, pyhton
+        choices: [approve, reject]
+
+      - name: auto
+        tools: *
+        decision: approve
+    ```
+    """
+
     name: str
     tools: str | list[str]
     params: dict[str, Any] = Field(default_factory=dict)
+
+    model_config = {
+        "extra": "allow",
+    }
+
+    @model_validator(mode="before")
+    @classmethod
+    def collect_unknown_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        known_fields = set(cls.model_fields.keys())
+        unknown_fields = {k: v for k, v in data.items() if k not in known_fields}
+
+        if unknown_fields:
+            data["params"] = data.get("params", {}) | unknown_fields
+            for k in unknown_fields:
+                data.pop(k, None)
+
+        return data
 
 
 class ApprovalPolicyConfig(BaseModel):
