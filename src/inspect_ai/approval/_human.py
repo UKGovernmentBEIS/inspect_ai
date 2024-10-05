@@ -65,7 +65,7 @@ def human_approver(
                 add_view_content(view.call)
                 renderables.append(Text())
 
-            console.print(TracePanel(title="Tool Call Approval", content=renderables))
+            console.print(TracePanel(title="Approve Tool Call", content=renderables))
 
             # provide choices
             prompts: dict[str, str] = {}

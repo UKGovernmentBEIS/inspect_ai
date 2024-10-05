@@ -11,10 +11,25 @@ MESSAGE_TITLE = "Message"
 
 
 def trace_tool_mesage(message: ChatMessageTool) -> None:
+    # truncate output to 100 lines
+    MAX_LINES = 100
+    output = message.error.message if message.error else message.text.strip()
+    lines = output.splitlines()
+    if len(lines) > MAX_LINES:
+        content: list[RenderableType] = ["\n".join(lines[0:MAX_LINES])]
+        content.append(Text())
+        content.append(
+            Text.from_markup(
+                f"[italic]Output truncated ({len(lines) - MAX_LINES} additional lines)...[/italic]"
+            )
+        )
+    else:
+        content = [output]
+
     trace_panel(
         title=MESSAGE_TITLE,
-        subtitle=f"Tool ouptut: {message.function}",
-        content=message.error.message if message.error else message.text.strip(),
+        subtitle=f"Tool Output: {message.function}",
+        content=content,
     )
 
 
