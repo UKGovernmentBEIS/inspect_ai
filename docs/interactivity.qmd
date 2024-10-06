@@ -42,6 +42,20 @@ with input_screen() as console:
 
 The `Prompt` class is designed to be subclassed for more specialized inputs. The `IntPrompt` and `FloatPrompt` classes are built-in, but you can also create your own more customised prompts (the `Confirm` class is another example of this). See the [prompt.py](https://github.com/Textualize/rich/blob/master/rich/prompt.py) source code for additional details.
 
+## Trace Mode
+
+::: {.callout-note apperance="simple:"}
+Note that the trace mode feature described below is currently only available in the development version of Inspect. You can install the development version with:
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+When introducing interactions it's often useful to see a trace of message activity for additional context. You can do this via the `--trace` CLI option (or `trace` parameter of the `eval()` function). For example:
+
+{{< include _trace.md >}}
+
+
 ## Progress
 
 Evaluations with user input alternate between asking for input and displaying task progress. By default, the normal task status display is shown when a user input screen is not active.
