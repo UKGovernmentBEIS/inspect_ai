@@ -155,7 +155,7 @@ By default, when a tool call is presented for human approval the tool function a
 
     ![](images/web-browser-tool-view.png)
 
-2)  The `bash()` and `python()` tools take their input as a string, which especially for multi-line commands can be difficuilt to read and understand. To compensate, these tools provide an alternative view of the call that formats the code and as multi-line syntax highlighted code block.
+2)  The `bash()` and `python()` tools take their input as a string, which especially for multi-line commands can be difficult to read and understand. To compensate, these tools provide an alternative view of the call that formats the code and as multi-line syntax highlighted code block.
 
     ![](images/python-tool-view.png)
 
