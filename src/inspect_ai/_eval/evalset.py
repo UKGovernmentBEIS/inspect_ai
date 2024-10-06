@@ -218,7 +218,7 @@ def eval_set(
         return logs
 
     # resolve tasks
-    models, resolved_tasks = eval_init(
+    models, _, resolved_tasks = eval_init(
         tasks=tasks,
         model=model,
         model_base_url=model_base_url,
