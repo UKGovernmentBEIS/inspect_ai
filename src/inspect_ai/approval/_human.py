@@ -81,11 +81,10 @@ def human_approver(
 
             while True:
                 decision = Prompt.ask(
-                    prompt,
+                    prompt=prompt,
                     console=console,
                     choices=list(prompts.keys()),
                     default="a",
-                    case_sensitive=False,
                 ).lower()
 
                 if decision == "a":
