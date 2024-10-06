@@ -66,11 +66,17 @@ def record_to_sample_fn(
 
 
 def data_to_samples(
-    data: Iterable[DatasetRecord], data_to_sample: RecordToSample
+    data: Iterable[DatasetRecord], data_to_sample: RecordToSample, auto_id: bool
 ) -> list[Sample]:
+    next_id = 1
     samples: list[Sample] = []
     for record in data:
-        samples.extend(as_sample_list(data_to_sample(record)))
+        record_samples = as_sample_list(data_to_sample(record))
+        if auto_id:
+            for record_sample in record_samples:
+                record_sample.id = next_id
+                next_id += 1
+        samples.extend(record_samples)
     return samples
 
 

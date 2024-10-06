@@ -2747,12 +2747,31 @@
         },
         "score": {
           "$ref": "#/$defs/Score"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
         }
       },
       "required": [
         "timestamp",
         "event",
-        "score"
+        "score",
+        "target"
       ],
       "title": "ScoreEvent",
       "type": "object",

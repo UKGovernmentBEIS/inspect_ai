@@ -24,6 +24,7 @@ from .util import (
     as_stop_reason,
     chat_api_input,
     chat_api_request,
+    environment_prerequisite_error,
     is_chat_api_rate_limit,
     model_base_url,
 )
@@ -70,7 +71,7 @@ class AzureAIAPI(ModelAPI):
                 AZURE_API_KEY, os.environ.get(AZUREAI_API_KEY, "")
             )
             if not self.api_key:
-                raise ValueError(f"{AZURE_API_KEY} environment variable not found.")
+                raise environment_prerequisite_error("AzureAI", AZURE_API_KEY)
 
         # resolve base url
         endpoint_url = model_base_url(
@@ -82,7 +83,7 @@ class AzureAIAPI(ModelAPI):
             ],
         )
         if not endpoint_url:
-            raise ValueError("{AZUREAI_BASE_URL} environment variable not found.")
+            raise environment_prerequisite_error("AzureAI", AZUREAI_BASE_URL)
         self.endpoint_url = endpoint_url
 
         # create client

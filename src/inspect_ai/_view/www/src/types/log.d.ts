@@ -263,6 +263,7 @@ export type Input3 = string;
 export type InputAnsi = string;
 export type Timestamp6 = string;
 export type Event6 = "score";
+export type Target2 = string | string[] | null;
 export type Timestamp7 = string;
 export type Event7 = "error";
 export type Timestamp8 = string;
@@ -832,6 +833,7 @@ export interface ScoreEvent {
   timestamp: Timestamp6;
   event: Event6;
   score: Score;
+  target: Target2;
 }
 /**
  * Event with sample error.

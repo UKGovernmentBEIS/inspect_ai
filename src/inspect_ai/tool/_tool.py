@@ -94,12 +94,16 @@ def tool() -> Callable[[ToolType], ToolType]: ...
 
 @overload
 def tool(
-    *, name: str | None = None, prompt: str | None = None
+    *, name: str | None = None, parallel: bool = True, prompt: str | None = None
 ) -> Callable[[ToolType], ToolType]: ...
 
 
 def tool(
-    func: ToolType | None = None, *, name: str | None = None, prompt: str | None = None
+    func: ToolType | None = None,
+    *,
+    name: str | None = None,
+    parallel: bool = True,
+    prompt: str | None = None,
 ) -> ToolType | Callable[[ToolType], ToolType]:
     r"""Decorator for registering tools.
 
@@ -109,6 +113,9 @@ def tool(
             Optional name for tool. If the decorator has no name
             argument then the name of the tool creation function
             will be used as the name of the tool.
+        parallel (bool):
+            Does this tool support parallel execution?
+            (defaults to True).
         prompt (str):
             Deprecated (provide all descriptive information about
             the tool within the tool function's doc comment)
@@ -143,7 +150,7 @@ def tool(
                 RegistryInfo(
                     type="tool",
                     name=tool_name,
-                    metadata={TOOL_PROMPT: prompt},
+                    metadata={TOOL_PROMPT: prompt, TOOL_PARALLEL: parallel},
                 ),
                 *args,
                 **kwargs,
@@ -160,3 +167,4 @@ def tool(
 
 
 TOOL_PROMPT = "prompt"
+TOOL_PARALLEL = "parallel"

@@ -158,7 +158,10 @@ class ModelOutput(BaseModel):
 
     @staticmethod
     def for_tool_call(
-        model: str, tool_name: str, tool_arguments: dict[str, Any]
+        model: str,
+        tool_name: str,
+        tool_arguments: dict[str, Any],
+        content: str | None = None,
     ) -> "ModelOutput":
         """
         Returns a ModelOutput for requesting a tool call.
@@ -167,16 +170,20 @@ class ModelOutput(BaseModel):
             model: model name
             tool_name: The name of the tool.
             tool_arguments: The arguments passed to the tool.
+            content: Optional content to include in the message. Defaults to "tool call for tool {tool_name}".
 
         Returns:
             A ModelOutput corresponding to the tool call
         """
+        if content is None:
+            content = f"tool call for tool {tool_name}"
+
         return ModelOutput(
             model=model,
             choices=[
                 ChatCompletionChoice(
                     message=ChatMessageAssistant(
-                        content=f"tool call for tool {tool_name}",
+                        content=content,
                         source="generate",
                         tool_calls=[
                             ToolCall(

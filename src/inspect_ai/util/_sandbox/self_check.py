@@ -35,6 +35,7 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_write_file_zero_length,
         test_write_file_is_directory,
         test_write_file_without_permissions,
+        test_exec_output,
         test_exec_timeout,
         test_exec_permission_error,
         test_exec_as_user,
@@ -55,12 +56,14 @@ async def _cleanup_file(sandbox_env: SandboxEnvironment, filename: str) -> None:
 
 
 async def test_read_and_write_file_text(sandbox_env: SandboxEnvironment) -> None:
-    await sandbox_env.write_file("test_read_and_write_file_text.file", "great #content")
+    await sandbox_env.write_file(
+        "test_read_and_write_file_text.file", "great #content\nincluding newlines"
+    )
     written_file_string = await sandbox_env.read_file(
         "test_read_and_write_file_text.file", text=True
     )
     assert (
-        "great #content" == written_file_string
+        "great #content\nincluding newlines" == written_file_string
     ), f"unexpected content: [{written_file_string}]"
     await _cleanup_file(sandbox_env, "test_read_and_write_file_text.file")
 
@@ -168,6 +171,15 @@ async def test_write_file_without_permissions(
     with Raises(PermissionError) as e_info:
         await sandbox_env.write_file(file_name, "this won't stick")
     assert file_name in str(e_info.value)
+
+
+async def test_exec_output(sandbox_env: SandboxEnvironment) -> None:
+    exec_result = await sandbox_env.exec(["bash", "-c", "echo foo; echo bar"])
+    expected = "foo\nbar\n"
+    # in the assertion message, we show the actual bytes to help debug newline issues
+    assert (
+        exec_result.stdout == expected
+    ), f"Unexpected output:expected {expected.encode('UTF-8')!r}; got {exec_result.stdout.encode('UTF-8')!r}"
 
 
 async def test_exec_timeout(sandbox_env: SandboxEnvironment) -> None:

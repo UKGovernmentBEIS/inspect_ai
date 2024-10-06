@@ -19,6 +19,16 @@
   "search.exclude": {
     "logs/**": true
   },
+  "mypy-type-checker.ignorePatterns": [
+    "**/_resources/*.py",
+  ],
+  "mypy-type-checker.args": [
+    "--config-file",
+    "${workspaceFolder}/pyproject.toml"
+  ],
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingImports": "none"
+  },
   "python.testing.pytestArgs": [
     "tests"
   ],

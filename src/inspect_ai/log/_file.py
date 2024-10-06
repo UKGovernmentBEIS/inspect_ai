@@ -264,7 +264,12 @@ def read_eval_log(log_file: str | FileInfo, header_only: bool = False) -> EvalLo
 
         # prune if header_only
         if header_only:
+            # exclude samples
             log.samples = None
+
+            # prune sample reductions
+            if log.results is not None:
+                log.results.sample_reductions = None
 
         # return log
         return log

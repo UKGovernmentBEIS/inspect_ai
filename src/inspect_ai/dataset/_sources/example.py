@@ -19,10 +19,10 @@ def example_dataset(
 
     Args:
       name (str): Example dataset name. One of 'security_guide', 'theory_of_mind', 'popularity', or 'biology_qa'.
-      sample_fields (SampleFieldSpec | RecordToSample): Method of mapping underlying
+      sample_fields (FieldSpec | RecordToSample): Method of mapping underlying
         fields in the data source to `Sample` objects. Pass `None` if the data is already
         stored in `Sample` form (i.e. object with "input" and "target" fields); Pass a
-        `SampleFieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
+        `FieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
         handle mapping with a custom function that returns one or more samples.
 
 

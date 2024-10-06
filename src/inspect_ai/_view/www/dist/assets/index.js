@@ -11803,7 +11803,7 @@ Prism.languages.json = {
   }
 };
 Prism.languages.webmanifest = Prism.languages.json;
-const ExpandablePanel = ({ collapse, border, lines = 7, children }) => {
+const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
   const [collapsed, setCollapsed] = h(collapse);
   const [showToggle, setShowToggle] = h(false);
   const contentsRef = A();
@@ -11933,7 +11933,7 @@ const ToolCallView = ({
             <div style=${{ marginLeft: `${codeIndent}` }}>
             <${ToolInput} type=${inputType} contents=${input}/>
             ${output ? m$1`
-              <${ExpandablePanel} collapse=${true} border=${true} lines=10>
+              <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
               <${MessageContent} contents=${output} />
               </${ExpandablePanel}>` : ""}
             </div>
@@ -12131,7 +12131,13 @@ const messageRenderers = {
     }
   }
 };
-const ChatView = ({ id, messages, style, indented }) => {
+const ChatView = ({
+  id,
+  messages,
+  style,
+  indented,
+  numbered = true
+}) => {
   const resolvedMessages = [];
   for (const message of messages) {
     if (message.role === "tool") {
@@ -12168,7 +12174,7 @@ const ChatView = ({ id, messages, style, indented }) => {
   const result = m$1`
     <div style=${style}>
       ${collapsedMessages.map((msg, index) => {
-    if (collapsedMessages.length > 1) {
+    if (collapsedMessages.length > 1 && numbered) {
       return m$1` <div
             style=${{
         display: "grid",
@@ -16278,11 +16284,12 @@ const ModelEventView = ({ id, event, style }) => {
   return m$1`
   <${EventPanel} id=${id} title="Model Call: ${event.model} ${subtitle}" icon=${ApplicationIcons.model} style=${style}>
   
-    <div name="Completion" style=${{ margin: "0.5em 0" }}>
+    <div name="Summary" style=${{ margin: "0.5em 0" }}>
     <${ChatView}
       id="${id}-model-output"
       messages=${[...userMessages, ...outputMessages || []]}
       style=${{ paddingTop: "1em" }}
+      numbered=${false}
       />
     </div>
 
@@ -16482,6 +16489,7 @@ const InfoEventView = ({ id, event, style }) => {
   </${EventPanel}>`;
 };
 const ScoreEventView = ({ id, event, style }) => {
+  const resolvedTarget = event.target ? Array.isArray(event.target) ? event.target.join("\n") : event.target : void 0;
   return m$1`
   <${EventPanel} id=${id} title="Score" icon=${ApplicationIcons.scorer} style=${style}>
   
@@ -16489,6 +16497,14 @@ const ScoreEventView = ({ id, event, style }) => {
       name="Explanation"
       style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "0.5em 0" }}
     >
+      ${event.target ? m$1` <div
+                style=${{
+    gridColumn: "1 / -1",
+    borderBottom: "solid 1px var(--bs-light-border-subtle"
+  }}
+              ></div>
+              <div style=${{ ...TextStyle.label }}>Target</div>
+              <div><${MarkdownDiv} markdown=${resolvedTarget} /></div>` : ""}
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Answer</div>
       <div><${MarkdownDiv} markdown=${event.score.answer}/></div>
@@ -16523,7 +16539,7 @@ const ToolEventView = ({ id, event, style, depth }) => {
   <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
     <div name="Summary" style=${{ width: "100%", margin: "0.5em 0" }}>
         ${!output ? "(No output)" : m$1`
-          <${ExpandablePanel} collapse=${true} border=${true} lines=10>
+          <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
             <${ToolOutput}
               output=${output}
             />
@@ -17510,6 +17526,27 @@ const SampleList = (props) => {
     <div>Answer</div>
     <div>Score</div>
   </div>`;
+  const sampleCount = items == null ? void 0 : items.reduce((prev, current) => {
+    if (current.type === "sample") {
+      return prev + 1;
+    } else {
+      return prev;
+    }
+  }, 0);
+  const footerRow = m$1` <div
+    style=${{
+    borderTop: "solid var(--bs-light-border-subtle) 1px",
+    background: "var(--bs-light-bg-subtle)",
+    fontSize: FontSize.smaller,
+    display: "grid",
+    gridTemplateColumns: "max-content",
+    justifyContent: "end",
+    alignContent: "end",
+    padding: "0.2em 1em"
+  }}
+  >
+    <div>${sampleCount} Samples</div>
+  </div>`;
   const errorCount = items == null ? void 0 : items.reduce((previous, item) => {
     if (item.data.error) {
       return previous + 1;
@@ -17517,7 +17554,6 @@ const SampleList = (props) => {
       return previous;
     }
   }, 0);
-  const sampleCount = items == null ? void 0 : items.length;
   const percentError = errorCount / sampleCount * 100;
   const warningMessage = errorCount > 0 ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : void 0;
   const warningRow = warningMessage ? m$1`<${WarningBand} message=${warningMessage} />` : "";
@@ -17534,6 +17570,7 @@ const SampleList = (props) => {
       rowMap=${rowMap}
       style=${listStyle}
     />
+    ${footerRow}
   </div>`;
 };
 const SeparatorRow = ({ id, title, height }) => {
@@ -17710,10 +17747,6 @@ const SamplesTab = (props) => {
   }, [setSampleDialogVisible, sampleDialogRef]);
   const hideSample = q(() => {
     setSampleDialogVisible(false);
-    const listEl = sampleListRef.current;
-    if (listEl && listEl.base) {
-      listEl.base.focus();
-    }
   }, [setSampleDialogVisible]);
   y(() => {
     const { sorted, order: order2 } = sort(sort$1, filteredSamples, sampleDescriptor);

@@ -443,7 +443,9 @@ async def task_run_sample(
                             explanation=score_result.explanation,
                             metadata=score_result.metadata,
                         )
-                        transcript()._event(ScoreEvent(score=score_result))
+                        transcript()._event(
+                            ScoreEvent(score=score_result, target=sample.target)
+                        )
                         results[scorer_name] = sample_score
         progress()
 

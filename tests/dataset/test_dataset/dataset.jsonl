@@ -1,0 +1,10 @@
+{"input": [{"role": "user", "content": "President Joe Biden made false claims about a variety of topics, notably including gun policy, during a series of official speeches and campaign remarks over the last two weeks."}], "target": "[claim]"}
+{"input": [{"role": "user", "content": "He made at least five false claims related to guns, a subject on which he has repeatedly been inaccurate during his presidency."}], "target": "[claim]"}
+{"input": [{"role": "user", "content": "He also made a false claim about the extent of his support from environmental groups."}], "target": "[claim]"}
+{"input": [{"role": "user", "content": "And he used incorrect figures about the population of Africa, his own travel history and how much renewable energy Texas uses."}], "target": "[claim]"}
+{"input": [{"role": "user", "content": "The White House declined to comment on Tuesday."}], "target": "[fact]"}
+{"input": [{"role": "user", "content": "In a Friday speech at the National Safer Communities Summit in Connecticut, Biden spoke of how a gun control law he signed in 2022 has provided federal funding for states to expand the use of gun control tools like “red flag” laws, which allow the courts to temporarily seize the guns of people who are deemed to be a danger to themselves or others."}], "target": "[narrative]"}
+{"input": [{"role": "user", "content": "After mentioning red flag laws, Biden invoked his late son Beau Biden, who served as attorney general of Delaware,"}], "target": "[narrative]"}
+{"input": [{"role": "user", "content": "and said: “As my son was the first to enforce when he was attorney general."}], "target": "[quote]"}
+{"input": [{"role": "user", "content": "Biden's claim is false. Delaware did not have a red flag law when Beau Biden was state attorney general from 2007 to 2015."}], "target": "[claim]"}
+{"input": [{"role": "user", "content": "The legislation that created Delaware's red flag program was named the Beau Biden Gun Violence Prevention Act, but it was passed in 2018, three years after Beau Biden died of brain cancer."}], "target": "[fact]"}

@@ -99,6 +99,13 @@ def test_dataset_image_paths() -> None:
     assert image.exists()
 
 
+def test_dataset_auto_id() -> None:
+    dataset = json_dataset(dataset_path("dataset.jsonl"))
+    assert all(sample.id is None for sample in dataset)
+    dataset = json_dataset(dataset_path("dataset.jsonl"), auto_id=True)
+    assert [sample.id for sample in dataset] == [id for id in range(1, 11)]
+
+
 sample_field_spec = FieldSpec(input="input", target="label", metadata=["extra"])
 
 
