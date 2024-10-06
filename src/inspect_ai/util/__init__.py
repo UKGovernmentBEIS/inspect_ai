@@ -6,6 +6,7 @@ from ._sandbox import (
     SandboxEnvironments,
     SandboxEnvironmentSpec,
     sandbox,
+    sandbox_with,
     sandboxenv,
 )
 from ._store import Store, store
@@ -26,6 +27,7 @@ __all__ = [
     "SandboxEnvironmentSpec",
     "sandboxenv",
     "sandbox",
+    "sandbox_with",
     "Store",
     "store",
     "Subtask",

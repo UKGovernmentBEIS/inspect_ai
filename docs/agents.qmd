@@ -58,9 +58,9 @@ def ctf():
             init=system_message(SYSTEM_MESSAGE),
             tools=[bash(timeout=180), python(timeout=180)], # <2>
             max_attempts=3,                                 # <3>
+            max_messages=30,                                # <4>
         ),
         scorer=includes(),
-        max_messages=30,                                    # <4>
         sandbox="docker",                                   # <5>
     )
 ```
@@ -71,7 +71,7 @@ def ctf():
 4.  Limit the total messages that can be used for each CTF sample.
 5.  Specify that Docker should be used as the sandbox environment.
 
-The full source code for this example can be found in the Inspect GitHub repository at [intercode_ctf](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/evals/gdm_capabilities/intercode_ctf).
+The full source code for this example can be found in the Inspect GitHub repository at [intercode_ctf](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_capabilities/intercode_ctf).
 
 ### Options
 
@@ -82,6 +82,7 @@ There are several options available for customising the behaviour of the basic a
 | `init` | `Solver | list[Solver]` | Agent initialisation (e.g. `system_message()`). |
 | `tools` | `list[Tool]` | List of tools available to the agent. |
 | `max_attempts` | `int` | Maximum number of submissions to accept before terminating. |
+| `max_messages` | `int` | Maximum number of messages in history before terminating agent. |
 | `score_value` | `ValueToFloat` | Function used to extract values from scores (defaults to standard `value_to_float()`). |
 | `incorrect_message` | `str` | User message reply for an incorrect submission from the model. |
 | `continue_message` | `str` | User message to urge the model to continue when it doesn't make a tool call. |
@@ -397,15 +398,8 @@ The value of the `dict` can be either the file contents, a file path, or a base6
 
 #### Script
 
-If there is a Sample `setup` script it will be executed within the default sandbox environment after any Sample `files` are copied into the environment. The `setup` field can be either the script contents, a file path containing the script, or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+If there is a Sample `setup` bash script it will be executed within the default sandbox environment after any Sample `files` are copied into the environment. The `setup` field can be either the script contents, a file path containing the script, or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
 
-The `setup` script is by default interpreted as a bash script, however you can have it executed by another interpreter using a shebang comment. For example, this will be executed as a Python script:
-
-``` bash
-#!/usr/bin/env python3
-
-print('hello from python')
-```
 
 ### Docker Configuration {#sec-docker-configuration}
 

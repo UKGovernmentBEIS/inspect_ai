@@ -4,7 +4,7 @@ toc: true
 
 ## Welcome
 
-Welcome to Inspect, a framework for large language model evaluations created by the [UK AI Safety Institute](https://www.gov.uk/government/organisations/ai-safety-institute).
+Welcome to Inspect, a framework for large language model evaluations created by the [UK AI Safety Institute](https://aisi.gov.uk).
 
 Inspect provides many built-in components, including facilities for prompt engineering, tool usage, multi-turn dialog, and model graded evaluations. Extensions to Inspect (e.g. to support new elicitation and scoring techniques) can be provided by other Python packages.
 
@@ -110,7 +110,7 @@ from inspect_ai.solver import (
   prompt_template, generate, self_critique   
 )                                             
 
-DEFAULT_PROMPT="<prompt>"
+DEFAULT_PROMPT="{prompt}"
 
 @task
 def theory_of_mind():
@@ -184,12 +184,12 @@ from inspect_ai import Task, task
 from inspect_ai.dataset import example_dataset
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import (               
-  chain, prompt_template, generate, self_critique   
-) 
+  solver, chain, prompt_template, generate, self_critique
+)
 
-DEFAULT_PROMPT="<prompt>"
+DEFAULT_PROMPT="{prompt}"
 
-from tree_of_thought imoprt TREE_PROMPT, generate_tree
+from tree_of_thought import TREE_PROMPT, generate_tree
 
 @solver 
 def critique():

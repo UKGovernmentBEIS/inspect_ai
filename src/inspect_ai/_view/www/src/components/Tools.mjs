@@ -78,7 +78,7 @@ export const ToolCallView = ({
             ${
               output
                 ? html`
-              <${ExpandablePanel} collapse=${true} border=${true} lines=10>
+              <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
               <${MessageContent} contents=${output} />
               </${ExpandablePanel}>`
                 : ""

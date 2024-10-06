@@ -81,7 +81,7 @@ def registry_tag(
     # serialise registry objects with RegistryDict
     for param in named_params.keys():
         value = named_params[param]
-        if is_registry_object(value):
+        if has_registry_params(value):
             named_params[param] = registry_dict(value)
 
     # callables are not serializable so use their names
@@ -233,11 +233,15 @@ def registry_info(o: object) -> RegistryInfo:
     Returns:
         RegistryInfo for object.
     """
-    info = getattr(o, REGISTRY_INFO)
-    if info:
+    info = getattr(o, REGISTRY_INFO, None)
+    if info is not None:
         return cast(RegistryInfo, info)
     else:
-        raise ValueError("Object does not have registry info")
+        name = getattr(o, "__name__", "unknown")
+        decorator = " @solver " if name == "solve" else ""
+        raise ValueError(
+            f"Object '{name}' does not have registry info. Did you forget to add a{decorator}decorator somewhere?"
+        )
 
 
 def registry_params(o: object) -> dict[str, Any]:
@@ -338,6 +342,18 @@ def set_registry_params(o: object, params: dict[str, Any]) -> object:
     """
     setattr(o, REGISTRY_PARAMS, params)
     return o
+
+
+def has_registry_params(o: object) -> bool:
+    r"""Check if the object has registry params.
+
+    Args:
+        o (object): Object to check.
+
+    Returns:
+        True if the object has registry params, else False.
+    """
+    return is_registry_object(o) and hasattr(o, REGISTRY_PARAMS)
 
 
 def registry_key(type: RegistryType, name: str) -> str:

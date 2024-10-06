@@ -49,7 +49,7 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .util import model_base_url
+from .util import environment_prerequisite_error, model_base_url
 
 logger = getLogger(__name__)
 
@@ -66,6 +66,14 @@ class AnthropicAPI(ModelAPI):
         bedrock: bool = False,
         **model_args: Any,
     ):
+        # extract any service prefix from model name
+        parts = model_name.split("/")
+        if len(parts) > 1:
+            service = parts[0]
+            bedrock = service == "bedrock"
+            model_name = "/".join(parts[1:])
+
+        # call super
         super().__init__(
             model_name=model_name,
             base_url=base_url,
@@ -99,7 +107,7 @@ class AnthropicAPI(ModelAPI):
             if not self.api_key:
                 self.api_key = os.environ.get(ANTHROPIC_API_KEY, None)
             if self.api_key is None:
-                raise ValueError(f"{ANTHROPIC_API_KEY} environment variable not found.")
+                raise environment_prerequisite_error("Anthropic", ANTHROPIC_API_KEY)
             base_url = model_base_url(base_url, "ANTHROPIC_BASE_URL")
             self.client = AsyncAnthropic(
                 base_url=base_url,

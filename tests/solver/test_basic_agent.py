@@ -102,9 +102,10 @@ def test_basic_agent_retries():
     def addition_task(max_attempts):
         return Task(
             dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
-            solver=basic_agent(tools=[addition()], max_attempts=max_attempts),
+            solver=basic_agent(
+                tools=[addition()], max_attempts=max_attempts, max_messages=30
+            ),
             scorer=includes(),
-            max_messages=30,
         )
 
     def mockllm_model(answers: list[str]):
@@ -131,11 +132,3 @@ def test_basic_agent_retries():
         1 for event in log.samples[0].transcript.events if event.event == "model"
     )
     assert model_events == 3
-
-
-def test_basic_agent_requires_max_messages():
-    try:
-        run_basic_agent([addition()], max_messages=None)[0]
-        assert False
-    except Exception:
-        pass

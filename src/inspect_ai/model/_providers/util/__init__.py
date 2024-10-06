@@ -8,12 +8,14 @@ from .chatapi import (
 from .llama31 import Llama31Handler
 from .util import (
     as_stop_reason,
+    environment_prerequisite_error,
     model_base_url,
     parse_tool_call,
     tool_parse_error_message,
 )
 
 __all__ = [
+    "environment_prerequisite_error",
     "as_stop_reason",
     "chat_api_request",
     "chat_api_input",

@@ -4,7 +4,7 @@ import textwrap
 from logging import getLogger
 from typing import Any
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, BadRequestError
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionAssistantMessageParam,
@@ -22,7 +22,11 @@ from inspect_ai.model import (
     ChatMessageUser,
     ModelOutput,
 )
-from inspect_ai.model._providers.util import (
+from inspect_ai.tool import ToolCall, ToolInfo
+
+from .._model_call import ModelCall
+from .._model_output import ModelUsage
+from .._providers.util import (
     ChatAPIHandler,
     ChatAPIMessage,
     as_stop_reason,
@@ -30,7 +34,6 @@ from inspect_ai.model._providers.util import (
     parse_tool_call,
     tool_parse_error_message,
 )
-from inspect_ai.tool import ToolCall, ToolInfo
 
 logger = getLogger(__name__)
 
@@ -41,22 +44,51 @@ async def generate_o1(
     input: list[ChatMessage],
     tools: list[ToolInfo],
     **params: Any,
-) -> ModelOutput:
+) -> ModelOutput | tuple[ModelOutput, ModelCall]:
     # create chatapi handler
     handler = O1PreviewChatAPIHandler()
 
+    # map max_tokens => max_completion_tokens
+    max_tokens = params.get("max_tokens", None)
+    if max_tokens:
+        params["max_completion_tokens"] = max_tokens
+        del params["max_tokens"]
+
     # call model
-    response = await client.chat.completions.create(
+    request = dict(
         model=model,
         messages=chat_messages(input, tools, handler),
         **params,
     )
+    try:
+        response: ChatCompletion = await client.chat.completions.create(**request)
+    except BadRequestError as ex:
+        return handle_bad_request(model, ex)
 
     # return model output
     return ModelOutput(
         model=response.model,
         choices=chat_choices_from_response(response, tools, handler),
+        usage=ModelUsage(
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+            total_tokens=response.usage.total_tokens,
+        )
+        if response.usage
+        else None,
+    ), ModelCall.create(
+        request=request,
+        response=response.model_dump(),
     )
+
+
+def handle_bad_request(model: str, ex: BadRequestError) -> ModelOutput:
+    if ex.code == "invalid_prompt":
+        return ModelOutput.from_content(
+            model=model, content=str(ex), stop_reason="content_filter"
+        )
+    else:
+        raise ex
 
 
 def chat_messages(
@@ -146,7 +178,7 @@ class O1PreviewChatAPIHandler(ChatAPIHandler):
             - Function calls MUST follow the specified format, start with <{TOOL_CALL}> and end with </{TOOL_CALL}>.
             - Please call only one function at a time.
             - It's fine to include some reasoning about which function to call and why.
-            - Please ensure that the function call is the last content in the message (there should be no text after it).
+            - Please ensure that </{TOOL_CALL}> is the last content in the message (there should be no text after it).
             - Please be absolutely sure that the function name you have specified matches one of the functions described in <tools>.
             - All function parameters MUST be specified.
             - If there is no function call available, answer the question like normal with your current knowledge and do not tell the user about function calls

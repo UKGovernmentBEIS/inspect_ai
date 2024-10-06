@@ -33,6 +33,7 @@ from .util import (
     as_stop_reason,
     chat_api_input,
     chat_api_request,
+    environment_prerequisite_error,
     is_chat_api_rate_limit,
     model_base_url,
 )
@@ -89,7 +90,7 @@ class TogetherAIAPI(OpenAIAPI):
         if not api_key:
             api_key = os.environ.get(TOGETHER_API_KEY, None)
             if not api_key:
-                raise RuntimeError(f"{TOGETHER_API_KEY} environment variable not set")
+                raise environment_prerequisite_error("TogetherAI", TOGETHER_API_KEY)
         base_url = model_base_url(base_url, "TOGETHER_BASE_URL")
         base_url = base_url if base_url else "https://api.together.xyz/v1"
         super().__init__(

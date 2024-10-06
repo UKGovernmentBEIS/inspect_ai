@@ -1,0 +1,4 @@
+services:
+  default:
+    image: inspect_web_browser
+    init: true

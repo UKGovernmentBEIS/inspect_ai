@@ -193,7 +193,7 @@ graders = [model.generate(prompt) for model in models]
 grader_outputs = await asyncio.gather(*graders)
 ```
 
-Note that we don't await the call to `model.generate()` when building our list of graders. Rather the call to `asyncio.gather()` will await each of these requests and return when they have all completed. Inspect's internal handling of `max_connections` for model APIs will apply to these requests, so you need now worry about how many you put in flight, they will be throttled as appropriate.
+Note that we don't await the call to `model.generate()` when building our list of graders. Rather the call to `asyncio.gather()` will await each of these requests and return when they have all completed. Inspect's internal handling of `max_connections` for model APIs will throttle these requests, so there is no need to worry about how many you put in flight.
 
 #### Web Requests
 

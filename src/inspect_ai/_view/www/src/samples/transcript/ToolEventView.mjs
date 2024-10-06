@@ -35,7 +35,7 @@ export const ToolEventView = ({ id, event, style, depth }) => {
           !output
             ? "(No output)"
             : html`
-          <${ExpandablePanel} collapse=${true} border=${true} lines=10>
+          <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
             <${ToolOutput}
               output=${output}
             />
