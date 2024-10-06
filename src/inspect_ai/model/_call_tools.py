@@ -188,7 +188,7 @@ class ToolDef:
     """Callable to execute tool."""
 
 
-async def call_tool(tools: list[ToolDef], content: str, call: ToolCall) -> Any:
+async def call_tool(tools: list[ToolDef], message: str, call: ToolCall) -> Any:
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
         raise ToolParsingError(call.parse_error)
@@ -201,7 +201,7 @@ async def call_tool(tools: list[ToolDef], content: str, call: ToolCall) -> Any:
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import apply_tool_approval
 
-    approved, approval = await apply_tool_approval(content, call, tool_def.viewer)
+    approved, approval = await apply_tool_approval(message, call, tool_def.viewer)
     if not approved:
         raise ToolApprovalError(approval.explanation if approval else None)
 
