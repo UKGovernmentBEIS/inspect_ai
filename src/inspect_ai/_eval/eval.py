@@ -14,6 +14,7 @@ from inspect_ai._util.registry import registry_lookup
 from inspect_ai.approval._apply import init_tool_approval
 from inspect_ai.approval._policy import (
     ApprovalPolicy,
+    ApprovalPolicyConfig,
     approval_policies_from_config,
     config_from_approval_policies,
 )
@@ -164,7 +165,7 @@ async def eval_async(
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
     trace: bool | None = None,
-    approval: str | list[ApprovalPolicy] | None = None,
+    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     log_level: str | None = None,
     log_dir: str | None = None,
     limit: int | tuple[int, int] | None = None,
@@ -570,11 +571,7 @@ async def eval_retry_async(
             else None
         )
         trace = eval_log.eval.config.trace or trace
-        approval = (
-            approval_policies_from_config(eval_log.eval.config.approval)
-            if eval_log.eval.config.approval
-            else None
-        )
+        approval = eval_log.eval.config.approval
         fail_on_error = eval_log.eval.config.fail_on_error
         max_messages = eval_log.eval.config.max_messages
         max_samples = max_samples or eval_log.eval.config.max_samples
@@ -647,7 +644,7 @@ def eval_init(
     task_args: dict[str, Any] = dict(),
     sandbox: SandboxEnvironmentSpec | None = None,
     trace: bool | None = None,
-    approval: str | list[ApprovalPolicy] | None = None,
+    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     max_subprocesses: int | None = None,
     log_level: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -667,7 +664,7 @@ def eval_init(
         resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
 
     # resolve approval
-    if isinstance(approval, str):
+    if isinstance(approval, str | ApprovalPolicyConfig):
         approval = approval_policies_from_config(approval)
     init_tool_approval(approval)
 
