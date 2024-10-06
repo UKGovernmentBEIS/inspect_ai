@@ -23,7 +23,7 @@ Custom approvers are very flexible, and can implement a wide variety of decision
 The simplest approval policy is interactive human approval of all tool calls. You can enable this policy by using the `--approval human` CLI option (or the `approval = "human"`) argument to `eval()`:
 
 ``` bash
-inspect eval examples/browser/ --approval human --trace
+inspect eval browser.py --approval human --trace
 ```
 
 Note that we also enable [trace mode](interactivity.qmd#sec-trace-mode) so that we can see all messages exchanged with the model for context. This example provides the model with the built-in [web browser](tools.qmd#sec-web-browser) tool and asks it to navigate to a web and perform a search.
@@ -48,7 +48,7 @@ Navigational web browser tool calls (e.g. `web_browser_go`) are approved automat
 To use this policy, pass the path to the policy YAML file as the approver. For example:
 
 ``` bash
-inspect eval examples/browser/ --approval approval.yaml --trace
+inspect eval browser.py --approval approval.yaml --trace
 ```
 
 ## Approvers in Code
@@ -64,7 +64,7 @@ approval = [
     ApprovalPolicy(auto_approver(), "*")
 ]
 
-eval("examples/browser/", approval=approval, trace=True)
+eval("browser.py", approval=approval, trace=True)
 ```
 
 ## Custom Approvers
@@ -164,7 +164,7 @@ By default, when a tool call is presented for human approval the tool function a
 Here's how you might implement a custom code block viewer for a bash tool:
 
 ``` python
-from insepect_ai.tool import (
+from inspect_ai.tool import (
     Tool, ToolCall, ToolCallContent, ToolCallView, ToolCallViewer, tool
 )
 
