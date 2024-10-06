@@ -54,6 +54,7 @@ from inspect_ai.model import (
     ModelAPI,
     ModelName,
 )
+from inspect_ai.model._model import init_sample_model_usage
 from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._score import init_scoring_context
@@ -385,6 +386,7 @@ async def task_run_sample(
     )
 
     # initialise subtask and scoring context
+    init_sample_model_usage()
     set_sample_state(state)
     init_subtask(SAMPLE_SUBTASK, state.store)
     if scorers:

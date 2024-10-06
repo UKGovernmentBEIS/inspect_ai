@@ -723,8 +723,18 @@ def init_model_usage() -> None:
     model_usage_context_var.set({})
 
 
+def init_sample_model_usage() -> None:
+    sample_model_usage_context_var.set({})
+
+
 def record_model_usage(model: str, usage: ModelUsage) -> None:
-    model_usage = model_usage_context_var.get(None)
+    set_model_usage(model, usage, sample_model_usage_context_var.get(None))
+    set_model_usage(model, usage, model_usage_context_var.get(None))
+
+
+def set_model_usage(
+    model: str, usage: ModelUsage, model_usage: dict[str, ModelUsage] | None
+) -> None:
     if model_usage is not None:
         total_usage: ModelUsage | None = model_usage.get(model, None)
         if not total_usage:
@@ -750,4 +760,13 @@ def model_usage() -> dict[str, ModelUsage]:
 
 model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
     "model_usage", default={}
+)
+
+
+def sample_model_usage() -> dict[str, ModelUsage]:
+    return sample_model_usage_context_var.get()
+
+
+sample_model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
+    "sample_model_usage", default={}
 )
