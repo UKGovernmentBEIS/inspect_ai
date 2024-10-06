@@ -1,0 +1,8 @@
+# Approval {#sec-approval}
+
+::: {.callout-note apperance="simple:"}
+Note that the approval features described below are currently only available in the development version of Inspect. You can install the development version with:
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
