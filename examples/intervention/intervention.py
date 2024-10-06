@@ -10,8 +10,9 @@ from inspect_ai.solver import (
     TaskState,
     solver,
     system_message,
+    use_tools,
 )
-from inspect_ai.tool import Tool, bash, python
+from inspect_ai.tool import bash, python
 from inspect_ai.util import input_screen
 
 
@@ -21,7 +22,8 @@ def intervention():
         solver=[
             system_prompt(),
             user_prompt(),
-            agent_loop([bash(), python()]),
+            use_tools([bash(), python()]),
+            agent_loop(),
         ],
         sandbox="docker",
     )
@@ -51,11 +53,9 @@ def system_prompt():
 def user_prompt() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         with input_screen("User Prompt") as console:
-            user_prompt = Prompt.ask(
+            state.user_prompt.content = Prompt.ask(
                 "Please enter your initial prompt for the model:\n\n", console=console
             )
-
-        state.user_prompt.content = user_prompt
 
         return state
 
@@ -63,12 +63,8 @@ def user_prompt() -> Solver:
 
 
 @solver
-def agent_loop(tools: list[Tool]) -> Solver:
+def agent_loop() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        # set tools
-        state.tools = tools
-
-        # main loop
         while not state.completed:
             # generate w/ tool calls, approvals, etc.
             state = await generate(state)

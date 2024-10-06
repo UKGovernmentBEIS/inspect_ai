@@ -29,7 +29,8 @@ def intervention():
         solver=[
             system_prompt(),
             user_prompt(),
-            agent_loop([bash(), python()]),
+            use_tools([bash(), python()]),
+            agent_loop(),
         ],
         sandbox="docker",
     )
@@ -51,13 +52,10 @@ First, we ask the user to enter a prompt for the model:
 @solver
 def user_prompt() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        
         with input_screen("User Prompt") as console:
-            user_prompt = Prompt.ask(
+            state.user_prompt.content = Prompt.ask(
                 "Please enter your initial prompt for the model:\n\n", console=console
             )
-
-        state.user_prompt.content = user_prompt
 
         return state
 
@@ -72,12 +70,8 @@ The agent loop is [just a plain Inspect solver.](https://inspect.ai-safety-insti
 
 ``` python
 @solver
-def agent_loop(tools: list[Tool]) -> Solver:
+def agent_loop() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        # set tools
-        state.tools = tools
-
-        # main loop
         while not state.completed:
             # generate w/ tool calls, approvals, etc.
             state = await generate(state)
