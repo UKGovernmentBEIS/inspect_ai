@@ -11,6 +11,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import absolute_file_path
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup
+from inspect_ai.approval._apply import init_tool_approval
 from inspect_ai.approval._policy import (
     ApprovalPolicy,
     approval_policies_from_config,
@@ -246,12 +247,8 @@ async def eval_async(
 
     _eval_async_running = True
     try:
-        # resolve approval
-        if isinstance(approval, str):
-            approval = approval_policies_from_config(approval)
-
         # intialise eval
-        model, resolved_tasks = eval_init(
+        model, approval, resolved_tasks = eval_init(
             tasks=tasks,
             model=model,
             model_base_url=model_base_url,
@@ -650,13 +647,13 @@ def eval_init(
     task_args: dict[str, Any] = dict(),
     sandbox: SandboxEnvironmentSpec | None = None,
     trace: bool | None = None,
-    approval: list[ApprovalPolicy] | None = None,
+    approval: str | list[ApprovalPolicy] | None = None,
     max_subprocesses: int | None = None,
     log_level: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
-) -> tuple[list[Model], list[ResolvedTask]]:
+) -> tuple[list[Model], list[ApprovalPolicy] | None, list[ResolvedTask]]:
     # init eval context
-    init_eval_context(trace, approval, log_level, max_subprocesses)
+    init_eval_context(trace, log_level, max_subprocesses)
 
     # resolve models
     generate_config = GenerateConfig(**kwargs)
@@ -669,7 +666,12 @@ def eval_init(
         init_active_model(m, generate_config)
         resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
 
-    return models, resolved_tasks
+    # resolve approval
+    if isinstance(approval, str):
+        approval = approval_policies_from_config(approval)
+    init_tool_approval(approval)
+
+    return models, approval, resolved_tasks
 
 
 # A list of eval logs is returned from eval(). We've already displayed
