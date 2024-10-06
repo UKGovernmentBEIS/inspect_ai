@@ -1,6 +1,5 @@
 import os
 
-
 if os.name == "posix":
     # This makes Rich console input better if imported, but
     # raises a ModuleNotFound error on Windows, so posix only
