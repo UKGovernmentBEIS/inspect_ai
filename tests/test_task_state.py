@@ -6,9 +6,9 @@ from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, TaskState, solver
 
 
-def test_max_messages_complete():
+def test_message_limit_complete():
     @solver
-    def max_messages_solver():
+    def message_limit_solver():
         async def solve(state: TaskState, generate: Generate):
             state = await generate(state)
             while not state.completed:
@@ -19,13 +19,13 @@ def test_max_messages_complete():
 
         return solve
 
-    max_messages = randint(1, 3) * 2
+    message_limit = randint(1, 3) * 2
     task = Task(
         dataset=[Sample(input="Say Hello", target="Hello")],
-        solver=max_messages_solver(),
+        solver=message_limit_solver(),
         scorer=match(),
-        max_messages=max_messages,
+        message_limit=message_limit,
     )
 
     log = eval(task, model="mockllm/model")[0]
-    assert len(log.samples[0].messages) == max_messages
+    assert len(log.samples[0].messages) == message_limit

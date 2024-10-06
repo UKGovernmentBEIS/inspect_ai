@@ -253,7 +253,7 @@ def intercode_ctf():
             generate(),
         ],
         scorer=includes(),
-        max_messages=30,
+        message_limit=30,
         sandbox="docker",
     )
 ```

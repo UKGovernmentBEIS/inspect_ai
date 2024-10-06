@@ -21,11 +21,11 @@ This does everything that default `generate()` does, save for an outer loop to c
 
 ``` python
 @solver
-def agent_loop(max_messages: int = 50):
+def agent_loop(message_limit: int = 50):
     async def solve(state: TaskState, generate: Generate):
 
-        # establish max_messages so we have a termination condition
-        state.max_messages = max_messages
+        # establish messages limit so we have a termination condition
+        state.message_limit = message_limit
 
         # call the model in a loop
         model = get_model()
@@ -48,7 +48,7 @@ def agent_loop(max_messages: int = 50):
     return solve
 ```
 
-The `state.completed` flag is automatically set to `False` if `max_messages` for the task is exceeded, so we check it at the top of the loop.
+The `state.completed` flag is automatically set to `False` if `message_limit` or `token_limit` for the task is exceeded, so we check it at the top of the loop.
 
 You can imagine several ways you might want to customise this loop:
 

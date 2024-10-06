@@ -150,7 +150,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             limit=config.limit,
             epochs=epochs,
             log_images=log_images,
-            max_messages=config.max_messages,
+            message_limit=config.message_limit,
+            token_limit=config.token_limit,
         )
 
         # resolve the plan (unroll chains)
@@ -485,7 +486,8 @@ async def resolve_dataset(
     limit: int | tuple[int, int] | None,
     epochs: int,
     log_images: bool,
-    max_messages: int | None,
+    message_limit: int | None,
+    token_limit: int | None,
 ) -> tuple[Dataset, list[Sample], list[TaskState]]:
     # apply limit to dataset
     dataset_limit = (
@@ -522,7 +524,8 @@ async def resolve_dataset(
                 input=sample.input,
                 choices=sample.choices,
                 messages=sample_messages(sample),
-                max_messages=max_messages,
+                message_limit=message_limit,
+                token_limit=token_limit,
                 completed=False,
                 metadata=sample.metadata if sample.metadata else {},
             )

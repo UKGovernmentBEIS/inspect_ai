@@ -767,6 +767,11 @@ def sample_model_usage() -> dict[str, ModelUsage]:
     return sample_model_usage_context_var.get()
 
 
+def sample_total_tokens() -> int:
+    total_tokens = [usage.total_tokens for usage in iter(sample_model_usage().values())]
+    return sum(total_tokens)
+
+
 sample_model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
     "sample_model_usage", default={}
 )

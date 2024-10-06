@@ -70,10 +70,10 @@ def intercode_ctf():
             use_tools([bash(timeout=120)]),
             generate(),
         ],
-        max_messages=30,
+        message_limit=30,
         scorer=includes(),
         sandbox="docker",
     )
 ```
 
-The `max_messages=30` argument sets a limit of 30 total messages in the conversation before the model is forced to give up. At that point, whatever `output` happens to be in the `TaskState` will be scored (presumably leading to a score of 9 or 'incorrect').
+The `message_limit=30` argument sets a limit of 30 total messages in the conversation before the model is forced to give up. At that point, whatever `output` happens to be in the `TaskState` will be scored (presumably leading to a score of 9 or 'incorrect').
