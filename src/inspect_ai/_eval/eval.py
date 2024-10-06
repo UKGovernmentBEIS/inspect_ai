@@ -270,11 +270,16 @@ async def eval_async(
             log.warning("No inspect tasks were found at the specified paths.")
             return []
 
-        # trace mode forces us into single task, single sample mode
-        # (multiple models not allowed in trace mode)
+        # apply trace mode constraints
         if trace:
-            max_tasks = 1
+            # single task at a time
+            if max_tasks is not None:
+                max_tasks = 1
+
+            # single sample at a time
             max_samples = 1
+
+            # multiple models not allowed in trace mode
             if len(model) > 1:
                 raise PrerequisiteError(
                     "Trace mode cannot be used when evaluating multiple models."
