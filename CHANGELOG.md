@@ -4,6 +4,7 @@
 
 - [Approval mode](https://inspect.ai-safety-institute.org.uk/approval.html) for extensible approvals of tool calls (human and auto-approvers built in,  arbitrary other approval schemes via extensions).
 - [Trace mode](https://inspect.ai-safety-institute.org.uk/interactivity.html#sec-trace-mode) for printing model interactions to the terminal.
+- Add `as_dict()` utility method to `Score`
 
 ## v0.3.40 (6 October 2024)
 
