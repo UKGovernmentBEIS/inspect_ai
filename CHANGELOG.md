@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.40 (6 October 2024)
 
 - Add `interactive` option to `web_browser()` for disabling interactive tools (clicking, typing, and submitting forms).
 - Provide token usage and raw model API calls for OpenAI o1-preview.
