@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.40 (6 October 2024)
 
 - Add `interactive` option to `web_browser()` for disabling interactive tools (clicking, typing, and submitting forms).
 - Provide token usage and raw model API calls for OpenAI o1-preview.
@@ -8,6 +8,10 @@
 - Improve prompting for Python tool to emphasise the need to print output.
 - For `basic_agent()`, defer to task `max_messages` if none is specified for the agent (default to 50 is the task does not specify `max_messages`).
 - Add optional `content` parameter to `ModelOutput.for_tool_call()`.
+- Display total samples in Inspect View
+- Prune `sample_reductions` when returning eval logs with `header_only=True`.
+- Improved error message for undecorated solvers.
+- For simple matching scorers, only include explanation if it differs from answer.
 
 ## v0.3.39 (3 October 2024)
 

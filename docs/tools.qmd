@@ -292,7 +292,7 @@ services:
 
 Rather than using the `inspect_web_browser` image, you can also just include the web browser service components in a custom image (see [Custom Images](#sec-custom-images) below for details).
 
-### Task
+### Task Setup
 
 A task configured to use the web browser tools might look like this:
 
@@ -336,6 +336,16 @@ If you review the transcripts of a sample with access to the web browser tool, y
 
 
 The return value of each of these tools is a [web accessibility tree](https://web.dev/articles/the-accessibility-tree) for the page, which provides a clean view of the content, links, and form fields available on the page (you can look at the accessibility tree for any web page using [Chrome Developer Tools](https://developer.chrome.com/blog/full-accessibility-tree)).
+
+### Disabling Interactions
+
+You can use the web browser tools with page interactions disabled by specifying `interactive=False`, for example:
+
+```python
+use_tools(web_browser(interactive=False))
+```
+
+In this mode, the interactive tools (`web_browser_click()`, `web_browser_type()`, and `web_browser_type_submit()`) are not made available to the model.
 
 ### Custom Images {#sec-custom-image}
 

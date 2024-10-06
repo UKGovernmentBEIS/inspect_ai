@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
 
-export const ExpandablePanel = ({ collapse, border, lines = 10, children }) => {
+export const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
   const [collapsed, setCollapsed] = useState(collapse);
   const [showToggle, setShowToggle] = useState(false);
 
