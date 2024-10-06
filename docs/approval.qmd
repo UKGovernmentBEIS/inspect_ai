@@ -91,7 +91,7 @@ def auto_approver(decision: ApprovalDecision = "approve") -> Approver:
 There are four possible approval decisions:
 
 | Decision | Description |
-|----|----|
+|------------------------------------|------------------------------------|
 | approve | The tool call is approved |
 | reject | The tool call is rejected (report to the model that the call was rejected along with an explanation) |
 | escalate | The tool call should be escalated to the next approver in the chain. |
@@ -148,3 +148,45 @@ These approvers will make one of the following approval decisions for each tool 
 Note that the human approver is last and is bound to all tools, so escalations from the bash and python allow list approvers will end up prompting the human approver.
 
 ## Tool Views
+
+By default, when a tool call is presented for human approval the tool function and its arguments are printed. For some tool calls this is adequate, but some tools can benefit from enhanced presentation. For example:
+
+1)  The interactive features of the web browser tool (clicking, typing, submitting forms, etc.) reference an `element_id`, however this ID isn't enough context to approve or reject the call. To compensate, the web browser tool provides some additional context (a snippet of the page around the `element_id` being interacted with).
+
+    ![](images/web-browser-tool-view.png)
+
+2)  The `bash()` and `python()` tools take their input as a string, which especially for multi-line commands can be difficuilt to read and understand. To compensate, these tools provide an alternative view of the call that formats the code and as multi-line syntax highlighted code block.
+
+    ![](images/python-tool-view.png)
+
+### Example
+
+Here's how you might implement a custom code block viewer for a bash tool:
+
+``` python
+from insepect_ai.tool import (
+    Tool, ToolCall, ToolCallContent, ToolCallView, ToolCallViewer, tool
+)
+
+# custom viewer for bash code blocks
+def bash_viewer() -> ToolCallViewer:
+    def viewer(tool_call: ToolCall) -> ToolCallView:
+        code = tool_call.arguments.get("cmd", tool_call.function).strip()
+        call = ToolCallContent(
+            format="markdown",
+            content="**bash**\n\n```bash\n" + code + "\n```\n",
+        )
+        return ToolCallView(call=call)
+
+    return viewer
+
+
+@tool(viewer=bash_viewer())
+def bash(timeout: int | None = None) -> Tool:
+    """Bash shell command execution tool.
+    ...
+```
+
+The `ToolCallViewer` gets passed the `ToolCall` and returns a `ToolCallView` that provides one or both of `context` (additional information for understand the call) and `call` (alternate rendering of the call). In the case of the bash tool we provide a markdown code block rendering of the bash code to be executed.
+
+The `context` is typically used for stateful tools that need to present some context from the current state. For example, the web browsing tool provides a snippet from the currently loaded page.
