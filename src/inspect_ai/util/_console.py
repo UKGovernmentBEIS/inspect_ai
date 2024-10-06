@@ -1,6 +1,5 @@
 import os
 
-from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 
 if os.name == "posix":
     # This makes Rich console input better if imported, but
@@ -16,7 +15,7 @@ from rich.console import Console
 def input_screen(
     header: str | None = None,
     transient: bool = True,
-    width: int | None = CONSOLE_DISPLAY_WIDTH,
+    width: int | None = None,
 ) -> Iterator[Console]:
     """Input screen for receiving user input.
 
@@ -29,7 +28,7 @@ def input_screen(
       transient (bool): Return to task progress display after
         the user completes input (defaults to `True`).
       width (int): Input screen width in characters (defaults to
-        120, and is reduced if greater that the console width).
+        full width)
 
     Returns:
        Console to use for input.

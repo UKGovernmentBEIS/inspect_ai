@@ -7,7 +7,6 @@ from typing import Any, Iterator, Type, Union
 
 from rich.console import Console
 
-from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai.log import EvalConfig, EvalResults, EvalStats
 from inspect_ai.model import GenerateConfig, ModelName
 
@@ -66,7 +65,7 @@ class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
         self,
         header: str | None = None,
         transient: bool = True,
-        width: int | None = CONSOLE_DISPLAY_WIDTH,
+        width: int | None = None,
     ) -> Iterator[Console]: ...
 
 

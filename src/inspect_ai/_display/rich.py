@@ -185,7 +185,7 @@ class RichTaskScreen(TaskScreen):
         self,
         header: str | None = None,
         transient: bool = True,
-        width: int | None = CONSOLE_DISPLAY_WIDTH,
+        width: int | None = None,
     ) -> Iterator[Console]:
         # clear live task status and transient status
         self.live.update("", refresh=True)
@@ -207,7 +207,7 @@ class RichTaskScreen(TaskScreen):
             # print header if requested
             if header:
                 style = f"{rich_theme().meta} bold"
-                self.live.console.rule(f"[{style}]{header}[/{style}]", style=style)
+                self.live.console.rule(f"[{style}]{header}[/{style}]", style="black")
                 self.live.console.print("")
 
             # yield the console

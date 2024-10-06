@@ -22,23 +22,24 @@ def trace_enabled() -> bool:
 
 def trace_panel(
     title: str,
+    *,
     subtitle: str | None = None,
     content: RenderableType | list[RenderableType] = [],
 ) -> None:
     """Trace content into a standard trace panel display.
 
-    Will only display content if trace is currently enabled.
+    Typically you would call `trace_enabled()` to confirm that trace mode
+    is enabled before calling `trace_panel()`.
 
     Args:
       title (str): Panel title.
       subtitle (str | None): Panel subtitle. Optional.
       content (RenderableType | list[RenderableType]): One or more Rich renderables.
     """
-    if trace_enabled():
-        print(
-            TracePanel(title, subtitle, content),
-            Text(),
-        )
+    print(
+        TracePanel(title, subtitle, content),
+        Text(),
+    )
 
 
 class TracePanel(Panel):

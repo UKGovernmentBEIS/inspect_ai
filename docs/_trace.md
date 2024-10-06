@@ -1,6 +1,4 @@
-
-
-```bash
+``` bash
 $ inspect eval theory.py --trace
 ```
 
@@ -8,3 +6,11 @@ In trace mode, all messages exchanged with the model are printed to the terminal
 
 Note that trace mode can only be enabled when an evaluation has a single sample (otherwise messages from different chat conversations would be interleaved together in an incoherent jumble).
 
+If you want to add your own trace content, use the `trace_enabled()` function to check whether trace mode is currently enabled and the `trace_panel()` function to output a panel that is visually consistent with other trace mode output. For example:
+
+``` python
+from inspect_ai.util import trace_enabled, trace_panel
+
+if trace_enabled():
+    trace_panel("My Panel", content="Panel content")
+```
