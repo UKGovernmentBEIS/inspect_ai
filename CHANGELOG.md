@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add `as_dict()` utility method to `Score`
+
 ## v0.3.40 (6 October 2024)
 
 - Add `interactive` option to `web_browser()` for disabling interactive tools (clicking, typing, and submitting forms).
