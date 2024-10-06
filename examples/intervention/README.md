@@ -68,51 +68,42 @@ If you have a static prompt you want to use, or a dataset of these, you could pu
 
 ### Agent Loop
 
-The agent loop is [just a plain Inspect solver.](https://inspect.ai-safety-institute.org.uk/solvers.html). It runs a generation and appends the output to the messages list in `TaskState`. Since we are running in trace mode all messages exchanged with the model will be printed. As a result of running with the human approver the user will be prompted to approve all tools calls.
+The agent loop is [just a plain Inspect solver.](https://inspect.ai-safety-institute.org.uk/solvers.html). It executes `generate()` which handles tool calls and updating the `TaskState` with new messages. Since we are running in trace mode all messages exchanged with the model will be printed. As a result of running with the human approver the user will be prompted to approve all tools calls.
 
 ``` python
-
 @solver
 def agent_loop(tools: list[Tool]) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        # get the active model
-        model = get_model()
+        # set tools
+        state.tools = tools
 
         # main loop
         while not state.completed:
-            # generate
-            output = await model.generate(state.messages, tools)
-            state.output = output
-            state.messages.append(output.message)
+            # generate w/ tool calls, approvals, etc.
+            state = await generate(state)
 
-            # call tools
-            if output.message.tool_calls:
-                tool_output = await call_tools(output.message, tools)
-                state.messages.extend(tool_output)
-
-            # no tool calls, see what the user wants to do
-            else:
-                next_action = ask_for_next_action()
-                with input_screen():
-                    match next_action.strip().lower():
-                        case "exit":
-                            break
-                        case "":
-                            state.messages.append(
-                                ChatMessageUser(
-                                    content="Please continue working on this task."
-                                )
+            # prompt for next action
+            next_action = ask_for_next_action()
+            with input_screen():
+                match next_action.strip().lower():
+                    case "exit":
+                        break
+                    case "":
+                        state.messages.append(
+                            ChatMessageUser(
+                                content="Please continue working on this task."
                             )
-                            continue
-                        case _:
-                            state.messages.append(ChatMessageUser(content=next_action))
+                        )
+                        continue
+                    case _:
+                        state.messages.append(ChatMessageUser(content=next_action))
 
         return state
 
     return solve
 ```
 
-If there are no tool calls, the user will get a choice to terminate the conversation, force another generation, or send a custom user message to the model.
+Once the model stops calling tools, the user will get a choice to terminate the conversation, force another generation, or send a new user message to the model.
 
 ## Sandboxing
 
