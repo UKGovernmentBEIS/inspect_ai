@@ -25,6 +25,7 @@ export type ModelBaseUrl = string | null;
 export type Limit = number | [unknown, unknown] | null;
 export type Epochs = number | null;
 export type EpochsReducer = string[] | null;
+export type Trace = boolean | null;
 export type Name1 = string;
 export type Tools = string | string[];
 export type Approvers = ApproverPolicyConfig[];
@@ -263,6 +264,9 @@ export type Result = string | number | boolean | (ContentText | ContentImage)[];
 export type Truncated = [unknown, unknown] | null;
 export type Timestamp5 = string;
 export type Event5 = "approval";
+export type Message2 = string;
+export type Format = "text" | "markdown";
+export type Content5 = string;
 export type Approver = string;
 export type Decision = "approve" | "reject" | "escalate" | "terminate";
 export type Explanation2 = string | null;
@@ -286,7 +290,7 @@ export type Level =
   | "warning"
   | "error"
   | "critical";
-export type Message2 = string;
+export type Message3 = string;
 export type Created1 = number;
 export type Filename = string;
 export type Module = string;
@@ -392,6 +396,7 @@ export interface EvalConfig {
   limit: Limit;
   epochs: Epochs;
   epochs_reducer: EpochsReducer;
+  trace: Trace;
   approval: ApprovalPolicyConfig | null;
   fail_on_error: FailOnError;
   max_messages: MaxMessages;
@@ -406,6 +411,22 @@ export interface EvalConfig {
 export interface ApprovalPolicyConfig {
   approvers: Approvers;
 }
+/**
+ * Configuration format for approver policies.
+ *
+ * For example, here is a configuration in YAML:
+ *
+ * ```yaml
+ * approvers:
+ *   - name: human
+ *     tools: web_browser*, bash, pyhton
+ *     choices: [approve, reject]
+ *
+ *   - name: auto
+ *     tools: *
+ *     decision: approve
+ * ```
+ */
 export interface ApproverPolicyConfig {
   name: Name1;
   tools: Tools;
@@ -636,7 +657,7 @@ export interface Metadata6 {}
 export interface Store {}
 export interface EvalEvents {
   events: Events;
-  content: Content5;
+  content: Content6;
 }
 /**
  * Beginning of processing a Sample.
@@ -845,10 +866,29 @@ export interface Arguments1 {
 export interface ApprovalEvent {
   timestamp: Timestamp5;
   event: Event5;
-  tool_call: ToolCall;
+  message: Message2;
+  call: ToolCall;
+  view: ToolCallView | null;
   approver: Approver;
   decision: Decision;
   explanation: Explanation2;
+}
+/**
+ * Custom view of a tool call.
+ *
+ * Both `context` and `call` are optional. If `call` is not specified
+ * then the view will default to a syntax highlighted Python function call.
+ */
+export interface ToolCallView {
+  context: ToolCallContent | null;
+  call: ToolCallContent | null;
+}
+/**
+ * Content to include in tool call view.
+ */
+export interface ToolCallContent {
+  format: Format;
+  content: Content5;
 }
 /**
  * Input screen interaction.
@@ -887,7 +927,7 @@ export interface LoggerEvent {
 export interface LoggingMessage {
   name: Name7;
   level: Level;
-  message: Message2;
+  message: Message3;
   created: Created1;
   filename: Filename;
   module: Module;
@@ -927,6 +967,6 @@ export interface Input4 {}
 export interface Result1 {
   [k: string]: unknown;
 }
-export interface Content5 {
+export interface Content6 {
   [k: string]: string;
 }

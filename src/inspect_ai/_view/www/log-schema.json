@@ -17,8 +17,23 @@
           "title": "Event",
           "type": "string"
         },
-        "tool_call": {
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "call": {
           "$ref": "#/$defs/ToolCall"
+        },
+        "view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCallView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "approver": {
           "title": "Approver",
@@ -50,7 +65,9 @@
       "required": [
         "timestamp",
         "event",
-        "tool_call",
+        "message",
+        "call",
+        "view",
         "approver",
         "decision",
         "explanation"
@@ -77,6 +94,8 @@
       "additionalProperties": false
     },
     "ApproverPolicyConfig": {
+      "additionalProperties": false,
+      "description": "Configuration format for approver policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\napprovers:\n  - name: human\n    tools: web_browser*, bash, pyhton\n    choices: [approve, reject]\n\n  - name: auto\n    tools: *\n    decision: approve\n```",
       "properties": {
         "name": {
           "title": "Name",
@@ -107,8 +126,7 @@
         "params"
       ],
       "title": "ApproverPolicyConfig",
-      "type": "object",
-      "additionalProperties": false
+      "type": "object"
     },
     "ChatCompletionChoice": {
       "properties": {
@@ -578,6 +596,18 @@
           "default": null,
           "title": "Epochs Reducer"
         },
+        "trace": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trace"
+        },
         "approval": {
           "anyOf": [
             {
@@ -707,6 +737,7 @@
         "limit",
         "epochs",
         "epochs_reducer",
+        "trace",
         "approval",
         "fail_on_error",
         "max_messages",
@@ -3171,6 +3202,30 @@
       "type": "object",
       "additionalProperties": false
     },
+    "ToolCallContent": {
+      "description": "Content to include in tool call view.",
+      "properties": {
+        "format": {
+          "enum": [
+            "text",
+            "markdown"
+          ],
+          "title": "Format",
+          "type": "string"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        }
+      },
+      "required": [
+        "format",
+        "content"
+      ],
+      "title": "ToolCallContent",
+      "type": "object",
+      "additionalProperties": false
+    },
     "ToolCallError": {
       "properties": {
         "type": {
@@ -3198,6 +3253,40 @@
       ],
       "title": "ToolCallError",
       "type": "object",
+      "additionalProperties": false
+    },
+    "ToolCallView": {
+      "description": "Custom view of a tool call.\n\nBoth `context` and `call` are optional. If `call` is not specified\nthen the view will default to a syntax highlighted Python function call.",
+      "properties": {
+        "context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCallContent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "call": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCallContent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "ToolCallView",
+      "type": "object",
+      "required": [
+        "context",
+        "call"
+      ],
       "additionalProperties": false
     },
     "ToolEvent": {
