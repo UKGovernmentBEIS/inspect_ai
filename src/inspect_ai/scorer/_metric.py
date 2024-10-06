@@ -104,7 +104,6 @@ class Score(BaseModel):
             raise ValueError("This score is not a scalar")
 
 
-
 class SampleScore(Score):
     """Score for a Sample
 
