@@ -12,6 +12,7 @@
 - Prune `sample_reductions` when returning eval logs with `header_only=True`.
 - Improved error message for undecorated solvers.
 - For simple matching scorers, only include explanation if it differs from answer.
+- Add `as_dict()` utility method to `Score`
 
 ## v0.3.39 (3 October 2024)
 
