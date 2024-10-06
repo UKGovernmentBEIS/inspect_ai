@@ -2,7 +2,149 @@
 
 ::: {.callout-note apperance="simple:"}
 Note that the approval features described below are currently only available in the development version of Inspect. You can install the development version with:
+
 ``` bash
 pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
+
+## Overview
+
+Inspect's approval mode enables you to create fine-grained policies for approving tool calls made by models. For example, the following are all supported:
+
+1.  All tool calls are approved by a human operator.
+2.  Select tool calls are approved by a human operator (the rest being executed without approval).
+3.  Custom approvers that decide to either approve, reject, or escalate to another approver.
+
+Custom approvers are very flexible, and can implement a wide variety of decision schemes including informal heuristics and assessments by models. They could also support human approval with a custom user interface on a remote system (whereby approvals are sent and received via message queues).
+
+## Human Approver
+
+The simplest approval policy is interactive human approval of all tool calls. You can enable this policy by using the `--approval human` CLI option (or the `approval = "human"`) argument to `eval()`:
+
+``` bash
+inspect eval examples/browser/ --approval human --trace
+```
+
+Note that we also enable [trace mode](interactivity.qmd#sec-trace-mode) so that we can see all messages exchanged with the model for context. This example provides the model with the built-in [web browser](tools.qmd#sec-web-browser) tool and asks it to navigate to a web and perform a search.
+
+## Auto Approver
+
+Whenever you enable approval mode, all tool calls must be handled in some fashion (otherwise they are rejected). However, approving every tool call can be quite tedious, and not all tool calls are necessarily worthy of human oversight.
+
+You can chain to together the `human` and `auto` approvers in an *approval policy* to only approve selected tool calls. For example, here we create a policy that asks for human approval of only interactive web browser tool calls:
+
+``` yaml
+approvers:
+  - name: human
+    tools: ["web_browser_click", "web_browser_type*"]
+
+  - name: auto
+    tools: "*"
+```
+
+Navigational web browser tool calls (e.g. `web_browser_go`) are approved automatically via the catch-all `auto` approver at the end of the chain. Note that when listing an approver in a policy you indicate which tools it should handle using a glob or list of globs.
+
+To use this policy, pass the path to the policy YAML file as the approver. For example:
+
+``` bash
+inspect eval examples/browser/ --approval approval.yaml --trace
+```
+
+## Approvers in Code
+
+We've demonstrated configuring approvers via a YAML approval policy file—you can also provide a policy directly in code (useful if it needs to be more dynamic). Here's a pure Python version of the example from the previous section:
+
+``` python
+from inspect_ai import eval
+from inspect_ai.approval import ApprovalPolicy, human_approver, auto_approver
+
+approval = [
+    ApprovalPolicy(human_approver(), ["web_browser_click", "web_browser_type*"]),
+    ApprovalPolicy(auto_approver(), "*")
+]
+
+eval("examples/browser/", approval=approval, trace=True)
+```
+
+## Custom Approvers
+
+Inspect includes two built-an approvers: `human` for interactive approval at the terminal and `auto` for automatically approving or rejecting specific tools. You can also create your own approvers that implement just about any scheme you can imagine.
+
+Custom approvers are functions that return an `Approval`, which consists of a decision and an explanation. Here is the source code for the `auto` approver, which just reflects back the decision that it is initialised with:
+
+``` python
+@approver(name="auto")
+def auto_approver(decision: ApprovalDecision = "approve") -> Approver:
+    
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        state: TaskState | None = None,
+    ) -> Approval:
+        return Approval(decision=decision, explanation="Automatic decision.")
+
+    return approve
+```
+
+There are four possible approval decisions:
+
+| Decision | Description |
+|----|----|
+| approve | The tool call is approved |
+| reject | The tool call is rejected (report to the model that the call was rejected along with an explanation) |
+| escalate | The tool call should be escalated to the next approver in the chain. |
+| terminate | The current sample should be terminated as a result of the tool call. |
+
+Here's a more complicated custom approver that implements an allow list for bash commands:
+
+``` python
+@approver
+def bash_allowlist(
+    allowed_commands: list[str],
+    allow_sudo: bool = False,
+    command_specific_rules: dict[str, list[str]] | None = None,
+) -> Approver:
+    """Create an approver that checks if a bash command is in an allowed list."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        state: TaskState | None = None,
+    ) -> Approval:
+
+        # Make approval decision
+        
+        ...
+
+    return approve
+```
+
+If you are curious the full source code for this approval is available in the [approval example](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/approval/approval.py). Here is how you might use this approver in an approval policy:
+
+``` yaml
+approvers:
+  - name: bash_allowlist
+    tools: "*bash*"
+    allowed_commands: ["ls", "echo", "cat"]
+
+  - name: python_allowlist
+    tools: "*python*"
+    allowed_functions: ["print"]
+    allowed_modules: ["math"]
+
+  - name: human
+    tools: "*"
+```
+
+These approvers will make one of the following approval decisions for each tool call they are configured to handle:
+
+1)  Allow the tool call (based on the various configured options)
+2)  Disallow the tool call (because it is considered dangerous under all conditions)
+3)  Escalate the tool call to the human approver.
+
+Note that the human approver is last and is bound to all tools, so escalations from the bash and python allow list approvers will end up prompting the human approver.
+
+## Tool Views
