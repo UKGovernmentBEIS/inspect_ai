@@ -64,7 +64,6 @@ from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import set_sample_state, state_jsonable
 from inspect_ai.util._subtask import init_subtask
-from inspect_ai.util._trace import trace_multiple_samples_error
 
 from ..context import init_task_context
 from ..task import Task
@@ -152,10 +151,6 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
             log_images=log_images,
             max_messages=config.max_messages,
         )
-
-        # validate trace mode constraints
-        if config.trace and len(samples) > 1:
-            raise trace_multiple_samples_error()
 
         # resolve the plan (unroll chains)
         solver = solver or task.solver

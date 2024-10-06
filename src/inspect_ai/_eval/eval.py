@@ -7,6 +7,7 @@ from typing import Any
 from shortuuid import uuid
 from typing_extensions import Unpack
 
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import absolute_file_path
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup
@@ -27,7 +28,6 @@ from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentSpec
-from inspect_ai.util._trace import trace_multiple_samples_error
 
 from .context import init_eval_context
 from .loader import ResolvedTask, resolve_tasks
@@ -270,9 +270,15 @@ async def eval_async(
             log.warning("No inspect tasks were found at the specified paths.")
             return []
 
-        # validate trace mode isn't targeting multiple tasks
-        if trace and len(resolved_tasks) > 1:
-            raise trace_multiple_samples_error()
+        # trace mode forces us into single task, single sample mode
+        # (multiple models not allowed in trace mode)
+        if trace:
+            max_tasks = 1
+            max_samples = 1
+            if len(model) > 1:
+                raise PrerequisiteError(
+                    "Trace mode cannot be used when evaluating multiple models."
+                )
 
         # resolve recorder
         log_dir = log_dir if log_dir else os.environ.get("INSPECT_LOG_DIR", "./logs")

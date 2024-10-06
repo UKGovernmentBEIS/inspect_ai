@@ -6,14 +6,6 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.text import Text
 
-from inspect_ai._util.error import PrerequisiteError
-
-
-def trace_multiple_samples_error() -> PrerequisiteError:
-    return PrerequisiteError(
-        "Trace mode can only be used for single task, simple sample evaluations."
-    )
-
 
 def trace_enabled() -> bool:
     """Is trace mode currently enabled."""
