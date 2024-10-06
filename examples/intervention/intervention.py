@@ -3,11 +3,7 @@ from textwrap import dedent
 from rich.prompt import Prompt
 
 from inspect_ai import Task, eval, task
-from inspect_ai.model import (
-    ChatMessageUser,
-    call_tools,
-    get_model,
-)
+from inspect_ai.model import ChatMessageUser
 from inspect_ai.solver import (
     Generate,
     Solver,
@@ -69,37 +65,29 @@ def user_prompt() -> Solver:
 @solver
 def agent_loop(tools: list[Tool]) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        # get the active model
-        model = get_model()
+        # set tools
+        state.tools = tools
 
         # main loop
         while not state.completed:
-            # generate
-            output = await model.generate(state.messages, tools)
-            state.output = output
-            state.messages.append(output.message)
+            # generate w/ tool calls, approvals, etc.
+            state = await generate(state)
 
-            # call tools
-            if output.message.tool_calls:
-                tool_output = await call_tools(output.message, tools)
-                state.messages.extend(tool_output)
-
-            # no tool calls, see what the user wants to do
-            else:
-                next_action = ask_for_next_action()
-                with input_screen():
-                    match next_action.strip().lower():
-                        case "exit":
-                            break
-                        case "":
-                            state.messages.append(
-                                ChatMessageUser(
-                                    content="Please continue working on this task."
-                                )
+            # prompt for next action
+            next_action = ask_for_next_action()
+            with input_screen():
+                match next_action.strip().lower():
+                    case "exit":
+                        break
+                    case "":
+                        state.messages.append(
+                            ChatMessageUser(
+                                content="Please continue working on this task."
                             )
-                            continue
-                        case _:
-                            state.messages.append(ChatMessageUser(content=next_action))
+                        )
+                        continue
+                    case _:
+                        state.messages.append(ChatMessageUser(content=next_action))
 
         return state
 
