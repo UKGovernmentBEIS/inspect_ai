@@ -5,7 +5,7 @@ default_language_version:
   python: python3.11
 repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.6.8
+  rev: v0.6.9
   hooks:
     # Run the linter.
     - id: ruff
