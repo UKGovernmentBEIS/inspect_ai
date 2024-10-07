@@ -6,6 +6,7 @@
 - Add `metadata` field to `Task` and record in log `EvalSpec`.
 - Include datetime and level in file logger.
 - Correct llama3 and o1 tool calling when empty arguments passed.
+- Allow resolution of any sandbox name when there is only a single environment.
 
 ## v0.3.40 (6 October 2024)
 
