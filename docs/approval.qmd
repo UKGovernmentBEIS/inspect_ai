@@ -98,7 +98,8 @@ There are five possible approval decisions:
 | escalate | The tool call should be escalated to the next approver in the chain. |
 | terminate | The current sample should be terminated as a result of the tool call. |
 
-Here's a more complicated custom approver that implements an allow list for bash commands:
+
+Here's a more complicated custom approver that implements an allow list for bash commands. Imagine that we've implemented this approver within a Python package named `evaltools`:
 
 ``` python
 @approver
@@ -123,18 +124,13 @@ def bash_allowlist(
     return approve
 ```
 
-If you are curious the full source code for this approval is available in the [approval example](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/approval/approval.py). Here is how you might use this approver in an approval policy:
+Assuming we have properly [registered our approver](extensions.qmd#sec-extensions-approvers) as an Inspect extension, we can then use this it in an approval policy:
 
 ``` yaml
 approvers:
-  - name: bash_allowlist
+  - name: evaltools/bash_allowlist
     tools: "*bash*"
     allowed_commands: ["ls", "echo", "cat"]
-
-  - name: python_allowlist
-    tools: "*python*"
-    allowed_functions: ["print"]
-    allowed_modules: ["math"]
 
   - name: human
     tools: "*"
@@ -147,6 +143,9 @@ These approvers will make one of the following approval decisions for each tool 
 3)  Escalate the tool call to the human approver.
 
 Note that the human approver is last and is bound to all tools, so escalations from the bash and python allow list approvers will end up prompting the human approver.
+
+See the documentation on [Approver Extensions](extensions.qmd#sec-extensions-approvers) for additional details on publishing approvers within Python packages.
+
 
 ## Tool Views
 
