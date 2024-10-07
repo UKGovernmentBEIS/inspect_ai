@@ -7725,6 +7725,12 @@ const clearDocumentSelection = () => {
   }
 };
 const ApplicationIcons = {
+  approve: "bi bi-shield",
+  approvals: {
+    approve: "bi bi-shield-check",
+    reject: "bi bi-shield-x",
+    terminate: "bi bi-shield-exclamation"
+  },
   arrows: {
     right: "bi bi-arrow-right",
     down: "bi bi-arrow-down",
@@ -11845,6 +11851,9 @@ const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
   }
   if (border) {
     contentsStyle.border = "solid var(--bs-light-border-subtle) 1px";
+  }
+  if (!showToggle) {
+    contentsStyle.marginBottom = "1em";
   }
   return m$1`<div
       class="expandable-panel"
@@ -16400,8 +16409,7 @@ const EventRow = ({ title, icon, style, children }) => {
     display: "grid",
     gridTemplateColumns: "max-content max-content minmax(0, 1fr)",
     columnGap: "0.5em",
-    fontSize: FontSize.small,
-    ...style
+    fontSize: FontSize.small
   }}
       >
         <i class=${icon || ApplicationIcons.metadata} />
@@ -16414,7 +16422,8 @@ const EventRow = ({ title, icon, style, children }) => {
     padding: "0.4em",
     marginBottom: "0.4em",
     border: "solid 1px var(--bs-light-border-subtle)",
-    borderRadius: "var(--bs-border-radius)"
+    borderRadius: "var(--bs-border-radius)",
+    ...style
   }}
   >
     ${contentEl}
@@ -16527,12 +16536,50 @@ const ScoreEventView = ({ id, event, style }) => {
 
   </${EventPanel}>`;
 };
+const ApprovalEventView = ({ id, event, style }) => {
+  return m$1`
+  <${EventRow}
+      id=${id}
+      title="${decisionLabel(event.decision)}"
+      icon=${decisionIcon(event.decision)}  
+      style=${style}
+    >
+    ${event.explanation}
+  </${EventRow}>`;
+};
+const decisionLabel = (decision) => {
+  switch (decision) {
+    case "approve":
+      return "Approved";
+    case "reject":
+      return "Rejected";
+    case "terminate":
+      return "Terminated";
+    default:
+      return decision;
+  }
+};
+const decisionIcon = (decision) => {
+  switch (decision) {
+    case "approve":
+      return ApplicationIcons.approvals.approve;
+    case "reject":
+      return ApplicationIcons.approvals.reject;
+    case "terminate":
+      return ApplicationIcons.approvals.terminate;
+    default:
+      return ApplicationIcons.approve;
+  }
+};
 const ToolEventView = ({ id, event, style, depth }) => {
   var _a;
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
     event.arguments
   );
+  const approvalEvent = event.events.find((e2) => {
+    return e2.event === "approval";
+  });
   const title = `Tool: ${event.function}`;
   const output = event.result || ((_a = event.error) == null ? void 0 : _a.message);
   return m$1`
@@ -16544,6 +16591,11 @@ const ToolEventView = ({ id, event, style, depth }) => {
               output=${output}
             />
           </${ExpandablePanel}>`}
+        ${approvalEvent ? m$1`<${ApprovalEventView}
+            id="${id}-approval"
+            event=${approvalEvent}
+            style=${{ border: "none", padding: 0, marginBottom: 0 }}
+          />` : ""}
     </div>
     
   
@@ -16580,7 +16632,7 @@ const InputEventView = ({ id, event, style }) => {
 class EventNode {
   /**
    * Create an EventNode.
-   * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").InputEvent | import("../../types/log").ErrorEvent } event - This event.
+   * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").InputEvent | import("../../types/log").ErrorEvent | import("../../types/log").ApprovalEvent } event - This event.
    * @param {number} depth - the depth of this item
    */
   constructor(event, depth) {
@@ -16705,6 +16757,12 @@ const RenderedEventNode = ({ id, node, style }) => {
       />`;
     case "error":
       return m$1`<${ErrorEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
+    case "approval":
+      return m$1`<${ApprovalEventView}
         id=${id}
         event=${node.event}
         style=${style}
@@ -20247,7 +20305,6 @@ function simpleHttpAPI(logInfo) {
 async function fetchFile(url, parse3, handleError) {
   const safe_url = encodePathParts(url);
   const response = await fetch(`${safe_url}`, { method: "GET" });
-  console.log({ response });
   if (response.ok) {
     const text = await response.text();
     return {

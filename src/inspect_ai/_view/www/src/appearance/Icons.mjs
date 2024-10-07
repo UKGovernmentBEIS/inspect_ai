@@ -70,9 +70,19 @@
  */
 
 /**
+ * Approval Icons
+ * @typedef {Object} ApprovalIcons
+ * @property {string} approve
+ * @property {string} reject
+ * @property {string} terminate
+ */
+
+/**
  * Provides a centralized repository of Bootstrap icons
  * used throughout the workspace.
  * @typedef {Object} Icons
+ * @property {string} approve
+ * @property {ApprovalIcons} approvals
  * @property {ArrowIcons} arrows
  * @property {CaretIcons} caret
  * @property {ChangeIcons} changes
@@ -117,6 +127,12 @@
 
 /** @type {Icons} */
 export const ApplicationIcons = {
+  approve: "bi bi-shield",
+  approvals: {
+    approve: "bi bi-shield-check",
+    reject: "bi bi-shield-x",
+    terminate: "bi bi-shield-exclamation",
+  },
   arrows: {
     right: "bi bi-arrow-right",
     down: "bi bi-arrow-down",
