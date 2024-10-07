@@ -53,14 +53,15 @@ def trace_assistant_message(
             )
 
         # start with assistant content
-        content: list[RenderableType] = [message.text]
+        content: list[RenderableType] = [message.text] if message.text else []
 
         # print tool calls
         if message.tool_calls:
+            if content:
+                content.append(Text())
             tool_calls: list[str] = []
             for call in message.tool_calls:
                 tool_calls.append(format_function_call(call.function, call.arguments))
-            content.append(Text())
             content.append(
                 Markdown("```python\n" + "\n\n".join(tool_calls) + "\n```\n"),
             )
