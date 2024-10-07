@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add `as_dict()` utility method to `Score`
+- Add `metadata` field to `Task` and record in log `EvalSpec`
 
 ## v0.3.40 (6 October 2024)
 
