@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Add `as_dict()` utility method to `Score`
-- [Sample limits](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sec-sample-limits) (`message_limit` and `token_limit`) for limiting the number of messages or tokens used per sample -- `message_limit` replaces deprecated `max_messages`.
+- [Sample limits](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sec-sample-limits) (`token_limit` and `message_limit`) for capping the number of tokens or messages used per sample ( `message_limit` replaces deprecated `max_messages`).
 - Add `metadata` field to `Task` and record in log `EvalSpec`
 
 ## v0.3.40 (6 October 2024)

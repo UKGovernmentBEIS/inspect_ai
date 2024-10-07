@@ -88,9 +88,9 @@ def intercode_ctf():
     )
 ```
 
-This sets a limit of 30 total messages in a conversation before the model is forced to give up. At that point, whatever `output` happens to be in the `TaskState` will be scored (presumably leading to a score of 9 or 'incorrect').
+This sets a limit of 30 total messages in a conversation before the model is forced to give up. At that point, whatever `output` happens to be in the `TaskState` will be scored (presumably leading to a score of incorrect).
 
-Note that its also possible for a solver to set the `message_limit` directly on the `TaskState` (this is often done by agent solvers which provider their own generate loop):
+Note that its also possible for a solver to set the `message_limit` directly on the `TaskState` (this is often done by agent solvers which provide their own generate loop):
 
 ```python
 @solver
