@@ -64,7 +64,7 @@ class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
     def input_screen(
         self,
         header: str | None = None,
-        transient: bool = True,
+        transient: bool | None = None,
         width: int | None = None,
     ) -> Iterator[Console]: ...
 

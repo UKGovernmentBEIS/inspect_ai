@@ -34,6 +34,7 @@ from inspect_ai.log import EvalStats
 from inspect_ai.log._log import rich_traceback
 from inspect_ai.log._transcript import InputEvent, transcript
 from inspect_ai.util._concurrency import concurrency_status
+from inspect_ai.util._trace import trace_enabled
 
 from ._display import (
     Display,
@@ -172,8 +173,9 @@ class RichTaskScreen(TaskScreen):
     def __init__(self, live: Live) -> None:
         theme = rich_theme()
         self.live = live
+        status_text = "Generating" if trace_enabled() else "Task running"
         self.status = self.live.console.status(
-            f"[{theme.meta} bold]Task running...[/{theme.meta} bold]", spinner="clock"
+            f"[{theme.meta} bold]{status_text}...[/{theme.meta} bold]", spinner="clock"
         )
 
     def __exit__(self, *excinfo: Any) -> None:
@@ -184,9 +186,13 @@ class RichTaskScreen(TaskScreen):
     def input_screen(
         self,
         header: str | None = None,
-        transient: bool = True,
+        transient: bool | None = None,
         width: int | None = None,
     ) -> Iterator[Console]:
+        # determine transient based on trace mode
+        if transient is None:
+            transient = not trace_enabled()
+
         # clear live task status and transient status
         self.live.update("", refresh=True)
         self.status.stop()
