@@ -147,6 +147,7 @@ async def eval_run(
                     task_args=resolved_task.task_args,
                     model_args=model_args,
                     eval_config=task_eval_config,
+                    metadata=task.metadata,
                     recorder=recorder,
                 )
 

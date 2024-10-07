@@ -5,6 +5,7 @@
 - Add `as_dict()` utility method to `Score`
 - Add `token_limit` option for limiting the number of tokens used per sample.
 - Add `message_limit` option for limiting the number of messages per sample (replaces deprecated `max_messages` option),
+- Add `metadata` field to `Task` and record in log `EvalSpec`
 
 ## v0.3.40 (6 October 2024)
 

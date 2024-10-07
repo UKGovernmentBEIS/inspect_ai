@@ -56,6 +56,7 @@ class Task:
           eval() directly)
         version: (int): Version of task (to distinguish evolutions
           of the task spec or breaking changes to it)
+        metadata: (dict[str, Any] | None): Additional metadata to associate with the task.
     """
 
     def __init__(
@@ -72,6 +73,7 @@ class Task:
         token_limit: int | None = None,
         name: str | None = None,
         version: int = 0,
+        metadata: dict[str, Any] | None = None,
         **kwargs: Unpack[TaskDeprecatedArgs],
     ) -> None:
         # handle deprecated args
@@ -125,6 +127,7 @@ class Task:
         self.token_limit = token_limit
         self.version = version
         self._name = name
+        self.metadata = metadata
 
     @property
     def name(self) -> str:
