@@ -42,12 +42,24 @@
         "decision": {
           "enum": [
             "approve",
+            "modify",
             "reject",
             "escalate",
             "terminate"
           ],
           "title": "Decision",
           "type": "string"
+        },
+        "modified": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCall"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "explanation": {
           "anyOf": [
@@ -70,6 +82,7 @@
         "view",
         "approver",
         "decision",
+        "modified",
         "explanation"
       ],
       "title": "ApprovalEvent",

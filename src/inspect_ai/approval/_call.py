@@ -39,6 +39,7 @@ def record_approval(
             view=view,
             approver=approver_name,
             decision=approval.decision,
+            modified=approval.modified,
             explanation=approval.explanation,
         )
     )

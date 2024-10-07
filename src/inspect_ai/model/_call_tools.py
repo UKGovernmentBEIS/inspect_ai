@@ -204,6 +204,8 @@ async def call_tool(tools: list[ToolDef], message: str, call: ToolCall) -> Any:
     approved, approval = await apply_tool_approval(message, call, tool_def.viewer)
     if not approved:
         raise ToolApprovalError(approval.explanation if approval else None)
+    if approval and approval.modified:
+        call = approval.modified
 
     # validate the schema of the passed object
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)

@@ -41,7 +41,7 @@ async def apply_tool_approval(
 
         # process decision
         match approval.decision:
-            case "approve":
+            case "approve" | "modify":
                 return True, approval
             case "reject":
                 return False, approval

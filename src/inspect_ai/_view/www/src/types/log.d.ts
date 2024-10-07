@@ -268,7 +268,12 @@ export type Message2 = string;
 export type Format = "text" | "markdown";
 export type Content5 = string;
 export type Approver = string;
-export type Decision = "approve" | "reject" | "escalate" | "terminate";
+export type Decision =
+  | "approve"
+  | "modify"
+  | "reject"
+  | "escalate"
+  | "terminate";
 export type Explanation2 = string | null;
 export type Timestamp6 = string;
 export type Event6 = "input";
@@ -871,6 +876,7 @@ export interface ApprovalEvent {
   view: ToolCallView | null;
   approver: Approver;
   decision: Decision;
+  modified: ToolCall | null;
   explanation: Explanation2;
 }
 /**

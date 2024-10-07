@@ -158,8 +158,11 @@ class ApprovalEvent(BaseEvent):
     approver: str
     """Aprover name."""
 
-    decision: Literal["approve", "reject", "escalate", "terminate"]
+    decision: Literal["approve", "modify", "reject", "escalate", "terminate"]
     """Decision of approver."""
+
+    modified: ToolCall | None = Field(default=None)
+    """Modified tool call for decision 'modify'."""
 
     explanation: str | None = Field(default=None)
     """Explanation for decision."""

@@ -1,22 +1,28 @@
+import copy
 from pathlib import Path
 
 from test_helpers.tools import addition
 
 from inspect_ai import Task, eval
 from inspect_ai.approval import ApprovalDecision, ApprovalPolicy, auto_approver
+from inspect_ai.approval._approval import Approval
+from inspect_ai.approval._approver import Approver
+from inspect_ai.approval._registry import approver
 from inspect_ai.dataset import Sample
 from inspect_ai.log._log import EvalLog
 from inspect_ai.log._transcript import ApprovalEvent, ToolEvent
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
+from inspect_ai.solver._task_state import TaskState
+from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 
 def check_approval(
     policy: str | ApprovalPolicy | list[ApprovalPolicy],
     decision: ApprovalDecision,
     approver: str = "auto",
-) -> None:
+) -> ApprovalEvent:
     if isinstance(policy, str):
         policy = (Path(__file__).parent / policy).as_posix()
 
@@ -46,6 +52,8 @@ def check_approval(
     assert approval
     assert approval.approver == approver
     assert approval.decision == decision
+
+    return approval
 
 
 def test_approve():
@@ -96,6 +104,30 @@ def test_approve_no_reject():
         ],
         decision="approve",
     )
+
+
+def test_approve_modify():
+    @approver
+    def modify_approver() -> Approver:
+        async def approve(
+            message: str,
+            call: ToolCall,
+            view: ToolCallView,
+            state: TaskState | None = None,
+        ) -> Approval:
+            call = copy.copy(call)
+            call.function = "newname"
+            return Approval(decision="modify", modified=call)
+
+        return approve
+
+    event = check_approval(
+        ApprovalPolicy(approver=modify_approver(), tools="add*"),
+        decision="modify",
+        approver="modify_approver",
+    )
+    assert event.modified
+    assert event.modified.function == "newname"
 
 
 def test_approve_config():
