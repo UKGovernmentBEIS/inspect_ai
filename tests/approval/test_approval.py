@@ -1,4 +1,3 @@
-import copy
 from pathlib import Path
 
 from test_helpers.tools import addition
@@ -6,17 +5,12 @@ from test_helpers.utils import ensure_test_package_installed
 
 from inspect_ai import Task, eval
 from inspect_ai.approval import ApprovalDecision, ApprovalPolicy, auto_approver
-from inspect_ai.approval._approval import Approval
-from inspect_ai.approval._approver import Approver
-from inspect_ai.approval._registry import approver
 from inspect_ai.dataset import Sample
 from inspect_ai.log._log import EvalLog
 from inspect_ai.log._transcript import ApprovalEvent, ToolEvent
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
-from inspect_ai.solver._task_state import TaskState
-from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 
 def check_approval(
