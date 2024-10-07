@@ -1,0 +1,12 @@
+approvers:
+  - name: auto
+    tools: "foo*"
+    decision: reject
+
+  - name: auto
+    tools: "*"
+    decision: escalate
+
+  - name: auto
+    tools: ["foo*", "add*"]
+    decision: approve

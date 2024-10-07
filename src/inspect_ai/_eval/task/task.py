@@ -59,7 +59,7 @@ class Task:
 
     def __init__(
         self,
-        dataset: Dataset | Sequence[Sample],
+        dataset: Dataset | Sequence[Sample] | None = None,
         solver: Solver | list[Solver] = generate(),
         scorer: Scorer | list[Scorer] | None = None,
         metrics: list[Metric] | dict[str, list[Metric]] | None = None,
@@ -100,6 +100,9 @@ class Task:
         if epochs is not None and epochs.epochs < 1:
             raise ValueError("epochs must be a positive integer.")
 
+        # resolve dataset (provide empty sample to bootstrap tasks w/o samples,
+        # which could occur for testing or for an interactive mode eval)
+        dataset = dataset or [Sample(input="prompt")]
         self.dataset: Dataset = (
             dataset if isinstance(dataset, Dataset) else MemoryDataset(list(dataset))
         )

@@ -1,5 +1,146 @@
 {
   "$defs": {
+    "ApprovalEvent": {
+      "description": "Tool approval.",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event": {
+          "const": "approval",
+          "default": "approval",
+          "enum": [
+            "approval"
+          ],
+          "title": "Event",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "call": {
+          "$ref": "#/$defs/ToolCall"
+        },
+        "view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCallView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "approver": {
+          "title": "Approver",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "approve",
+            "modify",
+            "reject",
+            "escalate",
+            "terminate"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "modified": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCall"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Explanation"
+        }
+      },
+      "required": [
+        "timestamp",
+        "event",
+        "message",
+        "call",
+        "view",
+        "approver",
+        "decision",
+        "modified",
+        "explanation"
+      ],
+      "title": "ApprovalEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ApprovalPolicyConfig": {
+      "properties": {
+        "approvers": {
+          "items": {
+            "$ref": "#/$defs/ApproverPolicyConfig"
+          },
+          "title": "Approvers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "approvers"
+      ],
+      "title": "ApprovalPolicyConfig",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ApproverPolicyConfig": {
+      "additionalProperties": false,
+      "description": "Configuration format for approver policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\napprovers:\n  - name: human\n    tools: web_browser*, bash, pyhton\n    choices: [approve, reject]\n\n  - name: auto\n    tools: *\n    decision: approve\n```",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "tools": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Tools"
+        },
+        "params": {
+          "title": "Params",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "tools",
+        "params"
+      ],
+      "title": "ApproverPolicyConfig",
+      "type": "object"
+    },
     "ChatCompletionChoice": {
       "properties": {
         "message": {
@@ -468,6 +609,29 @@
           "default": null,
           "title": "Epochs Reducer"
         },
+        "trace": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trace"
+        },
+        "approval": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ApprovalPolicyConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "fail_on_error": {
           "anyOf": [
             {
@@ -586,6 +750,8 @@
         "limit",
         "epochs",
         "epochs_reducer",
+        "trace",
+        "approval",
         "fail_on_error",
         "max_messages",
         "max_samples",
@@ -702,6 +868,9 @@
               },
               {
                 "$ref": "#/$defs/ToolEvent"
+              },
+              {
+                "$ref": "#/$defs/ApprovalEvent"
               },
               {
                 "$ref": "#/$defs/InputEvent"
@@ -2958,6 +3127,9 @@
                 "$ref": "#/$defs/ToolEvent"
               },
               {
+                "$ref": "#/$defs/ApprovalEvent"
+              },
+              {
                 "$ref": "#/$defs/InputEvent"
               },
               {
@@ -3043,6 +3215,30 @@
       "type": "object",
       "additionalProperties": false
     },
+    "ToolCallContent": {
+      "description": "Content to include in tool call view.",
+      "properties": {
+        "format": {
+          "enum": [
+            "text",
+            "markdown"
+          ],
+          "title": "Format",
+          "type": "string"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        }
+      },
+      "required": [
+        "format",
+        "content"
+      ],
+      "title": "ToolCallContent",
+      "type": "object",
+      "additionalProperties": false
+    },
     "ToolCallError": {
       "properties": {
         "type": {
@@ -3053,6 +3249,7 @@
             "permission",
             "file_not_found",
             "is_a_directory",
+            "approval",
             "unknown"
           ],
           "title": "Type",
@@ -3069,6 +3266,40 @@
       ],
       "title": "ToolCallError",
       "type": "object",
+      "additionalProperties": false
+    },
+    "ToolCallView": {
+      "description": "Custom view of a tool call.\n\nBoth `context` and `call` are optional. If `call` is not specified\nthen the view will default to a syntax highlighted Python function call.",
+      "properties": {
+        "context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCallContent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "call": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolCallContent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "ToolCallView",
+      "type": "object",
+      "required": [
+        "context",
+        "call"
+      ],
       "additionalProperties": false
     },
     "ToolEvent": {
@@ -3192,6 +3423,9 @@
               },
               {
                 "$ref": "#/$defs/ToolEvent"
+              },
+              {
+                "$ref": "#/$defs/ApprovalEvent"
               },
               {
                 "$ref": "#/$defs/InputEvent"

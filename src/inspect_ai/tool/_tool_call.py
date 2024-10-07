@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Callable, Literal
+
+from pydantic import BaseModel, Field
 
 
 @dataclass
@@ -29,7 +31,36 @@ class ToolCallError:
         "permission",
         "file_not_found",
         "is_a_directory",
+        "approval",
         "unknown",
     ]
 
     message: str
+
+
+class ToolCallContent(BaseModel):
+    """Content to include in tool call view."""
+
+    format: Literal["text", "markdown"]
+    """Format."""
+
+    content: str
+    """Content."""
+
+
+class ToolCallView(BaseModel):
+    """Custom view of a tool call.
+
+    Both `context` and `call` are optional. If `call` is not specified
+    then the view will default to a syntax highlighted Python function call.
+    """
+
+    context: ToolCallContent | None = Field(default=None)
+    """Context for the tool call (i.e. current tool state)."""
+
+    call: ToolCallContent | None = Field(default=None)
+    """Custom representation of tool call."""
+
+
+ToolCallViewer = Callable[[ToolCall], ToolCallView]
+"""Custom view renderer for tool calls."""

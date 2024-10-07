@@ -25,6 +25,10 @@ export type ModelBaseUrl = string | null;
 export type Limit = number | [unknown, unknown] | null;
 export type Epochs = number | null;
 export type EpochsReducer = string[] | null;
+export type Trace = boolean | null;
+export type Name1 = string;
+export type Tools = string | string[];
+export type Approvers = ApproverPolicyConfig[];
 export type FailOnError = boolean | number | null;
 export type MaxMessages = number | null;
 export type MaxSamples = number | null;
@@ -38,7 +42,7 @@ export type Type = "git";
 export type Origin = string;
 export type Commit = string;
 export type Metadata = {} | null;
-export type Name1 = string;
+export type Name2 = string;
 export type Solver1 = string;
 export type Steps = EvalPlanStep[];
 export type MaxRetries = number | null;
@@ -66,10 +70,10 @@ export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
 export type TotalSamples = number;
 export type CompletedSamples = number;
-export type Name2 = string;
+export type Name3 = string;
 export type Scorer = string;
 export type Reducer = string | null;
-export type Name3 = string;
+export type Name4 = string;
 export type Value = number;
 export type Metadata1 = {} | null;
 export type Metadata2 = {} | null;
@@ -143,6 +147,7 @@ export type Type4 =
   | "permission"
   | "file_not_found"
   | "is_a_directory"
+  | "approval"
   | "unknown";
 export type Message1 = string;
 export type Choices = string[] | null;
@@ -226,7 +231,7 @@ export type Input2 = (
   | ChatMessageAssistant
   | ChatMessageTool
 )[];
-export type Name4 = string;
+export type Name5 = string;
 export type Description = string;
 export type Type5 = "object";
 export type Type6 =
@@ -246,9 +251,9 @@ export type Anyof = ToolParam[] | null;
 export type Required = string[] | null;
 export type Required1 = string[];
 export type Additionalproperties1 = boolean;
-export type Tools = ToolInfo[];
+export type Tools1 = ToolInfo[];
 export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
-export type Name5 = string;
+export type Name6 = string;
 export type Cache = ("read" | "write") | null;
 export type Timestamp4 = string;
 export type Event4 = "tool";
@@ -258,17 +263,30 @@ export type Function2 = string;
 export type Result = string | number | boolean | (ContentText | ContentImage)[];
 export type Truncated = [unknown, unknown] | null;
 export type Timestamp5 = string;
-export type Event5 = "input";
+export type Event5 = "approval";
+export type Message2 = string;
+export type Format = "text" | "markdown";
+export type Content5 = string;
+export type Approver = string;
+export type Decision =
+  | "approve"
+  | "modify"
+  | "reject"
+  | "escalate"
+  | "terminate";
+export type Explanation2 = string | null;
+export type Timestamp6 = string;
+export type Event6 = "input";
 export type Input3 = string;
 export type InputAnsi = string;
-export type Timestamp6 = string;
-export type Event6 = "score";
-export type Target2 = string | string[] | null;
 export type Timestamp7 = string;
-export type Event7 = "error";
+export type Event7 = "score";
+export type Target2 = string | string[] | null;
 export type Timestamp8 = string;
-export type Event8 = "logger";
-export type Name6 = string | null;
+export type Event8 = "error";
+export type Timestamp9 = string;
+export type Event9 = "logger";
+export type Name7 = string | null;
 export type Level =
   | "debug"
   | "http"
@@ -277,21 +295,21 @@ export type Level =
   | "warning"
   | "error"
   | "critical";
-export type Message2 = string;
+export type Message3 = string;
 export type Created1 = number;
 export type Filename = string;
 export type Module = string;
 export type Lineno = number;
-export type Timestamp9 = string;
-export type Event9 = "info";
 export type Timestamp10 = string;
-export type Event10 = "step";
+export type Event10 = "info";
+export type Timestamp11 = string;
+export type Event11 = "step";
 export type Action = "begin" | "end";
 export type Type8 = string | null;
-export type Name7 = string;
-export type Timestamp11 = string;
-export type Event11 = "subtask";
 export type Name8 = string;
+export type Timestamp12 = string;
+export type Event12 = "subtask";
+export type Name9 = string;
 export type Type9 = string | null;
 export type Events2 = (
   | SampleInitEvent
@@ -299,6 +317,7 @@ export type Events2 = (
   | StoreEvent
   | ModelEvent
   | ToolEvent
+  | ApprovalEvent
   | InputEvent
   | ScoreEvent
   | ErrorEvent
@@ -313,6 +332,7 @@ export type Events1 = (
   | StoreEvent
   | ModelEvent
   | ToolEvent
+  | ApprovalEvent
   | InputEvent
   | ScoreEvent
   | ErrorEvent
@@ -327,6 +347,7 @@ export type Events = (
   | StoreEvent
   | ModelEvent
   | ToolEvent
+  | ApprovalEvent
   | InputEvent
   | ScoreEvent
   | ErrorEvent
@@ -380,6 +401,8 @@ export interface EvalConfig {
   limit: Limit;
   epochs: Epochs;
   epochs_reducer: EpochsReducer;
+  trace: Trace;
+  approval: ApprovalPolicyConfig | null;
   fail_on_error: FailOnError;
   max_messages: MaxMessages;
   max_samples: MaxSamples;
@@ -390,6 +413,31 @@ export interface EvalConfig {
   log_images: LogImages;
   log_buffer: LogBuffer;
 }
+export interface ApprovalPolicyConfig {
+  approvers: Approvers;
+}
+/**
+ * Configuration format for approver policies.
+ *
+ * For example, here is a configuration in YAML:
+ *
+ * ```yaml
+ * approvers:
+ *   - name: human
+ *     tools: web_browser*, bash, pyhton
+ *     choices: [approve, reject]
+ *
+ *   - name: auto
+ *     tools: *
+ *     decision: approve
+ * ```
+ */
+export interface ApproverPolicyConfig {
+  name: Name1;
+  tools: Tools;
+  params: Params;
+}
+export interface Params {}
 export interface EvalRevision {
   type: Type;
   origin: Origin;
@@ -399,16 +447,16 @@ export interface Packages {
   [k: string]: string;
 }
 export interface EvalPlan {
-  name: Name1;
+  name: Name2;
   steps: Steps;
   finish: EvalPlanStep | null;
   config: GenerateConfig;
 }
 export interface EvalPlanStep {
   solver: Solver1;
-  params: Params;
+  params: Params1;
 }
-export interface Params {}
+export interface Params1 {}
 /**
  * Base class for model generation configs.
  */
@@ -443,19 +491,19 @@ export interface EvalResults {
   sample_reductions: SampleReductions;
 }
 export interface EvalScore {
-  name: Name2;
+  name: Name3;
   scorer: Scorer;
   reducer: Reducer;
-  params: Params1;
+  params: Params2;
   metrics: Metrics;
   metadata: Metadata2;
 }
-export interface Params1 {}
+export interface Params2 {}
 export interface Metrics {
   [k: string]: EvalMetric;
 }
 export interface EvalMetric {
-  name: Name3;
+  name: Name4;
   value: Value;
   options: Options;
   metadata: Metadata1;
@@ -614,7 +662,7 @@ export interface Metadata6 {}
 export interface Store {}
 export interface EvalEvents {
   events: Events;
-  content: Content5;
+  content: Content6;
 }
 /**
  * Beginning of processing a Sample.
@@ -691,7 +739,7 @@ export interface ModelEvent {
   event: Event3;
   model: Model2;
   input: Input2;
-  tools: Tools;
+  tools: Tools1;
   tool_choice: ToolChoice;
   config: GenerateConfig1;
   output: ModelOutput;
@@ -725,7 +773,7 @@ export interface ModelEvent {
  * ```
  */
 export interface ToolInfo {
-  name: Name4;
+  name: Name5;
   description: Description;
   parameters: ToolParams;
 }
@@ -758,7 +806,7 @@ export interface Default {
   [k: string]: unknown;
 }
 export interface ToolFunction {
-  name: Name5;
+  name: Name6;
 }
 /**
  * Base class for model generation configs.
@@ -818,11 +866,42 @@ export interface Arguments1 {
   [k: string]: JsonValue;
 }
 /**
+ * Tool approval.
+ */
+export interface ApprovalEvent {
+  timestamp: Timestamp5;
+  event: Event5;
+  message: Message2;
+  call: ToolCall;
+  view: ToolCallView | null;
+  approver: Approver;
+  decision: Decision;
+  modified: ToolCall | null;
+  explanation: Explanation2;
+}
+/**
+ * Custom view of a tool call.
+ *
+ * Both `context` and `call` are optional. If `call` is not specified
+ * then the view will default to a syntax highlighted Python function call.
+ */
+export interface ToolCallView {
+  context: ToolCallContent | null;
+  call: ToolCallContent | null;
+}
+/**
+ * Content to include in tool call view.
+ */
+export interface ToolCallContent {
+  format: Format;
+  content: Content5;
+}
+/**
  * Input screen interaction.
  */
 export interface InputEvent {
-  timestamp: Timestamp5;
-  event: Event5;
+  timestamp: Timestamp6;
+  event: Event6;
   input: Input3;
   input_ansi: InputAnsi;
 }
@@ -830,8 +909,8 @@ export interface InputEvent {
  * Event with sample score.
  */
 export interface ScoreEvent {
-  timestamp: Timestamp6;
-  event: Event6;
+  timestamp: Timestamp7;
+  event: Event7;
   score: Score;
   target: Target2;
 }
@@ -839,22 +918,22 @@ export interface ScoreEvent {
  * Event with sample error.
  */
 export interface ErrorEvent {
-  timestamp: Timestamp7;
-  event: Event7;
+  timestamp: Timestamp8;
+  event: Event8;
   error: EvalError;
 }
 /**
  * Log message recorded with Python logger.
  */
 export interface LoggerEvent {
-  timestamp: Timestamp8;
-  event: Event8;
+  timestamp: Timestamp9;
+  event: Event9;
   message: LoggingMessage;
 }
 export interface LoggingMessage {
-  name: Name6;
+  name: Name7;
   level: Level;
-  message: Message2;
+  message: Message3;
   created: Created1;
   filename: Filename;
   module: Module;
@@ -864,27 +943,27 @@ export interface LoggingMessage {
  * Event with custom info/data.
  */
 export interface InfoEvent {
-  timestamp: Timestamp9;
-  event: Event9;
+  timestamp: Timestamp10;
+  event: Event10;
   data: JsonValue;
 }
 /**
  * Step within current sample or subtask.
  */
 export interface StepEvent {
-  timestamp: Timestamp10;
-  event: Event10;
+  timestamp: Timestamp11;
+  event: Event11;
   action: Action;
   type: Type8;
-  name: Name7;
+  name: Name8;
 }
 /**
  * Subtask spawned.
  */
 export interface SubtaskEvent {
-  timestamp: Timestamp11;
-  event: Event11;
-  name: Name8;
+  timestamp: Timestamp12;
+  event: Event12;
+  name: Name9;
   type: Type9;
   input: Input4;
   result: Result1;
@@ -894,6 +973,6 @@ export interface Input4 {}
 export interface Result1 {
   [k: string]: unknown;
 }
-export interface Content5 {
+export interface Content6 {
   [k: string]: string;
 }

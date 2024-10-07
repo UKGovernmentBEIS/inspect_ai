@@ -146,6 +146,7 @@ The log viewer will update automatically whenever a new evaluation is completed 
 
 See the [Log Viewer](#sec-log-viewer) section for additional details on using Inspect View.
 
+
 ### Options
 
 There are several other command line options you can pass to eval. Here are some of the more useful ones:
@@ -187,6 +188,21 @@ Note that `.env` files are searched for in parent directories, so if you run an 
 ::: {.callout-important appearance="simple"}
 `.env` files should *never* be checked into version control, as they nearly always contain either secret API keys or machine specific paths. A best practice is often to check in an `.env.example` file to version control which provides an outline (e.g. keys only not values) of variables that are required by the current project.
 :::
+
+
+## Trace Mode
+
+::: {.callout-note apperance="simple:"}
+Note that the trace mode feature described below is currently only available in the development version of Inspect. You can install the development version with:
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+In some cases during development of an evaluation you'll want to see message activity in realtime. 
+You can do this via the `--trace` CLI option (or `trace` parameter of the `eval()` function). For example:
+
+{{< include _trace.md >}}
 
 ## Exploratory
 

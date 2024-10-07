@@ -7,9 +7,17 @@ from typing import Any
 from shortuuid import uuid
 from typing_extensions import Unpack
 
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import absolute_file_path
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup
+from inspect_ai.approval._apply import init_tool_approval
+from inspect_ai.approval._policy import (
+    ApprovalPolicy,
+    ApprovalPolicyConfig,
+    approval_policies_from_config,
+    config_from_approval_policies,
+)
 from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo, read_eval_log
 from inspect_ai.log._file import JSONRecorder
 from inspect_ai.model import (
@@ -40,6 +48,8 @@ def eval(
     sandbox: SandboxEnvironmentSpec | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
+    trace: bool | None = None,
+    approval: str | list[ApprovalPolicy] | None = None,
     log_level: str | None = None,
     log_dir: str | None = None,
     limit: int | tuple[int, int] | None = None,
@@ -74,6 +84,10 @@ def eval(
           (defaults to True)
         solver (Solver | list[Solver] | SolverSpec | None): Alternative solver for task(s).
           Optional (uses task solver by default).
+        trace: (bool | None): Trace message interactions with evaluated model to terminal.
+        approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
+          Either a path to an approval policy config file or a list of approval policies.
+          Defaults to no approval policy.
         log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
            or "critical" (defaults to "info")
         log_dir (str | None): Output path for logging results
@@ -120,6 +134,8 @@ def eval(
             sandbox=sandbox,
             sandbox_cleanup=sandbox_cleanup,
             solver=solver,
+            trace=trace,
+            approval=approval,
             log_level=log_level,
             log_dir=log_dir,
             limit=limit,
@@ -148,6 +164,8 @@ async def eval_async(
     sandbox: SandboxEnvironmentSpec | None = None,
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
+    trace: bool | None = None,
+    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     log_level: str | None = None,
     log_dir: str | None = None,
     limit: int | tuple[int, int] | None = None,
@@ -182,6 +200,10 @@ async def eval_async(
            (defaults to True)
         solver (Solver | list[Solver] | SolverSpec | None): Alternative solver for task(s).
           Optional (uses task solver by default).
+        trace: (bool | None): Trace message interactions with evaluated model to terminal.
+        approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
+          Either a path to an approval policy config file or a list of approval policies.
+          Defaults to no approval policy.
         log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
             or "critical" (defaults to "info")
         log_dir (str | None): Output path for logging results
@@ -226,13 +248,16 @@ async def eval_async(
 
     _eval_async_running = True
     try:
-        model, resolved_tasks = eval_init(
+        # intialise eval
+        model, approval, resolved_tasks = eval_init(
             tasks=tasks,
             model=model,
             model_base_url=model_base_url,
             model_args=model_args,
             task_args=task_args,
             sandbox=sandbox,
+            trace=trace,
+            approval=approval,
             max_subprocesses=max_subprocesses,
             log_level=log_level,
             **kwargs,
@@ -242,6 +267,21 @@ async def eval_async(
         if len(resolved_tasks) == 0:
             log.warning("No inspect tasks were found at the specified paths.")
             return []
+
+        # apply trace mode constraints
+        if trace:
+            # single task at a time
+            if max_tasks is not None:
+                max_tasks = 1
+
+            # single sample at a time
+            max_samples = 1
+
+            # multiple models not allowed in trace mode
+            if len(model) > 1:
+                raise PrerequisiteError(
+                    "Trace mode cannot be used when evaluating multiple models."
+                )
 
         # resolve recorder
         log_dir = log_dir if log_dir else os.environ.get("INSPECT_LOG_DIR", "./logs")
@@ -265,6 +305,8 @@ async def eval_async(
             epochs_reducer=reducer_log_names(epochs_reducer)
             if epochs_reducer
             else None,
+            trace=trace,
+            approval=config_from_approval_policies(approval) if approval else None,
             fail_on_error=fail_on_error,
             max_messages=max_messages,
             max_samples=max_samples,
@@ -347,6 +389,7 @@ def eval_retry(
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     sandbox_cleanup: bool | None = None,
+    trace: bool | None = None,
     debug_errors: bool | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
@@ -373,6 +416,7 @@ def eval_retry(
            run in parallel (default is os.cpu_count())
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
+        trace (bool | None): Trace message interactions with evaluated model to terminal.
         debug_errors (bool | None): Raise task errors (rather than logging them)
            so they can be debugged (defaults to False).
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
@@ -402,6 +446,7 @@ def eval_retry(
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
             sandbox_cleanup=sandbox_cleanup,
+            trace=trace,
             debug_errors=debug_errors,
             log_samples=log_samples,
             log_images=log_images,
@@ -422,6 +467,7 @@ async def eval_retry_async(
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
     sandbox_cleanup: bool | None = None,
+    trace: bool | None = None,
     debug_errors: bool | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
@@ -448,6 +494,7 @@ async def eval_retry_async(
            run in parallel (default is os.cpu_count())
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
+        trace (bool | None): Trace message interactions with evaluated model to terminal.
         debug_errors (bool | None): Raise task errors (rather than logging them)
            so they can be debugged (defaults to False).
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
@@ -523,6 +570,8 @@ async def eval_retry_async(
             if eval_log.eval.config.epochs
             else None
         )
+        trace = eval_log.eval.config.trace or trace
+        approval = eval_log.eval.config.approval
         fail_on_error = eval_log.eval.config.fail_on_error
         max_messages = eval_log.eval.config.max_messages
         max_samples = max_samples or eval_log.eval.config.max_samples
@@ -561,6 +610,8 @@ async def eval_retry_async(
                 sandbox=eval_log.eval.sandbox,
                 sandbox_cleanup=sandbox_cleanup,
                 solver=solver,
+                trace=trace,
+                approval=approval,
                 log_level=log_level,
                 log_dir=log_dir,
                 limit=limit,
@@ -592,12 +643,14 @@ def eval_init(
     model_args: dict[str, Any] = dict(),
     task_args: dict[str, Any] = dict(),
     sandbox: SandboxEnvironmentSpec | None = None,
+    trace: bool | None = None,
+    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     max_subprocesses: int | None = None,
     log_level: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
-) -> tuple[list[Model], list[ResolvedTask]]:
+) -> tuple[list[Model], list[ApprovalPolicy] | None, list[ResolvedTask]]:
     # init eval context
-    init_eval_context(log_level, max_subprocesses)
+    init_eval_context(trace, log_level, max_subprocesses)
 
     # resolve models
     generate_config = GenerateConfig(**kwargs)
@@ -610,7 +663,12 @@ def eval_init(
         init_active_model(m, generate_config)
         resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
 
-    return models, resolved_tasks
+    # resolve approval
+    if isinstance(approval, str | ApprovalPolicyConfig):
+        approval = approval_policies_from_config(approval)
+    init_tool_approval(approval)
+
+    return models, approval, resolved_tasks
 
 
 # A list of eval logs is returned from eval(). We've already displayed

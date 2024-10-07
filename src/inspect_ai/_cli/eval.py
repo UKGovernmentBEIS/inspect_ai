@@ -85,6 +85,19 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="One or more solver arguments (e.g. -S arg=value)",
     )
     @click.option(
+        "--trace",
+        type=bool,
+        is_flag=True,
+        envvar="INSPECT_EVAL_TRACE",
+        help="Trace message interactions with evaluated model to terminal.",
+    )
+    @click.option(
+        "--approval",
+        type=str,
+        envvar="INSPECT_EVAL_APPROVAL",
+        help="Config file for tool call approval.",
+    )
+    @click.option(
         "--sandbox",
         type=str,
         help="Sandbox environment type (with optional config file). e.g. 'docker' or 'docker:compose.yml'",
@@ -318,6 +331,8 @@ def eval_command(
     m: tuple[str] | None,
     t: tuple[str] | None,
     s: tuple[str] | None,
+    trace: bool | None,
+    approval: str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     epochs: int | None,
@@ -374,6 +389,8 @@ def eval_command(
         m=m,
         t=t,
         s=s,
+        trace=trace,
+        approval=approval,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
         epochs=epochs,
@@ -446,6 +463,8 @@ def eval_set_command(
     retry_connections: float | None,
     no_retry_cleanup: bool | None,
     solver: str | None,
+    trace: bool | None,
+    approval: str | None,
     model: str,
     model_base_url: str | None,
     m: tuple[str] | None,
@@ -509,6 +528,8 @@ def eval_set_command(
         m=m,
         t=t,
         s=s,
+        trace=trace,
+        approval=approval,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
         epochs=epochs,
@@ -549,6 +570,8 @@ def eval_exec(
     m: tuple[str] | None,
     t: tuple[str] | None,
     s: tuple[str] | None,
+    trace: bool | None,
+    approval: str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     epochs: int | None,
@@ -610,6 +633,8 @@ def eval_exec(
             model_args=model_args,
             task_args=task_args,
             solver=SolverSpec(solver, solver_args) if solver else None,
+            trace=trace,
+            approval=approval,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,
             log_level=log_level,
@@ -707,6 +732,13 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     help=NO_SANDBOX_CLEANUP_HELP,
 )
 @click.option(
+    "--trace",
+    type=bool,
+    is_flag=True,
+    help="Trace message interactions with evaluated model to terminal.",
+    envvar="INSPECT_EVAL_TRACE",
+)
+@click.option(
     "--no-log-samples",
     type=bool,
     is_flag=True,
@@ -748,6 +780,7 @@ def eval_retry_command(
     max_tasks: int | None,
     max_subprocesses: int | None,
     no_sandbox_cleanup: bool | None,
+    trace: bool | None,
     no_log_samples: bool | None,
     log_images: bool | None,
     log_buffer: int | None,
@@ -781,6 +814,7 @@ def eval_retry_command(
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         sandbox_cleanup=sandbox_cleanup,
+        trace=trace,
         debug_errors=kwargs["debug_errors"],
         log_samples=log_samples,
         log_images=log_images,
