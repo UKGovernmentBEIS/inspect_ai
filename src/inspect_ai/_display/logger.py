@@ -3,6 +3,7 @@ from logging import (
     INFO,
     WARNING,
     FileHandler,
+    Formatter,
     LogRecord,
     addLevelName,
     getLevelName,
@@ -36,6 +37,10 @@ class LogHandler(RichHandler):
         # log into an external file if requested via env var
         file_logger = os.environ.get("INSPECT_PY_LOGGER_FILE", None)
         self.file_logger = FileHandler(file_logger) if file_logger else None
+        if self.file_logger:
+            self.file_logger.setFormatter(
+                Formatter("%(asctime)s - %(levelname)s - %(message)s")
+            )
 
         # see if the user has a special log level for the file
         file_logger_level = os.environ.get("INSPECT_PY_LOGGER_LEVEL", "")
@@ -80,7 +85,7 @@ class LogHandler(RichHandler):
 # initialize logging -- this function can be called multiple times
 # in the lifetime of the process (the levelno will update globally)
 def init_logger(log_level: str | None = None) -> None:
-    # backwards compatiblity for 'tools'
+    # backwards compatibility for 'tools'
     if log_level == "tools":
         log_level = "sandbox"
 
@@ -97,7 +102,7 @@ def init_logger(log_level: str | None = None) -> None:
     if log_level not in ALL_LOG_LEVELS:
         log_levels = ", ".join([level.lower() for level in ALL_LOG_LEVELS])
         raise RuntimeError(
-            f"Invald log level '{log_level.lower()}'. Log level must be one of {log_levels}"
+            f"Invalid log level '{log_level.lower()}'. Log level must be one of {log_levels}"
         )
 
     # convert to integer
