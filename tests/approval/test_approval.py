@@ -2,6 +2,7 @@ import copy
 from pathlib import Path
 
 from test_helpers.tools import addition
+from test_helpers.utils import ensure_test_package_installed
 
 from inspect_ai import Task, eval
 from inspect_ai.approval import ApprovalDecision, ApprovalPolicy, auto_approver
@@ -107,24 +108,13 @@ def test_approve_no_reject():
 
 
 def test_approve_modify():
-    @approver
-    def modify_approver() -> Approver:
-        async def approve(
-            message: str,
-            call: ToolCall,
-            view: ToolCallView,
-            state: TaskState | None = None,
-        ) -> Approval:
-            call = copy.copy(call)
-            call.function = "newname"
-            return Approval(decision="modify", modified=call)
-
-        return approve
+    # also tests loading an approver from a package
+    ensure_test_package_installed()
 
     event = check_approval(
-        ApprovalPolicy(approver=modify_approver(), tools="add*"),
+        "modify.yaml",
         decision="modify",
-        approver="modify_approver",
+        approver="inspect_package/renamer",
     )
     assert event.modified
     assert event.modified.function == "newname"
