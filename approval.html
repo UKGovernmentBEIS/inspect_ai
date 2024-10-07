@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Eval Logs – Inspect</title>
+<title>Approval – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -64,8 +64,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./extensions.html" rel="next">
-<link href="./approval.html" rel="prev">
+<link href="./eval-logs.html" rel="next">
+<link href="./interactivity.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -75,9 +75,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
-<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
-<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
-<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
 <script id="quarto-search-options" type="application/json">{
   "location": "sidebar",
   "copy-button": false,
@@ -130,7 +127,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./eval-logs.html"><span class="chapter-title">Eval Logs</span></a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./approval.html"><span class="chapter-title">Approval</span></a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
@@ -283,12 +280,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./approval.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Approval</span></a>
+  <a href="./approval.html" class="sidebar-item-text sidebar-link active"><span class="chapter-title">Approval</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./eval-logs.html" class="sidebar-item-text sidebar-link active"><span class="chapter-title">Eval Logs</span></a>
+  <a href="./eval-logs.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Logs</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -309,17 +306,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#log-location" id="toc-log-location" class="nav-link" data-scroll-target="#log-location">Log Location</a></li>
-  <li><a href="#evallog" id="toc-evallog" class="nav-link" data-scroll-target="#evallog">EvalLog</a></li>
-  <li><a href="#sec-errors-and-retries" id="toc-sec-errors-and-retries" class="nav-link" data-scroll-target="#sec-errors-and-retries">Errors and Retries</a>
+  <li><a href="#human-approver" id="toc-human-approver" class="nav-link" data-scroll-target="#human-approver">Human Approver</a></li>
+  <li><a href="#auto-approver" id="toc-auto-approver" class="nav-link" data-scroll-target="#auto-approver">Auto Approver</a></li>
+  <li><a href="#approvers-in-code" id="toc-approvers-in-code" class="nav-link" data-scroll-target="#approvers-in-code">Approvers in Code</a></li>
+  <li><a href="#custom-approvers" id="toc-custom-approvers" class="nav-link" data-scroll-target="#custom-approvers">Custom Approvers</a></li>
+  <li><a href="#tool-views" id="toc-tool-views" class="nav-link" data-scroll-target="#tool-views">Tool Views</a>
   <ul class="collapse">
-  <li><a href="#sec-sample-preservation" id="toc-sec-sample-preservation" class="nav-link" data-scroll-target="#sec-sample-preservation">Sample Preservation</a></li>
-  </ul></li>
-  <li><a href="#sec-amazon-s3" id="toc-sec-amazon-s3" class="nav-link" data-scroll-target="#sec-amazon-s3">Amazon S3</a></li>
-  <li><a href="#log-cli-commands" id="toc-log-cli-commands" class="nav-link" data-scroll-target="#log-cli-commands">Log CLI Commands</a>
-  <ul class="collapse">
-  <li><a href="#listing-logs" id="toc-listing-logs" class="nav-link" data-scroll-target="#listing-logs">Listing Logs</a></li>
-  <li><a href="#reading-logs" id="toc-reading-logs" class="nav-link" data-scroll-target="#reading-logs">Reading Logs</a></li>
+  <li><a href="#example" id="toc-example" class="nav-link" data-scroll-target="#example">Example</a></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -327,9 +320,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./eval-logs.html"><span class="chapter-title">Eval Logs</span></a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-sets.html">Advanced</a></li><li class="breadcrumb-item"><a href="./approval.html"><span class="chapter-title">Approval</span></a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title"><span id="sec-eval-logs" class="quarto-section-identifier"><span class="chapter-title">Eval Logs</span></span></h1>
+<h1 class="title"><span id="sec-approval" class="quarto-section-identifier"><span class="chapter-title">Approval</span></span></h1>
 </div>
 
 
@@ -346,234 +339,187 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
+<div class="callout callout-style-default callout-note callout-titled" data-apperance="simple:">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Note that the approval features described below are currently only available in the development version of Inspect. You can install the development version with:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Every time you use <code>inspect eval</code> or call the <code>eval()</code> function, an evaluation log is written for each task evaluated. By default, logs are written to the <code>./logs</code> sub-directory of the current working directory (we’ll cover how to change this below). You will find a link to the log at the bottom of the results for each task:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval security_guide.py <span class="at">--model</span> openai/gpt-4</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><img src="images/eval-log.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display."></p>
-<p>You can also use the Inspect log viewer for interactive exploration of logs. Run this command once at the beginning of a working session (the view will update automatically when new evaluations are run):</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect view</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><a href="images/inspect-view-main.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-view-main.png" class="border img-fluid" alt="The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples."></a></p>
-<p>This section won’t cover using <code>inspect view</code> though. Rather, it will cover the details of managing log usage from the CLI as well as the Python API for reading logs. See the <a href="log-viewer.html">Log Viewer</a> section for details on interactively exploring logs.</p>
-</section>
-<section id="log-location" class="level2">
-<h2 class="anchored" data-anchor-id="log-location">Log Location</h2>
-<p>By default, logs are written to the <code>./logs</code> sub-directory of the current working directory You can change where logs are written using eval options or an environment variable:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval popularity.py <span class="at">--model</span> openai/gpt-4 <span class="at">--log-dir</span> ./experiment-log</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>, log_dir <span class="op">=</span> <span class="st">"./experiment-log"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that in addition to logging the <code>eval()</code> function also returns an <code>EvalLog</code> object for programmatic access to the details of the evaluation. We’ll talk more about how to use this object below.</p>
-<p>The <code>INSPECT_LOG_DIR</code> environment variable can also be specified to override the default <code>./logs</code> location. You may find it convenient to define this in a <code>.env</code> file from the location where you run your evals:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode ini code-with-copy"><code class="sourceCode ini"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_LOG_DIR</span><span class="ot">=</span><span class="st">./experiment-log</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_LOG_LEVEL</span><span class="ot">=</span><span class="st">warning</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>If you define a relative path to <code>INSPECT_LOG_DIR</code> in a <code>.env</code> file, then its location will always be resolved as <em>relative to</em> that <code>.env</code> file (rather than relative to whatever your current working directory is when you run <code>inspect eval</code>).</p>
-<div class="callout callout-style-simple callout-note">
-<div class="callout-body d-flex">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-body-container">
-<p>If you are running in VS Code, then you should restart terminals and notebooks using Inspect when you change the <code>INSPECT_LOG_DIR</code> in a <code>.env</code> file. This is because the VS Code Python extension also <a href="https://code.visualstudio.com/docs/python/environments#_environment-variables">reads variables</a> from <code>.env</code> files, and your updated <code>INSPECT_LOG_DIR</code> won’t be re-read by VS Code until after a restart.</p>
-</div>
-</div>
-</div>
-<p>See the <a href="#sec-amazon-s3">Amazon S3</a> section below for details on logging evaluations to Amazon S3 buckets.</p>
-</section>
-<section id="evallog" class="level2">
-<h2 class="anchored" data-anchor-id="evallog">EvalLog</h2>
-<p>The <code>EvalLog</code> object returned from <code>eval()</code> provides programmatic interface to the contents of log files:</p>
-<p><strong>Class</strong> <code>inspect_ai.log.EvalLog</code></p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 25%">
-<col style="width: 27%">
-<col style="width: 47%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Field</th>
-<th>Type</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>status</code></td>
-<td><code>str</code></td>
-<td>Status of evaluation (<code>"started"</code>, <code>"success"</code>, or <code>"error"</code>).</td>
-</tr>
-<tr class="even">
-<td><code>eval</code></td>
-<td><code>EvalSpec</code></td>
-<td>Top level eval details including task, model, creation time, etc.</td>
-</tr>
-<tr class="odd">
-<td><code>plan</code></td>
-<td><code>EvalPlan</code></td>
-<td>List of solvers and model generation config used for the eval.</td>
-</tr>
-<tr class="even">
-<td><code>samples</code></td>
-<td><code>list[EvalSample]</code></td>
-<td>Each sample evaluated, including its input, output, target, and score.</td>
-</tr>
-<tr class="odd">
-<td><code>results</code></td>
-<td><code>EvalResults</code></td>
-<td>Aggregate results computed by scorer metrics.</td>
-</tr>
-<tr class="even">
-<td><code>stats</code></td>
-<td><code>EvalStats</code></td>
-<td>Model usage statistics (input and output tokens)</td>
-</tr>
-<tr class="odd">
-<td><code>logging</code></td>
-<td><code>list[LoggingMessage]</code></td>
-<td>Logging messages (e.g.&nbsp;from <code>log.info()</code>, <code>log.debug()</code>, etc.</td>
-</tr>
-<tr class="even">
-<td><code>error</code></td>
-<td><code>EvalError</code></td>
-<td>Error information (if <code>status == "error</code>) including traceback.</td>
-</tr>
-</tbody>
-</table>
-<p>Before analysing results from a log, you should always check their status to ensure they represent a successful run:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> log.status <span class="op">==</span> <span class="st">"success"</span>:</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>   ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>In the section below we’ll talk more about how to deal with logs from failed evaluations (e.g.&nbsp;retrying the eval).</p>
-<p>You can enumerate, read, and write <code>EvalLog</code> objects using the following helper functions from the <code>inspect_ai.log</code> module:</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 43%">
-<col style="width: 56%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Function</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>list_eval_logs()</code></td>
-<td>List all of the eval logs at a given location.</td>
-</tr>
-<tr class="even">
-<td><code>read_eval_log(log_file)</code></td>
-<td>Read an <code>EvalLog</code> from a log file path.</td>
-</tr>
-<tr class="odd">
-<td><code>write_eval_log(log, log_file)</code></td>
-<td>Write an <code>EvalLog</code> to a log file path.</td>
-</tr>
-</tbody>
-</table>
-<p>A common workflow is to define an <code>INSPECT_LOG_DIR</code> for running a set of evaluations, then calling <code>list_eval_logs()</code> to analyse the results when all the work is done:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># setup log dir context</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>os.environ[<span class="st">"INSPECT_LOG_DIR"</span>] <span class="op">=</span> <span class="st">"./experiment-logs"</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># do a bunch of evals</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(popularity, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)</span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(security_guide, model<span class="op">=</span><span class="st">"openai/gpt-4"</span>)</span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="co"># analyze the results in the logs</span></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> list_eval_logs()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that <code>list_eval_logs()</code> lists log files recursively. Pass <code>recursive=False</code> to list only the log files at the root level.</p>
-</section>
-<section id="sec-errors-and-retries" class="level2">
-<h2 class="anchored" data-anchor-id="sec-errors-and-retries">Errors and Retries</h2>
-<p>When an evaluation task fails due to an error or is otherwise interrupted (e.g.&nbsp;by a Ctrl+C), an evaluation log is still written. In many cases errors are transient (e.g.&nbsp;due to network connectivity or a rate limit) and can be subsequently <em>retried</em>.</p>
-<p>For these cases, Inspect includes an <code>eval-retry</code> command and <code>eval_retry()</code> function that you can use to resume tasks interrupted by errors (including <a href="./eval-logs.html#sec-sample-preservation">preserving samples</a> already completed within the original task). For example, if you had a failing task with log file <code>logs/2024-05-29T12-38-43_math_Gprr29Mv.json</code>, you could retry it from the shell with:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-retry logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or from Python with:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>eval_retry(<span class="st">"logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that retry only works for tasks that are created from <code>@task</code> decorated functions (as if a <code>Task</code> is created dynamically outside of an <code>@task</code> function Inspect does not know how to reconstruct it for the retry).</p>
-<p>Note also that <code>eval_retry()</code> does not overwrite the previous log file, but rather creates a new one (preserving the <code>task_id</code> from the original file).</p>
-<p>Here’s an example of retrying a failed eval with a lower number of <code>max_connections</code> (the theory being that too many concurrent connections may have caused a rate limit error):</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(my_task)[<span class="dv">0</span>]</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> log.status <span class="op">!=</span> <span class="st">"success"</span>:</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  eval_retry(log, max_connections <span class="op">=</span> <span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<section id="sec-sample-preservation" class="level3">
-<h3 class="anchored" data-anchor-id="sec-sample-preservation">Sample Preservation</h3>
-<p>When retrying a log file, Inspect will attempt to re-use completed samples from the original task. This can result in substantial time and cost savings compared to starting over from the beginning.</p>
-<section id="ids-and-shuffling" class="level4">
-<h4 class="anchored" data-anchor-id="ids-and-shuffling">IDs and Shuffling</h4>
-<p>An important constraint on the ability to re-use completed samples is matching them up correctly with samples in the new task. To do this, Inspect requires stable unique identifiers for each sample. This can be achieved in 1 of 2 ways:</p>
+<p>Inspect’s approval mode enables you to create fine-grained policies for approving tool calls made by models. For example, the following are all supported:</p>
 <ol type="1">
-<li><p>Samples can have an explicit <code>id</code> field which contains the unique identifier; or</p></li>
-<li><p>You can rely on Inspect’s assignment of an auto-incrementing <code>id</code> for samples, however this <em>will not work correctly</em> if your dataset is shuffled. Inspect will log a warning and not re-use samples if it detects that the <code>dataset.shuffle()</code> method was called, however if you are shuffling by some other means this automatic safeguard won’t be applied.</p></li>
+<li>All tool calls are approved by a human operator.</li>
+<li>Select tool calls are approved by a human operator (the rest being executed without approval).</li>
+<li>Custom approvers that decide to either approve, reject, or escalate to another approver.</li>
 </ol>
-<p>If dataset shuffling is important to your evaluation and you want to preserve samples for retried tasks, then you should include an explicit <code>id</code> field in your dataset.</p>
+<p>Custom approvers are very flexible, and can implement a wide variety of decision schemes including informal heuristics and assessments by models. They could also support human approval with a custom user interface on a remote system (whereby approvals are sent and received via message queues).</p>
 </section>
-<section id="max-samples" class="level4">
-<h4 class="anchored" data-anchor-id="max-samples">Max Samples</h4>
-<p>Another consideration is <code>max_samples</code>, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.</p>
-<p>By default, Inspect sets the value of <code>max_samples</code> to <code>max_connections + 1</code>, ensuring that the model API is always fully saturated (note that it would rarely make sense to set it <em>lower</em> than <code>max_connections</code>). The default <code>max_connections</code> is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large <code>max_connections</code> (e.g.&nbsp;100 <code>max_connections</code> for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.</p>
-<div class="callout callout-style-simple callout-note callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Eval Sets
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>We’ve discussed how to manage retries for a single evaluation run interactively. For the case of running many evaluation tasks in batch and retrying those which failed, see the documentation on <a href="./eval-sets.html">Eval Sets</a></p>
-</div>
-</div>
+<section id="human-approver" class="level2">
+<h2 class="anchored" data-anchor-id="human-approver">Human Approver</h2>
+<p>The simplest approval policy is interactive human approval of all tool calls. You can enable this policy by using the <code>--approval human</code> CLI option (or the <code>approval = "human"</code>) argument to <code>eval()</code>:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval browser.py <span class="at">--approval</span> human <span class="at">--trace</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that we also enable <a href="./interactivity.html#sec-trace-mode">trace mode</a> so that we can see all messages exchanged with the model for context. This example provides the model with the built-in <a href="./tools.html#sec-web-browser">web browser</a> tool and asks it to navigate to a web and perform a search.</p>
 </section>
+<section id="auto-approver" class="level2">
+<h2 class="anchored" data-anchor-id="auto-approver">Auto Approver</h2>
+<p>Whenever you enable approval mode, all tool calls must be handled in some fashion (otherwise they are rejected). However, approving every tool call can be quite tedious, and not all tool calls are necessarily worthy of human oversight.</p>
+<p>You can chain to together the <code>human</code> and <code>auto</code> approvers in an <em>approval policy</em> to only approve selected tool calls. For example, here we create a policy that asks for human approval of only interactive web browser tool calls:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">approvers</span><span class="kw">:</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> human</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">tools</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="st">"web_browser_click"</span><span class="kw">,</span><span class="at"> </span><span class="st">"web_browser_type*"</span><span class="kw">]</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> auto</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">tools</span><span class="kw">:</span><span class="at"> </span><span class="st">"*"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Navigational web browser tool calls (e.g.&nbsp;<code>web_browser_go</code>) are approved automatically via the catch-all <code>auto</code> approver at the end of the chain. Note that when listing an approver in a policy you indicate which tools it should handle using a glob or list of globs.</p>
+<p>To use this policy, pass the path to the policy YAML file as the approver. For example:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval browser.py <span class="at">--approval</span> approval.yaml <span class="at">--trace</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
+<section id="approvers-in-code" class="level2">
+<h2 class="anchored" data-anchor-id="approvers-in-code">Approvers in Code</h2>
+<p>We’ve demonstrated configuring approvers via a YAML approval policy file—you can also provide a policy directly in code (useful if it needs to be more dynamic). Here’s a pure Python version of the example from the previous section:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.approval <span class="im">import</span> ApprovalPolicy, human_approver, auto_approver</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>approval <span class="op">=</span> [</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    ApprovalPolicy(human_approver(), [<span class="st">"web_browser_click"</span>, <span class="st">"web_browser_type*"</span>]),</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    ApprovalPolicy(auto_approver(), <span class="st">"*"</span>)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"browser.py"</span>, approval<span class="op">=</span>approval, trace<span class="op">=</span><span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="sec-amazon-s3" class="level2">
-<h2 class="anchored" data-anchor-id="sec-amazon-s3">Amazon S3</h2>
-<p>Storing evaluation logs on S3 provides a more permanent and secure store than using the local filesystem. While the <code>inspect eval</code> command has a <code>--log-dir</code> argument which accepts an S3 URL, the most convenient means of directing inspect to an S3 bucket is to add the <code>INSPECT_LOG_DIR</code> environment variable to the <code>.env</code> file (potentially alongside your S3 credentials). For example:</p>
-<pre class="env"><code>INSPECT_LOG_DIR=s3://my-s3-inspect-log-bucket
-AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
-AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-AWS_DEFAULT_REGION=eu-west-2</code></pre>
-<p>One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a <a href="https://github.com/s3fs-fuse/s3fs-fuse">FUSE filesystem</a> so you can easily browse the S3 logs locally.</p>
+<section id="custom-approvers" class="level2">
+<h2 class="anchored" data-anchor-id="custom-approvers">Custom Approvers</h2>
+<p>Inspect includes two built-an approvers: <code>human</code> for interactive approval at the terminal and <code>auto</code> for automatically approving or rejecting specific tools. You can also create your own approvers that implement just about any scheme you can imagine.</p>
+<p>Custom approvers are functions that return an <code>Approval</code>, which consists of a decision and an explanation. Here is the source code for the <code>auto</code> approver, which just reflects back the decision that it is initialised with:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="at">@approver</span>(name<span class="op">=</span><span class="st">"auto"</span>)</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> auto_approver(decision: ApprovalDecision <span class="op">=</span> <span class="st">"approve"</span>) <span class="op">-&gt;</span> Approver:</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> approve(</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>        message: <span class="bu">str</span>,</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>        call: ToolCall,</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        view: ToolCallView,</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>        state: TaskState <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> Approval:</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> Approval(decision<span class="op">=</span>decision, explanation<span class="op">=</span><span class="st">"Automatic decision."</span>)</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> approve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>There are five possible approval decisions:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Decision</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>approve</td>
+<td>The tool call is approved</td>
+</tr>
+<tr class="even">
+<td>modify</td>
+<td>The tool call is approved with modification (included in <code>modified</code> field of <code>Approver</code>)</td>
+</tr>
+<tr class="odd">
+<td>reject</td>
+<td>The tool call is rejected (report to the model that the call was rejected along with an explanation)</td>
+</tr>
+<tr class="even">
+<td>escalate</td>
+<td>The tool call should be escalated to the next approver in the chain.</td>
+</tr>
+<tr class="odd">
+<td>terminate</td>
+<td>The current sample should be terminated as a result of the tool call.</td>
+</tr>
+</tbody>
+</table>
+<p>Here’s a more complicated custom approver that implements an allow list for bash commands. Imagine that we’ve implemented this approver within a Python package named <code>evaltools</code>:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@approver</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bash_allowlist(</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    allowed_commands: <span class="bu">list</span>[<span class="bu">str</span>],</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    allow_sudo: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    command_specific_rules: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">list</span>[<span class="bu">str</span>]] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Approver:</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Create an approver that checks if a bash command is in an allowed list."""</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> approve(</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>        message: <span class="bu">str</span>,</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>        call: ToolCall,</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>        view: ToolCallView,</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>        state: TaskState <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> Approval:</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Make approval decision</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> approve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Assuming we have properly <a href="./extensions.html#sec-extensions-approvers">registered our approver</a> as an Inspect extension, we can then use this it in an approval policy:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">approvers</span><span class="kw">:</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> evaltools/bash_allowlist</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">tools</span><span class="kw">:</span><span class="at"> </span><span class="st">"*bash*"</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">allowed_commands</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="st">"ls"</span><span class="kw">,</span><span class="at"> </span><span class="st">"echo"</span><span class="kw">,</span><span class="at"> </span><span class="st">"cat"</span><span class="kw">]</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> human</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">tools</span><span class="kw">:</span><span class="at"> </span><span class="st">"*"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>These approvers will make one of the following approval decisions for each tool call they are configured to handle:</p>
+<ol type="1">
+<li>Allow the tool call (based on the various configured options)</li>
+<li>Disallow the tool call (because it is considered dangerous under all conditions)</li>
+<li>Escalate the tool call to the human approver.</li>
+</ol>
+<p>Note that the human approver is last and is bound to all tools, so escalations from the bash and python allow list approvers will end up prompting the human approver.</p>
+<p>See the documentation on <a href="./extensions.html#sec-extensions-approvers">Approver Extensions</a> for additional details on publishing approvers within Python packages.</p>
 </section>
-<section id="log-cli-commands" class="level2">
-<h2 class="anchored" data-anchor-id="log-cli-commands">Log CLI Commands</h2>
-<p>We’ve shown a number of Python functions that let you work with eval logs from code. However, you may be writing an orchestration or visualisation tool in another language (e.g.&nbsp;TypeScript) where its not particularly convenient to call the Python API. The Inspect CLI has a few commands intended to make it easier to work with Inspect logs from other languages.</p>
-<section id="listing-logs" class="level3">
-<h3 class="anchored" data-anchor-id="listing-logs">Listing Logs</h3>
-<p>You can use the <code>inspect list logs</code> command to enumerate all of the logs for a given log directory. This command will utilise the <code>INSPECT_LOG_DIR</code> if it is set (alternatively you can specify a <code>--log-dir</code> directly). You’ll likely also want to use the <code>--json</code> flag to get more granular and structured information on the log files. For example:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span>           <span class="co"># uses INSPECT_LOG_DIR</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span> <span class="at">--log-dir</span> ./security_04-07-2024</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can also use the <code>--status</code> option to list only logs with a <code>success</code> or <code>error</code> status:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span> <span class="at">--status</span> success</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span> <span class="at">--status</span> error</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can use the <code>--retryable</code> option to list only logs that are <a href="#sec-errors-and-retries">retryable</a></p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list logs <span class="at">--json</span> <span class="at">--retryable</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="reading-logs" class="level3">
-<h3 class="anchored" data-anchor-id="reading-logs">Reading Logs</h3>
-<p>The <code>inspect list logs</code> command will return set of URIs to log files which will use a variety of protocols (e.g.&nbsp;<code>file://</code>, <code>s3://</code>, <code>gcs://</code>, etc.). You might be tempted to try to read these URIs directly, however you should always do so using the <code>inspect info log-file</code> command. This is because log files can be located on remote storage systems (e.g.&nbsp;Amazon S3) that users have configured read/write credentials for within their Inspect environment, and you’ll want to be sure to take advantage of these credentials.</p>
-<p>For example, here we read a local log file and a log file on Amazon S3:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect info log-file file:///home/user/log/logfile.json</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect info log-file s3://my-evals-bucket/logfile.json</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Log files are stored in JSON. You can get the JSON schema and TypeScript type definitions for the log file format with the following calls to <code>inspect info</code>:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect info log-schema</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect info log-types</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="callout callout-style-simple callout-important callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-NaN and Inf
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>Because evaluation logs contain lots of numerical data and calculations, it is possible that some <code>number</code> values will be <code>NaN</code> or <code>Inf</code>. These numeric values are supported natively by Python’s JSON parser, however are not supported by the JSON parsers built in to browsers and Node JS.</p>
-<p>To correctly read <code>Nan</code> and <code>Inf</code> values from eval logs in JavaScript, we recommend that you use the <a href="https://github.com/json5/json5">JSON5 Parser</a>. For other languages, <code>Nan</code> and <code>Inf</code> may be natively supported (if not, see these JSON 5 implementations for <a href="https://github.com/json5/json5/wiki/In-the-Wild">other languages</a>).</p>
-</div>
-</div>
+<section id="tool-views" class="level2">
+<h2 class="anchored" data-anchor-id="tool-views">Tool Views</h2>
+<p>By default, when a tool call is presented for human approval the tool function and its arguments are printed. For some tool calls this is adequate, but some tools can benefit from enhanced presentation. For example:</p>
+<ol type="1">
+<li><p>The interactive features of the web browser tool (clicking, typing, submitting forms, etc.) reference an <code>element_id</code>, however this ID isn’t enough context to approve or reject the call. To compensate, the web browser tool provides some additional context (a snippet of the page around the <code>element_id</code> being interacted with).</p>
+<p><img src="images/web-browser-tool-view.png" class="img-fluid"></p></li>
+<li><p>The <code>bash()</code> and <code>python()</code> tools take their input as a string, which especially for multi-line commands can be difficult to read and understand. To compensate, these tools provide an alternative view of the call that formats the code and as multi-line syntax highlighted code block.</p>
+<p><img src="images/python-tool-view.png" class="img-fluid"></p></li>
+</ol>
+<section id="example" class="level3">
+<h3 class="anchored" data-anchor-id="example">Example</h3>
+<p>Here’s how you might implement a custom code block viewer for a bash tool:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> (</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    Tool, ToolCall, ToolCallContent, ToolCallView, ToolCallViewer, tool</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="co"># custom viewer for bash code blocks</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bash_viewer() <span class="op">-&gt;</span> ToolCallViewer:</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> viewer(tool_call: ToolCall) <span class="op">-&gt;</span> ToolCallView:</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>        code <span class="op">=</span> tool_call.arguments.get(<span class="st">"cmd"</span>, tool_call.function).strip()</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>        call <span class="op">=</span> ToolCallContent(</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>            <span class="bu">format</span><span class="op">=</span><span class="st">"markdown"</span>,</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>            content<span class="op">=</span><span class="st">"**bash**</span><span class="ch">\n\n</span><span class="st">```bash</span><span class="ch">\n</span><span class="st">"</span> <span class="op">+</span> code <span class="op">+</span> <span class="st">"</span><span class="ch">\n</span><span class="st">```</span><span class="ch">\n</span><span class="st">"</span>,</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> ToolCallView(call<span class="op">=</span>call)</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> viewer</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span>(viewer<span class="op">=</span>bash_viewer())</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bash(timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> Tool:</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Bash shell command execution tool.</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a><span class="co">    ...</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The <code>ToolCallViewer</code> gets passed the <code>ToolCall</code> and returns a <code>ToolCallView</code> that provides one or both of <code>context</code> (additional information for understand the call) and <code>call</code> (alternate rendering of the call). In the case of the bash tool we provide a markdown code block rendering of the bash code to be executed.</p>
+<p>The <code>context</code> is typically used for stateful tools that need to present some context from the current state. For example, the web browsing tool provides a snippet from the currently loaded page.</p>
 
 
 </section>
@@ -1043,13 +989,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./approval.html" class="pagination-link" aria-label="Approval">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-title">Approval</span></span>
+      <a href="./interactivity.html" class="pagination-link" aria-label="Interactivity">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text"><span class="chapter-title">Interactivity</span></span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./extensions.html" class="pagination-link" aria-label="Extensions">
-        <span class="nav-page-text"><span class="chapter-title">Extensions</span></span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./eval-logs.html" class="pagination-link" aria-label="Eval Logs">
+        <span class="nav-page-text"><span class="chapter-title">Eval Logs</span></span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -1107,38 +1053,6 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"loop":false,"openEffect":"zoom","descPosition":"bottom","selector":".lightbox","closeEffect":"zoom"});
-(function() {
-  let previousOnload = window.onload;
-  window.onload = () => {
-    if (previousOnload) {
-      previousOnload();
-    }
-    lightboxQuarto.on('slide_before_load', (data) => {
-      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-      const href = trigger.getAttribute('href');
-      if (href !== null) {
-        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
-        if (imgEl !== null) {
-          const srcAttr = imgEl.getAttribute("src");
-          if (srcAttr && srcAttr.startsWith("data:")) {
-            slideConfig.href = srcAttr;
-          }
-        }
-      } 
-    });
-  
-    lightboxQuarto.on('slide_after_load', (data) => {
-      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-      if (window.Quarto?.typesetMath) {
-        window.Quarto.typesetMath(slideNode);
-      }
-    });
-  
-  };
-  
-})();
-          </script>
 
 
 

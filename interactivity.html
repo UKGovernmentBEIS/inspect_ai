@@ -64,7 +64,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./eval-logs.html" rel="next">
+<link href="./approval.html" rel="next">
 <link href="./agents-api.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -280,6 +280,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./approval.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Approval</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./eval-logs.html" class="sidebar-item-text sidebar-link"><span class="chapter-title">Eval Logs</span></a>
   </div>
 </li>
@@ -301,8 +306,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
+  <li><a href="#example" id="toc-example" class="nav-link" data-scroll-target="#example">Example</a></li>
   <li><a href="#input-screen" id="toc-input-screen" class="nav-link" data-scroll-target="#input-screen">Input Screen</a></li>
   <li><a href="#prompts" id="toc-prompts" class="nav-link" data-scroll-target="#prompts">Prompts</a></li>
+  <li><a href="#sec-trace-mode" id="toc-sec-trace-mode" class="nav-link" data-scroll-target="#sec-trace-mode">Trace Mode</a></li>
   <li><a href="#progress" id="toc-progress" class="nav-link" data-scroll-target="#progress">Progress</a></li>
   <li><a href="#header" id="toc-header" class="nav-link" data-scroll-target="#header">Header</a></li>
   <li><a href="#formatting" id="toc-formatting" class="nav-link" data-scroll-target="#formatting">Formatting</a></li>
@@ -334,13 +341,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>In some cases you may wish to introduce user interaction into the implementation of solvers, scorers, or tools. For example, you may wish to:</p>
+<p>In some cases you may wish to introduce user interaction into the implementation of tasks. For example, you may wish to:</p>
 <ul>
 <li>Confirm consequential actions like requests made to web services</li>
 <li>Prompt the model dynamically based on the trajectory of the evaluation</li>
 <li>Score model output with human judges</li>
 </ul>
 <p>The <code>input_screen()</code> function provides a context manager that temporarily clears the task display for user input. Note that prompting the user is a synchronous operation that pauses other activity within the evaluation (pending model requests or subprocesses will continue to execute, but their results won’t be processed until the input is complete).</p>
+</section>
+<section id="example" class="level2">
+<h2 class="anchored" data-anchor-id="example">Example</h2>
+<p>Before diving into the details of how to add interactions to your tasks, you might want to check out the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/intervention">Intervention Mode</a> example.</p>
+<p>Intervention mode is a prototype of an Inspect agent with human intervention, meant to serve as a starting point for evaluations which need these features (e.g.&nbsp;manual open-ended probing). It implements the following:</p>
+<ol type="1">
+<li><p>Sets up a Linux agent with <code>bash()</code> and <code>python()</code> tools.</p></li>
+<li><p>Prompts the user for a starting question for the agent.</p></li>
+<li><p>Displays all messages and prompts to approve tool calls.</p></li>
+<li><p>When the model stops calling tools, prompts the user for the next action (i.e.&nbsp;continue generating, ask a new question, or exit the task).</p></li>
+</ol>
+<p>After reviewing the example and the documentation below you’ll be well equipped to write your own custom interactive evaluation tasks.</p>
 </section>
 <section id="input-screen" class="level2">
 <h2 class="anchored" data-anchor-id="input-screen">Input Screen</h2>
@@ -366,50 +385,76 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The <code>Prompt</code> class is designed to be subclassed for more specialized inputs. The <code>IntPrompt</code> and <code>FloatPrompt</code> classes are built-in, but you can also create your own more customised prompts (the <code>Confirm</code> class is another example of this). See the <a href="https://github.com/Textualize/rich/blob/master/rich/prompt.py">prompt.py</a> source code for additional details.</p>
 </section>
+<section id="sec-trace-mode" class="level2">
+<h2 class="anchored" data-anchor-id="sec-trace-mode">Trace Mode</h2>
+<div class="callout callout-style-default callout-note callout-titled" data-apperance="simple:">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Note that the trace mode feature described below is currently only available in the development version of Inspect. You can install the development version with:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
+<p>When introducing interactions it’s often useful to see a trace of message activity for additional context. You can do this via the <code>--trace</code> CLI option (or <code>trace</code> parameter of the <code>eval()</code> function). For example:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval theory.py <span class="at">--trace</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>In trace mode, all messages exchanged with the model are printed to the terminal (tool output is truncated at 100 lines).</p>
+<p>Note that enabling trace mode automatically sets <code>max_tasks</code> and <code>max_samples</code> to 1, as otherwise messages from concurrently running samples would be interleaved together in an incoherent jumble.</p>
+<p>If you want to add your own trace content, use the <code>trace_enabled()</code> function to check whether trace mode is currently enabled and the <code>trace_panel()</code> function to output a panel that is visually consistent with other trace mode output. For example:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> trace_enabled, trace_panel</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> trace_enabled():</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    trace_panel(<span class="st">"My Panel"</span>, content<span class="op">=</span><span class="st">"Panel content"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
 <section id="progress" class="level2">
 <h2 class="anchored" data-anchor-id="progress">Progress</h2>
 <p>Evaluations with user input alternate between asking for input and displaying task progress. By default, the normal task status display is shown when a user input screen is not active.</p>
 <p>However, if your evaluation is dominated by user input with very short model interactions in between, the task display flashing on and off might prove distracting. For these cases, you can specify the <code>transient=False</code> option, to indicate that the input screen should be shown at all times. For example:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen(transient<span class="op">=</span><span class="va">False</span>) <span class="im">as</span> console:</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(<span class="st">"Some preamble text"</span>)</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span> <span class="op">=</span> console.<span class="bu">input</span>(<span class="st">"Please enter your name: "</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen(transient<span class="op">=</span><span class="va">False</span>) <span class="im">as</span> console:</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(<span class="st">"Some preamble text"</span>)</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span> <span class="op">=</span> console.<span class="bu">input</span>(<span class="st">"Please enter your name: "</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>This will result in the input screen staying active throughout the evaluation. A small progress indicator will be shown whenever user input isn’t being requested so that the user knows that the evaluation is still running.</p>
 </section>
 <section id="header" class="level2">
 <h2 class="anchored" data-anchor-id="header">Header</h2>
 <p>You can add a header to your console input via the <code>header</code> parameter. For example:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen(header<span class="op">=</span><span class="st">"Input Request"</span>) <span class="im">as</span> console:</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span> <span class="op">=</span> console.<span class="bu">input</span>(<span class="st">"Please enter your name: "</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen(header<span class="op">=</span><span class="st">"Input Request"</span>) <span class="im">as</span> console:</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span> <span class="op">=</span> console.<span class="bu">input</span>(<span class="st">"Please enter your name: "</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The <code>header</code> option is a useful way to delineate user input requests (especially when switching between input display and the normal task display). You might also prefer to create your own heading treatments–under the hood, the <code>header</code> option calls <code>console.rule()</code> with a blue bold treatment:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>console.rule(<span class="ss">f"[blue bold]</span><span class="sc">{</span>header<span class="sc">}</span><span class="ss">[/blue bold]"</span>, style<span class="op">=</span><span class="st">"blue bold"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>console.rule(<span class="ss">f"[blue bold]</span><span class="sc">{</span>header<span class="sc">}</span><span class="ss">[/blue bold]"</span>, style<span class="op">=</span><span class="st">"blue bold"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can also use the <a href="#sec-layout">Layout</a> primitives (columns, panels, and tables) to present your input user interface.</p>
 </section>
 <section id="formatting" class="level2">
 <h2 class="anchored" data-anchor-id="formatting">Formatting</h2>
 <p>The <code>console.print()</code> method supports <a href="(https://rich.readthedocs.io/en/stable/console.html)">formatting</a> using simple markup. For example:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(<span class="st">"[bold red]alert![/bold red] Something happened"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(<span class="st">"[bold red]alert![/bold red] Something happened"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>See the documentation on <a href="https://rich.readthedocs.io/en/stable/markup.html">console markup</a> for additional details.</p>
 <p>You can also render <a href="https://rich.readthedocs.io/en/stable/markdown.html">markdown</a> directly, for example:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> rich.markdown <span class="im">import</span> Markdown</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(Markdown(<span class="st">'The _quick_ brown **fox**'</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> rich.markdown <span class="im">import</span> Markdown</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(Markdown(<span class="st">'The _quick_ brown **fox**'</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="sec-layout" class="level2">
 <h2 class="anchored" data-anchor-id="sec-layout">Layout</h2>
 <p>Rich includes <a href="https://rich.readthedocs.io/en/stable/columns.html">Columns</a>, <a href="https://rich.readthedocs.io/en/stable/tables.html">Table</a> and <a href="https://rich.readthedocs.io/en/stable/panel.html">Panel</a> classes for more advanced layout. For example, here is a simple table:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> rich.table <span class="im">import</span> Table</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    table <span class="op">=</span> Table(title<span class="op">=</span><span class="st">"Tool Calls"</span>)</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    table.add_column(<span class="st">"Function"</span>, justify<span class="op">=</span><span class="st">"left"</span>, style<span class="op">=</span><span class="st">"cyan"</span>)</span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    table.add_column(<span class="st">"Parameters"</span>, style<span class="op">=</span><span class="st">"magenta"</span>)</span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    table.add_row(<span class="st">"bash"</span>, <span class="st">"ls /usr/bin"</span>)</span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    table.add_row(<span class="st">"python"</span>, <span class="st">"print('foo')"</span>)</span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(table)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> rich.table <span class="im">import</span> Table</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    table <span class="op">=</span> Table(title<span class="op">=</span><span class="st">"Tool Calls"</span>)</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    table.add_column(<span class="st">"Function"</span>, justify<span class="op">=</span><span class="st">"left"</span>, style<span class="op">=</span><span class="st">"cyan"</span>)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    table.add_column(<span class="st">"Parameters"</span>, style<span class="op">=</span><span class="st">"magenta"</span>)</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    table.add_row(<span class="st">"bash"</span>, <span class="st">"ls /usr/bin"</span>)</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>    table.add_row(<span class="st">"python"</span>, <span class="st">"print('foo')"</span>)</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(table)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>
@@ -883,8 +928,8 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./eval-logs.html" class="pagination-link" aria-label="Eval Logs">
-        <span class="nav-page-text"><span class="chapter-title">Eval Logs</span></span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./approval.html" class="pagination-link" aria-label="Approval">
+        <span class="nav-page-text"><span class="chapter-title">Approval</span></span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
