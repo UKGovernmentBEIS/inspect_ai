@@ -3,6 +3,7 @@ from logging import (
     INFO,
     WARNING,
     FileHandler,
+    Formatter,
     LogRecord,
     addLevelName,
     getLevelName,
@@ -36,6 +37,10 @@ class LogHandler(RichHandler):
         # log into an external file if requested via env var
         file_logger = os.environ.get("INSPECT_PY_LOGGER_FILE", None)
         self.file_logger = FileHandler(file_logger) if file_logger else None
+        if self.file_logger:
+            self.file_logger.setFormatter(
+                Formatter("%(asctime)s - %(levelname)s - %(message)s")
+            )
 
         # see if the user has a special log level for the file
         file_logger_level = os.environ.get("INSPECT_PY_LOGGER_LEVEL", "")
