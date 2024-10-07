@@ -131,7 +131,7 @@ def chat_choices_from_response(
         # the assistant message might include a tool call so we call the
         # ChatAPIHandler to parse it and sort this out
         ChatCompletionChoice(
-            message=handler.parse_assistent_response(
+            message=handler.parse_assistant_response(
                 choice.message.content or "", tools
             ),
             stop_reason=as_stop_reason(choice.finish_reason),
@@ -189,7 +189,7 @@ class O1PreviewChatAPIHandler(ChatAPIHandler):
         return [ChatMessageUser(content=tool_prompt)] + input
 
     @override
-    def parse_assistent_response(
+    def parse_assistant_response(
         self, response: str, tools: list[ToolInfo]
     ) -> ChatMessageAssistant:
         """Parse content and tool calls from a model response.
@@ -294,9 +294,9 @@ def parse_tool_call_content(content: str, tools: list[ToolInfo]) -> ToolCall:
         # see if we can get the fields (if not report error)
         name = tool_call_data.get("name", None)
         arguments = tool_call_data.get("arguments", None)
-        if not name or not arguments:
+        if (not name) or (arguments is None):
             raise ValueError(
-                "Required 'name' and 'arguments' not provided in JSON dictionary."
+                "Required 'name' and/or 'arguments' not provided in JSON dictionary."
             )
 
         # now perform the parse (we need to call thi function because it includes

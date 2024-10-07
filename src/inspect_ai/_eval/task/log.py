@@ -55,6 +55,7 @@ class TaskLogger:
         task_args: dict[str, Any],
         model_args: dict[str, Any],
         eval_config: EvalConfig,
+        metadata: dict[str, Any] | None,
         recorder: Recorder,
     ) -> None:
         # determine versions
@@ -96,6 +97,7 @@ class TaskLogger:
             config=eval_config,
             revision=revision,
             packages=packages,
+            metadata=metadata,
         )
 
         # stack recorder and location

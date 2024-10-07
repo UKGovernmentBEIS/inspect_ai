@@ -18,6 +18,9 @@
         "model_args": {},
         "config": {
             "limit": 20
+        },
+        "metadata": {
+            "meaning_of_life": 42
         }
     },
     "plan": {
