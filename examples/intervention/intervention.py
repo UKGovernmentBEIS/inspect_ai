@@ -65,9 +65,13 @@ def user_prompt() -> Solver:
 @solver
 def agent_loop() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        while not state.completed:
+        while True:
             # generate w/ tool calls, approvals, etc.
             state = await generate(state)
+
+            # check for completed
+            if state.completed:
+                break
 
             # prompt for next action
             next_action = ask_for_next_action()
