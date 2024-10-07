@@ -3,7 +3,8 @@
 ## Unreleased
 
 - Add `as_dict()` utility method to `Score`
-- Add `metadata` field to `Task` and record in log `EvalSpec`
+- Add `metadata` field to `Task` and record in log `EvalSpec`.
+- Include datetime and level in file logger.
 - Correct llama3 and o1 tool calling when empty arguments passed.
 - Allow resolution of any sandbox name when there is only a single environment.
 
