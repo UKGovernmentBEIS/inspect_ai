@@ -4,6 +4,7 @@ import shutil
 import pytest
 
 from inspect_ai import eval_async
+from inspect_ai.log import read_eval_log
 
 
 @pytest.fixture(scope="session")
@@ -26,3 +27,11 @@ async def test_log_dir(log_dir, base_tmp_dir):
     assert (
         len(os.listdir(log_dir)) >= 1
     )  # as currently a empty dir is created before cwd to task dir is called.
+
+    # Check that metadata is being logged correctly
+    for filename in os.listdir(log_dir):
+        if filename.endswith(".json"):
+            file_path = os.path.join(log_dir, filename)
+            log = read_eval_log(file_path)
+            assert log.eval.metadata["meaning_of_life"] == 42
+            break
