@@ -15,6 +15,7 @@ from ._subprocess import (
     subprocess,
 )
 from ._subtask import Subtask, subtask
+from ._trace import trace_enabled, trace_panel
 
 __all__ = [
     "ExecResult",
@@ -32,4 +33,6 @@ __all__ = [
     "store",
     "Subtask",
     "subtask",
+    "trace_enabled",
+    "trace_panel",
 ]

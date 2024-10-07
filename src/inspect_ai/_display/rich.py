@@ -6,8 +6,9 @@ from dataclasses import dataclass
 from typing import Any, Callable, Iterator, Set
 
 import rich
-from rich.console import Console, Group, RenderableType
+from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
 from rich.live import Live
+from rich.markdown import CodeBlock, Markdown
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
@@ -17,6 +18,7 @@ from rich.progress import (
 )
 from rich.progress import Progress as RProgress
 from rich.segment import Segment
+from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 from typing_extensions import override
@@ -32,6 +34,7 @@ from inspect_ai.log import EvalStats
 from inspect_ai.log._log import rich_traceback
 from inspect_ai.log._transcript import InputEvent, transcript
 from inspect_ai.util._concurrency import concurrency_status
+from inspect_ai.util._trace import trace_enabled
 
 from ._display import (
     Display,
@@ -170,8 +173,9 @@ class RichTaskScreen(TaskScreen):
     def __init__(self, live: Live) -> None:
         theme = rich_theme()
         self.live = live
+        status_text = "Generating" if trace_enabled() else "Task running"
         self.status = self.live.console.status(
-            f"[{theme.meta} bold]Task running...[/{theme.meta} bold]", spinner="clock"
+            f"[{theme.meta} bold]{status_text}...[/{theme.meta} bold]", spinner="clock"
         )
 
     def __exit__(self, *excinfo: Any) -> None:
@@ -182,9 +186,13 @@ class RichTaskScreen(TaskScreen):
     def input_screen(
         self,
         header: str | None = None,
-        transient: bool = True,
-        width: int = CONSOLE_DISPLAY_WIDTH,
+        transient: bool | None = None,
+        width: int | None = None,
     ) -> Iterator[Console]:
+        # determine transient based on trace mode
+        if transient is None:
+            transient = not trace_enabled()
+
         # clear live task status and transient status
         self.live.update("", refresh=True)
         self.status.stop()
@@ -193,8 +201,10 @@ class RichTaskScreen(TaskScreen):
         self.live.console.show_cursor(True)
 
         # set width
-        old_width = self.live.console.width
-        self.live.console.width = min(old_width, width)
+        old_width: int | None = None
+        if width:
+            old_width = self.live.console.width
+            self.live.console.width = min(old_width, width)
 
         # record console activity for event
         self.live.console.record = True
@@ -203,7 +213,7 @@ class RichTaskScreen(TaskScreen):
             # print header if requested
             if header:
                 style = f"{rich_theme().meta} bold"
-                self.live.console.rule(f"[{style}]{header}[/{style}]", style=style)
+                self.live.console.rule(f"[{style}]{header}[/{style}]", style="black")
                 self.live.console.print("")
 
             # yield the console
@@ -221,7 +231,8 @@ class RichTaskScreen(TaskScreen):
             self.live.console.print("")
 
             # reset width
-            self.live.console.width = old_width
+            if old_width:
+                self.live.console.width = old_width
 
             # disable cursor while not collecting input
             self.live.console.show_cursor(False)
@@ -523,7 +534,11 @@ def task_config(profile: TaskProfile, generate_config: bool = True) -> str:
         config = config | dict(profile.generate_config.model_dump(exclude_none=True))
     config_print: list[str] = []
     for name, value in config.items():
-        if name not in ["limit", "model"]:
+        if name == "approval":
+            config_print.append(
+                f"{name}: {','.join([approver['name'] for approver in value['approvers']])}"
+            )
+        elif name not in ["limit", "model"]:
             config_print.append(f"{name}: {value}")
     values = ", ".join(config_print)
     if values:
@@ -682,10 +697,30 @@ def rich_no_color() -> bool:
 
 
 def rich_initialise() -> None:
+    # reflect ansi prefs
     if no_ansi():
         rich.reconfigure(no_color=True, force_terminal=False, force_interactive=False)
     elif rich_no_color():
         rich.reconfigure(no_color=True)
+
+    # disable markdown code bock backgrounds (don't work well across light/dark themes)
+    class CustomCodeBlock(CodeBlock):
+        @override
+        def __rich_console__(
+            self, console: Console, options: ConsoleOptions
+        ) -> RenderResult:
+            code = str(self.text).rstrip()
+            syntax = Syntax(
+                code,
+                self.lexer_name,
+                theme=self.theme,
+                word_wrap=True,
+                background_color="default",
+            )
+            yield syntax
+
+    Markdown.elements["fence"] = CustomCodeBlock
+    Markdown.elements["code_block"] = CustomCodeBlock
 
 
 def rich_theme() -> Theme:

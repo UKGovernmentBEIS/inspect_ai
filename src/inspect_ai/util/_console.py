@@ -1,7 +1,5 @@
 import os
 
-from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
-
 if os.name == "posix":
     # This makes Rich console input better if imported, but
     # raises a ModuleNotFound error on Windows, so posix only
@@ -15,8 +13,8 @@ from rich.console import Console
 @contextmanager
 def input_screen(
     header: str | None = None,
-    transient: bool = True,
-    width: int = CONSOLE_DISPLAY_WIDTH,
+    transient: bool | None = None,
+    width: int | None = None,
 ) -> Iterator[Console]:
     """Input screen for receiving user input.
 
@@ -27,9 +25,10 @@ def input_screen(
       header (str | None): Header line to print above console
         content (defaults to printing no header)
       transient (bool): Return to task progress display after
-        the user completes input (defaults to `True`).
+        the user completes input (defaults to `True` for normal
+        sessions and `False` when trace mode is enabled).
       width (int): Input screen width in characters (defaults to
-        120, and is reduced if greater that the console width).
+        full width)
 
     Returns:
        Console to use for input.

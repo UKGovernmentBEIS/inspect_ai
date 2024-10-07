@@ -75,6 +75,7 @@ book:
            - parallelism.qmd
            - agents-api.qmd
            - interactivity.qmd
+           - approval.qmd
            - eval-logs.qmd
            - extensions.qmd
 

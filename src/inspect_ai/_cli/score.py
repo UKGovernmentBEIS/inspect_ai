@@ -48,7 +48,7 @@ async def score(
     log_level: str | None,
 ) -> None:
     # init eval context
-    init_eval_context(log_level)
+    init_eval_context(None, log_level)
 
     # read the eval log
     recorder = JSONRecorder(log_dir)

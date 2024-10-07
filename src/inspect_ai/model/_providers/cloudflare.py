@@ -90,7 +90,7 @@ class CloudFlareAPI(ModelAPI):
                 model=self.model_name,
                 choices=[
                     ChatCompletionChoice(
-                        message=self.chat_api_handler().parse_assistent_response(
+                        message=self.chat_api_handler().parse_assistant_response(
                             content, tools
                         ),
                         stop_reason="stop",
