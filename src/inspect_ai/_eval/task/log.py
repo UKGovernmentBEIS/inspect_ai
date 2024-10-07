@@ -56,7 +56,7 @@ class TaskLogger:
         model_args: dict[str, Any],
         eval_config: EvalConfig,
         recorder: Recorder,
-        metadata: dict[str, Any],
+        metadata: dict[str, Any] | None,
     ) -> None:
         # determine versions
         git = git_context()
