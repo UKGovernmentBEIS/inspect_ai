@@ -141,6 +141,7 @@ async def eval_run(
                     model_args=model_args,
                     eval_config=task_eval_config,
                     recorder=recorder,
+                    metadata=task.metadata,
                 )
 
                 # append task

@@ -12,4 +12,5 @@ def task2():
         dataset=[Sample(input="What is 1+1?", target="2")] * 10,
         solver=[file_check("task2.py"), generate()],
         scorer=includes(),
+        metadata={"task_idx": 2},
     )
