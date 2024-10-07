@@ -5,8 +5,10 @@
 - [Approval mode](https://inspect.ai-safety-institute.org.uk/approval.html) for extensible approvals of tool calls (human and auto-approvers built in,  arbitrary other approval schemes via extensions).
 - [Trace mode](https://inspect.ai-safety-institute.org.uk/interactivity.html#sec-trace-mode) for printing model interactions to the terminal.
 - Add `as_dict()` utility method to `Score`
-- Add `metadata` field to `Task` and record in log `EvalSpec`
+- Add `metadata` field to `Task` and record in log `EvalSpec`.
+- Include datetime and level in file logger.
 - Correct llama3 and o1 tool calling when empty arguments passed.
+- Allow resolution of any sandbox name when there is only a single environment.
 
 ## v0.3.40 (6 October 2024)
 
