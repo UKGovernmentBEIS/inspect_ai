@@ -11,7 +11,7 @@ from inspect_ai._util.constants import SCORED_SUFFIX
 from inspect_ai.log._file import JSONRecorder
 from inspect_ai.model import get_model
 
-from .common import CommonOptions, common_options, resolve_common_options
+from .common import CommonOptions, common_options, process_common_options
 
 
 @click.command("score")
@@ -28,21 +28,21 @@ def score_command(
     task: str,
     log_file: str,
     no_overwrite: bool | None,
-    **kwargs: Unpack[CommonOptions],
+    **common: Unpack[CommonOptions],
 ) -> None:
     """Score a previous evaluation run."""
     # read common options
-    (log_dir, log_level, log_level_transcript) = resolve_common_options(kwargs)
+    process_common_options(common)
 
     # score
     asyncio.run(
         score(
             task,
-            log_dir,
+            common["log_dir"],
             log_file,
             False if no_overwrite else True,
-            log_level,
-            log_level_transcript,
+            common["log_level"],
+            common["log_level_transcript"],
         )
     )
 

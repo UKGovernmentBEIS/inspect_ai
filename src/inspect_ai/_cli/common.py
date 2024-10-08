@@ -1,6 +1,6 @@
 import functools
 import os
-from typing import Any, Callable, Tuple, cast
+from typing import Any, Callable, cast
 
 import click
 from typing_extensions import TypedDict
@@ -89,7 +89,7 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     return wrapper
 
 
-def resolve_common_options(options: CommonOptions) -> Tuple[str, str, str]:
+def process_common_options(options: CommonOptions) -> None:
     # disable ansi if requested
     if options["no_ansi"]:
         os.environ["INSPECT_NO_ANSI"] = "1"
@@ -102,6 +102,3 @@ def resolve_common_options(options: CommonOptions) -> Tuple[str, str, str]:
         print("Waiting for debugger attach")
         debugpy.wait_for_client()
         print("Debugger attached")
-
-    # return resolved options
-    return (options["log_dir"], options["log_level"], options["log_level_transcript"])

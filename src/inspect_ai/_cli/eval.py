@@ -20,7 +20,7 @@ from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 
-from .common import CommonOptions, common_options, resolve_common_options
+from .common import CommonOptions, common_options, process_common_options
 from .util import parse_cli_args, parse_sandbox
 
 MAX_SAMPLES_HELP = "Maximum number of samples to run in parallel (default is running all samples in parallel)"
@@ -376,22 +376,22 @@ def eval_command(
     log_images: bool | None,
     log_buffer: int | None,
     no_score: bool | None,
-    **kwargs: Unpack[CommonOptions],
+    **common: Unpack[CommonOptions],
 ) -> None:
     """Evaluate tasks."""
     # read config
     config = config_from_locals(dict(locals()))
 
     # resolve common options
-    (log_dir, log_level, log_level_transcript) = resolve_common_options(kwargs)
+    process_common_options(common)
 
     # exec eval
     eval_exec(
         tasks=tasks,
         solver=solver,
-        log_level=log_level,
-        log_level_transcript=log_level_transcript,
-        log_dir=log_dir,
+        log_level=common["log_level"],
+        log_level_transcript=common["log_level_transcript"],
+        log_dir=common["log_dir"],
         model=model,
         model_base_url=model_base_url,
         m=m,
@@ -411,7 +411,7 @@ def eval_command(
         max_subprocesses=max_subprocesses,
         fail_on_error=fail_on_error,
         no_fail_on_error=no_fail_on_error,
-        debug_errors=kwargs["debug_errors"],
+        debug_errors=common["debug_errors"],
         no_log_samples=no_log_samples,
         log_images=log_images,
         log_buffer=log_buffer,
@@ -518,22 +518,22 @@ def eval_set_command(
     no_score: bool | None,
     bundle_dir: str | None,
     bundle_overwrite: bool | None,
-    **kwargs: Unpack[CommonOptions],
+    **common: Unpack[CommonOptions],
 ) -> int:
     """Evaluate a set of tasks."""
     # read config
     config = config_from_locals(dict(locals()))
 
     # resolve common options
-    (log_dir, log_level, log_level_transcript) = resolve_common_options(kwargs)
+    process_common_options(common)
 
     # exec eval
     success = eval_exec(
         tasks=tasks,
         solver=solver,
-        log_level=log_level,
-        log_level_transcript=log_level_transcript,
-        log_dir=log_dir,
+        log_level=common["log_level"],
+        log_level_transcript=common["log_level_transcript"],
+        log_dir=common["log_dir"],
         model=model,
         model_base_url=model_base_url,
         m=m,
@@ -553,7 +553,7 @@ def eval_set_command(
         max_subprocesses=max_subprocesses,
         fail_on_error=fail_on_error,
         no_fail_on_error=no_fail_on_error,
-        debug_errors=kwargs["debug_errors"],
+        debug_errors=common["debug_errors"],
         no_log_samples=no_log_samples,
         log_images=log_images,
         log_buffer=log_buffer,
@@ -804,11 +804,11 @@ def eval_retry_command(
     max_connections: int | None,
     max_retries: int | None,
     timeout: int | None,
-    **kwargs: Unpack[CommonOptions],
+    **common: Unpack[CommonOptions],
 ) -> None:
     """Retry failed evaluation(s)"""
     # resolve common options
-    (log_dir, log_level, log_level_transcript) = resolve_common_options(kwargs)
+    process_common_options(common)
 
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
@@ -824,15 +824,15 @@ def eval_retry_command(
     # retry
     eval_retry(
         retry_log_files,
-        log_level=log_level,
-        log_level_transcript=log_level_transcript,
-        log_dir=log_dir,
+        log_level=common["log_level"],
+        log_level_transcript=common["log_level_transcript"],
+        log_dir=common["log_dir"],
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         sandbox_cleanup=sandbox_cleanup,
         trace=trace,
-        debug_errors=kwargs["debug_errors"],
+        debug_errors=common["debug_errors"],
         log_samples=log_samples,
         log_images=log_images,
         log_buffer=log_buffer,

@@ -8,7 +8,7 @@ from fsspec.core import split_protocol  # type: ignore
 from pydantic_core import to_jsonable_python
 from typing_extensions import Unpack
 
-from inspect_ai._cli.common import CommonOptions, common_options, resolve_common_options
+from inspect_ai._cli.common import CommonOptions, common_options, process_common_options
 from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._eval.list import list_tasks
 from inspect_ai._eval.task import TaskInfo
@@ -53,7 +53,7 @@ def tasks(
 ) -> None:
     """List tasks in given directories."""
     # resolve common options
-    resolve_common_options(kwargs)
+    process_common_options(kwargs)
 
     # parse filter expressions and build a filter from it
     filters = parse_cli_args(f)
@@ -113,14 +113,14 @@ def logs(
     absolute: bool,
     json: bool,
     no_recursive: bool | None,
-    **kwargs: Unpack[CommonOptions],
+    **common: Unpack[CommonOptions],
 ) -> None:
     """List log files in log directory."""
-    (log_dir, _, _) = resolve_common_options(kwargs)
+    process_common_options(common)
 
     # list the logs
     logs = list_eval_logs(
-        log_dir=log_dir,
+        log_dir=common["log_dir"],
         filter=(lambda log: log.status == status) if status else None,
         recursive=no_recursive is not True,
     )
