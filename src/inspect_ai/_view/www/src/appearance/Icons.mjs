@@ -75,6 +75,8 @@
  * @property {string} approve
  * @property {string} reject
  * @property {string} terminate
+ * @property {string} escalate
+ * @property {string} modify
  */
 
 /**
@@ -132,6 +134,8 @@ export const ApplicationIcons = {
     approve: "bi bi-shield-check",
     reject: "bi bi-shield-x",
     terminate: "bi bi-shield-exclamation",
+    escalate: "bi bi-box-arrow-up",
+    modify: "bi bi-pencil-square",
   },
   arrows: {
     right: "bi bi-arrow-right",

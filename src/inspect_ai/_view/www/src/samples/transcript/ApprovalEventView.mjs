@@ -38,6 +38,10 @@ const decisionLabel = (decision) => {
       return "Rejected";
     case "terminate":
       return "Terminated";
+    case "escalate":
+      return "Escalated";
+    case "modify":
+      return "Modified";
     default:
       return decision;
   }
@@ -57,6 +61,10 @@ const decisionIcon = (decision) => {
       return ApplicationIcons.approvals.reject;
     case "terminate":
       return ApplicationIcons.approvals.terminate;
+    case "escalate":
+      return ApplicationIcons.approvals.escalate;
+    case "modify":
+      return ApplicationIcons.approvals.modify;
     default:
       return ApplicationIcons.approve;
   }
