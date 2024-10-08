@@ -65,7 +65,8 @@ def eval_set(
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
-    max_messages: int | None = None,
+    message_limit: int | None = None,
+    token_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -122,8 +123,8 @@ def eval_set(
            eval if a count of samples fails.
         debug_errors (bool | None): Raise task errors (rather than logging them)
            so they can be debugged (defaults to False).
-        max_messages (int | None): Maximum number of messages to allow
-           in a task conversation.
+        message_limit (int | None): Limit on total messages used for each sample.
+        token_limit (int | None): Limit on total tokens used for each sample.
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
@@ -168,7 +169,8 @@ def eval_set(
             epochs=epochs,
             fail_on_error=fail_on_error,
             debug_errors=debug_errors,
-            max_messages=max_messages,
+            message_limit=message_limit,
+            token_limit=token_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,

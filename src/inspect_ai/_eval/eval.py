@@ -56,7 +56,8 @@ def eval(
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
-    max_messages: int | None = None,
+    message_limit: int | None = None,
+    token_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -102,8 +103,8 @@ def eval(
            eval if a count of samples fails.
         debug_errors (bool | None): Raise task errors (rather than logging them)
            so they can be debugged (defaults to False).
-        max_messages (int | None): Maximum number of messages to allow
-           in a task conversation.
+        message_limit (int | None): Limit on total messages used for each sample.
+        token_limit (int | None): Limit on total tokens used for each sample.
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
@@ -142,7 +143,8 @@ def eval(
             epochs=epochs,
             fail_on_error=fail_on_error,
             debug_errors=debug_errors,
-            max_messages=max_messages,
+            message_limit=message_limit,
+            token_limit=token_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -172,7 +174,8 @@ async def eval_async(
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
-    max_messages: int | None = None,
+    message_limit: int | None = None,
+    token_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -217,14 +220,15 @@ async def eval_async(
             to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.
         debug_errors (bool | None): Raise task errors (rather than logging them)
            so they can be debugged (defaults to False).
-        max_messages (int | None): Maximum number of messages to allow
-            in a task conversation.
+        message_limit (int | None): Limit on total messages used for each sample.
+        token_limit (int | None): Limit on total tokens used for each sample.
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
            (default is 1)
         max_subprocesses (int | None): Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
+
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
@@ -308,7 +312,8 @@ async def eval_async(
             trace=trace,
             approval=config_from_approval_policies(approval) if approval else None,
             fail_on_error=fail_on_error,
-            max_messages=max_messages,
+            message_limit=message_limit,
+            token_limit=token_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -573,7 +578,8 @@ async def eval_retry_async(
         trace = eval_log.eval.config.trace or trace
         approval = eval_log.eval.config.approval
         fail_on_error = eval_log.eval.config.fail_on_error
-        max_messages = eval_log.eval.config.max_messages
+        message_limit = eval_log.eval.config.message_limit
+        token_limit = eval_log.eval.config.token_limit
         max_samples = max_samples or eval_log.eval.config.max_samples
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
@@ -618,7 +624,8 @@ async def eval_retry_async(
                 epochs=epochs,
                 fail_on_error=fail_on_error,
                 debug_errors=debug_errors,
-                max_messages=max_messages,
+                message_limit=message_limit,
+                token_limit=token_limit,
                 max_samples=max_samples,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,

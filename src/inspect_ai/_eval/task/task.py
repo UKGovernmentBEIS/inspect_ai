@@ -24,6 +24,7 @@ class TaskDeprecatedArgs(TypedDict, total=False):
     plan: Plan | Solver | list[Solver]
     tool_environment: str | tuple[str, str] | None
     epochs_reducer: ScoreReducers | None
+    max_messages: int | None
 
 
 class Task:
@@ -47,7 +48,8 @@ class Task:
            (default); `False` to never fail on sample errors; Value between 0 and 1
            to fail if a proportion of total samples fails. Value greater than 1 to fail
            eval if a count of samples fails.
-        max_messages (int | None): Limit on total messages in the conversation.
+        message_limit (int | None): Limit on total messages used for each sample.
+        token_limit (int | None): Limit on total tokens used for each sample.
         name: (str | None): Task name. If not specified is automatically
           determined based on the name of the task directory (or "task")
           if its anonymous task (e.g. created in a notebook and passed to
@@ -67,7 +69,8 @@ class Task:
         sandbox: str | tuple[str, str] | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
-        max_messages: int | None = None,
+        message_limit: int | None = None,
+        token_limit: int | None = None,
         name: str | None = None,
         version: int = 0,
         metadata: dict[str, Any] | None = None,
@@ -88,6 +91,9 @@ class Task:
             elif arg == "plan":
                 # no deprecation warning (yet) as it would affect 100% of evals in the wild
                 solver = cast(Solver, value)
+            elif arg == "max_messages":
+                # no deprecation warning (yet) as many tasks set this
+                message_limit = int(cast(int, value))
             if newarg:
                 warn_once(
                     logger,
@@ -120,7 +126,8 @@ class Task:
         self.epochs = epochs.epochs if epochs else None
         self.epochs_reducer = epochs.reducer if epochs else None
         self.fail_on_error = fail_on_error
-        self.max_messages = max_messages
+        self.message_limit = message_limit
+        self.token_limit = token_limit
         self.version = version
         self._name = name
         self.metadata = metadata
