@@ -32,11 +32,18 @@ def score_command(
 ) -> None:
     """Score a previous evaluation run."""
     # read common options
-    (log_dir, log_level) = resolve_common_options(kwargs)
+    (log_dir, log_level, log_file_level) = resolve_common_options(kwargs)
 
     # score
     asyncio.run(
-        score(task, log_dir, log_file, False if no_overwrite else True, log_level)
+        score(
+            task,
+            log_dir,
+            log_file,
+            False if no_overwrite else True,
+            log_level,
+            log_file_level,
+        )
     )
 
 
@@ -46,9 +53,10 @@ async def score(
     log_file: str | None,
     overwrite: bool,
     log_level: str | None,
+    log_file_level: str | None,
 ) -> None:
     # init eval context
-    init_eval_context(None, log_level)
+    init_eval_context(None, log_level, log_file_level)
 
     # read the eval log
     recorder = JSONRecorder(log_dir)

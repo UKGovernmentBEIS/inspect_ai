@@ -49,10 +49,11 @@ def view(
     host: str = DEFAULT_SERVER_HOST,
     port: int = DEFAULT_VIEW_PORT,
     log_level: str | None = None,
+    log_file_level: str | None = None,
     fs_options: dict[str, Any] = {},
 ) -> None:
     init_dotenv()
-    init_logger(log_level)
+    init_logger(log_level, log_file_level)
 
     # initialize the right filesystem for this log_dir
     log_dir = log_dir if log_dir else os.getenv("INSPECT_LOG_DIR", "./logs")
