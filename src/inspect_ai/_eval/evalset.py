@@ -61,11 +61,13 @@ def eval_set(
     approval: str | list[ApprovalPolicy] | None = None,
     score: bool = True,
     log_level: str | None = None,
+    log_level_transcript: str | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
-    max_messages: int | None = None,
+    message_limit: int | None = None,
+    token_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -110,8 +112,9 @@ def eval_set(
           Either a path to an approval policy config file or a list of approval policies.
           Defaults to no approval policy.
         score (bool): Score output (defaults to True)
-        log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
-           or "critical" (defaults to "info")
+        log_level (str | None): Level for logging to the console: "debug", "http", "sandbox",
+          "info", "warning", "error", or "critical" (defaults to "warning")
+        log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
         limit (int | tuple[int, int] | None): Limit evaluated samples
            (defaults to all samples).
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
@@ -122,8 +125,8 @@ def eval_set(
            eval if a count of samples fails.
         debug_errors (bool | None): Raise task errors (rather than logging them)
            so they can be debugged (defaults to False).
-        max_messages (int | None): Maximum number of messages to allow
-           in a task conversation.
+        message_limit (int | None): Limit on total messages used for each sample.
+        token_limit (int | None): Limit on total tokens used for each sample.
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
@@ -163,12 +166,14 @@ def eval_set(
             trace=trace,
             approval=approval,
             log_level=log_level,
+            log_level_transcript=log_level_transcript,
             log_dir=log_dir,
             limit=limit,
             epochs=epochs,
             fail_on_error=fail_on_error,
             debug_errors=debug_errors,
-            max_messages=max_messages,
+            message_limit=message_limit,
+            token_limit=token_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -227,6 +232,7 @@ def eval_set(
         sandbox=sandbox,
         max_subprocesses=max_subprocesses,
         log_level=log_level,
+        log_level_transcript=log_level_transcript,
         **kwargs,
     )
 

@@ -39,18 +39,18 @@ AGENT_SUBMIT_TOOL_DESCRIPTION = "Submit an answer."
 
 
 def run_basic_agent(
-    tools: list[Tool] | Solver, max_messages: int | None = 30
+    tools: list[Tool] | Solver, message_limit: int | None = 30
 ) -> EvalLog:
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
         solver=basic_agent(
             init=system_message(AGENT_SYSTEM_MESSAGE),
-            tools=[addition()],
+            tools=tools,
             submit_name=AGENT_SUBMIT_TOOL_NAME,
             submit_description=AGENT_SUBMIT_TOOL_DESCRIPTION,
         ),
         scorer=includes(),
-        max_messages=max_messages,
+        message_limit=message_limit,
     )
 
     model = get_model(
@@ -103,7 +103,7 @@ def test_basic_agent_retries():
         return Task(
             dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
             solver=basic_agent(
-                tools=[addition()], max_attempts=max_attempts, max_messages=30
+                tools=[addition()], max_attempts=max_attempts, message_limit=30
             ),
             scorer=includes(),
         )
