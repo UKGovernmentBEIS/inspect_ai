@@ -8,10 +8,6 @@ from pydantic import BaseModel
 from pydantic_core import from_json, to_json
 from typing_extensions import override
 
-from inspect_ai._util.constants import (
-    DEFAULT_LOG_BUFFER_LOCAL,
-    DEFAULT_LOG_BUFFER_REMOTE,
-)
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import (
     FileInfo,
@@ -301,6 +297,9 @@ class FileRecorder(Recorder):
         self.fs.mkdir(self.log_dir, exist_ok=True)
         self.suffix = suffix
 
+    def is_local(self) -> bool:
+        return self.fs.is_local()
+
     def _log_file_key(self, eval: EvalSpec) -> str:
         # clean underscores, slashes, and : from the log file key (so we can reliably parse it
         # later without worrying about underscores)
@@ -372,16 +371,6 @@ class JSONRecorder(FileRecorder):
         # which we use to track the output path, accumulated data, and event counter
         self.data: dict[str, JSONRecorder.JSONLogFile] = {}
 
-        # size of flush buffer (how many flushes must occur before we force a write)
-        if log_buffer is None:
-            log_buffer = (
-                DEFAULT_LOG_BUFFER_LOCAL
-                if filesystem(log_dir).is_local()
-                else DEFAULT_LOG_BUFFER_REMOTE
-            )
-        self.flush_buffer = log_buffer
-        self.flush_pending = 0
-
     def log_start(self, eval: EvalSpec) -> str:
         # initialize file log for this eval
         # compute an absolute path if it's a relative ref
@@ -400,47 +389,48 @@ class JSONRecorder(FileRecorder):
         return file
 
     @override
-    def log_plan(self, spec: EvalSpec, plan: EvalPlan) -> None:
-        log = self.data[self._log_file_key(spec)]
+    def log_plan(self, eval: EvalSpec, plan: EvalPlan) -> None:
+        log = self.data[self._log_file_key(eval)]
         log.data.plan = plan
 
     @override
-    def log_sample(
-        self, spec: EvalSpec, sample: EvalSample, flush: bool = False
-    ) -> None:
-        log = self.data[self._log_file_key(spec)]
+    def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
+        log = self.data[self._log_file_key(eval)]
         if log.data.samples is None:
             log.data.samples = []
         log.data.samples.append(sample)
-        if flush:
-            self._flush_log(log)
 
     @override
-    def log_results(self, spec: EvalSpec, results: EvalResults) -> None:
-        log = self.data[self._log_file_key(spec)]
+    def log_results(self, eval: EvalSpec, results: EvalResults) -> None:
+        log = self.data[self._log_file_key(eval)]
         log.data.results = results
 
     @override
     def log_cancelled(
         self,
-        spec: EvalSpec,
+        eval: EvalSpec,
         stats: EvalStats,
     ) -> EvalLog:
-        return self._log_finish(spec, "cancelled", stats)
+        return self._log_finish(eval, "cancelled", stats)
 
     @override
     def log_success(
         self,
-        spec: EvalSpec,
+        eval: EvalSpec,
         stats: EvalStats,
     ) -> EvalLog:
-        return self._log_finish(spec, "success", stats)
+        return self._log_finish(eval, "success", stats)
 
     @override
     def log_failure(
-        self, spec: EvalSpec, stats: EvalStats, error: EvalError
+        self, eval: EvalSpec, stats: EvalStats, error: EvalError
     ) -> EvalLog:
-        return self._log_finish(spec, "error", stats, error)
+        return self._log_finish(eval, "error", stats, error)
+
+    @override
+    def flush(self, eval: EvalSpec) -> None:
+        log = self.data[self._log_file_key(eval)]
+        self.write_log(log.file, log.data)
 
     @override
     def read_log(self, location: str) -> EvalLog:
@@ -464,14 +454,6 @@ class JSONRecorder(FileRecorder):
 
         # write the log file
         write_eval_log(log, location)
-
-        self.flush_pending = 0
-
-    def _flush_log(self, log: JSONLogFile) -> None:
-        self.flush_pending += 1
-        if self.flush_pending >= self.flush_buffer:
-            # write the log and current batch of events
-            self.write_log(log.file, log.data)
 
     def _log_finish(
         self,

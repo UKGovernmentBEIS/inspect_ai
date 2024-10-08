@@ -3,7 +3,11 @@ from typing import Any
 
 from shortuuid import uuid
 
-from inspect_ai._util.constants import PKG_NAME
+from inspect_ai._util.constants import (
+    DEFAULT_LOG_BUFFER_LOCAL,
+    DEFAULT_LOG_BUFFER_REMOTE,
+    PKG_NAME,
+)
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.git import git_context
 from inspect_ai._util.path import cwd_relative_path
@@ -104,6 +108,16 @@ class TaskLogger:
         # number of samples logged
         self._samples_completed = 0
 
+        # size of flush buffer (how many flushes must occur before we force a write)
+        if eval_config.log_buffer is None:
+            log_buffer = (
+                DEFAULT_LOG_BUFFER_LOCAL
+                if recorder.is_local()
+                else DEFAULT_LOG_BUFFER_REMOTE
+            )
+        self.flush_buffer = log_buffer
+        self.flush_pending = 0
+
     @property
     def location(self) -> str:
         return self._location
@@ -112,9 +126,16 @@ class TaskLogger:
     def samples_completed(self) -> int:
         return self._samples_completed
 
-    def log_sample(self, sample: EvalSample, flush: bool) -> None:
+    def log_sample(self, sample: EvalSample, *, flush: bool) -> None:
         # log the sample
-        self.recorder.log_sample(self.eval, sample, flush=flush)
+        self.recorder.log_sample(self.eval, sample)
+
+        # flush if requested
+        if flush:
+            self.flush_pending += 1
+            if self.flush_pending >= self.flush_buffer:
+                self.recorder.flush(self.eval)
+                self.flush_pending = 0
 
         # track sucessful samples logged
         if sample.error is None:
