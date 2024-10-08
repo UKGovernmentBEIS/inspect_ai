@@ -41,7 +41,7 @@ def log_level_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         ),
         default=DEFAULT_LOG_LEVEL_TRANSCRIPT,
         envvar="INSPECT_LOG_LEVEL_TRANSCRIPT",
-        help=f"Set the log file level (defaults to '{DEFAULT_LOG_LEVEL_TRANSCRIPT}')",
+        help=f"Set the log level of the transcript (defaults to '{DEFAULT_LOG_LEVEL_TRANSCRIPT}')",
     )
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> click.Context:

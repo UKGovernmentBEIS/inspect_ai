@@ -33,9 +33,9 @@ from .rich import rich_console
 
 # log handler that filters messages to stderr and the log file
 class LogHandler(RichHandler):
-    def __init__(self, levelno: int, file_levelno: int) -> None:
+    def __init__(self, levelno: int, transcript_levelno: int) -> None:
         super().__init__(levelno, console=rich_console())
-        self.file_levelno = file_levelno
+        self.transcript_levelno = transcript_levelno
         self.display_level = WARNING
         # log into an external file if requested via env var
         file_logger = os.environ.get("INSPECT_PY_LOGGER_FILE", None)
@@ -77,7 +77,7 @@ class LogHandler(RichHandler):
 
         # eval log always gets info level and higher records
         # eval log only gets debug or http if we opt-in
-        write = record.levelno >= self.file_levelno
+        write = record.levelno >= self.transcript_levelno
         notify_logger_record(record, write)
 
     @override
@@ -121,12 +121,12 @@ def init_logger(
 
     # convert to integer
     levelno = getLevelName(log_level)
-    file_levelno = getLevelName(log_level_transcript)
+    transcript_levelno = getLevelName(log_level_transcript)
 
     # init logging handler on demand
     global _logHandler
     if not _logHandler:
-        _logHandler = LogHandler(min(HTTP, levelno), file_levelno)
+        _logHandler = LogHandler(min(HTTP, levelno), transcript_levelno)
         getLogger().addHandler(_logHandler)
 
     # establish default capture level
