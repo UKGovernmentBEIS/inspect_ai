@@ -7,14 +7,14 @@ from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
-    DEFAULT_LOG_FILE_LEVEL,
     DEFAULT_LOG_LEVEL,
+    DEFAULT_LOG_LEVEL_TRANSCRIPT,
 )
 
 
 class CommonOptions(TypedDict):
     log_level: str
-    log_file_level: str
+    log_level_transcript: str
     log_dir: str
     no_ansi: bool | None
     debug: bool
@@ -34,14 +34,14 @@ def log_level_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help=f"Set the log level (defaults to '{DEFAULT_LOG_LEVEL}')",
     )
     @click.option(
-        "--log-file-level",
+        "--log-level-transcript",
         type=click.Choice(
             [level.lower() for level in ALL_LOG_LEVELS],
             case_sensitive=False,
         ),
-        default=DEFAULT_LOG_FILE_LEVEL,
-        envvar="INSPECT_LOG_FILE_LEVEL",
-        help=f"Set the log file level (defaults to '{DEFAULT_LOG_FILE_LEVEL}')",
+        default=DEFAULT_LOG_LEVEL_TRANSCRIPT,
+        envvar="INSPECT_LOG_LEVEL_TRANSCRIPT",
+        help=f"Set the log file level (defaults to '{DEFAULT_LOG_LEVEL_TRANSCRIPT}')",
     )
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> click.Context:
@@ -104,4 +104,4 @@ def resolve_common_options(options: CommonOptions) -> Tuple[str, str, str]:
         print("Debugger attached")
 
     # return resolved options
-    return (options["log_dir"], options["log_level"], options["log_file_level"])
+    return (options["log_dir"], options["log_level"], options["log_level_transcript"])

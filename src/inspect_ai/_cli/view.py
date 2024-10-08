@@ -43,7 +43,7 @@ def start(
 ) -> None:
     """View evaluation logs."""
     # read common options
-    (log_dir, log_level, log_file_level) = resolve_common_options(kwargs)
+    (log_dir, log_level, log_level_transcript) = resolve_common_options(kwargs)
 
     # run the viewer
     view(
@@ -52,7 +52,7 @@ def start(
         host=host,
         port=port,
         log_level=log_level,
-        log_file_level=log_file_level,
+        log_level_transcript=log_level_transcript,
     )
 
 

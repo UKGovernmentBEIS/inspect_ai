@@ -17,8 +17,8 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
-    DEFAULT_LOG_FILE_LEVEL,
     DEFAULT_LOG_LEVEL,
+    DEFAULT_LOG_LEVEL_TRANSCRIPT,
     HTTP,
     HTTP_LOG_LEVEL,
     PKG_NAME,
@@ -88,7 +88,7 @@ class LogHandler(RichHandler):
 # initialize logging -- this function can be called multiple times
 # in the lifetime of the process (the levelno will update globally)
 def init_logger(
-    log_level: str | None = None, log_file_level: str | None = None
+    log_level: str | None = None, log_level_transcript: str | None = None
 ) -> None:
     # backwards compatibility for 'tools'
     if log_level == "tools":
@@ -112,16 +112,16 @@ def init_logger(
     validate_level("log level", log_level)
 
     # reolve log file level
-    log_file_level = (
-        log_file_level
-        if log_file_level
-        else os.getenv("INSPECT_LOG_FILE_LEVEL", DEFAULT_LOG_FILE_LEVEL)
+    log_level_transcript = (
+        log_level_transcript
+        if log_level_transcript
+        else os.getenv("INSPECT_LOG_LEVEL_TRANSCRIPT", DEFAULT_LOG_LEVEL_TRANSCRIPT)
     ).upper()
-    validate_level("log file level", log_file_level)
+    validate_level("log file level", log_level_transcript)
 
     # convert to integer
     levelno = getLevelName(log_level)
-    file_levelno = getLevelName(log_file_level)
+    file_levelno = getLevelName(log_level_transcript)
 
     # init logging handler on demand
     global _logHandler

@@ -37,7 +37,7 @@ def test_log_file_exclude_level() -> None:
         Task(solver=logging_solver(DEBUG)),
         model=get_model("mockllm/model"),
         log_level="debug",
-        log_file_level="warning",
+        log_level_transcript="warning",
     )[0]
     event = find_logger_event(log)
     assert event is None

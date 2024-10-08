@@ -149,14 +149,14 @@ $ inspect eval biology_qa.py --log-level info
 
 ![](images/inspect-view-logging-console.png){.lightbox fig-alt="This Inspect task display in the terminal, with several info log messages from the web search tool printed above the task display."}
 
-You can use the `--log-file-level` option to control what level is written to the log file:
+You can use the `--log-level-transcript` option to control what level is written to the sample transcript:
 
 ``` bash
-$ inspect eval biology_qa.py --log-file-level http
+$ inspect eval biology_qa.py --log-level-transcript http
 ```
 
 
-Note that you can also set the log levels using the `INSPECT_LOG_LEVEL` and `INSPECT_LOG_FILE_LEVEL` environment variables (which are often included in a [.env configuration file](#sec-workflow-configuration)).
+Note that you can also set the log levels using the `INSPECT_LOG_LEVEL` and `INSPECT_LOG_LEVEL_TRANSCRIPT` environment variables (which are often included in a [.env configuration file](#sec-workflow-configuration)).
 
 ### External File {#sec-external-file}
 
