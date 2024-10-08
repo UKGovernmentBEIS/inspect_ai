@@ -51,12 +51,14 @@ def eval(
     trace: bool | None = None,
     approval: str | list[ApprovalPolicy] | None = None,
     log_level: str | None = None,
+    log_level_transcript: str | None = None,
     log_dir: str | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
-    max_messages: int | None = None,
+    message_limit: int | None = None,
+    token_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -88,8 +90,9 @@ def eval(
         approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
           Either a path to an approval policy config file or a list of approval policies.
           Defaults to no approval policy.
-        log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
-           or "critical" (defaults to "info")
+        log_level (str | None): Level for logging to the console: "debug", "http", "sandbox",
+          "info", "warning", "error", or "critical" (defaults to "warning")
+        log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
         limit (int | tuple[int, int] | None): Limit evaluated samples
@@ -102,8 +105,8 @@ def eval(
            eval if a count of samples fails.
         debug_errors (bool | None): Raise task errors (rather than logging them)
            so they can be debugged (defaults to False).
-        max_messages (int | None): Maximum number of messages to allow
-           in a task conversation.
+        message_limit (int | None): Limit on total messages used for each sample.
+        token_limit (int | None): Limit on total tokens used for each sample.
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
@@ -137,12 +140,14 @@ def eval(
             trace=trace,
             approval=approval,
             log_level=log_level,
+            log_level_transcript=log_level_transcript,
             log_dir=log_dir,
             limit=limit,
             epochs=epochs,
             fail_on_error=fail_on_error,
             debug_errors=debug_errors,
-            max_messages=max_messages,
+            message_limit=message_limit,
+            token_limit=token_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -167,12 +172,14 @@ async def eval_async(
     trace: bool | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     log_level: str | None = None,
+    log_level_transcript: str | None = None,
     log_dir: str | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
-    max_messages: int | None = None,
+    message_limit: int | None = None,
+    token_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -204,8 +211,9 @@ async def eval_async(
         approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
           Either a path to an approval policy config file or a list of approval policies.
           Defaults to no approval policy.
-        log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
-            or "critical" (defaults to "info")
+        log_level (str | None): Level for logging to the console: "debug", "http", "sandbox",
+          "info", "warning", "error", or "critical" (defaults to "warning")
+        log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
         log_dir (str | None): Output path for logging results
             (defaults to file log in ./logs directory).
         limit (int | tuple[int, int] | None): Limit evaluated samples
@@ -217,14 +225,15 @@ async def eval_async(
             to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.
         debug_errors (bool | None): Raise task errors (rather than logging them)
            so they can be debugged (defaults to False).
-        max_messages (int | None): Maximum number of messages to allow
-            in a task conversation.
+        message_limit (int | None): Limit on total messages used for each sample.
+        token_limit (int | None): Limit on total tokens used for each sample.
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
            (default is 1)
         max_subprocesses (int | None): Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
+
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
@@ -260,6 +269,7 @@ async def eval_async(
             approval=approval,
             max_subprocesses=max_subprocesses,
             log_level=log_level,
+            log_level_transcript=log_level_transcript,
             **kwargs,
         )
 
@@ -308,7 +318,8 @@ async def eval_async(
             trace=trace,
             approval=config_from_approval_policies(approval) if approval else None,
             fail_on_error=fail_on_error,
-            max_messages=max_messages,
+            message_limit=message_limit,
+            token_limit=token_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -384,6 +395,7 @@ _eval_async_running = False
 def eval_retry(
     tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,
+    log_level_transcript: str | None = None,
     log_dir: str | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
@@ -404,8 +416,9 @@ def eval_retry(
     Args:
         tasks: (str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog]):
             Log files for task(s) to retry.
-        log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
-           or "critical" (defaults to "info")
+        log_level (str | None): Level for logging to the console: "debug", "http", "sandbox",
+          "info", "warning", "error", or "critical" (defaults to "warning")
+        log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
         max_samples (int | None): Maximum number of samples to run in parallel
@@ -441,6 +454,7 @@ def eval_retry(
         eval_retry_async(
             tasks=tasks,
             log_level=log_level,
+            log_level_transcript=log_level_transcript,
             log_dir=log_dir,
             max_samples=max_samples,
             max_tasks=max_tasks,
@@ -462,6 +476,7 @@ def eval_retry(
 async def eval_retry_async(
     tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
     log_level: str | None = None,
+    log_level_transcript: str | None = None,
     log_dir: str | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
@@ -482,8 +497,9 @@ async def eval_retry_async(
     Args:
         tasks: (str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog]):
             Log files for task(s) to retry.
-        log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
-           or "critical" (defaults to "info")
+        log_level (str | None): Level for logging to the console: "debug", "http", "sandbox",
+          "info", "warning", "error", or "critical" (defaults to "warning")
+        log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
         max_samples (int | None): Maximum number of samples to run in parallel
@@ -573,7 +589,8 @@ async def eval_retry_async(
         trace = eval_log.eval.config.trace or trace
         approval = eval_log.eval.config.approval
         fail_on_error = eval_log.eval.config.fail_on_error
-        max_messages = eval_log.eval.config.max_messages
+        message_limit = eval_log.eval.config.message_limit
+        token_limit = eval_log.eval.config.token_limit
         max_samples = max_samples or eval_log.eval.config.max_samples
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
@@ -613,12 +630,14 @@ async def eval_retry_async(
                 trace=trace,
                 approval=approval,
                 log_level=log_level,
+                log_level_transcript=log_level_transcript,
                 log_dir=log_dir,
                 limit=limit,
                 epochs=epochs,
                 fail_on_error=fail_on_error,
                 debug_errors=debug_errors,
-                max_messages=max_messages,
+                message_limit=message_limit,
+                token_limit=token_limit,
                 max_samples=max_samples,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
@@ -647,10 +666,11 @@ def eval_init(
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     max_subprocesses: int | None = None,
     log_level: str | None = None,
+    log_level_transcript: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> tuple[list[Model], list[ApprovalPolicy] | None, list[ResolvedTask]]:
     # init eval context
-    init_eval_context(trace, log_level, max_subprocesses)
+    init_eval_context(trace, log_level, log_level_transcript, max_subprocesses)
 
     # resolve models
     generate_config = GenerateConfig(**kwargs)

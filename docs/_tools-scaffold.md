@@ -2,36 +2,20 @@
 2.  Exercise more fine grained control over which, when, and how many tool calls are made, and how tool calling errors are handled.
 3.  Have multiple `generate()` passes each with a distinct set of tools.
 
-To do this, create a solver that emulates the default tool use loop and provides additional customisation as required. Here is the code at the core of Inspect tool use in `generate()`:
-
-``` python
-# call model
-model = get_model()
-output = await model.generate(state.messages, state.tools)
-
-# update state with output
-state.output = output
-state.messages.append(output.message)
-
-# call tools and update state
-state.messages.extend(call_tools(output.message, state.tools))
-```
-
-This does everything that default `generate()` does, save for an outer loop to continue calling the mode as long as it continues calling tools. This is a complete solver agent that implements the outer loop:
+To do this, create a solver that emulates the default tool use loop and provides additional customisation as required. For example, here is a complete solver agent that has essentially the same implementation as the default `generate()` function:
 
 ``` python
 @solver
-def agent_loop(max_messages: int = 50):
+def agent_loop(message_limit: int = 50):
     async def solve(state: TaskState, generate: Generate):
 
-        # establish max_messages so we have a termination condition
-        state.max_messages = max_messages
+        # establish messages limit so we have a termination condition
+        state.message_limit = message_limit
 
         # call the model in a loop
-        model = get_model()
         while not state.completed:
             # call model
-            output = await model.generate(state.messages, state.tools)
+            output = await get_model().generate(state.messages, state.tools)
 
             # update state
             state.output = output
@@ -48,7 +32,7 @@ def agent_loop(max_messages: int = 50):
     return solve
 ```
 
-The `state.completed` flag is automatically set to `False` if `max_messages` for the task is exceeded, so we check it at the top of the loop.
+The `state.completed` flag is automatically set to `False` if `message_limit` or `token_limit` for the task is exceeded, so we check it at the top of the loop.
 
 You can imagine several ways you might want to customise this loop:
 
@@ -56,7 +40,7 @@ You can imagine several ways you might want to customise this loop:
 2.  Urging the model to keep going after it decides to stop calling tools.
 3.  Examining and possibly filtering the tool calls before invoking `call_tools()`
 4.  Adding a critique / reflection step between tool calling and generate.
-5.  Deep copying the `TaskState` and exploring several trajectories.
+5. [Forking](agents_api.qmd#sec-forking) the `TaskState` and exploring several trajectories.
 
 ### Stop Reasons {#sec-stop-reasons}
 

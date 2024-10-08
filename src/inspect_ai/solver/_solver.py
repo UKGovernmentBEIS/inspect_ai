@@ -37,7 +37,8 @@ class Generate(Protocol):
        tool_calls (Literal["loop", "single", "none"]): Resolve tool calls:
           - `"loop"` resolves tools calls and then invokes `generate()`,
              proceeding in a loop which terminates when there are no more
-             tool calls or `max_messages` is exceeded. This is the default behavior.
+             tool calls, or `message_limit` or `token_limit` is exceeded.
+             This is the default behavior.
           - `"single"` resolves at most a single set of tool calls and then returns.
           - `"none"` does not resolve tool calls at all (in this
              case you will need to invoke `call_tools()` directly).
@@ -263,7 +264,8 @@ def generate(
       tool_calls (Literal["loop", "single", "none"]): Resolve tool calls:
         - `"loop"` resolves tools calls and then invokes `generate()`,
             proceeding in a loop which terminates when there are no more
-            tool calls or `max_messages` is exceeded. This is the default behavior.
+            tool calls or `message_limit` or `token_limit` is exceeded.
+            This is the default behavior.
         - `"single"` resolves at most a single set of tool calls and then returns.
         - `"none"` does not resolve tool calls at all (in this
             case you will need to invoke `call_tools()` directly).

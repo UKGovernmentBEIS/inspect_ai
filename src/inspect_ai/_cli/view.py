@@ -43,11 +43,16 @@ def start(
 ) -> None:
     """View evaluation logs."""
     # read common options
-    (log_dir, log_level) = resolve_common_options(kwargs)
+    (log_dir, log_level, log_level_transcript) = resolve_common_options(kwargs)
 
     # run the viewer
     view(
-        log_dir=log_dir, recursive=recursive, host=host, port=port, log_level=log_level
+        log_dir=log_dir,
+        recursive=recursive,
+        host=host,
+        port=port,
+        log_level=log_level,
+        log_level_transcript=log_level_transcript,
     )
 
 
@@ -72,6 +77,6 @@ def bundle_command(
 ) -> None:
     """Bundle evaluation logs"""
     # read common options
-    (log_dir, log_level) = resolve_common_options(kwargs)
+    (log_dir, _, _) = resolve_common_options(kwargs)
 
     bundle_log_dir(output_dir=output_dir, log_dir=log_dir, overwrite=overwrite)

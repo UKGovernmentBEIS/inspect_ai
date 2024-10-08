@@ -12,10 +12,11 @@ from inspect_ai.util._trace import init_trace
 def init_eval_context(
     trace: bool | None,
     log_level: str | None,
+    log_level_transcript: str | None,
     max_subprocesses: int | None = None,
 ) -> None:
     init_dotenv()
-    init_logger(log_level)
+    init_logger(log_level, log_level_transcript)
     init_concurrency()
     init_max_subprocesses(max_subprocesses)
     init_http_rate_limit_count()
