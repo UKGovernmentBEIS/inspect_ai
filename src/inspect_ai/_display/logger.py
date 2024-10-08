@@ -77,9 +77,7 @@ class LogHandler(RichHandler):
 
         # eval log always gets info level and higher records
         # eval log only gets debug or http if we opt-in
-        write = (
-            record.levelno >= self.file_levelno or record.levelno >= self.display_level
-        )
+        write = record.levelno >= self.file_levelno
         notify_logger_record(record, write)
 
     @override
