@@ -319,11 +319,11 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
         # log as appropriate
         if cancelled:
-            eval_log = logger.log_cancelled(stats)
+            eval_log = logger.log_finish("cancelled", stats)
         elif error:
-            eval_log = logger.log_failure(stats, error)
+            eval_log = logger.log_finish("error", stats, error)
         else:
-            eval_log = logger.log_success(stats)
+            eval_log = logger.log_finish("success", stats)
 
         # notify the view module that an eval just completed
         # (in case we have a view polling for new evals)
@@ -365,7 +365,7 @@ async def task_run_sample(
                 progress()
             # log if requested
             if logger:
-                logger.log_sample(previous_sample, False)
+                logger.log_sample(previous_sample, flush=False)
 
             # return score
             if previous_sample.scores:

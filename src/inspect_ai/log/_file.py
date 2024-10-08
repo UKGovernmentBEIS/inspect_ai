@@ -406,26 +406,25 @@ class JSONRecorder(FileRecorder):
         log.data.results = results
 
     @override
-    def log_cancelled(
+    def log_finish(
         self,
-        eval: EvalSpec,
+        spec: EvalSpec,
+        status: Literal["started", "success", "cancelled", "error"],
         stats: EvalStats,
+        error: EvalError | None = None,
     ) -> EvalLog:
-        return self._log_finish(eval, "cancelled", stats)
+        log = self.data[self._log_file_key(spec)]
+        log.data.status = status
+        log.data.stats = stats
+        if error:
+            log.data.error = error
+        self.write_log(log.file, log.data)
 
-    @override
-    def log_success(
-        self,
-        eval: EvalSpec,
-        stats: EvalStats,
-    ) -> EvalLog:
-        return self._log_finish(eval, "success", stats)
+        # stop tracking this data
+        del self.data[self._log_file_key(spec)]
 
-    @override
-    def log_failure(
-        self, eval: EvalSpec, stats: EvalStats, error: EvalError
-    ) -> EvalLog:
-        return self._log_finish(eval, "error", stats, error)
+        # return the log
+        return log.data
 
     @override
     def flush(self, eval: EvalSpec) -> None:
@@ -454,22 +453,3 @@ class JSONRecorder(FileRecorder):
 
         # write the log file
         write_eval_log(log, location)
-
-    def _log_finish(
-        self,
-        spec: EvalSpec,
-        status: Literal["started", "success", "cancelled", "error"],
-        stats: EvalStats,
-        error: EvalError | None = None,
-    ) -> EvalLog:
-        log = self.data[self._log_file_key(spec)]
-        log.data.status = status
-        log.data.stats = stats
-        if error:
-            log.data.error = error
-        self.write_log(log.file, log.data)
-
-        # stop tracking this data
-        del self.data[self._log_file_key(spec)]
-
-        return log.data

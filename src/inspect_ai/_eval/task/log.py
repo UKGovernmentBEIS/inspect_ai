@@ -1,5 +1,5 @@
 from importlib import metadata as importlib_metadata
-from typing import Any
+from typing import Any, Literal
 
 from shortuuid import uuid
 
@@ -20,7 +20,6 @@ from inspect_ai.log import (
     EvalConfig,
     EvalDataset,
     EvalError,
-    EvalLog,
     EvalPlan,
     EvalPlanStep,
     EvalResults,
@@ -29,7 +28,7 @@ from inspect_ai.log import (
     EvalSpec,
     EvalStats,
 )
-from inspect_ai.log._log import Recorder
+from inspect_ai.log._log import EvalLog, Recorder
 from inspect_ai.model import (
     GenerateConfig,
     Model,
@@ -147,14 +146,13 @@ class TaskLogger:
     def log_results(self, results: EvalResults) -> None:
         self.recorder.log_results(self.eval, results)
 
-    def log_cancelled(self, stats: EvalStats) -> EvalLog:
-        return self.recorder.log_cancelled(self.eval, stats)
-
-    def log_success(self, stats: EvalStats) -> EvalLog:
-        return self.recorder.log_success(self.eval, stats)
-
-    def log_failure(self, stats: EvalStats, error: EvalError) -> EvalLog:
-        return self.recorder.log_failure(self.eval, stats, error)
+    def log_finish(
+        self,
+        status: Literal["success", "cancelled", "error"],
+        stats: EvalStats,
+        error: EvalError | None = None,
+    ) -> EvalLog:
+        return self.recorder.log_finish(self.eval, status, stats, error)
 
 
 def log_plan(

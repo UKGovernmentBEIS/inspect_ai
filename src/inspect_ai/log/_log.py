@@ -512,18 +512,16 @@ class Recorder(abc.ABC):
     def log_results(self, eval: EvalSpec, results: EvalResults) -> None: ...
 
     @abc.abstractmethod
-    def log_success(self, eval: EvalSpec, stats: EvalStats) -> EvalLog: ...
-
-    @abc.abstractmethod
-    def log_cancelled(self, eval: EvalSpec, stats: EvalStats) -> EvalLog: ...
-
-    @abc.abstractmethod
-    def log_failure(
-        self, eval: EvalSpec, stats: EvalStats, error: EvalError
-    ) -> EvalLog: ...
-
-    @abc.abstractmethod
     def flush(self, eval: EvalSpec) -> None: ...
+
+    @abc.abstractmethod
+    def log_finish(
+        self,
+        eval: EvalSpec,
+        status: Literal["success", "cancelled", "error"],
+        stats: EvalStats,
+        error: EvalError | None = None,
+    ) -> EvalLog: ...
 
     @abc.abstractmethod
     def read_log(self, location: str) -> EvalLog: ...
