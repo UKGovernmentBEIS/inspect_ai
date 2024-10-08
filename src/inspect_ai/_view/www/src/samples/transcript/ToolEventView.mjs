@@ -9,6 +9,7 @@ import {
   ToolOutput,
 } from "../../components/Tools.mjs";
 import { TranscriptView } from "./TranscriptView.mjs";
+import { ApprovalEventView } from "./ApprovalEventView.mjs";
 
 /**
  * Renders the ToolEventView component.
@@ -26,6 +27,12 @@ export const ToolEventView = ({ id, event, style, depth }) => {
     event.function,
     event.arguments,
   );
+
+  // Find an approval if there is one
+  const approvalEvent = event.events.find((e) => {
+    return e.event === "approval";
+  });
+
   const title = `Tool: ${event.function}`;
   const output = event.result || event.error?.message;
   return html`
@@ -40,6 +47,15 @@ export const ToolEventView = ({ id, event, style, depth }) => {
               output=${output}
             />
           </${ExpandablePanel}>`
+        }
+        ${
+          approvalEvent
+            ? html`<${ApprovalEventView}
+                id="${id}-approval"
+                event=${approvalEvent}
+                style=${{ border: "none", padding: 0, marginBottom: 0 }}
+              />`
+            : ""
         }
     </div>
     
