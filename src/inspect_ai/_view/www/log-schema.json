@@ -647,7 +647,7 @@
           "default": null,
           "title": "Fail On Error"
         },
-        "max_messages": {
+        "message_limit": {
           "anyOf": [
             {
               "type": "integer"
@@ -657,7 +657,19 @@
             }
           ],
           "default": null,
-          "title": "Max Messages"
+          "title": "Message Limit"
+        },
+        "token_limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token Limit"
         },
         "max_samples": {
           "anyOf": [
@@ -753,7 +765,8 @@
         "trace",
         "approval",
         "fail_on_error",
-        "max_messages",
+        "message_limit",
+        "token_limit",
         "max_samples",
         "max_tasks",
         "max_subprocesses",

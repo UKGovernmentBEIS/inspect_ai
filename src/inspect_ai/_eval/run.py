@@ -86,9 +86,10 @@ async def eval_run(
         task_run_options: list[TaskRunOptions] = []
         for resolved_task in tasks:
             with chdir(task_run_dir(resolved_task.task)):
-                # tasks can provide their epochs, max_messages, and fail_on_error
-                # so broadcast these into the eval config (so long as they aren't
-                # overriding a value specified from eval() or the CLI)
+                # tasks can provide their epochs, message_limit,
+                # token_limit, and fail_on_error so broadcast these
+                # into the eval config (so long as they aren't overriding a
+                # value specified from eval() or the CLI)
                 task = resolved_task.task
                 task_eval_config = eval_config.model_copy()
 
@@ -113,11 +114,17 @@ async def eval_run(
                     for reducer in task.epochs_reducer:
                         validate_reducer(task.epochs, reducer)
 
-                # max messages
-                if task_eval_config.max_messages is None:
-                    task_eval_config.max_messages = task.max_messages
+                # sample message limit
+                if task_eval_config.message_limit is None:
+                    task_eval_config.message_limit = task.message_limit
                 else:
-                    task.max_messages = task_eval_config.max_messages
+                    task.message_limit = task_eval_config.message_limit
+
+                # sample token limit
+                if task_eval_config.token_limit is None:
+                    task_eval_config.token_limit = task.token_limit
+                else:
+                    task.token_limit = task_eval_config.token_limit
 
                 # fail_on_error
                 if task_eval_config.fail_on_error is None:

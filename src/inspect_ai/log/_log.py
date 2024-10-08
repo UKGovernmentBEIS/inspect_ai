@@ -58,8 +58,11 @@ class EvalConfig(BaseModel):
     of samples fails.
     """
 
-    max_messages: int | None = Field(default=None)
+    message_limit: int | None = Field(default=None)
     """Maximum messages to allow in a chat conversation."""
+
+    token_limit: int | None = Field(default=None)
+    """Maximum tokens to allow in a chat conversation."""
 
     max_samples: int | None = Field(default=None)
     """Maximum number of samples to run in parallel."""
@@ -81,6 +84,22 @@ class EvalConfig(BaseModel):
 
     log_buffer: int | None = Field(default=None)
     """Number of samples to buffer before writing log file."""
+
+    @property
+    def max_messages(self) -> int | None:
+        """Deprecated max_messages property."""
+        return self.message_limit
+
+    @model_validator(mode="before")
+    @classmethod
+    def convert_max_messages_to_message_limit(
+        cls: Type["EvalConfig"], values: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Migrate deprecated max_messages property."""
+        max_messages = values.get("max_messages", None)
+        if max_messages:
+            values["message_limit"] = max_messages
+        return values
 
 
 class EvalSample(BaseModel):
