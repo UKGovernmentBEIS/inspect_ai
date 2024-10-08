@@ -383,13 +383,14 @@ def eval_command(
     config = config_from_locals(dict(locals()))
 
     # resolve common options
-    (log_dir, log_level) = resolve_common_options(kwargs)
+    (log_dir, log_level, log_level_transcript) = resolve_common_options(kwargs)
 
     # exec eval
     eval_exec(
         tasks=tasks,
         solver=solver,
         log_level=log_level,
+        log_level_transcript=log_level_transcript,
         log_dir=log_dir,
         model=model,
         model_base_url=model_base_url,
@@ -524,13 +525,14 @@ def eval_set_command(
     config = config_from_locals(dict(locals()))
 
     # resolve common options
-    (log_dir, log_level) = resolve_common_options(kwargs)
+    (log_dir, log_level, log_level_transcript) = resolve_common_options(kwargs)
 
     # exec eval
     success = eval_exec(
         tasks=tasks,
         solver=solver,
         log_level=log_level,
+        log_level_transcript=log_level_transcript,
         log_dir=log_dir,
         model=model,
         model_base_url=model_base_url,
@@ -574,6 +576,7 @@ def eval_exec(
     tasks: tuple[str] | None,
     solver: str | None,
     log_level: str,
+    log_level_transcript: str,
     log_dir: str,
     model: str,
     model_base_url: str | None,
@@ -649,6 +652,7 @@ def eval_exec(
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,
             log_level=log_level,
+            log_level_transcript=log_level_transcript,
             log_dir=log_dir,
             limit=eval_limit,
             epochs=eval_epochs,
@@ -804,7 +808,7 @@ def eval_retry_command(
 ) -> None:
     """Retry failed evaluation(s)"""
     # resolve common options
-    (log_dir, log_level) = resolve_common_options(kwargs)
+    (log_dir, log_level, log_level_transcript) = resolve_common_options(kwargs)
 
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
@@ -821,6 +825,7 @@ def eval_retry_command(
     eval_retry(
         retry_log_files,
         log_level=log_level,
+        log_level_transcript=log_level_transcript,
         log_dir=log_dir,
         max_samples=max_samples,
         max_tasks=max_tasks,

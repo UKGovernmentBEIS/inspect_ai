@@ -5,11 +5,16 @@ from typing import Any, Callable, Tuple, cast
 import click
 from typing_extensions import TypedDict
 
-from inspect_ai._util.constants import ALL_LOG_LEVELS, DEFAULT_LOG_LEVEL
+from inspect_ai._util.constants import (
+    ALL_LOG_LEVELS,
+    DEFAULT_LOG_LEVEL,
+    DEFAULT_LOG_LEVEL_TRANSCRIPT,
+)
 
 
 class CommonOptions(TypedDict):
     log_level: str
+    log_level_transcript: str
     log_dir: str
     no_ansi: bool | None
     debug: bool
@@ -17,7 +22,7 @@ class CommonOptions(TypedDict):
     debug_errors: bool
 
 
-def log_level_option(func: Callable[..., Any]) -> Callable[..., click.Context]:
+def log_level_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--log-level",
         type=click.Choice(
@@ -28,6 +33,16 @@ def log_level_option(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_LOG_LEVEL",
         help=f"Set the log level (defaults to '{DEFAULT_LOG_LEVEL}')",
     )
+    @click.option(
+        "--log-level-transcript",
+        type=click.Choice(
+            [level.lower() for level in ALL_LOG_LEVELS],
+            case_sensitive=False,
+        ),
+        default=DEFAULT_LOG_LEVEL_TRANSCRIPT,
+        envvar="INSPECT_LOG_LEVEL_TRANSCRIPT",
+        help=f"Set the log file level (defaults to '{DEFAULT_LOG_LEVEL_TRANSCRIPT}')",
+    )
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> click.Context:
         return cast(click.Context, func(*args, **kwargs))
@@ -36,7 +51,7 @@ def log_level_option(func: Callable[..., Any]) -> Callable[..., click.Context]:
 
 
 def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
-    @log_level_option
+    @log_level_options
     @click.option(
         "--log-dir",
         type=str,
@@ -74,7 +89,7 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     return wrapper
 
 
-def resolve_common_options(options: CommonOptions) -> Tuple[str, str]:
+def resolve_common_options(options: CommonOptions) -> Tuple[str, str, str]:
     # disable ansi if requested
     if options["no_ansi"]:
         os.environ["INSPECT_NO_ANSI"] = "1"
@@ -89,4 +104,4 @@ def resolve_common_options(options: CommonOptions) -> Tuple[str, str]:
         print("Debugger attached")
 
     # return resolved options
-    return (options["log_dir"], options["log_level"])
+    return (options["log_dir"], options["log_level"], options["log_level_transcript"])

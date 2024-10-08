@@ -18,12 +18,14 @@ from typing_extensions import override
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
     DEFAULT_LOG_LEVEL,
+    DEFAULT_LOG_LEVEL_TRANSCRIPT,
     HTTP,
     HTTP_LOG_LEVEL,
     PKG_NAME,
     SANDBOX,
     SANDBOX_LOG_LEVEL,
 )
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import notify_logger_record
 
 from .rich import rich_console
@@ -31,8 +33,9 @@ from .rich import rich_console
 
 # log handler that filters messages to stderr and the log file
 class LogHandler(RichHandler):
-    def __init__(self, levelno: int) -> None:
+    def __init__(self, levelno: int, file_levelno: int) -> None:
         super().__init__(levelno, console=rich_console())
+        self.file_levelno = file_levelno
         self.display_level = WARNING
         # log into an external file if requested via env var
         file_logger = os.environ.get("INSPECT_PY_LOGGER_FILE", None)
@@ -74,7 +77,7 @@ class LogHandler(RichHandler):
 
         # eval log always gets info level and higher records
         # eval log only gets debug or http if we opt-in
-        write = record.levelno >= INFO or record.levelno >= self.display_level
+        write = record.levelno >= self.file_levelno
         notify_logger_record(record, write)
 
     @override
@@ -84,7 +87,9 @@ class LogHandler(RichHandler):
 
 # initialize logging -- this function can be called multiple times
 # in the lifetime of the process (the levelno will update globally)
-def init_logger(log_level: str | None = None) -> None:
+def init_logger(
+    log_level: str | None = None, log_level_transcript: str | None = None
+) -> None:
     # backwards compatibility for 'tools'
     if log_level == "tools":
         log_level = "sandbox"
@@ -93,25 +98,35 @@ def init_logger(log_level: str | None = None) -> None:
     addLevelName(HTTP, HTTP_LOG_LEVEL)
     addLevelName(SANDBOX, SANDBOX_LOG_LEVEL)
 
+    def validate_level(option: str, level: str) -> None:
+        if level not in ALL_LOG_LEVELS:
+            log_levels = ", ".join([level.lower() for level in ALL_LOG_LEVELS])
+            raise PrerequisiteError(
+                f"Invalid {option} '{level.lower()}'. Log level must be one of {log_levels}"
+            )
+
     # resolve default log level
     log_level = (
         log_level if log_level else os.getenv("INSPECT_LOG_LEVEL", DEFAULT_LOG_LEVEL)
     ).upper()
+    validate_level("log level", log_level)
 
-    # validate the log-level
-    if log_level not in ALL_LOG_LEVELS:
-        log_levels = ", ".join([level.lower() for level in ALL_LOG_LEVELS])
-        raise RuntimeError(
-            f"Invalid log level '{log_level.lower()}'. Log level must be one of {log_levels}"
-        )
+    # reolve log file level
+    log_level_transcript = (
+        log_level_transcript
+        if log_level_transcript
+        else os.getenv("INSPECT_LOG_LEVEL_TRANSCRIPT", DEFAULT_LOG_LEVEL_TRANSCRIPT)
+    ).upper()
+    validate_level("log file level", log_level_transcript)
 
     # convert to integer
     levelno = getLevelName(log_level)
+    file_levelno = getLevelName(log_level_transcript)
 
     # init logging handler on demand
     global _logHandler
     if not _logHandler:
-        _logHandler = LogHandler(min(HTTP, levelno))
+        _logHandler = LogHandler(min(HTTP, levelno), file_levelno)
         getLogger().addHandler(_logHandler)
 
     # establish default capture level

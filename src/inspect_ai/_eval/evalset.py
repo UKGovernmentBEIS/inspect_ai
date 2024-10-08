@@ -61,6 +61,7 @@ def eval_set(
     approval: str | list[ApprovalPolicy] | None = None,
     score: bool = True,
     log_level: str | None = None,
+    log_level_transcript: str | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
@@ -111,8 +112,9 @@ def eval_set(
           Either a path to an approval policy config file or a list of approval policies.
           Defaults to no approval policy.
         score (bool): Score output (defaults to True)
-        log_level (str | None): "debug", "http", "sandbox", "info", "warning", "error",
-           or "critical" (defaults to "info")
+        log_level (str | None): Level for logging to the console: "debug", "http", "sandbox",
+          "info", "warning", "error", or "critical" (defaults to "warning")
+        log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
         limit (int | tuple[int, int] | None): Limit evaluated samples
            (defaults to all samples).
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
@@ -164,6 +166,7 @@ def eval_set(
             trace=trace,
             approval=approval,
             log_level=log_level,
+            log_level_transcript=log_level_transcript,
             log_dir=log_dir,
             limit=limit,
             epochs=epochs,
@@ -229,6 +232,7 @@ def eval_set(
         sandbox=sandbox,
         max_subprocesses=max_subprocesses,
         log_level=log_level,
+        log_level_transcript=log_level_transcript,
         **kwargs,
     )
 
