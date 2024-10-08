@@ -16,7 +16,7 @@ from .common import CommonOptions, common_options, resolve_common_options
 
 @click.command("score")
 @click.argument("task", type=str)
-@click.argument("log-file", type=str, required=False)
+@click.argument("log-file", type=str, required=True)
 @click.option(
     "--no-overwrite",
     type=bool,
@@ -26,7 +26,7 @@ from .common import CommonOptions, common_options, resolve_common_options
 @common_options
 def score_command(
     task: str,
-    log_file: str | None,
+    log_file: str,
     no_overwrite: bool | None,
     **kwargs: Unpack[CommonOptions],
 ) -> None:
@@ -50,7 +50,7 @@ def score_command(
 async def score(
     task: str,
     log_dir: str,
-    log_file: str | None,
+    log_file: str,
     overwrite: bool,
     log_level: str | None,
     log_level_transcript: str | None,
@@ -60,7 +60,6 @@ async def score(
 
     # read the eval log
     recorder = JSONRecorder(log_dir)
-    log_file = log_file if log_file else recorder.latest_log_file_path()
     eval_log = recorder.read_log(log_file)
 
     # check that there are samples therein

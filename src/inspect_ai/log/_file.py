@@ -1,13 +1,12 @@
 import os
 import re
-from pathlib import Path
-from typing import Any, Callable, Literal, cast, get_args
-from urllib.parse import urlparse
+from typing import Any, Callable, Literal, get_args
 
 import ijson  # type: ignore
 from ijson import IncompleteJSONError
 from pydantic import BaseModel
 from pydantic_core import from_json, to_json
+from typing_extensions import override
 
 from inspect_ai._util.constants import (
     DEFAULT_LOG_BUFFER_LOCAL,
@@ -28,7 +27,6 @@ from ._log import (
     EvalSample,
     EvalSpec,
     EvalStats,
-    LogType,
     Recorder,
 )
 
@@ -303,20 +301,6 @@ class FileRecorder(Recorder):
         self.fs.mkdir(self.log_dir, exist_ok=True)
         self.suffix = suffix
 
-    def latest_log_file_path(self) -> str:
-        log_files = self.fs.ls(self.log_dir)
-        sorted_log_files = log_files_from_ls(log_files, [self.suffix])
-        if len(sorted_log_files) > 0:
-            log_file = sorted_log_files[0].name
-            # return as relative if the fs_scheme is a local relative path
-            fs_scheme = urlparse(self.log_dir).scheme
-            if not fs_scheme and not os.path.isabs(self.log_dir):
-                log_dir_abs = Path(self.log_dir).parent.absolute().as_uri()
-                log_file = log_file.replace(log_dir_abs, ".")
-            return log_file
-        else:
-            raise FileNotFoundError("No evaluation logs found in in output_dir")
-
     def _log_file_key(self, eval: EvalSpec) -> str:
         # clean underscores, slashes, and : from the log file key (so we can reliably parse it
         # later without worrying about underscores)
@@ -415,27 +399,28 @@ class JSONRecorder(FileRecorder):
         # attempt to
         return file
 
-    def log(
-        self,
-        spec: EvalSpec,
-        type: LogType,
-        data: EvalPlan | EvalSample | EvalResults,
-        flush: bool = False,
+    @override
+    def log_plan(self, spec: EvalSpec, plan: EvalPlan) -> None:
+        log = self.data[self._log_file_key(spec)]
+        log.data.plan = plan
+
+    @override
+    def log_sample(
+        self, spec: EvalSpec, sample: EvalSample, flush: bool = False
     ) -> None:
         log = self.data[self._log_file_key(spec)]
-        if type == "plan":
-            log.data.plan = cast(EvalPlan, data)
-        elif type == "sample":
-            if log.data.samples is None:
-                log.data.samples = []
-            log.data.samples.append(cast(EvalSample, data))
-        elif type == "results":
-            log.data.results = cast(EvalResults, data)
-        else:
-            raise ValueError(f"Unknown event {type}")
+        if log.data.samples is None:
+            log.data.samples = []
+        log.data.samples.append(sample)
         if flush:
-            self.flush_log(log)
+            self._flush_log(log)
 
+    @override
+    def log_results(self, spec: EvalSpec, results: EvalResults) -> None:
+        log = self.data[self._log_file_key(spec)]
+        log.data.results = results
+
+    @override
     def log_cancelled(
         self,
         spec: EvalSpec,
@@ -443,6 +428,7 @@ class JSONRecorder(FileRecorder):
     ) -> EvalLog:
         return self._log_finish(spec, "cancelled", stats)
 
+    @override
     def log_success(
         self,
         spec: EvalSpec,
@@ -450,20 +436,17 @@ class JSONRecorder(FileRecorder):
     ) -> EvalLog:
         return self._log_finish(spec, "success", stats)
 
+    @override
     def log_failure(
         self, spec: EvalSpec, stats: EvalStats, error: EvalError
     ) -> EvalLog:
         return self._log_finish(spec, "error", stats, error)
 
+    @override
     def read_log(self, location: str) -> EvalLog:
         return read_eval_log(location)
 
-    def flush_log(self, log: JSONLogFile) -> None:
-        self.flush_pending += 1
-        if self.flush_pending >= self.flush_buffer:
-            # write the log and current batch of events
-            self.write_log(log.file, log.data)
-
+    @override
     def write_log(self, location: str, log: EvalLog) -> None:
         # sort samples before writing as they can come in out of order
         # (convert into string zfilled so order is preserved)
@@ -484,8 +467,11 @@ class JSONRecorder(FileRecorder):
 
         self.flush_pending = 0
 
-    def read_latest_log(self) -> EvalLog:
-        return self.read_log(self.latest_log_file_path())
+    def _flush_log(self, log: JSONLogFile) -> None:
+        self.flush_pending += 1
+        if self.flush_pending >= self.flush_buffer:
+            # write the log and current batch of events
+            self.write_log(log.file, log.data)
 
     def _log_finish(
         self,

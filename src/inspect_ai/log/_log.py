@@ -495,28 +495,26 @@ class EvalLog(BaseModel):
         return self
 
 
-LogType = Literal["plan", "sample", "score", "results", "scorer"]
-
-
 class Recorder(abc.ABC):
     @abc.abstractmethod
     def log_start(self, eval: EvalSpec) -> str: ...
 
     @abc.abstractmethod
-    def log(
-        self,
-        spec: EvalSpec,
-        type: LogType,
-        data: EvalSample | EvalPlan | EvalResults,
-        flush: bool = False,
-    ) -> None:
-        pass
+    def log_plan(self, spec: EvalSpec, plan: EvalPlan) -> None: ...
 
     @abc.abstractmethod
-    def log_cancelled(self, eval: EvalSpec, stats: EvalStats) -> EvalLog: ...
+    def log_sample(
+        self, spec: EvalSpec, sample: EvalSample, flush: bool = False
+    ) -> None: ...
+
+    @abc.abstractmethod
+    def log_results(self, spec: EvalSpec, results: EvalResults) -> None: ...
 
     @abc.abstractmethod
     def log_success(self, eval: EvalSpec, stats: EvalStats) -> EvalLog: ...
+
+    @abc.abstractmethod
+    def log_cancelled(self, eval: EvalSpec, stats: EvalStats) -> EvalLog: ...
 
     @abc.abstractmethod
     def log_failure(
@@ -528,6 +526,3 @@ class Recorder(abc.ABC):
 
     @abc.abstractmethod
     def write_log(self, location: str, log: EvalLog) -> None: ...
-
-    @abc.abstractmethod
-    def read_latest_log(self) -> EvalLog: ...

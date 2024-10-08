@@ -1,5 +1,5 @@
 from importlib import metadata as importlib_metadata
-from typing import Any, cast
+from typing import Any
 
 from shortuuid import uuid
 
@@ -11,7 +11,7 @@ from inspect_ai._util.registry import (
     registry_log_name,
     registry_params,
 )
-from inspect_ai.dataset import Dataset, Sample
+from inspect_ai.dataset import Dataset
 from inspect_ai.log import (
     EvalConfig,
     EvalDataset,
@@ -25,18 +25,15 @@ from inspect_ai.log import (
     EvalSpec,
     EvalStats,
 )
-from inspect_ai.log._log import LogType, Recorder
-from inspect_ai.log._transcript import eval_events, transcript
+from inspect_ai.log._log import Recorder
 from inspect_ai.model import (
     GenerateConfig,
     Model,
     ModelName,
 )
 from inspect_ai.model._model import model_usage
-from inspect_ai.scorer import Score
-from inspect_ai.scorer._metric import SampleScore
-from inspect_ai.solver import Plan, Solver, TaskState
-from inspect_ai.solver._solver import SolverSpec
+from inspect_ai.solver._plan import Plan
+from inspect_ai.solver._solver import Solver, SolverSpec
 
 
 class TaskLogger:
@@ -115,68 +112,19 @@ class TaskLogger:
     def samples_completed(self) -> int:
         return self._samples_completed
 
-    def log(
-        self,
-        type: LogType,
-        data: EvalSample | EvalPlan | EvalResults,
-        flush: bool = False,
-    ) -> None:
-        self.recorder.log(self.eval, type, data, flush)
+    def log_sample(self, sample: EvalSample, flush: bool) -> None:
+        # log the sample
+        self.recorder.log_sample(self.eval, sample, flush=flush)
 
         # track sucessful samples logged
-        if type == "sample":
-            sample = cast(EvalSample, data)
-            if sample.error is None:
-                self._samples_completed += 1
-
-    def log_sample(
-        self,
-        epoch: int,
-        sample: Sample,
-        state: TaskState,
-        scores: dict[str, SampleScore],
-        error: EvalError | None,
-        log_images: bool,
-    ) -> None:
-        # sample must have id to be logged
-        id = sample.id
-        if id is None:
-            raise ValueError(
-                f"Samples without IDs cannot be logged: {sample.model_dump_json()}"
-            )
-
-        # log
-        self.log(
-            "sample",
-            EvalSample(
-                id=id,
-                epoch=epoch,
-                input=sample.input,
-                choices=sample.choices,
-                target=sample.target,
-                metadata=state.metadata if state.metadata else {},
-                sandbox=(
-                    (sample.sandbox, None)
-                    if isinstance(sample.sandbox, str)
-                    else sample.sandbox
-                ),
-                files=list(sample.files.keys()) if sample.files else None,
-                setup=sample.setup,
-                messages=state.messages,
-                output=state.output,
-                scores=cast(dict[str, Score], scores),
-                store=dict(state.store.items()),
-                transcript=eval_events(transcript().events, log_images),
-                error=error,
-            ),
-            True,
-        )
+        if sample.error is None:
+            self._samples_completed += 1
 
     def log_plan(self, plan: EvalPlan) -> None:
-        self.log("plan", plan)
+        self.recorder.log_plan(self.eval, plan)
 
     def log_results(self, results: EvalResults) -> None:
-        self.log("results", results)
+        self.recorder.log_results(self.eval, results)
 
     def log_cancelled(self, stats: EvalStats) -> EvalLog:
         return self.recorder.log_cancelled(self.eval, stats)
@@ -207,10 +155,10 @@ def log_plan(
     if plan.finish:
         eval_plan.steps.append(eval_plan_step(plan.finish))
 
-    logger.log("plan", eval_plan)
+    logger.log_plan(eval_plan)
 
 
-def collect_eval_data(stats: EvalStats, logger: TaskLogger) -> None:
+def collect_eval_data(stats: EvalStats) -> None:
     # collect stats
     stats.completed_at = iso_now()
     stats.model_usage = model_usage()
