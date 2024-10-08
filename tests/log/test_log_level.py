@@ -10,32 +10,34 @@ from inspect_ai.solver import Generate, TaskState, solver
 logger = getLogger(__name__)
 
 
-def test_log_file_level() -> None:
-    @solver
-    def logging_solver(level_no: int):
-        async def solve(state: TaskState, generate: Generate):
-            logger.log(level_no, "sandbox log entry")
-            return state
+@solver
+def logging_solver(level_no: int):
+    async def solve(state: TaskState, generate: Generate):
+        logger.log(level_no, "sandbox log entry")
+        return state
 
-        return solve
+    return solve
 
-    def find_logger_event(log: EvalLog) -> LoggerEvent | None:
-        if log.samples:
-            return next(
-                (
-                    event
-                    for event in log.samples[0].transcript.events
-                    if isinstance(event, LoggerEvent)
-                ),
-                None,
-            )
-        else:
-            return None
 
+def find_logger_event(log: EvalLog) -> LoggerEvent | None:
+    if log.samples:
+        return next(
+            (
+                event
+                for event in log.samples[0].transcript.events
+                if isinstance(event, LoggerEvent)
+            ),
+            None,
+        )
+    else:
+        return None
+
+
+def test_log_file_include_level() -> None:
     log = eval(
         Task(solver=logging_solver(SANDBOX)),
         model=get_model("mockllm/model"),
-        log_level="debug",
+        log_level="error",
         log_file_level="sandbox",
     )[0]
 
@@ -43,6 +45,8 @@ def test_log_file_level() -> None:
     assert event
     assert event.message.level == "sandbox"
 
+
+def test_log_file_exclude_level() -> None:
     log = eval(
         Task(solver=logging_solver(DEBUG)),
         model=get_model("mockllm/model"),
