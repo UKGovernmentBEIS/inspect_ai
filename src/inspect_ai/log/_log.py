@@ -492,3 +492,13 @@ class EvalLog(BaseModel):
                     del sample.scores[SCORER_PLACEHOLDER]
 
         return self
+
+
+def sort_samples(samples: list[EvalSample]) -> None:
+    # convert into string zfilled so order is preserved
+    samples.sort(
+        key=lambda sample: (
+            sample.epoch,
+            (sample.id if isinstance(sample.id, str) else str(sample.id).zfill(20)),
+        )
+    )

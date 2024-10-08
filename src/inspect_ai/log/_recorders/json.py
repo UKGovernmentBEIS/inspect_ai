@@ -1,4 +1,4 @@
-from typing import Literal, get_args
+from typing import Any, Literal, get_args
 
 import ijson  # type: ignore
 from ijson import IncompleteJSONError
@@ -6,16 +6,23 @@ from pydantic import BaseModel
 from pydantic_core import from_json, to_json
 from typing_extensions import override
 
+from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import (
     absolute_file_path,
     file,
 )
 
-from .._log import EvalLog, EvalPlan, EvalResults, EvalSample, EvalSpec, EvalStats
+from .._log import (
+    EvalLog,
+    EvalPlan,
+    EvalResults,
+    EvalSample,
+    EvalSpec,
+    EvalStats,
+    sort_samples,
+)
 from .file import FileRecorder
-
-LOG_SCHEMA_VERSION = 2
 
 
 class JSONRecorder(FileRecorder):
@@ -28,14 +35,17 @@ class JSONRecorder(FileRecorder):
         file: str
         data: EvalLog
 
-    def __init__(self, log_dir: str, suffix: str = ".json"):
+    def __init__(
+        self, log_dir: str, suffix: str = ".json", fs_options: dict[str, Any] = {}
+    ):
         # call super
-        super().__init__(log_dir, suffix)
+        super().__init__(log_dir, suffix, fs_options)
 
         # each eval has a unique key (created from run_id and task name/version)
         # which we use to track the output path, accumulated data, and event counter
         self.data: dict[str, JSONRecorder.JSONLogFile] = {}
 
+    @override
     def log_init(self, eval: EvalSpec) -> str:
         # initialize file log for this eval
         # compute an absolute path if it's a relative ref
@@ -141,18 +151,8 @@ class JSONRecorder(FileRecorder):
     @classmethod
     def write_log(cls, location: str, log: EvalLog) -> None:
         # sort samples before writing as they can come in out of order
-        # (convert into string zfilled so order is preserved)
         if log.samples:
-            log.samples.sort(
-                key=lambda sample: (
-                    sample.epoch,
-                    (
-                        sample.id
-                        if isinstance(sample.id, str)
-                        else str(sample.id).zfill(20)
-                    ),
-                )
-            )
+            sort_samples(log.samples)
 
         with file(location, "w") as f:
             f.write(eval_log_json(log))

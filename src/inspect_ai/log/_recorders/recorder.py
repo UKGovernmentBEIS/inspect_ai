@@ -40,7 +40,7 @@ class Recorder(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def handles_location(cls, ocation: str) -> bool: ...
+    def handles_location(cls, location: str) -> bool: ...
 
     @classmethod
     @abc.abstractmethod
