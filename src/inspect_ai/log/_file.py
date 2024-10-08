@@ -52,14 +52,11 @@ def list_eval_logs(
        List of EvalLog Info.
 
     """
-    # resolve extensions
-    extensions = [f".{format}" for format in (formats or ALL_LOG_FORMATS)]
-
     # get the eval logs
     fs = filesystem(log_dir, fs_options)
     if fs.exists(log_dir):
         eval_logs = log_files_from_ls(
-            fs.ls(log_dir, recursive=recursive), extensions, descending
+            fs.ls(log_dir, recursive=recursive), formats, descending
         )
     else:
         return []
@@ -188,10 +185,10 @@ def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:
 
 def log_files_from_ls(
     ls: list[FileInfo],
-    formats: list[str] = ALL_LOG_FORMATS,
+    formats: list[Literal["eval", "json"]] | None,
     descending: bool = True,
 ) -> list[EvalLogInfo]:
-    extensions = [f".{format}" for format in formats]
+    extensions = [f".{format}" for format in (formats or ALL_LOG_FORMATS)]
     return [
         log_file_info(file)
         for file in sorted(
