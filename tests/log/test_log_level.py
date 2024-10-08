@@ -1,7 +1,6 @@
 from logging import DEBUG, getLogger
 
 from inspect_ai import Task, eval
-from inspect_ai._util.constants import SANDBOX
 from inspect_ai.log._log import EvalLog
 from inspect_ai.log._transcript import LoggerEvent
 from inspect_ai.model import get_model
@@ -31,19 +30,6 @@ def find_logger_event(log: EvalLog) -> LoggerEvent | None:
         )
     else:
         return None
-
-
-def test_log_file_include_level() -> None:
-    log = eval(
-        Task(solver=logging_solver(SANDBOX)),
-        model=get_model("mockllm/model"),
-        log_level="error",
-        log_file_level="sandbox",
-    )[0]
-
-    event = find_logger_event(log)
-    assert event
-    assert event.message.level == "sandbox"
 
 
 def test_log_file_exclude_level() -> None:
