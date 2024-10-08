@@ -1,5 +1,5 @@
 import functools
-from typing import Any, Callable, cast
+from typing import Any, Callable, Literal, cast
 
 import click
 from typing_extensions import Unpack
@@ -318,6 +318,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help='Cache prompt prefix (Anthropic only). Defaults to "auto", which will enable caching for requests with tools.',
         envvar="INSPECT_EVAL_CACHE_PROMPT",
     )
+    @click.option(
+        "--log-format",
+        type=click.Choice(["eval", "json"], case_sensitive=False),
+        envvar=["INSPECT_LOG_FORMAT", "INSPECT_EVAL_LOG_FORMAT"],
+        help="Format for writing log files.",
+    )
     @common_options
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> click.Context:
@@ -376,6 +382,7 @@ def eval_command(
     log_images: bool | None,
     log_buffer: int | None,
     no_score: bool | None,
+    log_format: Literal["eval", "json"] | None,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Evaluate tasks."""
@@ -392,6 +399,7 @@ def eval_command(
         log_level=common["log_level"],
         log_level_transcript=common["log_level_transcript"],
         log_dir=common["log_dir"],
+        log_format=log_format,
         model=model,
         model_base_url=model_base_url,
         m=m,
@@ -518,6 +526,7 @@ def eval_set_command(
     no_score: bool | None,
     bundle_dir: str | None,
     bundle_overwrite: bool | None,
+    log_format: Literal["eval", "json"] | None,
     **common: Unpack[CommonOptions],
 ) -> int:
     """Evaluate a set of tasks."""
@@ -534,6 +543,7 @@ def eval_set_command(
         log_level=common["log_level"],
         log_level_transcript=common["log_level_transcript"],
         log_dir=common["log_dir"],
+        log_format=log_format,
         model=model,
         model_base_url=model_base_url,
         m=m,
@@ -578,6 +588,7 @@ def eval_exec(
     log_level: str,
     log_level_transcript: str,
     log_dir: str,
+    log_format: Literal["eval", "json"] | None,
     model: str,
     model_base_url: str | None,
     m: tuple[str] | None,
@@ -654,6 +665,7 @@ def eval_exec(
             log_level=log_level,
             log_level_transcript=log_level_transcript,
             log_dir=log_dir,
+            log_format=log_format,
             limit=eval_limit,
             epochs=eval_epochs,
             fail_on_error=fail_on_error,

@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Any, Callable, Literal, get_args
+from typing import Any, Callable, Literal, cast, get_args
 
 import ijson  # type: ignore
 from ijson import IncompleteJSONError
@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from pydantic_core import from_json, to_json
 from typing_extensions import override
 
+from inspect_ai._util.constants import ALL_LOG_FORMATS
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import (
     FileInfo,
@@ -16,15 +17,8 @@ from inspect_ai._util.file import (
     filesystem,
 )
 
-from ._log import (
-    EvalLog,
-    EvalPlan,
-    EvalResults,
-    EvalSample,
-    EvalSpec,
-    EvalStats,
-    Recorder,
-)
+from ._log import EvalLog, EvalPlan, EvalResults, EvalSample, EvalSpec, EvalStats
+from ._recorder import Recorder
 
 LOG_SCHEMA_VERSION = 2
 
@@ -42,6 +36,7 @@ class EvalLogInfo(FileInfo):
 
 def list_eval_logs(
     log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
+    formats: list[Literal["eval", "json"]] | None = None,
     filter: Callable[[EvalLog], bool] | None = None,
     recursive: bool = True,
     descending: bool = True,
@@ -51,6 +46,8 @@ def list_eval_logs(
 
     Args:
       log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
+      formats (Literal["eval", "json"]): Formats to list (default
+        to listing all formats)
       filter (Callable[[EvalLog], bool]): Filter to limit logs returned.
          Note that the EvalLog instance passed to the filter has only
          the EvalLog header (i.e. does not have the samples or logging output).
@@ -63,11 +60,14 @@ def list_eval_logs(
        List of EvalLog Info.
 
     """
+    # resolve extensions
+    extensions = [f".{format}" for format in (formats or ALL_LOG_FORMATS)]
+
     # get the eval logs
     fs = filesystem(log_dir, fs_options)
     if fs.exists(log_dir):
         eval_logs = log_files_from_ls(
-            fs.ls(log_dir, recursive=recursive), [".json"], descending
+            fs.ls(log_dir, recursive=recursive), extensions, descending
         )
     else:
         return []
@@ -83,16 +83,27 @@ def list_eval_logs(
         return eval_logs
 
 
-def write_eval_log(log: EvalLog, log_file: str | FileInfo) -> None:
+def write_eval_log(
+    log: EvalLog,
+    log_file: str | FileInfo,
+    format: Literal["eval", "json", "auto"] = "auto",
+) -> None:
     """Write an evaluation log.
 
     Args:
        log (EvalLog): Evaluation log to write.
        log_file (str | FileInfo): Location to write log to.
+       format (Literal["eval", "json", "auto"]): Write to format
+          (defaults to 'auto' based on `log_file` extension)
     """
     log_file = log_file if isinstance(log_file, str) else log_file.name
-    with file(log_file, "w") as f:
-        f.write(eval_log_json(log))
+
+    # get recorder type
+    if format == "auto":
+        recorder_type = recorder_type_for_location(log_file)
+    else:
+        recorder_type = recorder_type_for_format(format)
+    recorder_type.write_log(log_file, log)
 
 
 def write_log_dir_manifest(
@@ -137,14 +148,272 @@ def write_log_dir_manifest(
         f.write(manifest_json)
 
 
-def eval_log_json(log: EvalLog) -> str:
-    # serialize to json (ignore values that are unserializable)
-    # these values often result from solvers using metadata to
-    # pass around 'live' objects -- this is fine to do and we
-    # don't want to prevent it at the serialization level
-    return to_json(
-        value=log, indent=2, exclude_none=True, fallback=lambda _x: None
-    ).decode()
+def read_eval_log(
+    log_file: str | FileInfo,
+    header_only: bool = False,
+    format: Literal["eval", "json", "auto"] = "auto",
+) -> EvalLog:
+    """Read an evaluation log.
+
+    Args:
+       log_file (str | FileInfo): Log file to read.
+       header_only (bool): Read only the header (i.e. exclude
+         the "samples" and "logging" fields). Defaults to False.
+       format (Literal["eval", "json", "auto"]): Read from format
+          (defaults to 'auto' based on `log_file` extension)
+
+    Returns:
+       EvalLog object read from file.
+    """
+    # resolve to file path
+    log_file = log_file if isinstance(log_file, str) else log_file.name
+
+    # get recorder type
+    if format == "auto":
+        recorder_type = recorder_type_for_location(log_file)
+    else:
+        recorder_type = recorder_type_for_format(format)
+    return recorder_type.read_log(log_file, header_only)
+
+
+def read_eval_log_headers(
+    log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
+) -> list[EvalLog]:
+    return [read_eval_log(log_file, header_only=True) for log_file in log_files]
+
+
+def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:
+    # ensure that log dir has a trailing seperator
+    if not log_dir.endswith(sep):
+        log_dir = f"{log_dir}/"
+
+    # slice off log_dir from the front
+    log = info.name.replace(log_dir, "")
+
+    # manifests are web artifacts so always use forward slash
+    return log.replace("\\", "/")
+
+
+class FileRecorder(Recorder):
+    def __init__(
+        self, log_dir: str, suffix: str, fs_options: dict[str, Any] = {}
+    ) -> None:
+        self.log_dir = log_dir
+        self.fs = filesystem(log_dir, fs_options)
+        self.fs.mkdir(self.log_dir, exist_ok=True)
+        self.suffix = suffix
+
+    def is_local(self) -> bool:
+        return self.fs.is_local()
+
+    def _log_file_key(self, eval: EvalSpec) -> str:
+        # clean underscores, slashes, and : from the log file key (so we can reliably parse it
+        # later without worrying about underscores)
+        def clean(s: str) -> str:
+            return s.replace("_", "-").replace("/", "-").replace(":", "-")
+
+        return f"{clean(eval.created)}_{clean(eval.task)}_{clean(eval.task_id)}"
+
+    def _log_file_path(self, eval: EvalSpec) -> str:
+        return f"{self.log_dir}{self.fs.sep}{self._log_file_key(eval)}{self.suffix}"
+
+
+def log_files_from_ls(
+    ls: list[FileInfo],
+    formats: list[str] = ALL_LOG_FORMATS,
+    descending: bool = True,
+) -> list[EvalLogInfo]:
+    extensions = [f".{format}" for format in formats]
+    return [
+        log_file_info(file)
+        for file in sorted(
+            ls, key=lambda file: (file.mtime if file.mtime else 0), reverse=descending
+        )
+        if file.type == "file" and is_log_file(file.name, extensions)
+    ]
+
+
+log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}.*$"
+
+
+def is_log_file(file: str, extensions: list[str]) -> bool:
+    parts = file.replace("\\", "/").split("/")
+    name = parts[-1]
+    return re.match(log_file_pattern, name) is not None and any(
+        [name.endswith(suffix) for suffix in extensions]
+    )
+
+
+def log_file_info(info: FileInfo) -> "EvalLogInfo":
+    # extract the basename and split into parts
+    # (deal with previous logs had the model in their name)
+    basename = os.path.splitext(info.name)[0]
+    parts = basename.split("/").pop().split("_")
+    last_idx = 3 if len(parts) > 3 else 2
+    task = parts[1]
+    part3 = parts[last_idx].split("-")
+    task_id = part3[0]
+    suffix = task_id[2] if len(part3) > 1 else None
+    return EvalLogInfo(
+        name=info.name,
+        type=info.type,
+        size=info.size,
+        mtime=info.mtime,
+        task=task,
+        task_id=task_id,
+        suffix=suffix,
+    )
+
+
+class JSONRecorder(FileRecorder):
+    @override
+    @classmethod
+    def handles_location(cls, location: str) -> bool:
+        return location.endswith(".json")
+
+    class JSONLogFile(BaseModel):
+        file: str
+        data: EvalLog
+
+    def __init__(self, log_dir: str, suffix: str = ".json"):
+        # call super
+        super().__init__(log_dir, suffix)
+
+        # each eval has a unique key (created from run_id and task name/version)
+        # which we use to track the output path, accumulated data, and event counter
+        self.data: dict[str, JSONRecorder.JSONLogFile] = {}
+
+    def log_init(self, eval: EvalSpec) -> str:
+        # initialize file log for this eval
+        # compute an absolute path if it's a relative ref
+        # (so that the writes go to the correct place even
+        # if the working directory is switched for a task)
+        file = absolute_file_path(self._log_file_path(eval))
+
+        # compute an absolute path if it's a relative ref
+        # (so that the writes go to the correct place even
+        # if the working directory is switched for a task)
+        self.data[self._log_file_key(eval)] = JSONRecorder.JSONLogFile(
+            file=file, data=EvalLog(eval=eval)
+        )
+
+        # attempt to
+        return file
+
+    @override
+    def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
+        log = self.data[self._log_file_key(eval)]
+        log.data.plan = plan
+
+    @override
+    def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
+        log = self.data[self._log_file_key(eval)]
+        if log.data.samples is None:
+            log.data.samples = []
+        log.data.samples.append(sample)
+
+    @override
+    def log_finish(
+        self,
+        spec: EvalSpec,
+        status: Literal["started", "success", "cancelled", "error"],
+        stats: EvalStats,
+        results: EvalResults | None,
+        error: EvalError | None = None,
+    ) -> EvalLog:
+        log = self.data[self._log_file_key(spec)]
+        log.data.status = status
+        log.data.stats = stats
+        log.data.results = results
+        if error:
+            log.data.error = error
+        self.write_log(log.file, log.data)
+
+        # stop tracking this data
+        del self.data[self._log_file_key(spec)]
+
+        # return the log
+        return log.data
+
+    @override
+    def flush(self, eval: EvalSpec) -> None:
+        log = self.data[self._log_file_key(eval)]
+        self.write_log(log.file, log.data)
+
+    @override
+    @classmethod
+    def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
+        if header_only:
+            try:
+                return _read_header_streaming(location)
+            # The Python JSON serializer supports NaN and Inf, however
+            # this isn't technically part of the JSON spec. The json-stream
+            # library shares this limitation, so if we fail with an
+            # invalid character then we move on and and parse w/ pydantic
+            # (which does support NaN and Inf by default)
+            except (ValueError, IncompleteJSONError) as ex:
+                if (
+                    str(ex).find("Invalid JSON character") != -1
+                    or str(ex).find("invalid char in json text") != -1
+                ):
+                    pass
+                else:
+                    raise ValueError(f"Unable to read log file: {location}") from ex
+
+        # parse full log (also used as a fallback for header_only encountering NaN or Inf)
+        with file(location, "r") as f:
+            # parse w/ pydantic
+            raw_data = from_json(f.read())
+            log = EvalLog(**raw_data)
+
+            # fail for unknown version
+            _validate_version(log.version)
+
+            # set the version to the schema version we'll be returning
+            log.version = LOG_SCHEMA_VERSION
+
+            # prune if header_only
+            if header_only:
+                # exclude samples
+                log.samples = None
+
+                # prune sample reductions
+                if log.results is not None:
+                    log.results.sample_reductions = None
+
+            # return log
+            return log
+
+    @override
+    @classmethod
+    def write_log(cls, location: str, log: EvalLog) -> None:
+        # sort samples before writing as they can come in out of order
+        # (convert into string zfilled so order is preserved)
+        if log.samples:
+            log.samples.sort(
+                key=lambda sample: (
+                    sample.epoch,
+                    (
+                        sample.id
+                        if isinstance(sample.id, str)
+                        else str(sample.id).zfill(20)
+                    ),
+                )
+            )
+
+        with file(location, "w") as f:
+            f.write(eval_log_json(log))
+
+
+class EvalRecorder(JSONRecorder):
+    @override
+    @classmethod
+    def handles_location(cls, location: str) -> bool:
+        return location.endswith(".eval")
+
+    @override
+    def __init__(self, log_dir: str):
+        super().__init__(log_dir, ".eval")
 
 
 def _validate_version(ver: int) -> None:
@@ -213,240 +482,42 @@ def _read_header_streaming(log_file: str) -> EvalLog:
     )
 
 
-def read_eval_log(log_file: str | FileInfo, header_only: bool = False) -> EvalLog:
-    """Read an evaluation log.
-
-    Args:
-       log_file (str | FileInfo): Log file to read.
-       header_only (bool): Read only the header (i.e. exclude
-         the "samples" and "logging" fields). Defaults to False.
-
-    Returns:
-       EvalLog object read from file.
-    """
-    # resolve to file path
-    log_file = log_file if isinstance(log_file, str) else log_file.name
-
-    if header_only:
-        try:
-            return _read_header_streaming(log_file)
-        # The Python JSON serializer supports NaN and Inf, however
-        # this isn't technically part of the JSON spec. The json-stream
-        # library shares this limitation, so if we fail with an
-        # invalid character then we move on and and parse w/ pydantic
-        # (which does support NaN and Inf by default)
-        except (ValueError, IncompleteJSONError) as ex:
-            if (
-                str(ex).find("Invalid JSON character") != -1
-                or str(ex).find("invalid char in json text") != -1
-            ):
-                pass
-            else:
-                raise ValueError(f"Unable to read log file: {log_file}") from ex
-
-    # parse full log (also used as a fallback for header_only encountering NaN or Inf)
-    with file(log_file, "r") as f:
-        # parse w/ pydantic
-        raw_data = from_json(f.read())
-        log = EvalLog(**raw_data)
-
-        # fail for unknown version
-        _validate_version(log.version)
-
-        # set the version to the schema version we'll be returning
-        log.version = LOG_SCHEMA_VERSION
-
-        # prune if header_only
-        if header_only:
-            # exclude samples
-            log.samples = None
-
-            # prune sample reductions
-            if log.results is not None:
-                log.results.sample_reductions = None
-
-        # return log
-        return log
+def eval_log_json(log: EvalLog) -> str:
+    # serialize to json (ignore values that are unserializable)
+    # these values often result from solvers using metadata to
+    # pass around 'live' objects -- this is fine to do and we
+    # don't want to prevent it at the serialization level
+    return to_json(
+        value=log, indent=2, exclude_none=True, fallback=lambda _x: None
+    ).decode()
 
 
-def read_eval_log_headers(
-    log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
-) -> list[EvalLog]:
-    return [read_eval_log(log_file, header_only=True) for log_file in log_files]
+_recorders: dict[str, type[Recorder]] = {"eval": EvalRecorder, "json": JSONRecorder}
 
 
-def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:
-    # ensure that log dir has a trailing seperator
-    if not log_dir.endswith(sep):
-        log_dir = f"{log_dir}/"
-
-    # slice off log_dir from the front
-    log = info.name.replace(log_dir, "")
-
-    # manifests are web artifacts so always use forward slash
-    return log.replace("\\", "/")
+def create_recorder_for_format(
+    format: Literal["eval", "json"], *args: Any, **kwargs: Any
+) -> Recorder:
+    recorder = recorder_type_for_format(format)
+    return recorder(*args, **kwargs)
 
 
-class FileRecorder(Recorder):
-    def __init__(
-        self, log_dir: str, suffix: str, fs_options: dict[str, Any] = {}
-    ) -> None:
-        super().__init__()
-        self.log_dir = log_dir
-        self.fs = filesystem(log_dir, fs_options)
-        self.fs.mkdir(self.log_dir, exist_ok=True)
-        self.suffix = suffix
-
-    def is_local(self) -> bool:
-        return self.fs.is_local()
-
-    def _log_file_key(self, eval: EvalSpec) -> str:
-        # clean underscores, slashes, and : from the log file key (so we can reliably parse it
-        # later without worrying about underscores)
-        def clean(s: str) -> str:
-            return s.replace("_", "-").replace("/", "-").replace(":", "-")
-
-        return f"{clean(eval.created)}_{clean(eval.task)}_{clean(eval.task_id)}"
-
-    def _log_file_path(self, eval: EvalSpec) -> str:
-        return f"{self.log_dir}{self.fs.sep}{self._log_file_key(eval)}{self.suffix}"
+def recorder_type_for_format(format: Literal["eval", "json"]) -> type[Recorder]:
+    recorder = _recorders.get(format, None)
+    if recorder:
+        return recorder
+    else:
+        raise ValueError(f"No recorder for format: {format}")
 
 
-def log_files_from_ls(
-    ls: list[FileInfo],
-    extensions: list[str] = [".json"],
-    descending: bool = True,
-) -> list[EvalLogInfo]:
-    return [
-        log_file_info(file)
-        for file in sorted(
-            ls, key=lambda file: (file.mtime if file.mtime else 0), reverse=descending
-        )
-        if file.type == "file" and is_log_file(file.name, extensions)
-    ]
+def create_recorder_for_log_dir(log_dir: str) -> Recorder:
+    recorder = recorder_type_for_location(log_dir)
+    return cast(Callable[[str], Recorder], recorder)(log_dir)
 
 
-log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}.*$"
+def recorder_type_for_location(location: str) -> type[Recorder]:
+    for recorder in _recorders.values():
+        if recorder.handles_location(location):
+            return recorder
 
-
-def is_log_file(file: str, extensions: list[str]) -> bool:
-    parts = file.replace("\\", "/").split("/")
-    name = parts[-1]
-    return re.match(log_file_pattern, name) is not None and any(
-        [name.endswith(suffix) for suffix in extensions]
-    )
-
-
-def log_file_info(info: FileInfo) -> "EvalLogInfo":
-    # extract the basename and split into parts
-    # (deal with previous logs had the model in their name)
-    basename = os.path.splitext(info.name)[0]
-    parts = basename.split("/").pop().split("_")
-    last_idx = 3 if len(parts) > 3 else 2
-    task = parts[1]
-    part3 = parts[last_idx].split("-")
-    task_id = part3[0]
-    suffix = task_id[2] if len(part3) > 1 else None
-    return EvalLogInfo(
-        name=info.name,
-        type=info.type,
-        size=info.size,
-        mtime=info.mtime,
-        task=task,
-        task_id=task_id,
-        suffix=suffix,
-    )
-
-
-class JSONRecorder(FileRecorder):
-    class JSONLogFile(BaseModel):
-        file: str
-        data: EvalLog
-
-    def __init__(self, log_dir: str, log_buffer: int | None = None):
-        # call super
-        super().__init__(log_dir, ".json")
-
-        # each eval has a unique key (created from run_id and task name/version)
-        # which we use to track the output path, accumulated data, and event counter
-        self.data: dict[str, JSONRecorder.JSONLogFile] = {}
-
-    def log_init(self, eval: EvalSpec) -> str:
-        # initialize file log for this eval
-        # compute an absolute path if it's a relative ref
-        # (so that the writes go to the correct place even
-        # if the working directory is switched for a task)
-        file = absolute_file_path(self._log_file_path(eval))
-
-        # compute an absolute path if it's a relative ref
-        # (so that the writes go to the correct place even
-        # if the working directory is switched for a task)
-        self.data[self._log_file_key(eval)] = JSONRecorder.JSONLogFile(
-            file=file, data=EvalLog(eval=eval)
-        )
-
-        # attempt to
-        return file
-
-    @override
-    def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
-        log = self.data[self._log_file_key(eval)]
-        log.data.plan = plan
-
-    @override
-    def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
-        log = self.data[self._log_file_key(eval)]
-        if log.data.samples is None:
-            log.data.samples = []
-        log.data.samples.append(sample)
-
-    @override
-    def log_finish(
-        self,
-        spec: EvalSpec,
-        status: Literal["started", "success", "cancelled", "error"],
-        stats: EvalStats,
-        results: EvalResults | None,
-        error: EvalError | None = None,
-    ) -> EvalLog:
-        log = self.data[self._log_file_key(spec)]
-        log.data.status = status
-        log.data.stats = stats
-        log.data.results = results
-        if error:
-            log.data.error = error
-        self.write_log(log.file, log.data)
-
-        # stop tracking this data
-        del self.data[self._log_file_key(spec)]
-
-        # return the log
-        return log.data
-
-    @override
-    def flush(self, eval: EvalSpec) -> None:
-        log = self.data[self._log_file_key(eval)]
-        self.write_log(log.file, log.data)
-
-    @override
-    def read_log(self, location: str) -> EvalLog:
-        return read_eval_log(location)
-
-    @override
-    def write_log(self, location: str, log: EvalLog) -> None:
-        # sort samples before writing as they can come in out of order
-        # (convert into string zfilled so order is preserved)
-        if log.samples:
-            log.samples.sort(
-                key=lambda sample: (
-                    sample.epoch,
-                    (
-                        sample.id
-                        if isinstance(sample.id, str)
-                        else str(sample.id).zfill(20)
-                    ),
-                )
-            )
-
-        # write the log file
-        write_eval_log(log, location)
+    raise ValueError(f"No recorder for location: {location}")

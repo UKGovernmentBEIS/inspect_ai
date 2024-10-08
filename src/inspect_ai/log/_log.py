@@ -1,4 +1,3 @@
-import abc
 import asyncio
 import os
 import sys
@@ -493,36 +492,3 @@ class EvalLog(BaseModel):
                     del sample.scores[SCORER_PLACEHOLDER]
 
         return self
-
-
-class Recorder(abc.ABC):
-    @abc.abstractmethod
-    def is_local(self) -> bool: ...
-
-    @abc.abstractmethod
-    def log_init(self, eval: EvalSpec) -> str: ...
-
-    @abc.abstractmethod
-    def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None: ...
-
-    @abc.abstractmethod
-    def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None: ...
-
-    @abc.abstractmethod
-    def flush(self, eval: EvalSpec) -> None: ...
-
-    @abc.abstractmethod
-    def log_finish(
-        self,
-        eval: EvalSpec,
-        status: Literal["success", "cancelled", "error"],
-        stats: EvalStats,
-        results: EvalResults | None,
-        error: EvalError | None = None,
-    ) -> EvalLog: ...
-
-    @abc.abstractmethod
-    def read_log(self, location: str) -> EvalLog: ...
-
-    @abc.abstractmethod
-    def write_log(self, location: str, log: EvalLog) -> None: ...

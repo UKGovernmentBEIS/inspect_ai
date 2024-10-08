@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 PKG_AUTHOR = "UK AI Safety Institute"
 PKG_AUTHOR_DIR = "UK-AISI"
@@ -26,6 +27,8 @@ ALL_LOG_LEVELS = [
 ]
 DEFAULT_LOG_LEVEL = "warning"
 DEFAULT_LOG_LEVEL_TRANSCRIPT = "info"
+ALL_LOG_FORMATS = ["eval", "json"]
+DEFAULT_LOG_FORMAT: Literal["eval", "json"] = "eval"
 DEFAULT_LOG_BUFFER_LOCAL = 10
 DEFAULT_LOG_BUFFER_REMOTE = 100
 SCORED_SUFFIX = "-scored"

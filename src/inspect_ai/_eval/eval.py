@@ -2,11 +2,12 @@ import asyncio
 import logging
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from shortuuid import uuid
 from typing_extensions import Unpack
 
+from inspect_ai._util.constants import DEFAULT_LOG_FORMAT
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import absolute_file_path
 from inspect_ai._util.platform import platform_init
@@ -19,7 +20,7 @@ from inspect_ai.approval._policy import (
     config_from_approval_policies,
 )
 from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo, read_eval_log
-from inspect_ai.log._file import JSONRecorder
+from inspect_ai.log._file import create_recorder_for_format
 from inspect_ai.model import (
     GenerateConfig,
     GenerateConfigArgs,
@@ -53,6 +54,7 @@ def eval(
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_dir: str | None = None,
+    log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
@@ -95,6 +97,8 @@ def eval(
         log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
+        log_format (Literal["eval", "json"] | None): Format for writing log files (defaults
+           to "eval", the native high-performance format).
         limit (int | tuple[int, int] | None): Limit evaluated samples
            (defaults to all samples).
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
@@ -142,6 +146,7 @@ def eval(
             log_level=log_level,
             log_level_transcript=log_level_transcript,
             log_dir=log_dir,
+            log_format=log_format,
             limit=limit,
             epochs=epochs,
             fail_on_error=fail_on_error,
@@ -174,6 +179,7 @@ async def eval_async(
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_dir: str | None = None,
+    log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
@@ -216,6 +222,8 @@ async def eval_async(
         log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
         log_dir (str | None): Output path for logging results
             (defaults to file log in ./logs directory).
+        log_format (Literal["eval", "json"] | None): Format for writing log files (defaults
+           to "eval", the native high-performance format).
         limit (int | tuple[int, int] | None): Limit evaluated samples
             (defaults to all samples).
         epochs (int | Epochs | None): Epochs to repeat samples for and optional score
@@ -296,7 +304,7 @@ async def eval_async(
         # resolve recorder
         log_dir = log_dir if log_dir else os.environ.get("INSPECT_LOG_DIR", "./logs")
         log_dir = absolute_file_path(log_dir)
-        recorder = JSONRecorder(log_dir, log_buffer=log_buffer)
+        recorder = create_recorder_for_format(log_format or DEFAULT_LOG_FORMAT, log_dir)
 
         # resolve solver
         solver = chain(solver) if isinstance(solver, list) else solver
@@ -397,6 +405,7 @@ def eval_retry(
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_dir: str | None = None,
+    log_format: Literal["eval", "json"] | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -421,6 +430,8 @@ def eval_retry(
         log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
+        log_format (Literal["eval", "json"] | None): Format for writing log files (defaults
+           to "eval", the native high-performance format).
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
@@ -456,6 +467,7 @@ def eval_retry(
             log_level=log_level,
             log_level_transcript=log_level_transcript,
             log_dir=log_dir,
+            log_format=log_format,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -478,6 +490,7 @@ async def eval_retry_async(
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_dir: str | None = None,
+    log_format: Literal["eval", "json"] | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -502,6 +515,8 @@ async def eval_retry_async(
         log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
         log_dir (str | None): Output path for logging results
            (defaults to file log in ./logs directory).
+        log_format (Literal["eval", "json"] | None): Format for writing log files (defaults
+           to "eval", the native high-performance format).
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
@@ -632,6 +647,7 @@ async def eval_retry_async(
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
                 log_dir=log_dir,
+                log_format=log_format,
                 limit=limit,
                 epochs=epochs,
                 fail_on_error=fail_on_error,

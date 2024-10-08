@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 import click
 from typing_extensions import Unpack
@@ -8,7 +9,7 @@ from inspect_ai._eval.context import init_eval_context, init_task_context
 from inspect_ai._eval.loader import load_tasks
 from inspect_ai._eval.score import task_score
 from inspect_ai._util.constants import SCORED_SUFFIX
-from inspect_ai.log._file import JSONRecorder
+from inspect_ai.log._file import create_recorder_for_log_dir
 from inspect_ai.model import get_model
 
 from .common import CommonOptions, common_options, process_common_options
@@ -59,7 +60,7 @@ async def score(
     init_eval_context(None, log_level, log_level_transcript)
 
     # read the eval log
-    recorder = JSONRecorder(log_dir)
+    recorder = create_recorder_for_log_dir(log_dir)
     eval_log = recorder.read_log(log_file)
 
     # check that there are samples therein
@@ -83,9 +84,10 @@ async def score(
     eval_log = await task_score(score_task, eval_log)
 
     # re-write the log (w/ a -score suffix if requested)
-    scored = f"{SCORED_SUFFIX}.json"
+    _, ext = os.path.splitext(log_file)
+    scored = f"{SCORED_SUFFIX}{ext}"
     if not overwrite and not log_file.endswith(scored):
-        log_file = log_file.removesuffix(".json") + scored
+        log_file = log_file.removesuffix(ext) + scored
     recorder.write_log(log_file, eval_log)
 
     # print results
