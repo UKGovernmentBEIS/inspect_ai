@@ -9,7 +9,7 @@ from inspect_ai._eval.context import init_eval_context, init_task_context
 from inspect_ai._eval.loader import load_tasks
 from inspect_ai._eval.score import task_score
 from inspect_ai._util.constants import SCORED_SUFFIX
-from inspect_ai.log._recorders import create_recorder_for_log_dir
+from inspect_ai.log._recorders import create_recorder_for_location
 from inspect_ai.model import get_model
 
 from .common import CommonOptions, common_options, process_common_options
@@ -60,7 +60,7 @@ async def score(
     init_eval_context(None, log_level, log_level_transcript)
 
     # read the eval log
-    recorder = create_recorder_for_log_dir(log_dir)
+    recorder = create_recorder_for_location(log_file, log_dir)
     eval_log = recorder.read_log(log_file)
 
     # check that there are samples therein
