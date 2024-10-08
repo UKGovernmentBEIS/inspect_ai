@@ -20,7 +20,7 @@ from inspect_ai.approval._policy import (
     config_from_approval_policies,
 )
 from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo, read_eval_log
-from inspect_ai.log._file import create_recorder_for_format
+from inspect_ai.log._recorders import create_recorder_for_format
 from inspect_ai.model import (
     GenerateConfig,
     GenerateConfigArgs,

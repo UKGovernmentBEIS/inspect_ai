@@ -29,7 +29,7 @@ from inspect_ai.log import (
     EvalStats,
 )
 from inspect_ai.log._log import EvalLog
-from inspect_ai.log._recorder import Recorder
+from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import (
     GenerateConfig,
     Model,

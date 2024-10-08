@@ -9,7 +9,7 @@ from inspect_ai._eval.context import init_eval_context, init_task_context
 from inspect_ai._eval.loader import load_tasks
 from inspect_ai._eval.score import task_score
 from inspect_ai._util.constants import SCORED_SUFFIX
-from inspect_ai.log._file import create_recorder_for_log_dir
+from inspect_ai.log._recorders import create_recorder_for_log_dir
 from inspect_ai.model import get_model
 
 from .common import CommonOptions, common_options, process_common_options
