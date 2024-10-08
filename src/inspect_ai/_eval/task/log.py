@@ -102,7 +102,7 @@ class TaskLogger:
 
         # stack recorder and location
         self.recorder = recorder
-        self._location = self.recorder.log_start(self.eval)
+        self._location = self.recorder.log_init(self.eval)
 
         # number of samples logged
         self._samples_completed = 0
@@ -125,6 +125,9 @@ class TaskLogger:
     def samples_completed(self) -> int:
         return self._samples_completed
 
+    def log_start(self, plan: EvalPlan) -> None:
+        self.recorder.log_start(self.eval, plan)
+
     def log_sample(self, sample: EvalSample, *, flush: bool) -> None:
         # log the sample
         self.recorder.log_sample(self.eval, sample)
@@ -140,22 +143,17 @@ class TaskLogger:
         if sample.error is None:
             self._samples_completed += 1
 
-    def log_plan(self, plan: EvalPlan) -> None:
-        self.recorder.log_plan(self.eval, plan)
-
-    def log_results(self, results: EvalResults) -> None:
-        self.recorder.log_results(self.eval, results)
-
     def log_finish(
         self,
         status: Literal["success", "cancelled", "error"],
         stats: EvalStats,
+        results: EvalResults | None = None,
         error: EvalError | None = None,
     ) -> EvalLog:
-        return self.recorder.log_finish(self.eval, status, stats, error)
+        return self.recorder.log_finish(self.eval, status, stats, results, error)
 
 
-def log_plan(
+def log_start(
     logger: TaskLogger,
     plan: Plan,
     config: GenerateConfig,
@@ -174,7 +172,7 @@ def log_plan(
     if plan.finish:
         eval_plan.steps.append(eval_plan_step(plan.finish))
 
-    logger.log_plan(eval_plan)
+    logger.log_start(eval_plan)
 
 
 def collect_eval_data(stats: EvalStats) -> None:

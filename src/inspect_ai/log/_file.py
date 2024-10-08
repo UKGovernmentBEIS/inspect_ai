@@ -371,7 +371,7 @@ class JSONRecorder(FileRecorder):
         # which we use to track the output path, accumulated data, and event counter
         self.data: dict[str, JSONRecorder.JSONLogFile] = {}
 
-    def log_start(self, eval: EvalSpec) -> str:
+    def log_init(self, eval: EvalSpec) -> str:
         # initialize file log for this eval
         # compute an absolute path if it's a relative ref
         # (so that the writes go to the correct place even
@@ -389,7 +389,7 @@ class JSONRecorder(FileRecorder):
         return file
 
     @override
-    def log_plan(self, eval: EvalSpec, plan: EvalPlan) -> None:
+    def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
         log = self.data[self._log_file_key(eval)]
         log.data.plan = plan
 
@@ -401,21 +401,18 @@ class JSONRecorder(FileRecorder):
         log.data.samples.append(sample)
 
     @override
-    def log_results(self, eval: EvalSpec, results: EvalResults) -> None:
-        log = self.data[self._log_file_key(eval)]
-        log.data.results = results
-
-    @override
     def log_finish(
         self,
         spec: EvalSpec,
         status: Literal["started", "success", "cancelled", "error"],
         stats: EvalStats,
+        results: EvalResults | None,
         error: EvalError | None = None,
     ) -> EvalLog:
         log = self.data[self._log_file_key(spec)]
         log.data.status = status
         log.data.stats = stats
+        log.data.results = results
         if error:
             log.data.error = error
         self.write_log(log.file, log.data)

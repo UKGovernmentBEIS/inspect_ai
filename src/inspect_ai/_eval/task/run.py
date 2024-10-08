@@ -77,7 +77,7 @@ from .images import (
     state_without_base64_images,
     states_with_base64_images,
 )
-from .log import TaskLogger, collect_eval_data, log_plan
+from .log import TaskLogger, collect_eval_data, log_start
 from .results import eval_results
 from .rundir import set_task_run_dir
 from .sandbox import sandboxenv_context
@@ -128,6 +128,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     # establish run_dir for duration of execution
     with set_task_run_dir(task_run_dir(task)):
         # track stats and error
+        results: EvalResults | None = None
         stats = EvalStats(started_at=iso_now())
         error: EvalError | None = None
         cancelled = False
@@ -205,8 +206,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
         with display().task(profile) as td:
             try:
-                # log the plan
-                log_plan(logger, plan, generate_config)
+                # start the log
+                log_start(logger, plan, generate_config)
 
                 with td.progress() as p:
                     # forward progress
@@ -277,15 +278,18 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         scorers=scorers,
                         metrics=task.metrics,
                     )
-                    logger.log_results(results)
-                else:
-                    results = EvalResults()
 
                 # collect eval data
                 collect_eval_data(stats)
 
                 # display task summary
-                td.complete(TaskSuccess(logger.samples_completed, stats, results))
+                td.complete(
+                    TaskSuccess(
+                        samples_completed=logger.samples_completed,
+                        stats=stats,
+                        results=results or EvalResults(),
+                    )
+                )
 
             except asyncio.CancelledError:
                 # flag as cancelled
@@ -319,11 +323,11 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
         # log as appropriate
         if cancelled:
-            eval_log = logger.log_finish("cancelled", stats)
+            eval_log = logger.log_finish("cancelled", stats, results)
         elif error:
-            eval_log = logger.log_finish("error", stats, error)
+            eval_log = logger.log_finish("error", stats, results, error)
         else:
-            eval_log = logger.log_finish("success", stats)
+            eval_log = logger.log_finish("success", stats, results)
 
         # notify the view module that an eval just completed
         # (in case we have a view polling for new evals)
