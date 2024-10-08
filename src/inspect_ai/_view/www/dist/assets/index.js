@@ -17578,7 +17578,7 @@ const SampleList = (props) => {
     borderBottom: "solid var(--bs-light-border-subtle) 1px"
   }}
   >
-    <div>Id</div>
+    <div>#</div>
     <div>Input</div>
     <div>Target</div>
     <div>Answer</div>
@@ -20456,7 +20456,7 @@ const TaskErrorCard = ({ evalError }) => {
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.error} label="Task Failed: ${evalError.message}"></${CardHeader}>
       <${CardBody} style=${{ fontSize: FontSize.smaller }}>
-        <${ANSIDisplay} output=${evalError.traceback_ansi}/>
+        <${ANSIDisplay} output=${evalError.traceback_ansi} style=${{ fontSize: "clamp(0.2rem, calc(0.2em + .93vw), 0.9rem)" }}/>
       </${CardBody}>
     </${Card}>
   `;

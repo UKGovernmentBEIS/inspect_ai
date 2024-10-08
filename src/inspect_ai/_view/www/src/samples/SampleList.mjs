@@ -149,7 +149,7 @@ export const SampleList = (props) => {
       borderBottom: "solid var(--bs-light-border-subtle) 1px",
     }}
   >
-    <div>Id</div>
+    <div>#</div>
     <div>Input</div>
     <div>Target</div>
     <div>Answer</div>
