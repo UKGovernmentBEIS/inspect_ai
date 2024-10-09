@@ -173,7 +173,7 @@ class RichTaskScreen(TaskScreen):
     def __init__(self, live: Live) -> None:
         theme = rich_theme()
         self.live = live
-        status_text = "Generating" if trace_enabled() else "Task running"
+        status_text = "Working" if trace_enabled() else "Task running"
         self.status = self.live.console.status(
             f"[{theme.meta} bold]{status_text}...[/{theme.meta} bold]", spinner="clock"
         )

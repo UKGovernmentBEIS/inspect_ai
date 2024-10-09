@@ -28,8 +28,7 @@ def trace_tool_mesage(message: ChatMessageTool) -> None:
             content = [output]
 
         trace_panel(
-            title=MESSAGE_TITLE,
-            subtitle=f"Tool Output: {message.function}",
+            title=f"Tool Output: {message.function}",
             content=content,
         )
 
@@ -47,8 +46,7 @@ def trace_assistant_message(
                 break
         for m in reversed(preceding):
             trace_panel(
-                title=MESSAGE_TITLE,
-                subtitle=m.role.capitalize(),
+                title=m.role.capitalize(),
                 content=m.text,
             )
 
@@ -67,4 +65,4 @@ def trace_assistant_message(
             )
 
         # print the assistant message
-        trace_panel(title=MESSAGE_TITLE, subtitle="Assistant", content=content)
+        trace_panel(title="Assistant", content=content)
