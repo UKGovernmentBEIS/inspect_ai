@@ -28,6 +28,7 @@ from .file import FileRecorder
 class ZipLogFile:
     file: str
     zip: ZipFile
+    samples: list[EvalSample]
 
 
 class LogStart(BaseModel):
@@ -76,6 +77,7 @@ class EvalRecorder(FileRecorder):
                 compression=ZIP_COMPRESSION,
                 compresslevel=ZIP_COMPRESSLEVEL,
             ),
+            samples=[],
         )
         return log
 
@@ -86,13 +88,18 @@ class EvalRecorder(FileRecorder):
 
     @override
     def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
-        self._write(eval, sample_filename(sample), sample.model_dump())
+        log = self.data[self._log_file_key(eval)]  # noqa: F841
+        log.samples.append(sample)
 
     @override
     def flush(self, eval: EvalSpec) -> None:
         log = self.data[self._log_file_key(eval)]  # noqa: F841
         # TODO: flush the zip file
-        pass
+
+        # Write the buffered samples
+        for sample in log.samples:
+            self._write(eval, sample_filename(sample), sample.model_dump())
+        log.samples.clear()
 
     @override
     def log_finish(
