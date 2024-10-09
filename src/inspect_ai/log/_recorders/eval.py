@@ -59,6 +59,7 @@ class LogResults(BaseModel):
 START_JSON = "start.json"
 RESULTS_JSON = "results.json"
 SUMMARY_JSON = "summary.json"
+REDUCTIONS_JSON = "reductions.json"
 SAMPLES_DIR = "samples"
 
 ZIP_COMPRESSION = zipfile.ZIP_DEFLATED
@@ -158,6 +159,25 @@ class EvalRecorder(FileRecorder):
 
         # write consolidated summaries
         self._write(eval, SUMMARY_JSON, [item.model_dump() for item in log.summaries])
+
+        # write reductions
+        if results is not None:
+            reductions = results.sample_reductions
+            if reductions is not None:
+                self._write(
+                    eval,
+                    REDUCTIONS_JSON,
+                    [reduction.model_dump() for reduction in reductions],
+                )
+
+                # prune reductions out of the results to ensure
+                #  that the results remain concise
+                results = EvalResults(
+                    total_samples=results.total_samples,
+                    completed_samples=results.completed_samples,
+                    scores=results.scores,
+                    metadata=results.metadata,
+                )
 
         # write the results
         log_results = LogResults(
