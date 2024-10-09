@@ -21,8 +21,6 @@ from .notify import view_last_eval_time
 
 logger = getLogger(__name__)
 
-# TODO: return EvalLog from existing zip
-
 
 def view_server(
     log_dir: str,
