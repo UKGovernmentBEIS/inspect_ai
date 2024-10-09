@@ -24,9 +24,8 @@ WWW_DIR = os.path.abspath((Path(__file__).parent / "www" / "dist").as_posix())
 logger = getLogger(__name__)
 
 # TODO: no samples!
-# TODO: 403
 # TODO: writing zip file using stream
-# TODO: disable static file caching for app!
+# TODO: cache busting
 # TODO: byte range
 
 
@@ -71,8 +70,8 @@ def view_server(
     # setup app and routes
     app = web.Application()
     app.router.add_routes(routes)
-    # TODO: disable static file caching for app!
-    app.router.add_static("/", WWW_DIR)
+    app.router.register_resource(WWWResource())
+    # app.router.add_static(prefix="/", path=WWW_DIR, append_version=True)
 
     # run app
     web.run_app(app=app, host=host, port=port, print=print)
@@ -122,6 +121,17 @@ def log_file_response(file: str, header_only: bool) -> web.Response:
 def log_headers_response(files: list[str]) -> web.Response:
     headers = read_eval_log_headers(files)
     return web.json_response(to_jsonable_python(headers, exclude_none=True))
+
+
+class WWWResource(web.StaticResource):
+    def __init__(self) -> None:
+        super().__init__("", WWW_DIR, append_version=True)
+
+    async def _handle(self, request: web.Request) -> web.StreamResponse:
+        filename = request.match_info["filename"]
+        if not filename:
+            request.match_info["filename"] = "index.html"
+        return await super()._handle(request)
 
 
 def aliased_path(path: str) -> str:
