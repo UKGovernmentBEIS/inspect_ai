@@ -19,9 +19,6 @@ from inspect_ai.log._file import (
 
 from .notify import view_last_eval_time
 
-WWW_DIR = os.path.abspath((Path(__file__).parent / "www" / "dist").as_posix())
-
-
 logger = getLogger(__name__)
 
 
@@ -74,7 +71,11 @@ def view_server(
 
     # setup app and routes
     app = web.Application()
+
+    # api routes
     app.router.add_routes(routes)
+
+    # handle for www directory
     app.router.register_resource(WWWResource())
 
     # run app
@@ -133,7 +134,9 @@ def log_headers_response(files: list[str]) -> web.Response:
 
 class WWWResource(web.StaticResource):
     def __init__(self) -> None:
-        super().__init__("", WWW_DIR)
+        super().__init__(
+            "", os.path.abspath((Path(__file__).parent / "www" / "dist").as_posix())
+        )
 
     async def _handle(self, request: web.Request) -> web.StreamResponse:
         # serve /index.html for /
