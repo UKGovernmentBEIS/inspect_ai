@@ -25,7 +25,6 @@ WWW_DIR = os.path.abspath((Path(__file__).parent / "www" / "dist").as_posix())
 logger = getLogger(__name__)
 
 # TODO: writing zip file using stream
-# TODO: cache busting
 # TODO: byte range
 
 
@@ -74,7 +73,6 @@ def view_server(
     app = web.Application()
     app.router.add_routes(routes)
     app.router.register_resource(WWWResource())
-    # app.router.add_static(prefix="/", path=WWW_DIR, append_version=True)
 
     # run app
     web.run_app(app=app, host=host, port=port, print=print)
@@ -132,13 +130,29 @@ def log_headers_response(files: list[str]) -> web.Response:
 
 class WWWResource(web.StaticResource):
     def __init__(self) -> None:
-        super().__init__("", WWW_DIR, append_version=True)
+        super().__init__("", WWW_DIR)
 
     async def _handle(self, request: web.Request) -> web.StreamResponse:
+        # serve /index.html for /
         filename = request.match_info["filename"]
         if not filename:
             request.match_info["filename"] = "index.html"
-        return await super()._handle(request)
+
+        # call super
+        response = await super()._handle(request)
+
+        # disable caching as this is only ever served locally
+        # and w/ caching sometimes we get stale assets
+        response.headers.update(
+            {
+                "Expires": "Fri, 01 Jan 1990 00:00:00 GMT",
+                "Pragma": "no-cache",
+                "Cache-Control": "no-cache, no-store, max-age=0, must-revalidate",
+            }
+        )
+
+        # return response
+        return response
 
 
 def aliased_path(path: str) -> str:
