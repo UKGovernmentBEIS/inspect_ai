@@ -3,11 +3,11 @@
 /**
  * @typedef {Object} LogViewAPI
  * @property { () => Promise<any[]> } client_events - A function which can be polled to check for client events.
- * @property { () => Promise<LogFiles>} eval_logs - The parsed content of the file as an object.
- * @property { () => Promise<LogContents> } eval_log - The parsed content of the file as an object.
- * @property { () => Promise<import("../types/log").EvalLog[]>} eval_log_headers - The parsed content of the file as an object.
- * @property { (logFile: string) => Promise<void> } download_file - The parsed content of the file as an object.
- * @property { (logFile: string, log_dir: string) => Promise<void> } open_log_file - The parsed content of the file as an object.
+ * @property { () => Promise<LogFiles>} eval_logs - Read the list of files
+ * @property { () => Promise<LogContents> } eval_log - Read the log contents
+ * @property { () => Promise<import("../types/log").EvalLog[]>} eval_log_headers - Read the log headers
+ * @property { (logFile: string) => Promise<void> } download_file - Execute a file download
+ * @property { (logFile: string, log_dir: string) => Promise<void> } open_log_file - Execute a file open
  */
 
 /**
