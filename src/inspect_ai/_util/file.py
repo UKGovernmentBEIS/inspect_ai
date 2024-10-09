@@ -47,7 +47,6 @@ def file(
     encoding: str = "utf-8",
     fs_options: dict[str, Any] = {},
 ) -> Iterator[io.TextIOWrapper] | Iterator[BinaryIO]:
-    open
     """Open local or remote file stream.
 
     Open a file stream for reading or writing. Refer to a local file or
