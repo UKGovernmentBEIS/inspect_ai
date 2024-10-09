@@ -1,17 +1,16 @@
 import json
+import tempfile
 import zipfile
-from dataclasses import dataclass, field
-from typing import Any, Literal
-from zipfile import ZipFile
+from typing import Any, BinaryIO, Literal, cast
 
-import fsspec  # type: ignore
 from pydantic import BaseModel, Field
 from pydantic_core import to_json
 from typing_extensions import override
+from zipfile_deflate64 import ZIP_DEFLATED, ZipFile  # type: ignore
 
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import file, open_file
+from inspect_ai._util.file import file
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.scorer._metric import Score
 
@@ -35,16 +34,6 @@ class SampleSummary(BaseModel):
     scores: dict[str, Score] | None
 
 
-@dataclass
-class ZipLogFile:
-    file: str
-    of: fsspec.core.OpenFile
-    zip: ZipFile
-    samples: list[EvalSample] = field(default_factory=list)
-    summaries: list[SampleSummary] = field(default_factory=list)
-    summary_counter: int = field(default=0)
-
-
 class LogStart(BaseModel):
     version: int
     eval: EvalSpec
@@ -63,9 +52,6 @@ RESULTS_JSON = "results.json"
 SUMMARY_JSON = "summary.json"
 REDUCTIONS_JSON = "reductions.json"
 SAMPLES_DIR = "samples"
-
-ZIP_COMPRESSION = zipfile.ZIP_DEFLATED
-ZIP_COMPRESSLEVEL = 5
 
 
 class EvalRecorder(FileRecorder):
@@ -86,27 +72,18 @@ class EvalRecorder(FileRecorder):
         # file to write to
         file = self._log_file_path(eval)
 
-        # now open w/ a stream
-        of = open_file(file, "wb")
-        zip = ZipFile(
-            of.open(),
-            mode="a",
-            compression=ZIP_COMPRESSION,
-            compresslevel=ZIP_COMPRESSLEVEL,
-        )
+        # create zip wrapper
+        zip_log_file = ZipLogFile(file=file)
 
         # Initialize the summary counter and existing summaries
-        summary_counter = _read_summary_counter(zip)
-        summaries = _read_all_summaries(zip, summary_counter)
+        summary_counter = _read_summary_counter(zip_log_file.zip)
+        summaries = _read_all_summaries(zip_log_file.zip, summary_counter)
+        zip_log_file.init(summary_counter, summaries)
 
-        self.data[self._log_file_key(eval)] = ZipLogFile(
-            file=file,
-            of=of,
-            zip=zip,
-            summary_counter=summary_counter,
-            summaries=summaries,
-        )
+        # track zip
+        self.data[self._log_file_key(eval)] = zip_log_file
 
+        # return file path
         return file
 
     @override
@@ -121,8 +98,8 @@ class EvalRecorder(FileRecorder):
 
     @override
     def flush(self, eval: EvalSpec) -> None:
-        log = self.data[self._log_file_key(eval)]  # noqa: F841
-        # TODO: flush the zip file
+        # get the zip log
+        log = self.data[self._log_file_key(eval)]
 
         # Write the buffered samples
         summaries: list[SampleSummary] = []
@@ -149,6 +126,9 @@ class EvalRecorder(FileRecorder):
             self._write(eval, summary_filename, summaries)
             log.summaries.extend(summaries)
 
+        # flush to underlying stream
+        log.flush()
+
     @override
     def log_finish(
         self,
@@ -158,9 +138,6 @@ class EvalRecorder(FileRecorder):
         results: EvalResults | None,
         error: EvalError | None = None,
     ) -> EvalLog:
-        # ensure all data is written
-        self.flush(eval)
-
         # get the key and log
         key = self._log_file_key(eval)
         log = self.data[key]
@@ -194,8 +171,7 @@ class EvalRecorder(FileRecorder):
         self._write(eval, RESULTS_JSON, log_results.model_dump())
 
         # close the file
-        log.zip.close()
-        log.of.close()
+        log.close()
 
         # stop tracking this eval
         del self.data[key]
@@ -236,7 +212,7 @@ class EvalRecorder(FileRecorder):
     @override
     def write_log(cls, location: str, log: EvalLog) -> None:
         with file(location, "wb") as z:
-            zip = ZipFile(z, mode="a", compression=ZIP_COMPRESSION)
+            zip = ZipFile(z, mode="a", compression=zipfile.ZIP_DEFLATED)
             start = LogStart(version=log.version, eval=log.eval, plan=log.plan)
             zip_write(zip, START_JSON, start.model_dump())
 
@@ -266,6 +242,47 @@ def zip_write(zip: ZipFile, filename: str, data: dict[str, Any] | list[Any]) -> 
 
 def sample_filename(sample: EvalSample) -> str:
     return f"{SAMPLES_DIR}/{sample.id}_epoch_{sample.epoch}.json"
+
+
+class ZipLogFile:
+    TEMP_LOG_FILE_MAX = 20 * 1024 * 1024
+
+    zip: ZipFile
+    temp_file: BinaryIO
+
+    def __init__(self, file: str) -> None:
+        self.file = file
+        self.temp_file = cast(
+            BinaryIO,
+            tempfile.SpooledTemporaryFile(self.TEMP_LOG_FILE_MAX),
+        )
+        self._open()
+        self.samples: list[EvalSample] = []
+        self.summary_counter = 0
+        self.summaries: list[SampleSummary] = []
+
+    def init(self, summary_counter: int, summaries: list[SampleSummary]) -> None:
+        self.summary_counter = summary_counter
+        self.summaries = summaries
+
+    def flush(self) -> None:
+        self.zip.close()
+        self.temp_file.seek(0)
+        with file(self.file, "wb") as f:
+            f.write(self.temp_file.read())
+        self._open()
+
+    def close(self) -> None:
+        self.flush()
+        self.temp_file.close()
+
+    def _open(self) -> None:
+        self.zip = ZipFile(
+            self.temp_file,
+            mode="a",
+            compression=ZIP_DEFLATED,
+            compresslevel=5,
+        )
 
 
 def _read_summary_counter(zip: ZipFile) -> int:
