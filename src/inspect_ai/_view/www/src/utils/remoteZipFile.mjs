@@ -23,6 +23,9 @@ import { decompress } from "fflate";
  * @property {number} fileOffset - The offset of the file's data in the ZIP archive.
  */
 
+
+
+
 /**
  * Opens a remote ZIP file from the specified URL, fetches and parses the central directory, and provides a method to read files within the ZIP.
  *
@@ -92,6 +95,7 @@ export const openRemoteZipFile = async (url) => {
         // No compression
         return zipFileEntry.data;
       } else if (zipFileEntry.compressionMethod === 8) {
+        // Defate compression
         const results = await decompressAsync(zipFileEntry.data, {
           size: zipFileEntry.uncompressedSize,
         });
@@ -132,9 +136,9 @@ const decompressAsync = async (data, opts) => {
   return new Promise((resolve, reject) => {
     decompress(data, opts, (err, result) => {
       if (err) {
-        reject(err); // Reject the promise if there's an error
+        reject(err);
       } else {
-        resolve(result); // Resolve the promise with the result
+        resolve(result);
       }
     });
   });
@@ -205,7 +209,8 @@ const parseCentralDirectory = (buffer) => {
 
   const entries = new Map();
   while (offset < buffer.length) {
-    if (view.getUint32(offset, true) !== 0x02014b50) break; // Central directory signature
+    // Make sure there is a central directory signature
+    if (view.getUint32(offset, true) !== 0x02014b50) break; 
 
     const filenameLength = view.getUint16(offset + 28, true);
     const extraFieldLength = view.getUint16(offset + 30, true);

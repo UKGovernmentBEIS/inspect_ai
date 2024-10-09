@@ -1,6 +1,6 @@
 import json
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 from zipfile import ZipFile
 
@@ -11,6 +11,8 @@ from typing_extensions import override
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import file
+from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.scorer._metric import Score
 
 from .._log import (
     EvalLog,
@@ -24,10 +26,21 @@ from .._log import (
 from .file import FileRecorder
 
 
+class SampleSummary(BaseModel):
+    id: int | str
+    epoch: int
+    input: str | list[ChatMessage]
+    target: str | list[str]
+    scores: dict[str, Score] | None
+
+
 @dataclass
 class ZipLogFile:
     file: str
     zip: ZipFile
+    samples: list[EvalSample] = field(default_factory=list)
+    summaries: list[SampleSummary] = field(default_factory=list)
+    summary_counter: int = field(default=0)
 
 
 class LogStart(BaseModel):
@@ -45,6 +58,8 @@ class LogResults(BaseModel):
 
 START_JSON = "start.json"
 RESULTS_JSON = "results.json"
+SUMMARY_JSON = "summary.json"
+REDUCTIONS_JSON = "reductions.json"
 SAMPLES_DIR = "samples"
 
 ZIP_COMPRESSION = zipfile.ZIP_DEFLATED
@@ -66,18 +81,25 @@ class EvalRecorder(FileRecorder):
 
     @override
     def log_init(self, eval: EvalSpec) -> str:
-        log = self._log_file_path(eval)
+        file = self._log_file_path(eval)
+
+        # The zip file
+        zip = ZipFile(
+            file,
+            mode="a",
+            compression=ZIP_COMPRESSION,
+            compresslevel=ZIP_COMPRESSLEVEL,
+        )
+
+        # Initialize the summary counter and existing summaries
+        summary_counter = _read_summary_counter(zip)
+        summaries = _read_all_summaries(zip, summary_counter)
 
         self.data[self._log_file_key(eval)] = ZipLogFile(
-            file=log,
-            zip=ZipFile(
-                log,
-                mode="a",
-                compression=ZIP_COMPRESSION,
-                compresslevel=ZIP_COMPRESSLEVEL,
-            ),
+            file=file, zip=zip, summary_counter=summary_counter, summaries=summaries
         )
-        return log
+
+        return file
 
     @override
     def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
@@ -86,13 +108,38 @@ class EvalRecorder(FileRecorder):
 
     @override
     def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
-        self._write(eval, sample_filename(sample), sample.model_dump())
+        log = self.data[self._log_file_key(eval)]  # noqa: F841
+        log.samples.append(sample)
 
     @override
     def flush(self, eval: EvalSpec) -> None:
         log = self.data[self._log_file_key(eval)]  # noqa: F841
         # TODO: flush the zip file
-        pass
+
+        # Write the buffered samples
+        summaries: list[SampleSummary] = []
+        for sample in log.samples:
+            # Write the sample
+            self._write(eval, sample_filename(sample), sample.model_dump())
+
+            # Capture the summary
+            summaries.append(
+                SampleSummary(
+                    id=sample.id,
+                    epoch=sample.epoch,
+                    input=sample.input,
+                    target=sample.target,
+                    scores=sample.scores,
+                )
+            )
+        log.samples.clear()
+
+        # write intermediary summaries and add to master list
+        if len(summaries) > 0:
+            log.summary_counter += 1
+            summary_filename = f"summaries/{log.summary_counter}.json"
+            self._write(eval, summary_filename, summaries)
+            log.summaries.extend(summaries)
 
     @override
     def log_finish(
@@ -109,6 +156,28 @@ class EvalRecorder(FileRecorder):
         # get the key and log
         key = self._log_file_key(eval)
         log = self.data[key]
+
+        # write consolidated summaries
+        self._write(eval, SUMMARY_JSON, [item.model_dump() for item in log.summaries])
+
+        # write reductions
+        if results is not None:
+            reductions = results.sample_reductions
+            if reductions is not None:
+                self._write(
+                    eval,
+                    REDUCTIONS_JSON,
+                    [reduction.model_dump() for reduction in reductions],
+                )
+
+                # prune reductions out of the results to ensure
+                #  that the results remain concise
+                results = EvalResults(
+                    total_samples=results.total_samples,
+                    completed_samples=results.completed_samples,
+                    scores=results.scores,
+                    metadata=results.metadata,
+                )
 
         # write the results
         log_results = LogResults(
@@ -172,12 +241,14 @@ class EvalRecorder(FileRecorder):
             zip_write(zip, RESULTS_JSON, results.model_dump())
 
     # write to the zip file
-    def _write(self, eval: EvalSpec, filename: str, data: dict[str, Any]) -> None:
+    def _write(
+        self, eval: EvalSpec, filename: str, data: dict[str, Any] | list[Any]
+    ) -> None:
         log = self.data[self._log_file_key(eval)]
         zip_write(log.zip, filename, data)
 
 
-def zip_write(zip: ZipFile, filename: str, data: dict[str, Any]) -> None:
+def zip_write(zip: ZipFile, filename: str, data: dict[str, Any] | list[Any]) -> None:
     zip.writestr(
         filename,
         to_json(value=data, indent=2, exclude_none=True, fallback=lambda _x: None),
@@ -186,3 +257,38 @@ def zip_write(zip: ZipFile, filename: str, data: dict[str, Any]) -> None:
 
 def sample_filename(sample: EvalSample) -> str:
     return f"{SAMPLES_DIR}/{sample.id}_epoch_{sample.epoch}.json"
+
+
+def _read_summary_counter(zip: ZipFile) -> int:
+    current_count = 0
+    for name in zip.namelist():
+        if name.startswith("summaries/") and name.endswith(".json"):
+            this_count = int(name.split("/")[-1].split(".")[0])
+            current_count = max(this_count, current_count)
+    return current_count
+
+
+def _read_all_summaries(zip: ZipFile, count: int) -> list[SampleSummary]:
+    if "summary.json" in zip.namelist():
+        summaries_raw = _read_json(zip, SUMMARY_JSON)
+        if isinstance(summaries_raw, list):
+            return [SampleSummary(**value) for value in summaries_raw]
+        else:
+            raise ValueError("Expected a list of summaries when reading summary.json")
+    else:
+        summaries: list[SampleSummary] = []
+        for i in range(1, count):
+            summary_file = f"summaries/{i}.json"
+            summary = _read_json(zip, summary_file)
+            if isinstance(summary, list):
+                summaries.extend([SampleSummary(**value) for value in summary])
+            else:
+                raise ValueError(
+                    f"Expected a list of summaries when reading {summary_file}"
+                )
+        return summaries
+
+
+def _read_json(zip: ZipFile, filename: str) -> Any:
+    with zip.open(filename) as f:
+        return json.load(f)
