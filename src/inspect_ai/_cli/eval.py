@@ -636,6 +636,7 @@ def eval_exec(
     sandbox_cleanup = False if no_sandbox_cleanup else None
     log_samples = False if no_log_samples else None
     log_images = True if log_images else None
+    trace = True if trace else None
     score = False if no_score else True
 
     # build params
