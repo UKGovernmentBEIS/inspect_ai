@@ -78,6 +78,20 @@ def file(
             f.close()
 
 
+def open_file(
+    file: str,
+    mode: OpenTextMode | OpenBinaryMode,
+    encoding: str = "utf-8",
+    fs_options: dict[str, Any] = {},
+) -> fsspec.core.OpenFile:
+    # get the default storage options for the scheme then apply passed options
+    options = default_fs_options(file)
+    options.update(fs_options)
+
+    # open the file and return the stream
+    return fsspec.open(file, mode=mode, encoding=encoding, **options)
+
+
 def basename(file: str) -> str:
     """Get the base name of the file.
 

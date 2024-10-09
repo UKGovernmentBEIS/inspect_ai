@@ -1,16 +1,18 @@
 import json
+import tempfile
 import zipfile
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, BinaryIO, Literal
 from zipfile import ZipFile
 
+import fsspec
 from pydantic import BaseModel, Field
 from pydantic_core import to_json
 from typing_extensions import override
 
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import file
+from inspect_ai._util.file import file, open_file
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.scorer._metric import Score
 
@@ -37,6 +39,7 @@ class SampleSummary(BaseModel):
 @dataclass
 class ZipLogFile:
     file: str
+    of: fsspec.core.OpenFile
     zip: ZipFile
     samples: list[EvalSample] = field(default_factory=list)
     summaries: list[SampleSummary] = field(default_factory=list)
@@ -81,11 +84,13 @@ class EvalRecorder(FileRecorder):
 
     @override
     def log_init(self, eval: EvalSpec) -> str:
+        # file to write to
         file = self._log_file_path(eval)
 
-        # The zip file
+        # now open w/ a stream
+        of = open_file(file, "wb")
         zip = ZipFile(
-            file,
+            of.open(),
             mode="a",
             compression=ZIP_COMPRESSION,
             compresslevel=ZIP_COMPRESSLEVEL,
@@ -96,7 +101,11 @@ class EvalRecorder(FileRecorder):
         summaries = _read_all_summaries(zip, summary_counter)
 
         self.data[self._log_file_key(eval)] = ZipLogFile(
-            file=file, zip=zip, summary_counter=summary_counter, summaries=summaries
+            file=file,
+            of=of,
+            zip=zip,
+            summary_counter=summary_counter,
+            summaries=summaries,
         )
 
         return file
@@ -187,6 +196,7 @@ class EvalRecorder(FileRecorder):
 
         # close the file
         log.zip.close()
+        log.of.close()
 
         # stop tracking this eval
         del self.data[key]
