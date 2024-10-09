@@ -22,8 +22,6 @@ from .notify import view_last_eval_time
 logger = getLogger(__name__)
 
 
-# TODO: byte range
-
 # TODO: writing zip file using stream
 # TODO: flushing zip file
 
@@ -72,10 +70,13 @@ def view_server(
     # setup app and routes
     app = web.Application()
 
-    # api routes
+    # handlers for api routes
     app.router.add_routes(routes)
 
-    # handle for www directory
+    # handler for log files
+    app.router.add_static("/logs", log_dir)
+
+    # handler for app assets www directory
     app.router.register_resource(WWWResource())
 
     # run app
