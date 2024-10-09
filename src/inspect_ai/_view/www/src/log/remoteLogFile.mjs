@@ -26,7 +26,7 @@ export const openRemoteLogFile = async (url, concurrency) => {
   const readJSONFile = async (file) => {
     try {
       const data = await remoteZipFile.readFile(file);
-      const textDecoder = new TextDecoder('utf-8');
+      const textDecoder = new TextDecoder("utf-8");
       const jsonString = textDecoder.decode(data);
       return JSON.parse(jsonString);
     } catch (error) {
@@ -40,12 +40,15 @@ export const openRemoteLogFile = async (url, concurrency) => {
    */
   const listSamples = async () => {
     return Array.from(remoteZipFile.centralDirectory.keys())
-      .filter(filename => filename.startsWith('samples/') && filename.endsWith('.json'))
-      .map(filename => {
-        const [sampleId, epochStr] = filename.split('/')[1].split('_epoch_');
+      .filter(
+        (filename) =>
+          filename.startsWith("samples/") && filename.endsWith(".json"),
+      )
+      .map((filename) => {
+        const [sampleId, epochStr] = filename.split("/")[1].split("_epoch_");
         return {
           sampleId,
-          epoch: parseInt(epochStr.split('.')[0], 10)
+          epoch: parseInt(epochStr.split(".")[0], 10),
         };
       });
   };
@@ -54,7 +57,7 @@ export const openRemoteLogFile = async (url, concurrency) => {
    * Reads the start.json file.
    * @returns {Promise<Object>} The content of start.json.
    */
-  const readStart = () => readJSONFile('start.json');
+  const readStart = () => readJSONFile("start.json");
 
   /**
    * Reads a specific sample file.
@@ -62,38 +65,48 @@ export const openRemoteLogFile = async (url, concurrency) => {
    * @param {number} epoch - The epoch of the sample.
    * @returns {Promise<Object>} The content of the sample file.
    */
-  const readSample = (sampleId, epoch) => readJSONFile(`samples/${sampleId}_epoch_${epoch}.json`);
+  const readSample = (sampleId, epoch) =>
+    readJSONFile(`samples/${sampleId}_epoch_${epoch}.json`);
 
   /**
    * Reads the results.json file.
    * @returns {Promise<Object>} The content of results.json.
    */
-  const readResults = () => readJSONFile('results.json');
+  const readResults = () => readJSONFile("results.json");
 
   /**
    * Reads individual summary files when summary.json is not available.
    * @returns {Promise<Object>} Combined summaries from individual files.
    */
   const readFallbackSummaries = async () => {
-    const summaryFiles = Array.from(remoteZipFile.centralDirectory.keys())
-      .filter(filename => filename.startsWith('summaries/') && filename.endsWith('.json'));
-    
+    const summaryFiles = Array.from(
+      remoteZipFile.centralDirectory.keys(),
+    ).filter(
+      (filename) =>
+        filename.startsWith("summaries/") && filename.endsWith(".json"),
+    );
+
     const summaries = {};
     const errors = [];
 
-    await Promise.all(summaryFiles.map(filename =>
-      queue.enqueue(async () => {
-        try {
-          const partialSummary = await readJSONFile(filename);
-          Object.assign(summaries, partialSummary);
-        } catch (error) {
-          errors.push(error);
-        }
-      })
-    ));
+    await Promise.all(
+      summaryFiles.map((filename) =>
+        queue.enqueue(async () => {
+          try {
+            const partialSummary = await readJSONFile(filename);
+            Object.assign(summaries, partialSummary);
+          } catch (error) {
+            errors.push(error);
+          }
+        }),
+      ),
+    );
 
     if (errors.length > 0) {
-      console.error(`Encountered ${errors.length} errors while reading summary files:`, errors);
+      console.error(
+        `Encountered ${errors.length} errors while reading summary files:`,
+        errors,
+      );
     }
 
     return summaries;
@@ -105,14 +118,17 @@ export const openRemoteLogFile = async (url, concurrency) => {
    */
   const readAllSummaries = async () => {
     try {
-      return await readJSONFile('summary.json');
-    } catch (error) {
-      console.warn('summary.json not found, falling back to individual summary files');
+      return await readJSONFile("summary.json");
+    } catch {
+      console.warn(
+        "summary.json not found, falling back to individual summary files",
+      );
       return readFallbackSummaries();
     }
   };
 
   return {
+    readAllSummaries,
     /**
      * Reads the complete log file.
      * @returns {Promise<import("../types/log").EvalLog>} The complete log data.
@@ -121,9 +137,11 @@ export const openRemoteLogFile = async (url, concurrency) => {
       const [evalResult, startData, samples] = await Promise.all([
         readResults(),
         readStart(),
-        listSamples().then(sampleIds => 
-          Promise.all(sampleIds.map(({ sampleId, epoch }) => readSample(sampleId, epoch)))
-        )
+        listSamples().then((sampleIds) =>
+          Promise.all(
+            sampleIds.map(({ sampleId, epoch }) => readSample(sampleId, epoch)),
+          ),
+        ),
       ]);
 
       return {
@@ -133,8 +151,8 @@ export const openRemoteLogFile = async (url, concurrency) => {
         results: evalResult.results,
         stats: evalResult.stats,
         error: evalResult.error,
-        samples
+        samples,
       };
-    }
+    },
   };
 };
