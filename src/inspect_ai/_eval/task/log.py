@@ -115,6 +115,8 @@ class TaskLogger:
                 if recorder.is_local()
                 else DEFAULT_LOG_BUFFER_REMOTE
             )
+        else:
+            log_buffer = eval_config.log_buffer
         self.flush_buffer = log_buffer
         self.flush_pending = 0
 
