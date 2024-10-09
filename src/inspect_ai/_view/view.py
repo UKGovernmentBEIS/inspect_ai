@@ -16,7 +16,6 @@ from pydantic_core import to_jsonable_python
 
 from inspect_ai._display import display
 from inspect_ai._display.logger import init_logger
-from inspect_ai._util.appdirs import inspect_runtime_dir
 from inspect_ai._util.constants import (
     DEFAULT_SERVER_HOST,
     DEFAULT_VIEW_PORT,
@@ -31,6 +30,8 @@ from inspect_ai.log._file import (
     read_eval_log,
     read_eval_log_headers,
 )
+
+from .notify import view_last_eval_time, view_runtime_dir
 
 logger = logging.getLogger(__name__)
 
@@ -216,34 +217,6 @@ class ViewHTTPRequestHandler(InspectHTTPRequestHandler):
             return self.log_dir
 
 
-# lightweight tracking of when the last eval task completed
-# this enables the view client to poll for changes frequently
-# (e.g. every 1 second) with very minimal overhead.
-
-
-def view_notify_eval(location: str) -> None:
-    # do not do this when running under pytest
-    if os.environ.get("PYTEST_VERSION", None) is not None:
-        return
-
-    file = view_last_eval_file()
-    with open(file, "w", encoding="utf-8") as f:
-        if not urlparse(location).scheme:
-            location = Path(location).absolute().as_posix()
-
-        # Construct a payload with context for the last eval
-        payload = {
-            "location": location,
-        }
-        workspace_id = os.environ.get("INSPECT_WORKSPACE_ID")
-        if workspace_id:
-            payload["workspace_id"] = workspace_id
-
-        # Serialize the payload and write it to the signal file
-        payload_json = json.dumps(payload, indent=2)
-        f.write(payload_json)
-
-
 def resolve_header_only(path: str, header_only: int | None) -> bool:
     # if there is a max_size passed, respect that and switch to
     # header_only mode if the file is too large
@@ -253,22 +226,6 @@ def resolve_header_only(path: str, header_only: int | None) -> bool:
         return True
     else:
         return False
-
-
-def view_last_eval_time() -> int:
-    file = view_last_eval_file()
-    if file.exists():
-        return int(file.stat().st_mtime * 1000)
-    else:
-        return 0
-
-
-def view_runtime_dir() -> Path:
-    return inspect_runtime_dir("view")
-
-
-def view_last_eval_file() -> Path:
-    return view_runtime_dir() / "last-eval-result"
 
 
 def view_port_pid_file(port: int) -> Path:

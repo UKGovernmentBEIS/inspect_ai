@@ -28,7 +28,7 @@ from inspect_ai._util.registry import (
     is_registry_object,
     registry_log_name,
 )
-from inspect_ai._view.view import view_notify_eval
+from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
     EvalConfig,
