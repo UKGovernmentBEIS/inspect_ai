@@ -21,8 +21,6 @@ from .notify import view_last_eval_time
 
 logger = getLogger(__name__)
 
-
-# TODO: writing zip file using stream
 # TODO: flushing zip file
 
 

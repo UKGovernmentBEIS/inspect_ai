@@ -1,11 +1,10 @@
 import json
-import tempfile
 import zipfile
 from dataclasses import dataclass, field
-from typing import Any, BinaryIO, Literal
+from typing import Any, Literal
 from zipfile import ZipFile
 
-import fsspec
+import fsspec  # type: ignore
 from pydantic import BaseModel, Field
 from pydantic_core import to_json
 from typing_extensions import override
