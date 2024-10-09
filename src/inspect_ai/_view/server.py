@@ -24,8 +24,11 @@ WWW_DIR = os.path.abspath((Path(__file__).parent / "www" / "dist").as_posix())
 
 logger = getLogger(__name__)
 
-# TODO: writing zip file using stream
+
 # TODO: byte range
+
+# TODO: writing zip file using stream
+# TODO: flushing zip file
 
 
 def view_server(
