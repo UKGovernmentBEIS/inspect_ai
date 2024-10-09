@@ -7725,6 +7725,12 @@ const clearDocumentSelection = () => {
   }
 };
 const ApplicationIcons = {
+  approve: "bi bi-shield",
+  approvals: {
+    approve: "bi bi-shield-check",
+    reject: "bi bi-shield-x",
+    terminate: "bi bi-shield-exclamation"
+  },
   arrows: {
     right: "bi bi-arrow-right",
     down: "bi bi-arrow-down",
@@ -11803,7 +11809,7 @@ Prism.languages.json = {
   }
 };
 Prism.languages.webmanifest = Prism.languages.json;
-const ExpandablePanel = ({ collapse, border, lines = 10, children }) => {
+const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
   const [collapsed, setCollapsed] = h(collapse);
   const [showToggle, setShowToggle] = h(false);
   const contentsRef = A();
@@ -11845,6 +11851,9 @@ const ExpandablePanel = ({ collapse, border, lines = 10, children }) => {
   }
   if (border) {
     contentsStyle.border = "solid var(--bs-light-border-subtle) 1px";
+  }
+  if (!showToggle) {
+    contentsStyle.marginBottom = "1em";
   }
   return m$1`<div
       class="expandable-panel"
@@ -11933,7 +11942,7 @@ const ToolCallView = ({
             <div style=${{ marginLeft: `${codeIndent}` }}>
             <${ToolInput} type=${inputType} contents=${input}/>
             ${output ? m$1`
-              <${ExpandablePanel} collapse=${true} border=${true} lines=10>
+              <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
               <${MessageContent} contents=${output} />
               </${ExpandablePanel}>` : ""}
             </div>
@@ -16400,8 +16409,7 @@ const EventRow = ({ title, icon, style, children }) => {
     display: "grid",
     gridTemplateColumns: "max-content max-content minmax(0, 1fr)",
     columnGap: "0.5em",
-    fontSize: FontSize.small,
-    ...style
+    fontSize: FontSize.small
   }}
       >
         <i class=${icon || ApplicationIcons.metadata} />
@@ -16414,7 +16422,8 @@ const EventRow = ({ title, icon, style, children }) => {
     padding: "0.4em",
     marginBottom: "0.4em",
     border: "solid 1px var(--bs-light-border-subtle)",
-    borderRadius: "var(--bs-border-radius)"
+    borderRadius: "var(--bs-border-radius)",
+    ...style
   }}
   >
     ${contentEl}
@@ -16489,6 +16498,7 @@ const InfoEventView = ({ id, event, style }) => {
   </${EventPanel}>`;
 };
 const ScoreEventView = ({ id, event, style }) => {
+  const resolvedTarget = event.target ? Array.isArray(event.target) ? event.target.join("\n") : event.target : void 0;
   return m$1`
   <${EventPanel} id=${id} title="Score" icon=${ApplicationIcons.scorer} style=${style}>
   
@@ -16496,6 +16506,14 @@ const ScoreEventView = ({ id, event, style }) => {
       name="Explanation"
       style=${{ display: "grid", gridTemplateColumns: "max-content auto", columnGap: "1em", margin: "0.5em 0" }}
     >
+      ${event.target ? m$1` <div
+                style=${{
+    gridColumn: "1 / -1",
+    borderBottom: "solid 1px var(--bs-light-border-subtle"
+  }}
+              ></div>
+              <div style=${{ ...TextStyle.label }}>Target</div>
+              <div><${MarkdownDiv} markdown=${resolvedTarget} /></div>` : ""}
       <div style=${{ gridColumn: "1 / -1", borderBottom: "solid 1px var(--bs-light-border-subtle" }}></div>
       <div style=${{ ...TextStyle.label }}>Answer</div>
       <div><${MarkdownDiv} markdown=${event.score.answer}/></div>
@@ -16518,23 +16536,66 @@ const ScoreEventView = ({ id, event, style }) => {
 
   </${EventPanel}>`;
 };
+const ApprovalEventView = ({ id, event, style }) => {
+  return m$1`
+  <${EventRow}
+      id=${id}
+      title="${decisionLabel(event.decision)}"
+      icon=${decisionIcon(event.decision)}  
+      style=${style}
+    >
+    ${event.explanation}
+  </${EventRow}>`;
+};
+const decisionLabel = (decision) => {
+  switch (decision) {
+    case "approve":
+      return "Approved";
+    case "reject":
+      return "Rejected";
+    case "terminate":
+      return "Terminated";
+    default:
+      return decision;
+  }
+};
+const decisionIcon = (decision) => {
+  switch (decision) {
+    case "approve":
+      return ApplicationIcons.approvals.approve;
+    case "reject":
+      return ApplicationIcons.approvals.reject;
+    case "terminate":
+      return ApplicationIcons.approvals.terminate;
+    default:
+      return ApplicationIcons.approve;
+  }
+};
 const ToolEventView = ({ id, event, style, depth }) => {
   var _a;
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
     event.arguments
   );
+  const approvalEvent = event.events.find((e2) => {
+    return e2.event === "approval";
+  });
   const title = `Tool: ${event.function}`;
   const output = event.result || ((_a = event.error) == null ? void 0 : _a.message);
   return m$1`
   <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
     <div name="Summary" style=${{ width: "100%", margin: "0.5em 0" }}>
         ${!output ? "(No output)" : m$1`
-          <${ExpandablePanel} collapse=${true} border=${true} lines=10>
+          <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
             <${ToolOutput}
               output=${output}
             />
           </${ExpandablePanel}>`}
+        ${approvalEvent ? m$1`<${ApprovalEventView}
+            id="${id}-approval"
+            event=${approvalEvent}
+            style=${{ border: "none", padding: 0, marginBottom: 0 }}
+          />` : ""}
     </div>
     
   
@@ -16571,7 +16632,7 @@ const InputEventView = ({ id, event, style }) => {
 class EventNode {
   /**
    * Create an EventNode.
-   * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").InputEvent | import("../../types/log").ErrorEvent } event - This event.
+   * @param { import("../../types/log").SampleInitEvent | import("../../types/log").StateEvent | import("../../types/log").StoreEvent | import("../../types/log").ModelEvent | import("../../types/log").LoggerEvent | import("../../types/log").InfoEvent | import("../../types/log").StepEvent | import("../../types/log").SubtaskEvent| import("../../types/log").ScoreEvent | import("../../types/log").ToolEvent | import("../../types/log").InputEvent | import("../../types/log").ErrorEvent | import("../../types/log").ApprovalEvent } event - This event.
    * @param {number} depth - the depth of this item
    */
   constructor(event, depth) {
@@ -16696,6 +16757,12 @@ const RenderedEventNode = ({ id, node, style }) => {
       />`;
     case "error":
       return m$1`<${ErrorEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
+    case "approval":
+      return m$1`<${ApprovalEventView}
         id=${id}
         event=${node.event}
         style=${style}
@@ -17511,11 +17578,32 @@ const SampleList = (props) => {
     borderBottom: "solid var(--bs-light-border-subtle) 1px"
   }}
   >
-    <div>Id</div>
+    <div>#</div>
     <div>Input</div>
     <div>Target</div>
     <div>Answer</div>
     <div>Score</div>
+  </div>`;
+  const sampleCount = items == null ? void 0 : items.reduce((prev, current) => {
+    if (current.type === "sample") {
+      return prev + 1;
+    } else {
+      return prev;
+    }
+  }, 0);
+  const footerRow = m$1` <div
+    style=${{
+    borderTop: "solid var(--bs-light-border-subtle) 1px",
+    background: "var(--bs-light-bg-subtle)",
+    fontSize: FontSize.smaller,
+    display: "grid",
+    gridTemplateColumns: "max-content",
+    justifyContent: "end",
+    alignContent: "end",
+    padding: "0.2em 1em"
+  }}
+  >
+    <div>${sampleCount} Samples</div>
   </div>`;
   const errorCount = items == null ? void 0 : items.reduce((previous, item) => {
     if (item.data.error) {
@@ -17524,7 +17612,6 @@ const SampleList = (props) => {
       return previous;
     }
   }, 0);
-  const sampleCount = items == null ? void 0 : items.length;
   const percentError = errorCount / sampleCount * 100;
   const warningMessage = errorCount > 0 ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : void 0;
   const warningRow = warningMessage ? m$1`<${WarningBand} message=${warningMessage} />` : "";
@@ -17541,6 +17628,7 @@ const SampleList = (props) => {
       rowMap=${rowMap}
       style=${listStyle}
     />
+    ${footerRow}
   </div>`;
 };
 const SeparatorRow = ({ id, title, height }) => {
@@ -20217,7 +20305,6 @@ function simpleHttpAPI(logInfo) {
 async function fetchFile(url, parse3, handleError) {
   const safe_url = encodePathParts(url);
   const response = await fetch(`${safe_url}`, { method: "GET" });
-  console.log({ response });
   if (response.ok) {
     const text = await response.text();
     return {
@@ -20369,7 +20456,7 @@ const TaskErrorCard = ({ evalError }) => {
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.error} label="Task Failed: ${evalError.message}"></${CardHeader}>
       <${CardBody} style=${{ fontSize: FontSize.smaller }}>
-        <${ANSIDisplay} output=${evalError.traceback_ansi}/>
+        <${ANSIDisplay} output=${evalError.traceback_ansi} style=${{ fontSize: "clamp(0.2rem, calc(0.2em + .93vw), 0.9rem)" }}/>
       </${CardBody}>
     </${Card}>
   `;

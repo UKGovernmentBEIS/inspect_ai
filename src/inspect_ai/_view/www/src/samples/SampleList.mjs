@@ -149,11 +149,33 @@ export const SampleList = (props) => {
       borderBottom: "solid var(--bs-light-border-subtle) 1px",
     }}
   >
-    <div>Id</div>
+    <div>#</div>
     <div>Input</div>
     <div>Target</div>
     <div>Answer</div>
     <div>Score</div>
+  </div>`;
+
+  const sampleCount = items?.reduce((prev, current) => {
+    if (current.type === "sample") {
+      return prev + 1;
+    } else {
+      return prev;
+    }
+  }, 0);
+  const footerRow = html` <div
+    style=${{
+      borderTop: "solid var(--bs-light-border-subtle) 1px",
+      background: "var(--bs-light-bg-subtle)",
+      fontSize: FontSize.smaller,
+      display: "grid",
+      gridTemplateColumns: "max-content",
+      justifyContent: "end",
+      alignContent: "end",
+      padding: "0.2em 1em",
+    }}
+  >
+    <div>${sampleCount} Samples</div>
   </div>`;
 
   // Count any sample errors and display a bad alerting the user
@@ -165,7 +187,7 @@ export const SampleList = (props) => {
       return previous;
     }
   }, 0);
-  const sampleCount = items?.length;
+
   const percentError = (errorCount / sampleCount) * 100;
   const warningMessage =
     errorCount > 0
@@ -189,6 +211,7 @@ export const SampleList = (props) => {
       rowMap=${rowMap}
       style=${listStyle}
     />
+    ${footerRow}
   </div>`;
 };
 

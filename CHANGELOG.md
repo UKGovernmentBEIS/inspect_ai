@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased
+
+- [Approval mode](https://inspect.ai-safety-institute.org.uk/approval.html) for extensible approvals of tool calls (human and auto-approvers built in,  arbitrary other approval schemes via extensions).
+- [Trace mode](https://inspect.ai-safety-institute.org.uk/interactivity.html#sec-trace-mode) for printing model interactions to the terminal.
+- Add `as_dict()` utility method to `Score`
+- [Sample limits](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sec-sample-limits) (`token_limit` and `message_limit`) for capping the number of tokens or messages used per sample ( `message_limit` replaces deprecated `max_messages`).
+- Add `metadata` field to `Task` and record in log `EvalSpec`.
+- Include datetime and level in file logger.
+- Correct llama3 and o1 tool calling when empty arguments passed.
+- Allow resolution of any sandbox name when there is only a single environment.
+- Introduce `--log-level-transcript` option for separate control of log entries recorded in the eval log file
+
+## v0.3.40 (6 October 2024)
+
+- Add `interactive` option to `web_browser()` for disabling interactive tools (clicking, typing, and submitting forms).
+- Provide token usage and raw model API calls for OpenAI o1-preview.
+- Add support for reading CSV files of dialect 'excel-tab'.
+- Improve prompting for Python tool to emphasise the need to print output.
+- For `basic_agent()`, defer to task `max_messages` if none is specified for the agent (default to 50 is the task does not specify `max_messages`).
+- Add optional `content` parameter to `ModelOutput.for_tool_call()`.
+- Display total samples in Inspect View
+- Prune `sample_reductions` when returning eval logs with `header_only=True`.
+- Improved error message for undecorated solvers.
+- For simple matching scorers, only include explanation if it differs from answer.
+
+## v0.3.39 (3 October 2024)
+
+- The sample transcript will now display the target for scoring in the Score Event (for newly run evaluations).
+- Provide setter for `max_messages` on `TaskState`. 
+- Provide `max_messages` option for `basic_agent()` (defaulting to 50) and use it rather than any task `max_messages` defined.
+- Improved implementation of disabling parallel tool calling (also fixes a transcript issue introduced by the original implementation).
+- Improve quality of error messages when a model API key environment variable is missing.
+- Improve prompting around letting the model know it should not attempt parallel web browser calls.
+
 ## v0.3.38 (3 October 2024)
 
 - Rename `web_browser_tools()` to `web_browser()`, and don't export individual web browsing tools.

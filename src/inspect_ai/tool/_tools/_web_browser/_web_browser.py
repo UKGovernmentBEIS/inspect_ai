@@ -2,23 +2,44 @@ import re
 from textwrap import dedent
 
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.tool._tool import Tool, ToolError, tool
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_with
 from inspect_ai.util._sandbox.docker.internal import INSPECT_WEB_BROWSER_IMAGE
+from inspect_ai.util._store import store
+
+from ..._tool import Tool, ToolError, tool
+from ..._tool_call import ToolCall, ToolCallContent, ToolCallView
+from ..._tool_info import parse_tool_info
+from ..._tool_with import tool_with
 
 
-def web_browser() -> list[Tool]:
+def web_browser(interactive: bool = True) -> list[Tool]:
     """Tools used for web browser navigation.
+
+    Args:
+       interactive (bool): Provide interactive tools (enable
+         clicking, typing, and submitting forms). Defaults
+         to True.
 
     Returns:
        List of tools used for web browser navigation.
 
     """
-    return [
-        web_browser_go(),
-        web_browser_click(),
-        web_browser_type_submit(),
-        web_browser_type(),
+    # start with go tool (excluding interactive docs if necessary)
+    go = web_browser_go()
+    if not interactive:
+        go = go_without_interactive_docs(go)
+    tools = [go]
+
+    # add interactive tools if requested
+    if interactive:
+        tools = tools + [
+            web_browser_click(),
+            web_browser_type_submit(),
+            web_browser_type(),
+        ]
+
+    # add navigational tools
+    return tools + [
         web_browser_scroll(),
         web_browser_back(),
         web_browser_forward(),
@@ -46,11 +67,13 @@ def web_browser_go() -> Tool:
             [4] StaticText "Gmail"
           [91] button "Google apps" [expanded: False]
           [21] combobox "Search" [editable: plaintext, autocomplete: both, hasPopup: listbox, required: False, expanded: False, controls: Alh6id]
-         ```
+        ```
 
         To execute a Google Search for 'dogs', you would type into the "Search" combobox with element ID 21 and then press ENTER using the web_browser_type_submit tool:
 
         web_browser_type_submit(21, "dogs")
+
+        You should only attempt to navigate the web browser one page at a time (parallel calls to web browser tools are not permitted).
 
         Args:
           url (str): URL to navigate to.
@@ -63,7 +86,48 @@ def web_browser_go() -> Tool:
     return execute
 
 
-@tool(parallel=False)
+def go_without_interactive_docs(tool: Tool) -> Tool:
+    tool_info = parse_tool_info(tool)
+    description_lines = tool_info.description.splitlines()
+    description_lines = [
+        line for line in description_lines if "web_browser_type_submit" not in line
+    ]
+    return tool_with(tool, description="\n".join(description_lines))
+
+
+# custom viewer for interactive tool calls that shows a truncated
+# version of current the web accessiblity tree if available
+
+WEB_BROWSER_AT = "web_browser:at"
+
+
+def web_at_viewer(call: ToolCall) -> ToolCallView:
+    # get the web accessiblity tree, if we have it create a view from it
+    web_at = store().get(WEB_BROWSER_AT, "")
+    element_id = call.arguments.get("element_id", 0)
+    if web_at and element_id:
+        lines = web_at.splitlines()
+        pattern = re.compile(rf"^\s+\[{element_id}\] .*$")
+        for i, line in enumerate(lines):
+            if pattern.match(line):
+                snippet = (
+                    lines[0:1]
+                    + ["  ..."]
+                    + lines[max(i - 2, 1) : i]
+                    + [line.replace(" ", "*", 1)]
+                    + lines[i + 1 : min(i + 3, len(lines))]
+                    + ["  ..."]
+                )
+
+                return ToolCallView(
+                    context=ToolCallContent(format="text", content="\n".join(snippet))
+                )
+
+    # no view found
+    return ToolCallView()
+
+
+@tool(viewer=web_at_viewer, parallel=False)
 def web_browser_click() -> Tool:
     """Web Browser tool for clicking an element on a web page.
 
@@ -98,7 +162,7 @@ def web_browser_click() -> Tool:
     return execute
 
 
-@tool(parallel=False)
+@tool(viewer=web_at_viewer, parallel=False)
 def web_browser_type_submit() -> Tool:
     """Web Browser tool for typing and submitting input.
 
@@ -136,7 +200,7 @@ def web_browser_type_submit() -> Tool:
     return execute
 
 
-@tool(parallel=False)
+@tool(viewer=web_at_viewer, parallel=False)
 def web_browser_type() -> Tool:
     """Web Browser tool for typing into inputs.
 
@@ -281,7 +345,11 @@ async def web_browser_cmd(cmd: str, *args: str) -> str:
     else:
         response = parse_web_browser_output(result.stdout)
         if "web_at" in response:
-            return str(response.get("web_at")) or "(no web accessiblity tree available)"
+            web_at = (
+                str(response.get("web_at")) or "(no web accessiblity tree available)"
+            )
+            store().set(WEB_BROWSER_AT, web_at)
+            return web_at
         elif "error" in response:
             raise ToolError(str(response.get("error")) or "(unknown error)")
         else:

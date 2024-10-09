@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
 
-export const ExpandablePanel = ({ collapse, border, lines = 10, children }) => {
+export const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
   const [collapsed, setCollapsed] = useState(collapse);
   const [showToggle, setShowToggle] = useState(false);
 
@@ -61,6 +61,10 @@ export const ExpandablePanel = ({ collapse, border, lines = 10, children }) => {
 
   if (border) {
     contentsStyle.border = "solid var(--bs-light-border-subtle) 1px";
+  }
+
+  if (!showToggle) {
+    contentsStyle.marginBottom = "1em";
   }
 
   return html`<div

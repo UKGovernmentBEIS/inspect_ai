@@ -116,7 +116,7 @@ def logs(
     **kwargs: Unpack[CommonOptions],
 ) -> None:
     """List log files in log directory."""
-    (log_dir, log_level) = resolve_common_options(kwargs)
+    (log_dir, _, _) = resolve_common_options(kwargs)
 
     # list the logs
     logs = list_eval_logs(

@@ -11,6 +11,7 @@ import { ScoreEventView } from "./ScoreEventView.mjs";
 import { ToolEventView } from "./ToolEventView.mjs";
 import { ErrorEventView } from "./ErrorEventView.mjs";
 import { InputEventView } from "./InputEventView.mjs";
+import { ApprovalEventView } from "./ApprovalEventView.mjs";
 import { FontSize } from "../../appearance/Fonts.mjs";
 import { EventNode } from "./Types.mjs";
 
@@ -175,6 +176,13 @@ export const RenderedEventNode = ({ id, node, style }) => {
 
     case "error":
       return html`<${ErrorEventView}
+        id=${id}
+        event=${node.event}
+        style=${style}
+      />`;
+
+    case "approval":
+      return html`<${ApprovalEventView}
         id=${id}
         event=${node.event}
         style=${style}

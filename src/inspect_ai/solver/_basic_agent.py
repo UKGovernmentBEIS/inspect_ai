@@ -1,3 +1,8 @@
+from logging import getLogger
+from typing import cast
+
+from typing_extensions import TypedDict, Unpack
+
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._call_tools import call_tools
 from inspect_ai.model._chat_message import ChatMessageTool, ChatMessageUser
@@ -12,6 +17,8 @@ from ._prompt import system_message
 from ._solver import Generate, Solver, solver
 from ._task_state import TaskState
 from ._use_tools import use_tools
+
+logger = getLogger(__name__)
 
 DEFAULT_SYSTEM_MESSAGE = """
 You are a helpful assistant attempting to submit the correct answer. You have
@@ -34,6 +41,10 @@ DEFAULT_SUBMIT_NAME = "submit"
 DEFAULT_SUBMIT_DESCRIPTION = "Submit an answer for evaluation."
 
 
+class BasicAgentDeprecatedArgs(TypedDict, total=False):
+    max_messages: int | None
+
+
 @solver
 def basic_agent(
     *,
@@ -41,11 +52,14 @@ def basic_agent(
     tools: list[Tool] | Solver | None = None,
     cache: bool | CachePolicy = False,
     max_attempts: int = 1,
+    message_limit: int | None = None,
+    token_limit: int | None = None,
     score_value: ValueToFloat | None = None,
     incorrect_message: str = DEFAULT_INCORRECT_MESSAGE,
     continue_message: str = DEFAULT_CONTINUE_MESSAGE,
     submit_name: str = DEFAULT_SUBMIT_NAME,
     submit_description: str = DEFAULT_SUBMIT_DESCRIPTION,
+    **kwargs: Unpack[BasicAgentDeprecatedArgs],
 ) -> Solver:
     """Basic ReAct agent.
 
@@ -60,10 +74,6 @@ def basic_agent(
     "C" becomes 1.0) using the standard value_to_float() function. Provide an
     alternate conversion scheme as required via `score_value`.
 
-    Note that when using the `basic_agent()`, you should always establish a boundary
-    on model activity (e.g. setting the task `max_messages`) to prevent it from
-    continuing on in a loop interminably.
-
     Args:
        init: (Solver | list[Solver] | None): Agent initialisation
          (defaults to system_message with basic ReAct prompt)
@@ -72,6 +82,10 @@ def basic_agent(
        cache: (bool | CachePolicy): Caching behaviour for generate responses
          (defaults to no caching).
        max_attempts (int): Maximum number of submissions to accept before terminating.
+       message_limit (int): Limit on messages in sample before terminating agent.
+          If not specified, will use limit_messages defined for the task. If there is none
+          defined for the task, 50 will be used as a default.
+       token_limit (int): Limit on tokens used in sample before terminating agent.
        score_value (ValueToFloat): Function used to extract float from scores (defaults
          to standard value_to_float())
        incorrect_message (str): User message reply for an incorrect submission from
@@ -82,10 +96,17 @@ def basic_agent(
         (defaults to 'submit')
        submit_description (str): Description of submit tool (defaults to
         'Submit an answer for evaluation')
+       **kwargs (Any): Deprecated arguments for backward compatibility.
 
     Returns:
         Plan for agent.
     """
+    # resolve deprecated
+    for arg, value in kwargs.items():
+        if arg == "max_messages":
+            # deprecated, don't warn yet
+            message_limit = int(cast(int, value))
+
     # resolve init
     if init is None:
         init = system_message(DEFAULT_SYSTEM_MESSAGE, submit=submit_name)
@@ -132,21 +153,18 @@ def basic_agent(
     @solver
     def basic_agent_loop() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            # validate that there is a max_messages
-            if state.max_messages is None:
-                raise RuntimeError(
-                    "max_messages must be set when using basic_agent (without max_messages providing a termination condition it's possible the agent could end up in an infinite loop)"
-                )
+            # resolve message_limit -- prefer parameter then fall back to task
+            # (if there is no message_limit then default to 50)
+            state.message_limit = message_limit or state.message_limit or 50
+
+            # resolve token limit
+            state.token_limit = token_limit or state.token_limit
 
             # track attempts
             attempts = 0
 
-            # main loop
-            while True:
-                # check for completed (if we hit a limit e.g. max_messages)
-                if state.completed:
-                    break
-
+            # main loop (state.completed checks message_limit and token_limit)
+            while not state.completed:
                 # generate output and append assistant message
                 state.output = await get_model().generate(
                     input=state.messages, tools=state.tools, cache=cache
