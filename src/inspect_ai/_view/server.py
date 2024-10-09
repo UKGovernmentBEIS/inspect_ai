@@ -8,6 +8,7 @@ from aiohttp import web
 from pydantic_core import to_jsonable_python
 
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
+from inspect_ai._util.file import size_in_mb
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json,
@@ -23,7 +24,6 @@ WWW_DIR = os.path.abspath((Path(__file__).parent / "www" / "dist").as_posix())
 
 logger = getLogger(__name__)
 
-# TODO: no samples!
 # TODO: writing zip file using stream
 # TODO: cache busting
 # TODO: byte range
@@ -40,9 +40,12 @@ def view_server(
 
     @routes.get("/api/logs/{log}")
     async def api_log(request: web.Request) -> web.Response:
+        # log file requested
         file = request.match_info["log"]
         file = urllib.parse.unquote(file)
-        header_only = request.query.get("header-only", None) is not None
+
+        # header_only is based on a size threshold
+        header_only = request.query.get("header-only", None)
         return log_file_response(file, header_only)
 
     @routes.get("/api/logs")
@@ -94,7 +97,11 @@ def log_listing_response(logs: list[EvalLogInfo], log_dir: str) -> web.Response:
     return web.json_response(response)
 
 
-def log_file_response(file: str, header_only: bool) -> web.Response:
+def log_file_response(file: str, header_only_param: str | None) -> web.Response:
+    # resolve header_only
+    header_only_mb = int(header_only_param) if header_only_param is not None else None
+    header_only = resolve_header_only(file, header_only_mb)
+
     try:
         contents: bytes | None = None
         if header_only:
@@ -140,3 +147,14 @@ def aliased_path(path: str) -> str:
         return path.replace(home_dir, "~", 1)
     else:
         return path
+
+
+def resolve_header_only(path: str, header_only: int | None) -> bool:
+    # if there is a max_size passed, respect that and switch to
+    # header_only mode if the file is too large
+    if header_only == 0:
+        return True
+    if header_only is not None and size_in_mb(path) > int(header_only):
+        return True
+    else:
+        return False

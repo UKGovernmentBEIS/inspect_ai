@@ -5,7 +5,7 @@ from pydantic_core import to_jsonable_python
 
 from inspect_ai import __version__
 from inspect_ai._util.constants import PKG_PATH
-from inspect_ai._util.file import size_in_mb
+from inspect_ai._view.server import resolve_header_only
 from inspect_ai.log._file import eval_log_json, read_eval_log, read_eval_log_headers
 
 
@@ -79,14 +79,3 @@ def view_type_resource(file: str) -> str:
     resource = PKG_PATH / "_view" / "www" / "src" / "types" / file
     with open(resource, "r", encoding="utf-8") as f:
         return f.read()
-
-
-def resolve_header_only(path: str, header_only: int | None) -> bool:
-    # if there is a max_size passed, respect that and switch to
-    # header_only mode if the file is too large
-    if header_only == 0:
-        return True
-    if header_only is not None and size_in_mb(path) > int(header_only):
-        return True
-    else:
-        return False
