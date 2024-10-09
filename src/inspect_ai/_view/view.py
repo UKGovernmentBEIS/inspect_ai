@@ -51,7 +51,7 @@ def view(
     view_acquire_port(port)
 
     # notify user
-    display().print(f"Inspect view running at http://localhost:{port}/")
+    display().print(f"Inspect View: {log_dir}")
 
     # run server
     view_server(

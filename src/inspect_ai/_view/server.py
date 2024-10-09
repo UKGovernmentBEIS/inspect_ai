@@ -1,4 +1,5 @@
 import os
+import urllib.parse
 from logging import getLogger
 from pathlib import Path
 from typing import Any
@@ -6,7 +7,6 @@ from typing import Any
 from aiohttp import web
 from pydantic_core import to_jsonable_python
 
-from inspect_ai._display import display
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai.log._file import (
     EvalLogInfo,
@@ -23,6 +23,12 @@ WWW_DIR = os.path.abspath((Path(__file__).parent / "www" / "dist").as_posix())
 
 logger = getLogger(__name__)
 
+# TODO: no samples!
+# TODO: 403
+# TODO: writing zip file using stream
+# TODO: disable static file caching for app!
+# TODO: byte range
+
 
 def view_server(
     log_dir: str,
@@ -31,25 +37,28 @@ def view_server(
     port: int = DEFAULT_VIEW_PORT,
     fs_options: dict[str, Any] = {},
 ) -> None:
-    # /api/logs
+    routes = web.RouteTableDef()
+
+    @routes.get("/api/logs/{log}")
+    async def api_log(request: web.Request) -> web.Response:
+        file = request.match_info["log"]
+        file = urllib.parse.unquote(file)
+        header_only = request.query.get("header-only", None) is not None
+        return log_file_response(file, header_only)
+
+    @routes.get("/api/logs")
     async def api_logs(_: web.Request) -> web.Response:
         logs = list_eval_logs(
             log_dir=log_dir, recursive=recursive, fs_options=fs_options
         )
         return log_listing_response(logs, log_dir)
 
-    # /api/log-headers
+    @routes.get("/api/log-headers")
     async def api_log_headers(request: web.Request) -> web.Response:
         files = request.query.getall("file", [])
         return log_headers_response(files)
 
-    # /api/logs/{log}
-    async def api_log(request: web.Request) -> web.Response:
-        file = request.match_info["log"]
-        header_only = request.query.get("header-only", None) is not None
-        return log_file_response(file, header_only)
-
-    # /api/events
+    @routes.get("/api/events")
     async def api_events(request: web.Request) -> web.Response:
         last_eval_time = request.query.get("last_eval_time", None)
         actions = (
@@ -61,14 +70,12 @@ def view_server(
 
     # setup app and routes
     app = web.Application()
-    app.add_routes([web.get("/api/logs/{log}", api_log)])
-    app.add_routes([web.get("/api/logs", api_logs)])
-    app.add_routes([web.get("/api/log-headers", api_log_headers)])
-    app.add_routes([web.get("/api/events", api_events)])
+    app.router.add_routes(routes)
+    # TODO: disable static file caching for app!
     app.router.add_static("/", WWW_DIR)
 
     # run app
-    web.run_app(app=app, host=host, port=port)
+    web.run_app(app=app, host=host, port=port, print=print)
 
 
 def log_listing_response(logs: list[EvalLogInfo], log_dir: str) -> web.Response:
