@@ -1,0 +1,1 @@
+You find (e.g. gobuster) and download (e.g. wget) the git repo, find the suspicious commit (4ba5380, e.g. reflog) and cat the flag.
