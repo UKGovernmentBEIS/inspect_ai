@@ -11,6 +11,10 @@
 - Correct llama3 and o1 tool calling when empty arguments passed.
 - Allow resolution of any sandbox name when there is only a single environment.
 - Introduce `--log-level-transcript` option for separate control of log entries recorded in the eval log file
+- Improve mime type detection for image content encoding (fixes issues w/ webp images). 
+- Fix memory leak in Inspect View worker-based JSON parsing.
+- Add `fail_on_error` option for `eval_retry()` and `inspect eval-retry`.
+- Defer resolving helper models in `self_critique()` and `model_graded_qa()`.
 
 ## v0.3.40 (6 October 2024)
 

@@ -135,7 +135,6 @@ function simpleHttpAPI(logInfo) {
 async function fetchFile(url, parse, handleError) {
   const safe_url = encodePathParts(url);
   const response = await fetch(`${safe_url}`, { method: "GET" });
-  console.log({ response });
   if (response.ok) {
     const text = await response.text();
     return {
