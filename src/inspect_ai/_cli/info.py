@@ -4,8 +4,10 @@ import click
 
 from inspect_ai import __version__
 from inspect_ai._util.constants import PKG_PATH
+from inspect_ai._view.server import resolve_header_only
+from inspect_ai.log._file import eval_log_json, read_eval_log
 
-from .log import dump, headers, schema, types
+from .log import headers, schema, types
 
 
 @click.group("info")
@@ -40,7 +42,11 @@ def version(json: bool) -> None:
     help="Read and print only the header of the log file (i.e. no samples).",
 )
 def log(path: str, header_only: int) -> None:
-    dump(path, header_only)
+    """Print log file contents as JSON."""
+    header_only = resolve_header_only(path, header_only)
+
+    log = read_eval_log(path, header_only=header_only)
+    print(eval_log_json(log))
 
 
 @info_command.command("log-file-headers", hidden=True)

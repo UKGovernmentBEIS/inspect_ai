@@ -3,7 +3,7 @@ from typing import Any, Literal, get_args
 import ijson  # type: ignore
 from ijson import IncompleteJSONError
 from pydantic import BaseModel
-from pydantic_core import from_json, to_json
+from pydantic_core import from_json
 from typing_extensions import override
 
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
@@ -160,6 +160,8 @@ class JSONRecorder(FileRecorder):
     @override
     @classmethod
     def write_log(cls, location: str, log: EvalLog) -> None:
+        from inspect_ai.log._file import eval_log_json
+
         # sort samples before writing as they can come in out of order
         if log.samples:
             sort_samples(log.samples)
@@ -232,13 +234,3 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         version=version,
         error=error if has_error else None,
     )
-
-
-def eval_log_json(log: EvalLog) -> str:
-    # serialize to json (ignore values that are unserializable)
-    # these values often result from solvers using metadata to
-    # pass around 'live' objects -- this is fine to do and we
-    # don't want to prevent it at the serialization level
-    return to_json(
-        value=log, indent=2, exclude_none=True, fallback=lambda _x: None
-    ).decode()

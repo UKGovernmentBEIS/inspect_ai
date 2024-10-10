@@ -14,7 +14,6 @@ from inspect_ai._display import display
 from inspect_ai._util.constants import PKG_PATH
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import copy_file, exists, filesystem
-from inspect_ai._view.server import resolve_header_only
 from inspect_ai.log import list_eval_logs
 from inspect_ai.log._file import (
     eval_log_json,
@@ -124,21 +123,13 @@ def list_command(
 @click.argument("path")
 @click.option(
     "--header-only",
-    type=int,
-    is_flag=False,
-    flag_value=0,
+    type=bool,
+    is_flag=True,
+    default=False,
     help="Read and print only the header of the log file (i.e. no samples).",
 )
-def dump_command(path: str, header_only: int) -> None:
+def dump_command(path: str, header_only: bool) -> None:
     """Print log file contents as JSON."""
-    dump(path, header_only)
-
-
-def dump(path: str, header_only: int) -> None:
-    """Print log file contents as JSON."""
-    # Resolve the header only to a boolean
-    header_only = resolve_header_only(path, header_only)
-
     log = read_eval_log(path, header_only=header_only)
     print(eval_log_json(log))
 
