@@ -92,6 +92,21 @@ def open_file(
     return fsspec.open(file, mode=mode, encoding=encoding, **options)
 
 
+# utility to copy a file
+def copy_file(
+    input_file: str,
+    output_file: str,
+    buffer_size: int = 1024 * 1024,
+) -> None:
+    """Copy a file across filesystems."""
+    with file(input_file, "rb") as fin, file(output_file, "wb") as fout:
+        while True:
+            chunk = fin.read(buffer_size)
+            if not chunk:
+                break
+            fout.write(chunk)
+
+
 def basename(file: str) -> str:
     """Get the base name of the file.
 
@@ -110,6 +125,11 @@ def basename(file: str) -> str:
     _, path_without_protocol = split_protocol(normalized_path)
     name: str = path_without_protocol.rstrip("/").split("/")[-1]
     return name
+
+
+def exists(file: str) -> bool:
+    fs = filesystem(file)
+    return fs.exists(file)
 
 
 class FileInfo(BaseModel):
