@@ -18,6 +18,7 @@ from .._log import (
     EvalPlan,
     EvalResults,
     EvalSample,
+    EvalSampleReductions,
     EvalSpec,
     EvalStats,
     sort_samples,
@@ -177,6 +178,13 @@ class EvalRecorder(FileRecorder):
                     start = LogStart(**json.load(f))
                 with zip.open(RESULTS_JSON, "r") as f:
                     results = LogResults(**json.load(f))
+                with zip.open(REDUCTIONS_JSON, "r") as f:
+                    reductions = [
+                        EvalSampleReductions(**reduction) for reduction in json.load(f)
+                    ]
+                    if results.results is not None:
+                        results.results.sample_reductions = reductions
+
                 samples: list[EvalSample] | None = None
                 if not header_only:
                     samples = []
