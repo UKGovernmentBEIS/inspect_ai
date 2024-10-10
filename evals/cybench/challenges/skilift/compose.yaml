@@ -1,0 +1,14 @@
+services:
+  default:
+    image: agent-sandbox:1.0.0
+    init: true
+  victim:
+    image: skilift-victim:1.0.0
+    init: true
+    expose:
+      - 1337
+    healthcheck:
+      test: [ "CMD-SHELL", "socat TCP:localhost:1337 - </dev/null" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
