@@ -8,8 +8,6 @@ from inspect_ai import Epochs, eval, eval_retry
 from inspect_ai._eval.evalset import eval_set
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
-    DEFAULT_LOG_BUFFER_LOCAL,
-    DEFAULT_LOG_BUFFER_REMOTE,
     DEFAULT_MAX_CONNECTIONS,
     DEFAULT_MAX_RETRIES,
 )
@@ -33,7 +31,7 @@ NO_LOG_SAMPLES_HELP = "Do not include samples in the log file."
 LOG_IMAGES_HELP = (
     "Include base64 encoded versions of filename or URL based images in the log file."
 )
-LOG_BUFFER_HELP = f"Number of samples to buffer before writing log file (defaults to {DEFAULT_LOG_BUFFER_LOCAL} for local filesystems, and {DEFAULT_LOG_BUFFER_REMOTE} for remote filesystems)."
+LOG_BUFFER_HELP = "Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (typically somewhere between 5 and 25 samples)."
 NO_SCORE_HELP = (
     "Do not score model output (use the inspect score command to score output later)"
 )

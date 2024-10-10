@@ -14,9 +14,6 @@ from inspect_ai.log._log import (
 
 class Recorder(abc.ABC):
     @abc.abstractmethod
-    def is_local(self) -> bool: ...
-
-    @abc.abstractmethod
     def log_init(self, eval: EvalSpec) -> str: ...
 
     @abc.abstractmethod
@@ -37,6 +34,9 @@ class Recorder(abc.ABC):
         results: EvalResults | None,
         error: EvalError | None = None,
     ) -> EvalLog: ...
+
+    @abc.abstractmethod
+    def default_log_buffer(self) -> int: ...
 
     @classmethod
     @abc.abstractmethod

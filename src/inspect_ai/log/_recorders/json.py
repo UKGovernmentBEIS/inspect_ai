@@ -31,6 +31,16 @@ class JSONRecorder(FileRecorder):
     def handles_location(cls, location: str) -> bool:
         return location.endswith(".json")
 
+    @override
+    def default_log_buffer(self) -> int:
+        # we write the entire file in one shot and the files can
+        # get fairly large (> 100MB) so we are a bit more sparing
+        # for remote filesystem writes
+        if self.is_local():
+            return 10
+        else:
+            return 25
+
     class JSONLogFile(BaseModel):
         file: str
         data: EvalLog
