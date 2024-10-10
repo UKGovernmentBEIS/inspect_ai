@@ -402,6 +402,7 @@ def eval_retry(
     max_subprocesses: int | None = None,
     sandbox_cleanup: bool | None = None,
     trace: bool | None = None,
+    fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
@@ -430,6 +431,10 @@ def eval_retry(
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
         trace (bool | None): Trace message interactions with evaluated model to terminal.
+        fail_on_error (bool | float | None): `True` to fail on first sample error
+           (default); `False` to never fail on sample errors; Value between 0 and 1
+           to fail if a proportion of total samples fails. Value greater than 1 to fail
+           eval if a count of samples fails.
         debug_errors (bool | None): Raise task errors (rather than logging them)
            so they can be debugged (defaults to False).
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
@@ -461,6 +466,7 @@ def eval_retry(
             max_subprocesses=max_subprocesses,
             sandbox_cleanup=sandbox_cleanup,
             trace=trace,
+            fail_on_error=fail_on_error,
             debug_errors=debug_errors,
             log_samples=log_samples,
             log_images=log_images,
@@ -483,6 +489,7 @@ async def eval_retry_async(
     max_subprocesses: int | None = None,
     sandbox_cleanup: bool | None = None,
     trace: bool | None = None,
+    fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
     log_samples: bool | None = None,
     log_images: bool | None = None,
@@ -511,6 +518,10 @@ async def eval_retry_async(
         sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
            (defaults to True)
         trace (bool | None): Trace message interactions with evaluated model to terminal.
+        fail_on_error (bool | float | None): `True` to fail on first sample error
+           (default); `False` to never fail on sample errors; Value between 0 and 1
+           to fail if a proportion of total samples fails. Value greater than 1 to fail
+           eval if a count of samples fails.
         debug_errors (bool | None): Raise task errors (rather than logging them)
            so they can be debugged (defaults to False).
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
@@ -588,7 +599,6 @@ async def eval_retry_async(
         )
         trace = eval_log.eval.config.trace or trace
         approval = eval_log.eval.config.approval
-        fail_on_error = eval_log.eval.config.fail_on_error
         message_limit = eval_log.eval.config.message_limit
         token_limit = eval_log.eval.config.token_limit
         max_samples = max_samples or eval_log.eval.config.max_samples
@@ -598,6 +608,11 @@ async def eval_retry_async(
             sandbox_cleanup
             if sandbox_cleanup is not None
             else eval_log.eval.config.sandbox_cleanup
+        )
+        fail_on_error = (
+            fail_on_error
+            if fail_on_error is not None
+            else eval_log.eval.config.fail_on_error
         )
         log_samples = (
             log_samples if log_samples is not None else eval_log.eval.config.log_samples
