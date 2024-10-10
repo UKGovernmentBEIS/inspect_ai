@@ -1,11 +1,11 @@
 import json
 import tempfile
 from typing import Any, BinaryIO, Literal, cast
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from pydantic import BaseModel, Field
 from pydantic_core import to_json
 from typing_extensions import override
-from zipfile_deflate64 import ZIP_DEFLATED, ZipFile  # type: ignore
 
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.error import EvalError
