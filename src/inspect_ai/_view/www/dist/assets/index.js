@@ -18942,6 +18942,13 @@ async function download_file$1(_logfile, filename2, filecontents) {
   link2.click();
   document.body.removeChild(link2);
 }
+const fetchRange = async (url, start2, end2) => {
+  const response = await fetch(url, {
+    headers: { Range: `bytes=${start2}-${end2}` }
+  });
+  const arrayBuffer = await response.arrayBuffer();
+  return new Uint8Array(arrayBuffer);
+};
 const loaded_time = Date.now();
 let last_eval_time = 0;
 async function client_events$1() {
@@ -18957,6 +18964,9 @@ async function eval_logs$1() {
 }
 async function eval_log$1(file, headerOnly) {
   return await api$1("GET", `/api/logs/${encodeURIComponent(file)}?header-only=${headerOnly}`);
+}
+async function eval_log_bytes$1(log_file, start2, end2) {
+  return await fetchRange(`/logs/${log_file}`, start2, end2);
 }
 async function eval_log_headers$1(files) {
   const params = new URLSearchParams();
@@ -18993,6 +19003,7 @@ const browserApi = {
   client_events: client_events$1,
   eval_logs: eval_logs$1,
   eval_log: eval_log$1,
+  eval_log_bytes: eval_log_bytes$1,
   eval_log_headers: eval_log_headers$1,
   download_file: download_file$1,
   open_log_file: open_log_file$1
@@ -20194,6 +20205,9 @@ async function eval_log(file, headerOnly, capabilities) {
     return void 0;
   }
 }
+async function eval_log_bytes(log_file, start2, end2) {
+  return Uint8Array.from([]);
+}
 async function eval_log_headers(files) {
   const response = await vscodeClient(kMethodEvalLogHeaders, [files]);
   if (response) {
@@ -20217,6 +20231,7 @@ const vscodeApi$1 = {
   client_events,
   eval_logs,
   eval_log,
+  eval_log_bytes,
   eval_log_headers,
   download_file,
   open_log_file
@@ -20278,6 +20293,9 @@ function simpleHttpAPI(logInfo) {
       const response = await fetchLogFile(file);
       cache.set(response.parsed);
       return response;
+    },
+    eval_log_bytes: async (log_file2, start2, end2) => {
+      return await fetchRange(log_file2, start2, end2);
     },
     eval_log_headers: async (files) => {
       const headers = await fetchLogHeaders(log_dir);

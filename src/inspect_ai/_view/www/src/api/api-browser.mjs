@@ -1,5 +1,6 @@
 import { asyncJsonParse } from "../utils/Json.mjs";
 import { download_file } from "./api-shared.mjs";
+import { fetchRange } from '../utils/remoteZipFile.mjs'
 
 const loaded_time = Date.now();
 let last_eval_time = 0;
@@ -19,6 +20,10 @@ async function eval_logs() {
 
 async function eval_log(file, headerOnly) {
   return await api("GET", `/api/logs/${encodeURIComponent(file)}?header-only=${headerOnly}`);
+}
+
+async function eval_log_bytes(log_file, start, end) {
+  return await fetchRange(`/logs/${log_file}`, start, end)
 }
 
 async function eval_log_headers(files) {
@@ -66,6 +71,7 @@ export default {
   client_events,
   eval_logs,
   eval_log,
+  eval_log_bytes,
   eval_log_headers,
   download_file,
   open_log_file,

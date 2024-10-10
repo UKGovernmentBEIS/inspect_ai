@@ -40,22 +40,13 @@
 * @property {boolean} webWorkers - Indicates if web workers are supported.
 *
 
-/**
- * @typedef {Object} LogViewAPI2
- * @property { () => Promise<any[]> } client_events - A function which can be polled to check for client events.
- * @property { () => Promise<LogFiles>} eval_logs - Read the list of files
- * @property { (log_files: string[]) => Promise<EvalLogHeader[]>} eval_log_headers - Read the log headers
- * @property { (log_file: string) => Promise<EvalSummary> } eval_summary - Read the log contents
- * @property { (logFile: string, id: string | number, epoch: number) => Promise<import("../types/log").EvalSample>} eval_sample - Read a sample
- * @property { (logFile: string, fileName: string, fileContent: string) => Promise<void> } download_file - Execute a file download
- * @property { (logFile: string, log_dir: string) => Promise<void> } open_log_file - Execute a file open
- */
 
 /**
  * @typedef {Object} LogViewAPI
  * @property { () => Promise<any[]> } client_events - A function which can be polled to check for client events.
  * @property { () => Promise<LogFiles>} eval_logs - Read the list of files
  * @property { (log_file: string, headerOnly?: boolean, capabilities?: Capabilities) => Promise<LogContents> } eval_log - Read the log contents
+ * @property { (log_file: string, start: number, end: number) => Promise<Uint8Array>} eval_log_bytes - Read bytes
  * @property { (log_files: string[]) => Promise<import("../types/log").EvalLog[]>} eval_log_headers - Read the log headers
  * @property { (logFile: string, downloadFiles?: boolean, webWorkers?: boolean) => Promise<void> } download_file - Execute a file download
  * @property { (logFile: string, log_dir: string) => Promise<void> } open_log_file - Execute a file open

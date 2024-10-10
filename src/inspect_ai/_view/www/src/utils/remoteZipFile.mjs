@@ -116,7 +116,7 @@ export const openRemoteZipFile = async (url) => {
  * @returns {Promise<Uint8Array>} A promise that resolves to a `Uint8Array` containing the fetched byte range.
  * @throws {Error} If there is an issue with the network request.
  */
-const fetchRange = async (url, start, end) => {
+export const fetchRange = async (url, start, end) => {
   const response = await fetch(url, {
     headers: { Range: `bytes=${start}-${end}` },
   });

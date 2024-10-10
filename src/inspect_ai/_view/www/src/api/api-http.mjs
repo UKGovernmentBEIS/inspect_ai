@@ -1,6 +1,7 @@
 //@ts-check
 import { asyncJsonParse } from "../utils/Json.mjs";
 import { download_file } from "./api-shared.mjs";
+import { fetchRange } from '../utils/remoteZipFile.mjs'
 
 /**
  * This provides an API implementation that will serve a single
@@ -87,6 +88,9 @@ function simpleHttpAPI(logInfo) {
       const response = await fetchLogFile(file);
       cache.set(response.parsed);
       return response;
+    },
+    eval_log_bytes: async (log_file, start, end) => {
+      return await fetchRange(log_file, start, end)
     },
     eval_log_headers: async (files) => {
       const headers = await fetchLogHeaders(log_dir);

@@ -54,6 +54,13 @@ async function eval_log(file, headerOnly, capabilities) {
   }
 }
 
+
+async function eval_log_bytes(log_file, start, end) {
+  return Uint8Array.from([])
+}
+
+
+
 async function eval_log_headers(files) {
   const response = await vscodeClient(kMethodEvalLogHeaders, [files]);
   if (response) {
@@ -80,6 +87,7 @@ export default {
   client_events,
   eval_logs,
   eval_log,
+  eval_log_bytes,
   eval_log_headers,
   download_file,
   open_log_file,
