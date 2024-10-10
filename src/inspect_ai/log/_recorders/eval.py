@@ -173,19 +173,21 @@ class EvalRecorder(FileRecorder):
     @override
     def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
         with file(location, "rb") as z:
-            zip = ZipFile(z, mode="r")
-            with zip.open(START_JSON, "r") as f:
-                start = LogStart(**json.load(f))
-            with zip.open(RESULTS_JSON, "r") as f:
-                results = LogResults(**json.load(f))
-            samples: list[EvalSample] | None = None
-            if not header_only:
-                samples = []
-                for name in zip.namelist():
-                    if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(".json"):
-                        with zip.open(name, "r") as f:
-                            samples.append(EvalSample(**json.load(f)))
-                sort_samples(samples)
+            with ZipFile(z, mode="r") as zip:
+                with zip.open(START_JSON, "r") as f:
+                    start = LogStart(**json.load(f))
+                with zip.open(RESULTS_JSON, "r") as f:
+                    results = LogResults(**json.load(f))
+                samples: list[EvalSample] | None = None
+                if not header_only:
+                    samples = []
+                    for name in zip.namelist():
+                        if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(
+                            ".json"
+                        ):
+                            with zip.open(name, "r") as f:
+                                samples.append(EvalSample(**json.load(f)))
+                    sort_samples(samples)
 
             return EvalLog(
                 version=start.version,
@@ -202,18 +204,21 @@ class EvalRecorder(FileRecorder):
     @override
     def write_log(cls, location: str, log: EvalLog) -> None:
         with file(location, "wb") as z:
-            zip = ZipFile(z, mode="a", compression=zipfile.ZIP_DEFLATED)
-            start = LogStart(version=log.version, eval=log.eval, plan=log.plan)
-            zip_write(zip, START_JSON, start.model_dump())
+            with ZipFile(z, mode="a", compression=zipfile.ZIP_DEFLATED) as zip:
+                start = LogStart(version=log.version, eval=log.eval, plan=log.plan)
+                zip_write(zip, START_JSON, start.model_dump())
 
-            if log.samples:
-                for sample in log.samples:
-                    zip_write(zip, sample_filename(sample), sample.model_dump())
+                if log.samples:
+                    for sample in log.samples:
+                        zip_write(zip, sample_filename(sample), sample.model_dump())
 
-            results = LogResults(
-                status=log.status, stats=log.stats, results=log.results, error=log.error
-            )
-            zip_write(zip, RESULTS_JSON, results.model_dump())
+                results = LogResults(
+                    status=log.status,
+                    stats=log.stats,
+                    results=log.results,
+                    error=log.error,
+                )
+                zip_write(zip, RESULTS_JSON, results.model_dump())
 
     # write to the zip file
     def _write(
