@@ -1,6 +1,7 @@
 from inspect_ai._util.error import EvalError
 
 from ._bundle import bundle_log_dir
+from ._convert import convert_eval_logs
 from ._file import (
     EvalLogInfo,
     list_eval_logs,
@@ -47,6 +48,7 @@ __all__ = [
     "LoggingMessage",
     "Transcript",
     "transcript",
+    "convert_eval_logs",
     "list_eval_logs",
     "read_eval_log",
     "write_eval_log",
