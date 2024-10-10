@@ -2,6 +2,8 @@ var kMethodEvalLogs = "eval_logs";
 
 var kMethodEvalLog = "eval_log";
 
+var kMethodEvalLogBytes = "eval_log_bytes";
+
 var kMethodEvalLogHeaders = "eval_log_headers";
 
 function webViewJsonRpcClient(vscode) {
@@ -198,6 +200,7 @@ export {
   kJsonRpcParseError,
   webViewJsonRpcClient,
   kMethodEvalLog,
+  kMethodEvalLogBytes,
   kMethodEvalLogs,
   kMethodEvalLogHeaders,
 };

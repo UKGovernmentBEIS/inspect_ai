@@ -1,6 +1,7 @@
 // constants for json-rpc methods
 export const kMethodEvalLogs = "eval_logs";
 export const kMethodEvalLog = "eval_log";
+export const kMethodEvalLogBytes = "eval_log_bytes";
 export const kMethodEvalLogHeaders = "eval_log_headers";
 
 

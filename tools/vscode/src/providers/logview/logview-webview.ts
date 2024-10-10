@@ -19,6 +19,7 @@ import {
   JsonRpcServerMethod,
   jsonRpcPostMessageServer,
   kMethodEvalLog,
+  kMethodEvalLogBytes,
   kMethodEvalLogHeaders,
   kMethodEvalLogs,
 } from "../../core/jsonrpc";
@@ -290,6 +291,8 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
       [kMethodEvalLogs]: evalLogs(state?.log_dir),
       [kMethodEvalLog]: (params: unknown[]) =>
         evalLog(params[0] as string, params[1] as boolean | number),
+      [kMethodEvalLogBytes]: (params: unknown[]) =>
+        evalLogBytes(params[0] as string, params[1] as number, params[2] as number),
       [kMethodEvalLogHeaders]: (params: unknown[]) =>
         evalLogHeaders(params[0] as string[]),
     });
@@ -491,6 +494,14 @@ function evalLog(
   return Promise.resolve(
     inspectEvalLog(activeWorkspacePath(), file, headerOnly)
   );
+}
+
+function evalLogBytes(
+  file: string,
+  start: number,
+  end: number
+) : Promise<Uint8Array> {
+  return Promise.resolve(Uint8Array.from([]))
 }
 
 function evalLogHeaders(files: string[]) {

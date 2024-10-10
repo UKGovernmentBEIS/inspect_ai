@@ -20092,6 +20092,7 @@ const JSON5 = {
 var lib = JSON5;
 var kMethodEvalLogs = "eval_logs";
 var kMethodEvalLog = "eval_log";
+var kMethodEvalLogBytes = "eval_log_bytes";
 var kMethodEvalLogHeaders = "eval_log_headers";
 function webViewJsonRpcClient(vscode) {
   var target = {
@@ -20205,8 +20206,8 @@ async function eval_log(file, headerOnly, capabilities) {
     return void 0;
   }
 }
-async function eval_log_bytes(log_file, start2, end2) {
-  return Uint8Array.from([]);
+async function eval_log_bytes(file, start2, end2) {
+  return await vscodeClient(kMethodEvalLogBytes, [file, start2, end2]);
 }
 async function eval_log_headers(files) {
   const response = await vscodeClient(kMethodEvalLogHeaders, [files]);
