@@ -138,7 +138,7 @@ export function App({ api, pollForLogs = true }) {
   // Load a specific log file
   const loadLog = async (logFileName) => {
     try {
-      const logContents = await api.eval_log(encodeURIComponent(logFileName), 100, capabilities);
+      const logContents = await api.eval_log(logFileName, 100, capabilities);
       return logContents;
     } catch (e) {
       // Show an error

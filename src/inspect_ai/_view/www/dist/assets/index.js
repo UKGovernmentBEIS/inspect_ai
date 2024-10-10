@@ -18956,7 +18956,7 @@ async function eval_logs$1() {
   return logs.parsed;
 }
 async function eval_log$1(file, headerOnly) {
-  return await api$1("GET", `/api/logs/${file}?header-only=${headerOnly}`);
+  return await api$1("GET", `/api/logs/${encodeURIComponent(file)}?header-only=${headerOnly}`);
 }
 async function eval_log_headers$1(files) {
   const params = new URLSearchParams();
@@ -21087,7 +21087,7 @@ function App({ api: api2, pollForLogs = true }) {
   };
   const loadLog = async (logFileName) => {
     try {
-      const logContents = await api2.eval_log(encodeURIComponent(logFileName), 100, capabilities);
+      const logContents = await api2.eval_log(logFileName, 100, capabilities);
       return logContents;
     } catch (e2) {
       console.log(e2);

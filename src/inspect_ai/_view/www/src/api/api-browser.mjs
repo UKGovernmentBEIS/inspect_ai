@@ -18,7 +18,7 @@ async function eval_logs() {
 }
 
 async function eval_log(file, headerOnly) {
-  return await api("GET", `/api/logs/${file}?header-only=${headerOnly}`);
+  return await api("GET", `/api/logs/${encodeURIComponent(file)}?header-only=${headerOnly}`);
 }
 
 async function eval_log_headers(files) {
