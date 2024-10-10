@@ -12,6 +12,7 @@
 - Allow resolution of any sandbox name when there is only a single environment.
 - Introduce `--log-level-transcript` option for separate control of log entries recorded in the eval log file
 - Improve mime type detection for image content encoding (fixes issues w/ webp images). 
+- Fix memory leak in Inspect View worker-based JSON parsing
 
 ## v0.3.40 (6 October 2024)
 
