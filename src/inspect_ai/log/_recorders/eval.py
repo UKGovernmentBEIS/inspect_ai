@@ -110,30 +110,8 @@ class EvalRecorder(FileRecorder):
         # get the zip log
         log = self.data[self._log_file_key(eval)]
 
-        # Write the buffered samples
-        summaries: list[SampleSummary] = []
-        for sample in log.samples:
-            # Write the sample
-            self._write(eval, sample_filename(sample), sample.model_dump())
-
-            # Capture the summary
-            summaries.append(
-                SampleSummary(
-                    id=sample.id,
-                    epoch=sample.epoch,
-                    input=sample.input,
-                    target=sample.target,
-                    scores=sample.scores,
-                )
-            )
-        log.samples.clear()
-
-        # write intermediary summaries and add to master list
-        if len(summaries) > 0:
-            log.summary_counter += 1
-            summary_filename = f"summaries/{log.summary_counter}.json"
-            self._write(eval, summary_filename, summaries)
-            log.summaries.extend(summaries)
+        # write the buffered samples
+        self._write_buffered_samples(eval)
 
         # flush to underlying stream
         log.flush()
@@ -150,6 +128,9 @@ class EvalRecorder(FileRecorder):
         # get the key and log
         key = self._log_file_key(eval)
         log = self.data[key]
+
+        # write the buffered samples
+        self._write_buffered_samples(eval)
 
         # write consolidated summaries
         self._write(eval, SUMMARY_JSON, [item.model_dump() for item in log.summaries])
@@ -240,6 +221,36 @@ class EvalRecorder(FileRecorder):
     ) -> None:
         log = self.data[self._log_file_key(eval)]
         zip_write(log.zip, filename, data)
+
+    # write buffered samples to the zip file
+    def _write_buffered_samples(self, eval: EvalSpec) -> None:
+        # get the log
+        log = self.data[self._log_file_key(eval)]
+
+        # Write the buffered samples
+        summaries: list[SampleSummary] = []
+        for sample in log.samples:
+            # Write the sample
+            self._write(eval, sample_filename(sample), sample.model_dump())
+
+            # Capture the summary
+            summaries.append(
+                SampleSummary(
+                    id=sample.id,
+                    epoch=sample.epoch,
+                    input=sample.input,
+                    target=sample.target,
+                    scores=sample.scores,
+                )
+            )
+        log.samples.clear()
+
+        # write intermediary summaries and add to master list
+        if len(summaries) > 0:
+            log.summary_counter += 1
+            summary_filename = f"summaries/{log.summary_counter}.json"
+            self._write(eval, summary_filename, summaries)
+            log.summaries.extend(summaries)
 
 
 def zip_write(zip: ZipFile, filename: str, data: dict[str, Any] | list[Any]) -> None:
