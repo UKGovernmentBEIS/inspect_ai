@@ -72,7 +72,6 @@ def log_list(
     no_recursive: bool | None,
     **common: Unpack[CommonOptions],
 ) -> None:
-    """List log files in log directory."""
     process_common_options(common)
 
     # list the logs
@@ -108,16 +107,8 @@ def list_command(
     no_recursive: bool | None,
     **common: Unpack[CommonOptions],
 ) -> None:
+    """List all logs in the log directory."""
     log_list(status, absolute, json, no_recursive, **common)
-
-
-def dump(path: str, header_only: int) -> None:
-    """Print log file contents as JSON."""
-    # Resolve the header only to a boolean
-    header_only = resolve_header_only(path, header_only)
-
-    log = read_eval_log(path, header_only=header_only)
-    print(eval_log_json(log))
 
 
 @log_command.command("dump")
@@ -134,10 +125,13 @@ def dump_command(path: str, header_only: int) -> None:
     dump(path, header_only)
 
 
-def headers(files: tuple[str]) -> None:
-    """Print log file headers as JSON."""
-    headers = read_eval_log_headers(list(files))
-    print(dumps(to_jsonable_python(headers, exclude_none=True), indent=2))
+def dump(path: str, header_only: int) -> None:
+    """Print log file contents as JSON."""
+    # Resolve the header only to a boolean
+    header_only = resolve_header_only(path, header_only)
+
+    log = read_eval_log(path, header_only=header_only)
+    print(eval_log_json(log))
 
 
 @log_command.command("headers")
@@ -147,8 +141,10 @@ def headers_command(files: tuple[str]) -> None:
     headers(files)
 
 
-def schema() -> None:
-    print(view_resource("log-schema.json"))
+def headers(files: tuple[str]) -> None:
+    """Print log file headers as JSON."""
+    headers = read_eval_log_headers(list(files))
+    print(dumps(to_jsonable_python(headers, exclude_none=True), indent=2))
 
 
 @log_command.command("schema")
@@ -157,14 +153,18 @@ def schema_command() -> None:
     schema()
 
 
-def types() -> None:
-    print(view_type_resource("log.d.ts"))
+def schema() -> None:
+    print(view_resource("log-schema.json"))
 
 
 @log_command.command("types")
 def types_command() -> None:
     """Print TS declarations for log files."""
     types()
+
+
+def types() -> None:
+    print(view_type_resource("log.d.ts"))
 
 
 def view_resource(file: str) -> str:
