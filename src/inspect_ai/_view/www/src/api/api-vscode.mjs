@@ -1,4 +1,7 @@
+//@ts-check
+
 import { asyncJsonParse } from "../utils/Json.mjs";
+// @ts-ignore
 import JSON5 from "json5";
 
 import {
@@ -8,12 +11,10 @@ import {
   kMethodEvalLogBytes,
   kMethodEvalLogHeaders,
 } from "./jsonrpc.mjs";
+import { getVscodeApi } from "../utils/vscode.mjs";
 
-const vscodeApi = window.acquireVsCodeApi
-  ? window.acquireVsCodeApi()
-  : undefined;
 
-const vscodeClient = webViewJsonRpcClient(vscodeApi);
+const vscodeClient = webViewJsonRpcClient(getVscodeApi());
 
 async function client_events() {
   return [];
@@ -84,6 +85,8 @@ async function open_log_file(url, log_dir) {
   vscodeApi.postMessage(msg);
 }
 
+
+/** @type {import("./Types.mjs").LogViewAPI} */
 export default {
   client_events,
   eval_logs,

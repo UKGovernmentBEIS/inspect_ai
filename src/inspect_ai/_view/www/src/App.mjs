@@ -28,7 +28,17 @@ import { Sidebar } from "./sidebar/Sidebar.mjs";
 import { WorkSpace } from "./workspace/WorkSpace.mjs";
 import { FindBand } from "./components/FindBand.mjs";
 import { isVscode } from "./utils/Html.mjs";
+import { getVscodeApi } from  "./utils/vscode.mjs"
 
+
+/**
+ * Renders the Main Application
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {import("./api/Types.mjs").LogViewAPI} props.api - The api that this view should use
+ * @param {boolean} props.pollForLogs - Whether the application should poll for log changes
+ * @returns {import("preact").JSX.Element} The TranscriptView component.
+ */
 export function App({ api, pollForLogs = true }) {
   const [selected, setSelected] = useState(-1);
   const [logs, setLogs] = useState({ log_dir: "", files: [] });
@@ -324,7 +334,7 @@ export function App({ api, pollForLogs = true }) {
       setInterval(() => {
         api.client_events().then(async (events) => {
           if (events.includes("reload")) {
-            window.location.reload(true);
+            window.location.reload();
           }
           if (events.includes("refresh-evals")) {
             const logs = await load();
@@ -400,7 +410,7 @@ export function App({ api, pollForLogs = true }) {
       e,
     ) => {
       // regular browsers user their own find
-      if (!window.acquireVsCodeApi) {
+      if (!getVscodeApi()) {
         return;
       }
 

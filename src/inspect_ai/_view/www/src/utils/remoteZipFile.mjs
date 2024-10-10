@@ -24,8 +24,6 @@ import { decompress } from "fflate";
  */
 
 
-
-
 /**
  * Opens a remote ZIP file from the specified URL, fetches and parses the central directory, and provides a method to read files within the ZIP.
  *

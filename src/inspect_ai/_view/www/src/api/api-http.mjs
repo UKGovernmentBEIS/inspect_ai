@@ -1,7 +1,7 @@
 //@ts-check
 import { asyncJsonParse } from "../utils/Json.mjs";
 import { download_file } from "./api-shared.mjs";
-import { fetchRange } from '../utils/remoteZipFile.mjs'
+import { fetchRange } from '../utils/http.mjs'
 
 /**
  * This provides an API implementation that will serve a single
@@ -11,7 +11,7 @@ import { fetchRange } from '../utils/remoteZipFile.mjs'
  *
  * @param { string } log_dir - The log directory for this API.
  * @param { string } [log_file] - The log file for this API.
- * @returns { any } A Log Viewer API
+ * @returns { import("./Types.mjs").LogViewAPI } A Log Viewer API
  */
 export default function simpleHttpApi(log_dir, log_file) {
   const resolved_log_dir = log_dir.replace(" ", "+");
