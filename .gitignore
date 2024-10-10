@@ -163,6 +163,7 @@ cython_debug/
 *.*workspace
 data/datasets/*/hidden
 logs/
+logs-*/
 
 # thumbnails
 .DS_Store
