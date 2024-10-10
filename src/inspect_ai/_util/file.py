@@ -127,6 +127,11 @@ def basename(file: str) -> str:
     return name
 
 
+def dirname(file: str) -> str:
+    base = basename(file)
+    return file[: -(len(base) + 1)]
+
+
 def exists(file: str) -> bool:
     fs = filesystem(file)
     return fs.exists(file)

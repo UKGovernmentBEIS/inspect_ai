@@ -56,12 +56,12 @@ class JSONRecorder(FileRecorder):
         self.data: dict[str, JSONRecorder.JSONLogFile] = {}
 
     @override
-    def log_init(self, eval: EvalSpec) -> str:
+    def log_init(self, eval: EvalSpec, location: str | None = None) -> str:
         # initialize file log for this eval
         # compute an absolute path if it's a relative ref
         # (so that the writes go to the correct place even
         # if the working directory is switched for a task)
-        file = absolute_file_path(self._log_file_path(eval))
+        file = location or absolute_file_path(self._log_file_path(eval))
 
         # compute an absolute path if it's a relative ref
         # (so that the writes go to the correct place even

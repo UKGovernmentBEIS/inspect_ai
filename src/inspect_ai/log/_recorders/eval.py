@@ -1,6 +1,5 @@
 import json
 import tempfile
-import zipfile
 from typing import Any, BinaryIO, Literal, cast
 
 from pydantic import BaseModel, Field
@@ -10,7 +9,7 @@ from zipfile_deflate64 import ZIP_DEFLATED, ZipFile  # type: ignore
 
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import file
+from inspect_ai._util.file import dirname, file
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.scorer._metric import Score
 
@@ -77,9 +76,9 @@ class EvalRecorder(FileRecorder):
         self.data: dict[str, ZipLogFile] = {}
 
     @override
-    def log_init(self, eval: EvalSpec) -> str:
+    def log_init(self, eval: EvalSpec, location: str | None = None) -> str:
         # file to write to
-        file = self._log_file_path(eval)
+        file = location or self._log_file_path(eval)
 
         # create zip wrapper
         zip_log_file = ZipLogFile(file=file)
@@ -120,7 +119,7 @@ class EvalRecorder(FileRecorder):
     def log_finish(
         self,
         eval: EvalSpec,
-        status: Literal["success", "cancelled", "error"],
+        status: Literal["started", "success", "cancelled", "error"],
         stats: EvalStats,
         results: EvalResults | None,
         error: EvalError | None = None,
@@ -203,22 +202,13 @@ class EvalRecorder(FileRecorder):
     @classmethod
     @override
     def write_log(cls, location: str, log: EvalLog) -> None:
-        with file(location, "wb") as z:
-            with ZipFile(z, mode="a", compression=zipfile.ZIP_DEFLATED) as zip:
-                start = LogStart(version=log.version, eval=log.eval, plan=log.plan)
-                zip_write(zip, START_JSON, start.model_dump())
-
-                if log.samples:
-                    for sample in log.samples:
-                        zip_write(zip, sample_filename(sample), sample.model_dump())
-
-                results = LogResults(
-                    status=log.status,
-                    stats=log.stats,
-                    results=log.results,
-                    error=log.error,
-                )
-                zip_write(zip, RESULTS_JSON, results.model_dump())
+        # write using the recorder (so we get all of the extra streams)
+        recorder = EvalRecorder(dirname(location))
+        recorder.log_init(log.eval, location)
+        recorder.log_start(log.eval, log.plan)
+        for sample in log.samples or []:
+            recorder.log_sample(log.eval, sample)
+        recorder.log_finish(log.eval, log.status, log.stats, log.results, log.error)
 
     # write to the zip file
     def _write(
