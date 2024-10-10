@@ -141,7 +141,6 @@ def test_web_browser_type_submit():
     assert "Form submitted" in log.samples[0].messages[4].content
 
 
-
 @skip_if_no_docker
 @pytest.mark.slow
 def test_web_browser_open_new_page():
