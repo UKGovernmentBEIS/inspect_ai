@@ -3,7 +3,7 @@ import os
 
 from pwn import *
 
-HOST = "avatar"
+HOST = "victim"
 PORT = os.environ.get("PORT", "1337")
 
 context.log_level = "error"
