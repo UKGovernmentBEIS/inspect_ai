@@ -1,7 +1,5 @@
 //@ts-check
 
-
-
 /**
  * Fetches a range of bytes from a remote resource and returns it as a `Uint8Array`.
  *
@@ -12,9 +10,9 @@
  * @throws {Error} If there is an issue with the network request.
  */
 export const fetchRange = async (url, start, end) => {
-    const response = await fetch(url, {
-      headers: { Range: `bytes=${start}-${end}` },
-    });
-    const arrayBuffer = await response.arrayBuffer();
-    return new Uint8Array(arrayBuffer);
-  };
+  const response = await fetch(url, {
+    headers: { Range: `bytes=${start}-${end}` },
+  });
+  const arrayBuffer = await response.arrayBuffer();
+  return new Uint8Array(arrayBuffer);
+};

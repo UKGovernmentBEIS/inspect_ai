@@ -6,7 +6,7 @@ import simpleHttpApi from "./api-http.mjs";
 import { dirname } from "../utils/Path.mjs";
 import { getVscodeApi } from "../utils/vscode.mjs";
 
-// 
+//
 /**
  * Resolves the client API
  *

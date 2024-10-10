@@ -18953,8 +18953,8 @@ const loaded_time = Date.now();
 let last_eval_time = 0;
 async function client_events$1() {
   const params = new URLSearchParams();
-  params.append("loaded_time", loaded_time.valueOf());
-  params.append("last_eval_time", last_eval_time.valueOf());
+  params.append("loaded_time", String(loaded_time.valueOf()));
+  params.append("last_eval_time", String(last_eval_time.valueOf()));
   return (await api$1("GET", `/api/events?${params.toString()}`)).parsed;
 }
 async function eval_logs$1() {
@@ -20168,8 +20168,10 @@ function asJsonRpcResponse(data) {
     return null;
   }
 }
-const vscodeApi = window.acquireVsCodeApi ? window.acquireVsCodeApi() : void 0;
-const vscodeClient = webViewJsonRpcClient(vscodeApi);
+const getVscodeApi = () => {
+  return window.acquireVsCodeApi ? window.acquireVsCodeApi() : void 0;
+};
+const vscodeClient = webViewJsonRpcClient(getVscodeApi());
 async function client_events() {
   return [];
 }
@@ -20423,7 +20425,7 @@ function encodePathParts(url) {
   }
 }
 const resolveApi = () => {
-  if (window.acquireVsCodeApi) {
+  if (getVscodeApi()) {
     return vscodeApi$1;
   } else {
     const scriptEl = document.getElementById("log_dir_context");
@@ -21036,64 +21038,68 @@ function App({ api: api2, pollForLogs = true }) {
   });
   const [showFind, setShowFind] = h(false);
   const mainAppRef = A();
-  y(async () => {
-    setHeadersLoading(true);
-    const chunkSize = 8;
-    const fileLists = [];
-    for (let i2 = 0; i2 < logs.files.length; i2 += chunkSize) {
-      let chunk = logs.files.slice(i2, i2 + chunkSize).map((log) => {
-        return log.name;
-      });
-      fileLists.push(chunk);
-    }
-    try {
-      for (const fileList of fileLists) {
-        const headers = await api2.eval_log_headers(fileList);
-        setLogHeaders((prev) => {
-          const updatedHeaders = {};
-          headers.forEach((header, index) => {
-            const logFile = fileList[index];
-            updatedHeaders[logFile] = header;
-          });
-          return { ...prev, ...updatedHeaders };
-        });
-        if (headers.length === chunkSize) {
-          await sleep(5e3);
-        }
+  y(() => {
+    const loadHeaders = async () => {
+      setHeadersLoading(true);
+      const chunkSize = 8;
+      const fileLists = [];
+      for (let i2 = 0; i2 < logs.files.length; i2 += chunkSize) {
+        let chunk = logs.files.slice(i2, i2 + chunkSize).map((log) => log.name);
+        fileLists.push(chunk);
       }
-    } catch (e2) {
-      console.log(e2);
-      setStatus({ loading: false, error: e2 });
-    }
-    setHeadersLoading(false);
-  }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
-  y(async () => {
-    const targetLog = logs.files[selected];
-    if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
       try {
-        setStatus({ loading: true, error: void 0 });
-        const logContents = await loadLog(targetLog.name);
-        if (logContents) {
-          const log = logContents.parsed;
-          setCurrentLog({
-            contents: log,
-            name: targetLog.name,
-            raw: logContents.raw
+        for (const fileList of fileLists) {
+          const headers = await api2.eval_log_headers(fileList);
+          setLogHeaders((prev) => {
+            const updatedHeaders = {};
+            headers.forEach((header, index) => {
+              const logFile = fileList[index];
+              updatedHeaders[logFile] = header;
+            });
+            return { ...prev, ...updatedHeaders };
           });
-          setStatus({ loading: false, error: void 0 });
+          if (headers.length === chunkSize) {
+            await sleep(5e3);
+          }
         }
       } catch (e2) {
         console.log(e2);
         setStatus({ loading: false, error: e2 });
       }
-    } else if (logs.log_dir && logs.files.length === 0) {
-      setStatus({
-        loading: false,
-        error: new Error(
-          `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`
-        )
-      });
-    }
+      setHeadersLoading(false);
+    };
+    loadHeaders();
+  }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
+  y(() => {
+    const loadSpecificLog = async () => {
+      const targetLog = logs.files[selected];
+      if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
+        try {
+          setStatus({ loading: true, error: void 0 });
+          const logContents = await loadLog(targetLog.name);
+          if (logContents) {
+            const log = logContents.parsed;
+            setCurrentLog({
+              contents: log,
+              name: targetLog.name,
+              raw: logContents.raw
+            });
+            setStatus({ loading: false, error: void 0 });
+          }
+        } catch (e2) {
+          console.log(e2);
+          setStatus({ loading: false, error: e2 });
+        }
+      } else if (logs.log_dir && logs.files.length === 0) {
+        setStatus({
+          loading: false,
+          error: new Error(
+            `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`
+          )
+        });
+      }
+    };
+    loadSpecificLog();
   }, [selected, logs, capabilities, currentLog, setCurrentLog, setStatus]);
   const loadLogs = async () => {
     try {
@@ -21209,60 +21215,63 @@ function App({ api: api2, pollForLogs = true }) {
       window.removeEventListener("message", onMessage);
     };
   }, [onMessage]);
-  y(async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const extensionVersionEl = document.querySelector(
-      'meta[name="inspect-extension:version"]'
-    );
-    const extensionVersion = extensionVersionEl ? extensionVersionEl.getAttribute("content") : void 0;
-    if (isVscode()) {
-      if (!extensionVersion) {
-        setCapabilities({ downloadFiles: false, webWorkers: false });
-      }
-    }
-    setOffcanvas(true);
-    const logPath = urlParams.get("task_file");
-    const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
-    const load = resolvedLogPath ? async () => {
-      return {
-        log_dir: "",
-        files: [{ name: resolvedLogPath }]
-      };
-    } : loadLogs;
-    const embeddedState = document.getElementById("logview-state");
-    if (embeddedState) {
-      const state = JSON.parse(embeddedState.textContent);
-      onMessage({ data: state });
-    } else {
-      const result = await load();
-      setLogs(result);
-      const log_file = urlParams.get("log_file");
-      if (log_file) {
-        const index = result.files.findIndex((val) => {
-          return log_file.endsWith(val.name);
-        });
-        if (index > -1) {
-          setSelected(index);
+  y(() => {
+    const loadLogsAndState = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const extensionVersionEl = document.querySelector(
+        'meta[name="inspect-extension:version"]'
+      );
+      const extensionVersion = extensionVersionEl ? extensionVersionEl.getAttribute("content") : void 0;
+      if (isVscode()) {
+        if (!extensionVersion) {
+          setCapabilities({ downloadFiles: false, webWorkers: false });
         }
-      } else if (selected === -1) {
-        setSelected(0);
       }
-    }
-    new ClipboardJS(".clipboard-button,.copy-button");
-    if (pollForLogs) {
-      setInterval(() => {
-        api2.client_events().then(async (events) => {
-          if (events.includes("reload")) {
-            window.location.reload(true);
+      setOffcanvas(true);
+      const logPath = urlParams.get("task_file");
+      const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
+      const load = resolvedLogPath ? async () => {
+        return {
+          log_dir: "",
+          files: [{ name: resolvedLogPath }]
+        };
+      } : loadLogs;
+      const embeddedState = document.getElementById("logview-state");
+      if (embeddedState) {
+        const state = JSON.parse(embeddedState.textContent);
+        onMessage({ data: state });
+      } else {
+        const result = await load();
+        setLogs(result);
+        const log_file = urlParams.get("log_file");
+        if (log_file) {
+          const index = result.files.findIndex((val) => {
+            return log_file.endsWith(val.name);
+          });
+          if (index > -1) {
+            setSelected(index);
           }
-          if (events.includes("refresh-evals")) {
-            const logs2 = await load();
-            setLogs(logs2);
-            setSelected(0);
-          }
-        });
-      }, 1e3);
-    }
+        } else if (selected === -1) {
+          setSelected(0);
+        }
+      }
+      new ClipboardJS(".clipboard-button,.copy-button");
+      if (pollForLogs) {
+        setInterval(() => {
+          api2.client_events().then(async (events) => {
+            if (events.includes("reload")) {
+              window.location.reload();
+            }
+            if (events.includes("refresh-evals")) {
+              const logs2 = await load();
+              setLogs(logs2);
+              setSelected(0);
+            }
+          });
+        }, 1e3);
+      }
+    };
+    loadLogsAndState();
   }, []);
   const fullScreen = logs.files.length === 1 && !logs.log_dir;
   const sidebar = !fullScreen && currentLog.contents ? m$1`
@@ -21314,7 +21323,7 @@ function App({ api: api2, pollForLogs = true }) {
     <${AppErrorBoundary}>
     ${sidebar}
     <div ref=${mainAppRef} class="app-main-grid${fullScreenClz}${offcanvasClz}" tabIndex="0" onKeyDown=${(e2) => {
-    if (!window.acquireVsCodeApi) {
+    if (!getVscodeApi()) {
       return;
     }
     if ((e2.ctrlKey || e2.metaKey) && e2.key === "f") {

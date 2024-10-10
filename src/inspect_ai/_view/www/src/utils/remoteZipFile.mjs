@@ -23,7 +23,6 @@ import { decompress } from "fflate";
  * @property {number} fileOffset - The offset of the file's data in the ZIP archive.
  */
 
-
 /**
  * Opens a remote ZIP file from the specified URL, fetches and parses the central directory, and provides a method to read files within the ZIP.
  *
@@ -208,7 +207,7 @@ const parseCentralDirectory = (buffer) => {
   const entries = new Map();
   while (offset < buffer.length) {
     // Make sure there is a central directory signature
-    if (view.getUint32(offset, true) !== 0x02014b50) break; 
+    if (view.getUint32(offset, true) !== 0x02014b50) break;
 
     const filenameLength = view.getUint16(offset + 28, true);
     const extraFieldLength = view.getUint16(offset + 30, true);
