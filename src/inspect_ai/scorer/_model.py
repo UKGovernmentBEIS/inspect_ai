@@ -110,9 +110,6 @@ def _model_graded_qa_single(
 ) -> Scorer:
     # returns a scorer that does model graded qa for a single model
 
-    # resolve model
-    grader_model = get_model(model)
-
     # resolve grading template, instructions, and grade_pattern
     template = template if template else DEFAULT_MODEL_GRADED_QA_TEMPLATE
     grading_template = resource(template)
@@ -121,6 +118,10 @@ def _model_graded_qa_single(
     )
 
     async def score(state: TaskState, target: Target) -> Score:
+        # resolve model
+        nonlocal model
+        model = model if isinstance(model, Model) else get_model(model)
+
         # metadata without grading template variables
         metadata = omit(
             state.metadata, ["question", "answer", "criterion", "instructions"]
@@ -135,7 +136,7 @@ def _model_graded_qa_single(
         )
 
         # query the model for the score
-        result = await grader_model.generate(score_prompt)
+        result = await model.generate(score_prompt)
 
         # extract the grade
         match = re.search(grade_pattern or DEFAULT_GRADE_PATTERN, result.completion)
