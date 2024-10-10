@@ -1,13 +1,66 @@
 //@ts-check
 
+
+/**
+ * @typedef {Object} EvalSummary
+ * @property {import("../types/log").Version} [version]
+ * @property {import("../types/log").Status} [status]
+ * @property {import("../types/log").EvalSpec} eval
+ * @property {import("../types/log").EvalPlan} [plan]
+ * @property {import("../types/log").EvalResults} [results]
+ * @property {import("../types/log").EvalStats} [stats]
+ * @property {import("../types/log").EvalError} [error]
+ * @property {SampleSummary[]} sampleSummaries
+ */
+
+/**
+ * @typedef {Object} EvalLogHeader
+ * @property {import("../types/log").Version} [version]
+ * @property {import("../types/log").Status} [status]
+ * @property {import("../types/log").EvalSpec} eval
+ * @property {import("../types/log").EvalPlan} [plan]
+ * @property {import("../types/log").EvalResults} [results]
+ * @property {import("../types/log").EvalStats} [stats]
+ * @property {import("../types/log").EvalError} [error]
+ */
+
+/**
+ * @typedef {Object} SampleSummary
+ * @property { number | string } id
+ * @property { number } epoch
+ * @property { import("../types/log").Input } input
+ * @property { import("../types/log").Target } target
+ * @property { import("../types/log").Scores1 } scores
+ */
+
+
+/**
+* @typedef {Object} Capabilities
+* @property {boolean} downloadFiles - Indicates if file downloads are supported.
+* @property {boolean} webWorkers - Indicates if web workers are supported.
+*
+
+/**
+ * @typedef {Object} LogViewAPI2
+ * @property { () => Promise<any[]> } client_events - A function which can be polled to check for client events.
+ * @property { () => Promise<LogFiles>} eval_logs - Read the list of files
+ * @property { (log_files: string[]) => Promise<EvalLogHeader[]>} eval_log_headers - Read the log headers
+ * @property { (log_file: string) => Promise<EvalSummary> } eval_summary - Read the log contents
+ * @property { (logFile: string, id: string | number, epoch: number) => Promise<import("../types/log").EvalSample>} eval_sample - Read a sample
+ * @property { (logFile: string, fileName: string, fileContent: string) => Promise<void> } download_file - Execute a file download
+ * @property { (logFile: string, log_dir: string) => Promise<void> } open_log_file - Execute a file open
+ */
+
 /**
  * @typedef {Object} LogViewAPI
  * @property { () => Promise<any[]> } client_events - A function which can be polled to check for client events.
  * @property { () => Promise<LogFiles>} eval_logs - Read the list of files
- * @property { () => Promise<LogContents> } eval_log - Read the log contents
- * @property { () => Promise<import("../types/log").EvalLog[]>} eval_log_headers - Read the log headers
- * @property { (logFile: string) => Promise<void> } download_file - Execute a file download
+ * @property { (log_file: string, headerOnly?: boolean, capabilities?: Capabilities) => Promise<LogContents> } eval_log - Read the log contents
+ * @property { (log_files: string[]) => Promise<import("../types/log").EvalLog[]>} eval_log_headers - Read the log headers
+ * @property { (logFile: string, downloadFiles?: boolean, webWorkers?: boolean) => Promise<void> } download_file - Execute a file download
  * @property { (logFile: string, log_dir: string) => Promise<void> } open_log_file - Execute a file open
+ * @property { (logFile: string ) => Promise<SampleSummary[]> } eval_samples - Read the list of eval samples
+ * @property { (logFile: string, id: string | number, epoch: number) => Promise<import("../types/log").EvalSample>} eval_sample - Read a sample
  */
 
 /**
