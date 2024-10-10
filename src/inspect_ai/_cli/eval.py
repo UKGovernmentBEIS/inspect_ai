@@ -29,7 +29,9 @@ MAX_SUBPROCESSES_HELP = (
     "Maximum number of subprocesses to run in parallel (default is os.cpu_count())"
 )
 NO_SANDBOX_CLEANUP_HELP = "Do not cleanup sandbox environments after task completes"
+FAIL_ON_ERROR_HELP = "Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count."
 NO_LOG_SAMPLES_HELP = "Do not include samples in the log file."
+NO_FAIL_ON_ERROR_HELP = "Do not fail the eval if errors occur within samples (instead, continue running other samples)"
 LOG_IMAGES_HELP = (
     "Include base64 encoded versions of filename or URL based images in the log file."
 )
@@ -175,7 +177,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=float,
         is_flag=False,
         flag_value=0.0,
-        help="Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count.",
+        help=FAIL_ON_ERROR_HELP,
         envvar="INSPECT_EVAL_FAIL_ON_ERROR",
     )
     @click.option(
@@ -183,7 +185,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=bool,
         is_flag=True,
         default=False,
-        help="Do not fail the eval if errors occur within samples (instead, continue running other samples)",
+        help=NO_FAIL_ON_ERROR_HELP,
         envvar="INSPECT_EVAL_NO_FAIL_ON_ERROR",
     )
     @click.option(
@@ -756,6 +758,22 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_TRACE",
 )
 @click.option(
+    "--fail-on-error",
+    type=float,
+    is_flag=False,
+    flag_value=0.0,
+    help=FAIL_ON_ERROR_HELP,
+    envvar="INSPECT_EVAL_FAIL_ON_ERROR",
+)
+@click.option(
+    "--no-fail-on-error",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help=NO_FAIL_ON_ERROR_HELP,
+    envvar="INSPECT_EVAL_NO_FAIL_ON_ERROR",
+)
+@click.option(
     "--no-log-samples",
     type=bool,
     is_flag=True,
@@ -798,6 +816,8 @@ def eval_retry_command(
     max_subprocesses: int | None,
     no_sandbox_cleanup: bool | None,
     trace: bool | None,
+    fail_on_error: bool | float | None,
+    no_fail_on_error: bool | None,
     no_log_samples: bool | None,
     log_images: bool | None,
     log_buffer: int | None,
@@ -817,6 +837,12 @@ def eval_retry_command(
     log_images = True if log_images else None
     score = False if no_score else True
 
+    # resolve fail_on_error
+    if no_fail_on_error is True:
+        fail_on_error = False
+    elif fail_on_error == 0.0:
+        fail_on_error = True
+
     # resolve log file
     retry_log_files = [
         log_file_info(filesystem(log_file).info(log_file)) for log_file in log_files
@@ -833,6 +859,7 @@ def eval_retry_command(
         max_subprocesses=max_subprocesses,
         sandbox_cleanup=sandbox_cleanup,
         trace=trace,
+        fail_on_error=fail_on_error,
         debug_errors=kwargs["debug_errors"],
         log_samples=log_samples,
         log_images=log_images,
