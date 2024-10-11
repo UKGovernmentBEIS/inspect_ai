@@ -33,7 +33,6 @@ def check_foo() -> Solver:
 
 
 @skip_if_no_docker
-@pytest.mark.slow
 def test_docker_sandbox_setup():
     def sample(file: str, target: str, setup: str) -> Sample:
         return Sample(
