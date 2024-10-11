@@ -28,7 +28,16 @@ import { Sidebar } from "./sidebar/Sidebar.mjs";
 import { WorkSpace } from "./workspace/WorkSpace.mjs";
 import { FindBand } from "./components/FindBand.mjs";
 import { isVscode } from "./utils/Html.mjs";
+import { getVscodeApi } from "./utils/vscode.mjs";
 
+/**
+ * Renders the Main Application
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {import("./api/Types.mjs").LogViewAPI} props.api - The api that this view should use
+ * @param {boolean} props.pollForLogs - Whether the application should poll for log changes
+ * @returns {import("preact").JSX.Element} The TranscriptView component.
+ */
 export function App({ api, pollForLogs = true }) {
   const [selected, setSelected] = useState(-1);
   const [logs, setLogs] = useState({ log_dir: "", files: [] });
@@ -53,74 +62,78 @@ export function App({ api, pollForLogs = true }) {
 
   // Read header information for the logs
   // and then update
-  useEffect(async () => {
-    // Loading headers
-    setHeadersLoading(true);
+  useEffect(() => {
+    const loadHeaders = async () => {
+      setHeadersLoading(true);
 
-    // Group into chunks
-    const chunkSize = 8;
-    const fileLists = [];
-    for (let i = 0; i < logs.files.length; i += chunkSize) {
-      let chunk = logs.files.slice(i, i + chunkSize).map((log) => {
-        return log.name;
-      });
-      fileLists.push(chunk);
-    }
-
-    // Chunk by chunk, read the header information
-    try {
-      for (const fileList of fileLists) {
-        const headers = await api.eval_log_headers(fileList);
-        setLogHeaders((prev) => {
-          const updatedHeaders = {};
-          headers.forEach((header, index) => {
-            const logFile = fileList[index];
-            updatedHeaders[logFile] = header;
-          });
-          return { ...prev, ...updatedHeaders };
-        });
-        if (headers.length === chunkSize) {
-          await sleep(5000);
-        }
+      // Group into chunks
+      const chunkSize = 8;
+      const fileLists = [];
+      for (let i = 0; i < logs.files.length; i += chunkSize) {
+        let chunk = logs.files.slice(i, i + chunkSize).map((log) => log.name);
+        fileLists.push(chunk);
       }
-    } catch (e) {
-      // Show an error
-      console.log(e);
-      setStatus({ loading: false, error: e });
-    }
 
-    setHeadersLoading(false);
-  }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
-
-  // Load a specific log
-  useEffect(async () => {
-    const targetLog = logs.files[selected];
-    if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
+      // Chunk by chunk, read the header information
       try {
-        setStatus({ loading: true, error: undefined });
-        const logContents = await loadLog(targetLog.name);
-        if (logContents) {
-          const log = logContents.parsed;
-          setCurrentLog({
-            contents: log,
-            name: targetLog.name,
-            raw: logContents.raw,
+        for (const fileList of fileLists) {
+          const headers = await api.eval_log_headers(fileList);
+          setLogHeaders((prev) => {
+            const updatedHeaders = {};
+            headers.forEach((header, index) => {
+              const logFile = fileList[index];
+              updatedHeaders[logFile] = header;
+            });
+            return { ...prev, ...updatedHeaders };
           });
-          setStatus({ loading: false, error: undefined });
+
+          if (headers.length === chunkSize) {
+            await sleep(5000); // Pause between chunks
+          }
         }
       } catch (e) {
-        // Show an error
         console.log(e);
         setStatus({ loading: false, error: e });
       }
-    } else if (logs.log_dir && logs.files.length === 0) {
-      setStatus({
-        loading: false,
-        error: new Error(
-          `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`,
-        ),
-      });
-    }
+
+      setHeadersLoading(false);
+    };
+
+    loadHeaders();
+  }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
+
+  // Load a specific log
+  useEffect(() => {
+    const loadSpecificLog = async () => {
+      const targetLog = logs.files[selected];
+      if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
+        try {
+          setStatus({ loading: true, error: undefined });
+          const logContents = await loadLog(targetLog.name);
+          if (logContents) {
+            const log = logContents.parsed;
+            setCurrentLog({
+              contents: log,
+              name: targetLog.name,
+              raw: logContents.raw,
+            });
+            setStatus({ loading: false, error: undefined });
+          }
+        } catch (e) {
+          console.log(e);
+          setStatus({ loading: false, error: e });
+        }
+      } else if (logs.log_dir && logs.files.length === 0) {
+        setStatus({
+          loading: false,
+          error: new Error(
+            `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`,
+          ),
+        });
+      }
+    };
+
+    loadSpecificLog();
   }, [selected, logs, capabilities, currentLog, setCurrentLog, setStatus]);
 
   // Load the list of logs
@@ -252,88 +265,82 @@ export function App({ api, pollForLogs = true }) {
     };
   }, [onMessage]);
 
-  useEffect(async () => {
-    // See whether a specific task_file has been passed.
-    const urlParams = new URLSearchParams(window.location.search);
+  useEffect(() => {
+    const loadLogsAndState = async () => {
+      // See whether a specific task_file has been passed.
+      const urlParams = new URLSearchParams(window.location.search);
 
-    // Determine the capabilities
-    // If this is vscode, check for the version meta
-    // so we know it supports downloads
-    const extensionVersionEl = document.querySelector(
-      'meta[name="inspect-extension:version"]',
-    );
-    const extensionVersion = extensionVersionEl
-      ? extensionVersionEl.getAttribute("content")
-      : undefined;
-    if (isVscode()) {
-      if (!extensionVersion) {
-        // VSCode hosts before the extension version was communicated don't support
-        // downloading or web workers.
-        setCapabilities({ downloadFiles: false, webWorkers: false });
-      }
-    }
+      // Determine the capabilities
+      const extensionVersionEl = document.querySelector(
+        'meta[name="inspect-extension:version"]',
+      );
+      const extensionVersion = extensionVersionEl
+        ? extensionVersionEl.getAttribute("content")
+        : undefined;
 
-    // Note whether we should default off canvas the sidebar
-    setOffcanvas(true);
-
-    // If the URL provides a task file, load that
-    const logPath = urlParams.get("task_file");
-
-    // Replace any spaces in the path with a '+' sign:
-    const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
-    const load = resolvedLogPath
-      ? async () => {
-          return {
-            log_dir: "",
-            files: [{ name: resolvedLogPath }],
-          };
+      if (isVscode()) {
+        if (!extensionVersion) {
+          setCapabilities({ downloadFiles: false, webWorkers: false });
         }
-      : loadLogs;
-
-    // See whether there is state encoding in the document itself
-    const embeddedState = document.getElementById("logview-state");
-    if (embeddedState) {
-      // Sending this message will result in loading occuring
-      const state = JSON.parse(embeddedState.textContent);
-      onMessage({ data: state });
-    } else {
-      // initial fetch of logs
-      const result = await load();
-      setLogs(result);
-
-      // If a log file was passed, select it
-      const log_file = urlParams.get("log_file");
-      if (log_file) {
-        const index = result.files.findIndex((val) => {
-          return log_file.endsWith(val.name);
-        });
-        if (index > -1) {
-          setSelected(index);
-        }
-      } else if (selected === -1) {
-        // Select the first log if there wasn't some
-        // message embedded within the view html itself
-        setSelected(0);
       }
-    }
 
-    new ClipboardJS(".clipboard-button,.copy-button");
+      setOffcanvas(true);
 
-    // poll every 1s for events
-    if (pollForLogs) {
-      setInterval(() => {
-        api.client_events().then(async (events) => {
-          if (events.includes("reload")) {
-            window.location.reload(true);
+      // If the URL provides a task file, load that
+      const logPath = urlParams.get("task_file");
+
+      // Replace spaces with a '+' sign:
+      const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
+      const load = resolvedLogPath
+        ? async () => {
+            return {
+              log_dir: "",
+              files: [{ name: resolvedLogPath }],
+            };
           }
-          if (events.includes("refresh-evals")) {
-            const logs = await load();
-            setLogs(logs);
-            setSelected(0);
+        : loadLogs;
+
+      const embeddedState = document.getElementById("logview-state");
+      if (embeddedState) {
+        const state = JSON.parse(embeddedState.textContent);
+        onMessage({ data: state });
+      } else {
+        const result = await load();
+        setLogs(result);
+
+        // If a log file was passed, select it
+        const log_file = urlParams.get("log_file");
+        if (log_file) {
+          const index = result.files.findIndex((val) => {
+            return log_file.endsWith(val.name);
+          });
+          if (index > -1) {
+            setSelected(index);
           }
-        });
-      }, 1000);
-    }
+        } else if (selected === -1) {
+          setSelected(0);
+        }
+      }
+
+      new ClipboardJS(".clipboard-button,.copy-button");
+
+      if (pollForLogs) {
+        setInterval(() => {
+          api.client_events().then(async (events) => {
+            if (events.includes("reload")) {
+              window.location.reload();
+            }
+            if (events.includes("refresh-evals")) {
+              const logs = await load();
+              setLogs(logs);
+              setSelected(0);
+            }
+          });
+        }, 1000);
+      }
+    };
+
+    loadLogsAndState();
   }, []);
 
   // Configure an app envelope specific to the current state
@@ -400,7 +407,7 @@ export function App({ api, pollForLogs = true }) {
       e,
     ) => {
       // regular browsers user their own find
-      if (!window.acquireVsCodeApi) {
+      if (!getVscodeApi()) {
         return;
       }
 

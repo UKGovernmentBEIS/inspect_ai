@@ -11,7 +11,7 @@ import { fetchRange, fetchSize } from '../utils/remoteZipFile.mjs'
  *
  * @param { string } log_dir - The log directory for this API.
  * @param { string } [log_file] - The log file for this API.
- * @returns { any } A Log Viewer API
+ * @returns { import("./Types.mjs").LogViewAPI } A Log Viewer API
  */
 export default function simpleHttpApi(log_dir, log_file) {
   const resolved_log_dir = log_dir.replace(" ", "+");
@@ -93,7 +93,7 @@ function simpleHttpAPI(logInfo) {
       return await fetchSize(log_file)
     },
     eval_log_bytes: async (log_file, start, end) => {
-      return await fetchRange(log_file, start, end)
+      return await fetchRange(log_file, start, end);
     },
     eval_log_headers: async (files) => {
       const headers = await fetchLogHeaders(log_dir);

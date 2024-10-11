@@ -1,12 +1,20 @@
+// @ts-check
+
 import browserApi from "./api-browser.mjs";
 import vscodeApi from "./api-vscode.mjs";
 import simpleHttpApi from "./api-http.mjs";
 import { dirname } from "../utils/Path.mjs";
+import { getVscodeApi } from "../utils/vscode.mjs";
 
-// Resolves any signals for which API to use:
-
+//
+/**
+ * Resolves the client API
+ *
+ * @returns { import("./Types.mjs").LogViewAPI } A Client API for the viewer
+ */
 const resolveApi = () => {
-  if (window.acquireVsCodeApi) {
+  // @ts-ignore
+  if (getVscodeApi()) {
     return vscodeApi;
   } else {
     // See if there is an log_file, log_dir embedded in the

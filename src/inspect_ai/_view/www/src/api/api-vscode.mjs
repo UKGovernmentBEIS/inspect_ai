@@ -1,4 +1,7 @@
+//@ts-check
+
 import { asyncJsonParse } from "../utils/Json.mjs";
+// @ts-ignore
 import JSON5 from "json5";
 
 import {
@@ -9,12 +12,9 @@ import {
   kMethodEvalLogBytes,
   kMethodEvalLogHeaders,
 } from "./jsonrpc.mjs";
+import { getVscodeApi } from "../utils/vscode.mjs";
 
-const vscodeApi = window.acquireVsCodeApi
-  ? window.acquireVsCodeApi()
-  : undefined;
-
-const vscodeClient = webViewJsonRpcClient(vscodeApi);
+const vscodeClient = webViewJsonRpcClient(getVscodeApi());
 
 async function client_events() {
   return [];
@@ -64,8 +64,6 @@ async function eval_log_bytes(file, start, end) {
   return await vscodeClient(kMethodEvalLogBytes, [file, start, end]);
 }
 
-
-
 async function eval_log_headers(files) {
   const response = await vscodeClient(kMethodEvalLogHeaders, [files]);
   if (response) {
@@ -76,7 +74,7 @@ async function eval_log_headers(files) {
 }
 
 async function download_file(logFile) {
-  vscodeApi.postMessage({ type: "openWorkspaceFile", url: logFile });
+  getVscodeApi().postMessage({ type: "openWorkspaceFile", url: logFile });
 }
 
 async function open_log_file(url, log_dir) {
@@ -85,9 +83,10 @@ async function open_log_file(url, log_dir) {
     url: url,
     log_dir: log_dir,
   };
-  vscodeApi.postMessage(msg);
+  getVscodeApi().postMessage(msg);
 }
 
+/** @type {import("./Types.mjs").LogViewAPI} */
 export default {
   client_events,
   eval_logs,

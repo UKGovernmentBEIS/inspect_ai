@@ -1,14 +1,14 @@
+//@ts-check
 import { asyncJsonParse } from "../utils/Json.mjs";
 import { download_file } from "./api-shared.mjs";
-import { fetchRange } from '../utils/remoteZipFile.mjs'
 
 const loaded_time = Date.now();
 let last_eval_time = 0;
 
 async function client_events() {
   const params = new URLSearchParams();
-  params.append("loaded_time", loaded_time.valueOf());
-  params.append("last_eval_time", last_eval_time.valueOf());
+  params.append("loaded_time", String(loaded_time.valueOf()));
+  params.append("last_eval_time", String(last_eval_time.valueOf()));
   return (await api("GET", `/api/events?${params.toString()}`)).parsed;
 }
 
@@ -19,7 +19,10 @@ async function eval_logs() {
 }
 
 async function eval_log(file, headerOnly) {
-  return await api("GET", `/api/logs/${encodeURIComponent(file)}?header-only=${headerOnly}`);
+  return await api(
+    "GET",
+    `/api/logs/${encodeURIComponent(file)}?header-only=${headerOnly}`,
+  );
 }
 
 async function eval_log_size(file) {
@@ -97,6 +100,7 @@ async function open_log_file() {
   // No op
 }
 
+/** @type {import("./Types.mjs").LogViewAPI} */
 export default {
   client_events,
   eval_logs,

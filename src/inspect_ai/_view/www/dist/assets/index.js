@@ -18942,677 +18942,12 @@ async function download_file$1(_logfile, filename2, filecontents) {
   link2.click();
   document.body.removeChild(link2);
 }
-var ch2 = {};
-var wk = function(c2, id, msg, transfer, cb) {
-  var w2 = new Worker(ch2[id] || (ch2[id] = URL.createObjectURL(new Blob([
-    c2 + ';addEventListener("error",function(e){e=e.error;postMessage({$e$:[e.message,e.code,e.stack]})})'
-  ], { type: "text/javascript" }))));
-  w2.onmessage = function(e2) {
-    var d2 = e2.data, ed = d2.$e$;
-    if (ed) {
-      var err2 = new Error(ed[0]);
-      err2["code"] = ed[1];
-      err2.stack = ed[2];
-      cb(err2, null);
-    } else
-      cb(null, d2);
-  };
-  w2.postMessage(msg, transfer);
-  return w2;
-};
-var u8 = Uint8Array, u16 = Uint16Array, i32 = Int32Array;
-var fleb = new u8([
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  1,
-  1,
-  1,
-  1,
-  2,
-  2,
-  2,
-  2,
-  3,
-  3,
-  3,
-  3,
-  4,
-  4,
-  4,
-  4,
-  5,
-  5,
-  5,
-  5,
-  0,
-  /* unused */
-  0,
-  0,
-  /* impossible */
-  0
-]);
-var fdeb = new u8([
-  0,
-  0,
-  0,
-  0,
-  1,
-  1,
-  2,
-  2,
-  3,
-  3,
-  4,
-  4,
-  5,
-  5,
-  6,
-  6,
-  7,
-  7,
-  8,
-  8,
-  9,
-  9,
-  10,
-  10,
-  11,
-  11,
-  12,
-  12,
-  13,
-  13,
-  /* unused */
-  0,
-  0
-]);
-var clim = new u8([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
-var freb = function(eb, start2) {
-  var b2 = new u16(31);
-  for (var i = 0; i < 31; ++i) {
-    b2[i] = start2 += 1 << eb[i - 1];
-  }
-  var r2 = new i32(b2[30]);
-  for (var i = 1; i < 30; ++i) {
-    for (var j2 = b2[i]; j2 < b2[i + 1]; ++j2) {
-      r2[j2] = j2 - b2[i] << 5 | i;
-    }
-  }
-  return { b: b2, r: r2 };
-};
-var _a = freb(fleb, 2), fl = _a.b, revfl = _a.r;
-fl[28] = 258, revfl[258] = 28;
-var _b = freb(fdeb, 0), fd = _b.b;
-var rev = new u16(32768);
-for (var i = 0; i < 32768; ++i) {
-  var x = (i & 43690) >> 1 | (i & 21845) << 1;
-  x = (x & 52428) >> 2 | (x & 13107) << 2;
-  x = (x & 61680) >> 4 | (x & 3855) << 4;
-  rev[i] = ((x & 65280) >> 8 | (x & 255) << 8) >> 1;
-}
-var hMap = function(cd, mb, r2) {
-  var s2 = cd.length;
-  var i = 0;
-  var l2 = new u16(mb);
-  for (; i < s2; ++i) {
-    if (cd[i])
-      ++l2[cd[i] - 1];
-  }
-  var le = new u16(mb);
-  for (i = 1; i < mb; ++i) {
-    le[i] = le[i - 1] + l2[i - 1] << 1;
-  }
-  var co;
-  if (r2) {
-    co = new u16(1 << mb);
-    var rvb = 15 - mb;
-    for (i = 0; i < s2; ++i) {
-      if (cd[i]) {
-        var sv = i << 4 | cd[i];
-        var r_1 = mb - cd[i];
-        var v2 = le[cd[i] - 1]++ << r_1;
-        for (var m2 = v2 | (1 << r_1) - 1; v2 <= m2; ++v2) {
-          co[rev[v2] >> rvb] = sv;
-        }
-      }
-    }
-  } else {
-    co = new u16(s2);
-    for (i = 0; i < s2; ++i) {
-      if (cd[i]) {
-        co[i] = rev[le[cd[i] - 1]++] >> 15 - cd[i];
-      }
-    }
-  }
-  return co;
-};
-var flt = new u8(288);
-for (var i = 0; i < 144; ++i)
-  flt[i] = 8;
-for (var i = 144; i < 256; ++i)
-  flt[i] = 9;
-for (var i = 256; i < 280; ++i)
-  flt[i] = 7;
-for (var i = 280; i < 288; ++i)
-  flt[i] = 8;
-var fdt = new u8(32);
-for (var i = 0; i < 32; ++i)
-  fdt[i] = 5;
-var flrm = /* @__PURE__ */ hMap(flt, 9, 1);
-var fdrm = /* @__PURE__ */ hMap(fdt, 5, 1);
-var max = function(a2) {
-  var m2 = a2[0];
-  for (var i = 1; i < a2.length; ++i) {
-    if (a2[i] > m2)
-      m2 = a2[i];
-  }
-  return m2;
-};
-var bits = function(d2, p2, m2) {
-  var o2 = p2 / 8 | 0;
-  return (d2[o2] | d2[o2 + 1] << 8) >> (p2 & 7) & m2;
-};
-var bits16 = function(d2, p2) {
-  var o2 = p2 / 8 | 0;
-  return (d2[o2] | d2[o2 + 1] << 8 | d2[o2 + 2] << 16) >> (p2 & 7);
-};
-var shft = function(p2) {
-  return (p2 + 7) / 8 | 0;
-};
-var slc = function(v2, s2, e2) {
-  if (s2 == null || s2 < 0)
-    s2 = 0;
-  if (e2 == null || e2 > v2.length)
-    e2 = v2.length;
-  return new u8(v2.subarray(s2, e2));
-};
-var ec = [
-  "unexpected EOF",
-  "invalid block type",
-  "invalid length/literal",
-  "invalid distance",
-  "stream finished",
-  "no stream handler",
-  ,
-  "no callback",
-  "invalid UTF-8 data",
-  "extra field too long",
-  "date not in range 1980-2099",
-  "filename too long",
-  "stream finishing",
-  "invalid zip data"
-  // determined by unknown compression method
-];
-var err = function(ind, msg, nt) {
-  var e2 = new Error(msg || ec[ind]);
-  e2.code = ind;
-  if (Error.captureStackTrace)
-    Error.captureStackTrace(e2, err);
-  if (!nt)
-    throw e2;
-  return e2;
-};
-var inflt = function(dat, st, buf, dict) {
-  var sl = dat.length, dl = dict ? dict.length : 0;
-  if (!sl || st.f && !st.l)
-    return buf || new u8(0);
-  var noBuf = !buf;
-  var resize = noBuf || st.i != 2;
-  var noSt = st.i;
-  if (noBuf)
-    buf = new u8(sl * 3);
-  var cbuf = function(l3) {
-    var bl = buf.length;
-    if (l3 > bl) {
-      var nbuf = new u8(Math.max(bl * 2, l3));
-      nbuf.set(buf);
-      buf = nbuf;
-    }
-  };
-  var final = st.f || 0, pos2 = st.p || 0, bt = st.b || 0, lm = st.l, dm = st.d, lbt = st.m, dbt = st.n;
-  var tbts = sl * 8;
-  do {
-    if (!lm) {
-      final = bits(dat, pos2, 1);
-      var type = bits(dat, pos2 + 1, 3);
-      pos2 += 3;
-      if (!type) {
-        var s2 = shft(pos2) + 4, l2 = dat[s2 - 4] | dat[s2 - 3] << 8, t2 = s2 + l2;
-        if (t2 > sl) {
-          if (noSt)
-            err(0);
-          break;
-        }
-        if (resize)
-          cbuf(bt + l2);
-        buf.set(dat.subarray(s2, t2), bt);
-        st.b = bt += l2, st.p = pos2 = t2 * 8, st.f = final;
-        continue;
-      } else if (type == 1)
-        lm = flrm, dm = fdrm, lbt = 9, dbt = 5;
-      else if (type == 2) {
-        var hLit = bits(dat, pos2, 31) + 257, hcLen = bits(dat, pos2 + 10, 15) + 4;
-        var tl = hLit + bits(dat, pos2 + 5, 31) + 1;
-        pos2 += 14;
-        var ldt = new u8(tl);
-        var clt = new u8(19);
-        for (var i = 0; i < hcLen; ++i) {
-          clt[clim[i]] = bits(dat, pos2 + i * 3, 7);
-        }
-        pos2 += hcLen * 3;
-        var clb = max(clt), clbmsk = (1 << clb) - 1;
-        var clm = hMap(clt, clb, 1);
-        for (var i = 0; i < tl; ) {
-          var r2 = clm[bits(dat, pos2, clbmsk)];
-          pos2 += r2 & 15;
-          var s2 = r2 >> 4;
-          if (s2 < 16) {
-            ldt[i++] = s2;
-          } else {
-            var c2 = 0, n2 = 0;
-            if (s2 == 16)
-              n2 = 3 + bits(dat, pos2, 3), pos2 += 2, c2 = ldt[i - 1];
-            else if (s2 == 17)
-              n2 = 3 + bits(dat, pos2, 7), pos2 += 3;
-            else if (s2 == 18)
-              n2 = 11 + bits(dat, pos2, 127), pos2 += 7;
-            while (n2--)
-              ldt[i++] = c2;
-          }
-        }
-        var lt = ldt.subarray(0, hLit), dt = ldt.subarray(hLit);
-        lbt = max(lt);
-        dbt = max(dt);
-        lm = hMap(lt, lbt, 1);
-        dm = hMap(dt, dbt, 1);
-      } else
-        err(1);
-      if (pos2 > tbts) {
-        if (noSt)
-          err(0);
-        break;
-      }
-    }
-    if (resize)
-      cbuf(bt + 131072);
-    var lms = (1 << lbt) - 1, dms = (1 << dbt) - 1;
-    var lpos = pos2;
-    for (; ; lpos = pos2) {
-      var c2 = lm[bits16(dat, pos2) & lms], sym = c2 >> 4;
-      pos2 += c2 & 15;
-      if (pos2 > tbts) {
-        if (noSt)
-          err(0);
-        break;
-      }
-      if (!c2)
-        err(2);
-      if (sym < 256)
-        buf[bt++] = sym;
-      else if (sym == 256) {
-        lpos = pos2, lm = null;
-        break;
-      } else {
-        var add = sym - 254;
-        if (sym > 264) {
-          var i = sym - 257, b2 = fleb[i];
-          add = bits(dat, pos2, (1 << b2) - 1) + fl[i];
-          pos2 += b2;
-        }
-        var d2 = dm[bits16(dat, pos2) & dms], dsym = d2 >> 4;
-        if (!d2)
-          err(3);
-        pos2 += d2 & 15;
-        var dt = fd[dsym];
-        if (dsym > 3) {
-          var b2 = fdeb[dsym];
-          dt += bits16(dat, pos2) & (1 << b2) - 1, pos2 += b2;
-        }
-        if (pos2 > tbts) {
-          if (noSt)
-            err(0);
-          break;
-        }
-        if (resize)
-          cbuf(bt + 131072);
-        var end2 = bt + add;
-        if (bt < dt) {
-          var shift = dl - dt, dend = Math.min(dt, end2);
-          if (shift + bt < 0)
-            err(3);
-          for (; bt < dend; ++bt)
-            buf[bt] = dict[shift + bt];
-        }
-        for (; bt < end2; ++bt)
-          buf[bt] = buf[bt - dt];
-      }
-    }
-    st.l = lm, st.p = lpos, st.b = bt, st.f = final;
-    if (lm)
-      final = 1, st.m = lbt, st.d = dm, st.n = dbt;
-  } while (!final);
-  return bt != buf.length && noBuf ? slc(buf, 0, bt) : buf.subarray(0, bt);
-};
-var et = /* @__PURE__ */ new u8(0);
-var mrg = function(a2, b2) {
-  var o2 = {};
-  for (var k2 in a2)
-    o2[k2] = a2[k2];
-  for (var k2 in b2)
-    o2[k2] = b2[k2];
-  return o2;
-};
-var wcln = function(fn2, fnStr, td2) {
-  var dt = fn2();
-  var st = fn2.toString();
-  var ks = st.slice(st.indexOf("[") + 1, st.lastIndexOf("]")).replace(/\s+/g, "").split(",");
-  for (var i = 0; i < dt.length; ++i) {
-    var v2 = dt[i], k2 = ks[i];
-    if (typeof v2 == "function") {
-      fnStr += ";" + k2 + "=";
-      var st_1 = v2.toString();
-      if (v2.prototype) {
-        if (st_1.indexOf("[native code]") != -1) {
-          var spInd = st_1.indexOf(" ", 8) + 1;
-          fnStr += st_1.slice(spInd, st_1.indexOf("(", spInd));
-        } else {
-          fnStr += st_1;
-          for (var t2 in v2.prototype)
-            fnStr += ";" + k2 + ".prototype." + t2 + "=" + v2.prototype[t2].toString();
-        }
-      } else
-        fnStr += st_1;
-    } else
-      td2[k2] = v2;
-  }
-  return fnStr;
-};
-var ch = [];
-var cbfs = function(v2) {
-  var tl = [];
-  for (var k2 in v2) {
-    if (v2[k2].buffer) {
-      tl.push((v2[k2] = new v2[k2].constructor(v2[k2])).buffer);
-    }
-  }
-  return tl;
-};
-var wrkr = function(fns, init, id, cb) {
-  if (!ch[id]) {
-    var fnStr = "", td_1 = {}, m2 = fns.length - 1;
-    for (var i = 0; i < m2; ++i)
-      fnStr = wcln(fns[i], fnStr, td_1);
-    ch[id] = { c: wcln(fns[m2], fnStr, td_1), e: td_1 };
-  }
-  var td2 = mrg({}, ch[id].e);
-  return wk(ch[id].c + ";onmessage=function(e){for(var k in e.data)self[k]=e.data[k];onmessage=" + init.toString() + "}", id, td2, cbfs(td2), cb);
-};
-var bInflt = function() {
-  return [u8, u16, i32, fleb, fdeb, clim, fl, fd, flrm, fdrm, rev, ec, hMap, max, bits, bits16, shft, slc, err, inflt, inflateSync, pbf, gopt];
-};
-var guze = function() {
-  return [gzs, gzl];
-};
-var zule = function() {
-  return [zls];
-};
-var pbf = function(msg) {
-  return postMessage(msg, [msg.buffer]);
-};
-var gopt = function(o2) {
-  return o2 && {
-    out: o2.size && new u8(o2.size),
-    dictionary: o2.dictionary
-  };
-};
-var cbify = function(dat, opts, fns, init, id, cb) {
-  var w2 = wrkr(fns, init, id, function(err2, dat2) {
-    w2.terminate();
-    cb(err2, dat2);
-  });
-  w2.postMessage([dat, opts], opts.consume ? [dat.buffer] : []);
-  return function() {
-    w2.terminate();
-  };
-};
-var gzs = function(d2) {
-  if (d2[0] != 31 || d2[1] != 139 || d2[2] != 8)
-    err(6, "invalid gzip data");
-  var flg = d2[3];
-  var st = 10;
-  if (flg & 4)
-    st += (d2[10] | d2[11] << 8) + 2;
-  for (var zs = (flg >> 3 & 1) + (flg >> 4 & 1); zs > 0; zs -= !d2[st++])
-    ;
-  return st + (flg & 2);
-};
-var gzl = function(d2) {
-  var l2 = d2.length;
-  return (d2[l2 - 4] | d2[l2 - 3] << 8 | d2[l2 - 2] << 16 | d2[l2 - 1] << 24) >>> 0;
-};
-var zls = function(d2, dict) {
-  if ((d2[0] & 15) != 8 || d2[0] >> 4 > 7 || (d2[0] << 8 | d2[1]) % 31)
-    err(6, "invalid zlib data");
-  if ((d2[1] >> 5 & 1) == +!dict)
-    err(6, "invalid zlib data: " + (d2[1] & 32 ? "need" : "unexpected") + " dictionary");
-  return (d2[1] >> 3 & 4) + 2;
-};
-function inflate(data, opts, cb) {
-  if (!cb)
-    cb = opts, opts = {};
-  if (typeof cb != "function")
-    err(7);
-  return cbify(data, opts, [
-    bInflt
-  ], function(ev) {
-    return pbf(inflateSync(ev.data[0], gopt(ev.data[1])));
-  }, 1, cb);
-}
-function inflateSync(data, opts) {
-  return inflt(data, { i: 2 }, opts && opts.out, opts && opts.dictionary);
-}
-function gunzip(data, opts, cb) {
-  if (!cb)
-    cb = opts, opts = {};
-  if (typeof cb != "function")
-    err(7);
-  return cbify(data, opts, [
-    bInflt,
-    guze,
-    function() {
-      return [gunzipSync];
-    }
-  ], function(ev) {
-    return pbf(gunzipSync(ev.data[0], ev.data[1]));
-  }, 3, cb);
-}
-function gunzipSync(data, opts) {
-  var st = gzs(data);
-  if (st + 8 > data.length)
-    err(6, "invalid gzip data");
-  return inflt(data.subarray(st, -8), { i: 2 }, opts && opts.out || new u8(gzl(data)), opts && opts.dictionary);
-}
-function unzlib(data, opts, cb) {
-  if (!cb)
-    cb = opts, opts = {};
-  if (typeof cb != "function")
-    err(7);
-  return cbify(data, opts, [
-    bInflt,
-    zule,
-    function() {
-      return [unzlibSync];
-    }
-  ], function(ev) {
-    return pbf(unzlibSync(ev.data[0], gopt(ev.data[1])));
-  }, 5, cb);
-}
-function unzlibSync(data, opts) {
-  return inflt(data.subarray(zls(data, opts && opts.dictionary), -4), { i: 2 }, opts && opts.out, opts && opts.dictionary);
-}
-function decompress(data, opts, cb) {
-  if (!cb)
-    cb = opts, opts = {};
-  if (typeof cb != "function")
-    err(7);
-  return data[0] == 31 && data[1] == 139 && data[2] == 8 ? gunzip(data, opts, cb) : (data[0] & 15) != 8 || data[0] >> 4 > 7 || (data[0] << 8 | data[1]) % 31 ? inflate(data, opts, cb) : unzlib(data, opts, cb);
-}
-var td = typeof TextDecoder != "undefined" && /* @__PURE__ */ new TextDecoder();
-var tds = 0;
-try {
-  td.decode(et, { stream: true });
-  tds = 1;
-} catch (e2) {
-}
-const openRemoteZipFile = async (url, fetchContentLength = fetchSize, fetchBytes = fetchRange) => {
-  const contentLength = await fetchContentLength(url);
-  const eocdrBuffer = await fetchBytes(
-    url,
-    contentLength - 22,
-    contentLength - 1
-  );
-  const eocdrView = new DataView(eocdrBuffer.buffer);
-  const centralDirOffset = eocdrView.getUint32(16, true);
-  const centralDirSize = eocdrView.getUint32(12, true);
-  const centralDirBuffer = await fetchBytes(
-    url,
-    centralDirOffset,
-    centralDirOffset + centralDirSize - 1
-  );
-  const centralDirectory = parseCentralDirectory(centralDirBuffer);
-  return {
-    centralDirectory,
-    readFile: async (file) => {
-      const entry = centralDirectory.get(file);
-      if (!entry) {
-        throw new Error(`File not found: ${file}`);
-      }
-      const headerSize = 30;
-      const headerData = await fetchBytes(
-        url,
-        entry.fileOffset,
-        entry.fileOffset + headerSize - 1
-      );
-      const filenameLength = headerData[26] + (headerData[27] << 8);
-      const extraFieldLength = headerData[28] + (headerData[29] << 8);
-      const totalSizeToFetch = headerSize + filenameLength + extraFieldLength + entry.compressedSize;
-      const fileData = await fetchBytes(
-        url,
-        entry.fileOffset,
-        entry.fileOffset + totalSizeToFetch - 1
-      );
-      const zipFileEntry = await parseZipFileEntry(file, fileData);
-      if (zipFileEntry.compressionMethod === 0) {
-        return zipFileEntry.data;
-      } else if (zipFileEntry.compressionMethod === 8) {
-        const results = await decompressAsync(zipFileEntry.data, {
-          size: zipFileEntry.uncompressedSize
-        });
-        return results;
-      } else {
-        throw new Error(`Unsupported compressionMethod for file ${file}`);
-      }
-    }
-  };
-};
-const fetchSize = async (url) => {
-  const response = await fetch(url, { method: "HEAD" });
-  const contentLength = Number(response.headers.get("Content-Length"));
-  return contentLength;
-};
-const fetchRange = async (url, start2, end2) => {
-  const response = await fetch(url, {
-    headers: { Range: `bytes=${start2}-${end2}` }
-  });
-  const arrayBuffer = await response.arrayBuffer();
-  return new Uint8Array(arrayBuffer);
-};
-const decompressAsync = async (data, opts) => {
-  return new Promise((resolve, reject) => {
-    decompress(data, opts, (err2, result) => {
-      if (err2) {
-        reject(err2);
-      } else {
-        resolve(result);
-      }
-    });
-  });
-};
-const parseZipFileEntry = async (file, rawData) => {
-  const view = new DataView(rawData.buffer);
-  let offset2 = 0;
-  const signature = view.getUint32(offset2, true);
-  if (signature !== 67324752) {
-    throw new Error(`Invalid ZIP entry signature for ${file}`);
-  }
-  offset2 += 4;
-  const versionNeeded = view.getUint16(offset2, true);
-  offset2 += 2;
-  const bitFlag = view.getUint16(offset2, true);
-  offset2 += 2;
-  const compressionMethod = view.getUint16(offset2, true);
-  offset2 += 2;
-  offset2 += 4;
-  const crc32 = view.getUint32(offset2, true);
-  offset2 += 4;
-  const compressedSize = view.getUint32(offset2, true);
-  offset2 += 4;
-  const uncompressedSize = view.getUint32(offset2, true);
-  offset2 += 4;
-  const filenameLength = view.getUint16(offset2, true);
-  offset2 += 2;
-  const extraFieldLength = view.getUint16(offset2, true);
-  offset2 += 2;
-  offset2 += filenameLength + extraFieldLength;
-  const data = rawData.subarray(offset2, offset2 + compressedSize);
-  return {
-    versionNeeded,
-    bitFlag,
-    compressionMethod,
-    crc32,
-    compressedSize,
-    uncompressedSize,
-    filenameLength,
-    extraFieldLength,
-    data
-  };
-};
-const parseCentralDirectory = (buffer2) => {
-  let offset2 = 0;
-  const view = new DataView(buffer2.buffer);
-  const entries = /* @__PURE__ */ new Map();
-  while (offset2 < buffer2.length) {
-    if (view.getUint32(offset2, true) !== 33639248) break;
-    const filenameLength = view.getUint16(offset2 + 28, true);
-    const extraFieldLength = view.getUint16(offset2 + 30, true);
-    const fileCommentLength = view.getUint16(offset2 + 32, true);
-    const filename2 = new TextDecoder().decode(
-      buffer2.subarray(offset2 + 46, offset2 + 46 + filenameLength)
-    );
-    const entry = {
-      filename: filename2,
-      compressionMethod: view.getUint16(offset2 + 10, true),
-      compressedSize: view.getUint32(offset2 + 20, true),
-      uncompressedSize: view.getUint32(offset2 + 24, true),
-      fileOffset: view.getUint32(offset2 + 42, true)
-    };
-    entries.set(filename2, entry);
-    offset2 += 46 + filenameLength + extraFieldLength + fileCommentLength;
-  }
-  return entries;
-};
 const loaded_time = Date.now();
 let last_eval_time = 0;
 async function client_events$1() {
   const params = new URLSearchParams();
-  params.append("loaded_time", loaded_time.valueOf());
-  params.append("last_eval_time", last_eval_time.valueOf());
+  params.append("loaded_time", String(loaded_time.valueOf()));
+  params.append("last_eval_time", String(last_eval_time.valueOf()));
   return (await api$1("GET", `/api/events?${params.toString()}`)).parsed;
 }
 async function eval_logs$1() {
@@ -19621,7 +18956,10 @@ async function eval_logs$1() {
   return logs.parsed;
 }
 async function eval_log$1(file, headerOnly) {
-  return await api$1("GET", `/api/logs/${encodeURIComponent(file)}?header-only=${headerOnly}`);
+  return await api$1(
+    "GET",
+    `/api/logs/${encodeURIComponent(file)}?header-only=${headerOnly}`
+  );
 }
 async function eval_log_size$1(file) {
   return (await api$1("GET", `/api/log-size/${encodeURIComponent(file)}`)).parsed;
@@ -20850,8 +20188,13 @@ function asJsonRpcResponse(data) {
     return null;
   }
 }
-const vscodeApi = window.acquireVsCodeApi ? window.acquireVsCodeApi() : void 0;
-const vscodeClient = webViewJsonRpcClient(vscodeApi);
+const getVscodeApi = () => {
+  return window.acquireVsCodeApi ? (
+    // @ts-ignore
+    window.acquireVsCodeApi()
+  ) : void 0;
+};
+const vscodeClient = webViewJsonRpcClient(getVscodeApi());
 async function client_events() {
   return [];
 }
@@ -20903,7 +20246,7 @@ async function eval_log_headers(files) {
   }
 }
 async function download_file(logFile) {
-  vscodeApi.postMessage({ type: "openWorkspaceFile", url: logFile });
+  getVscodeApi().postMessage({ type: "openWorkspaceFile", url: logFile });
 }
 async function open_log_file(url, log_dir) {
   const msg = {
@@ -20911,9 +20254,9 @@ async function open_log_file(url, log_dir) {
     url,
     log_dir
   };
-  vscodeApi.postMessage(msg);
+  getVscodeApi().postMessage(msg);
 }
-const vscodeApi$1 = {
+const vscodeApi = {
   client_events,
   eval_logs,
   eval_log,
@@ -20922,6 +20265,671 @@ const vscodeApi$1 = {
   eval_log_headers,
   download_file,
   open_log_file
+};
+var ch2 = {};
+var wk = function(c2, id, msg, transfer, cb) {
+  var w2 = new Worker(ch2[id] || (ch2[id] = URL.createObjectURL(new Blob([
+    c2 + ';addEventListener("error",function(e){e=e.error;postMessage({$e$:[e.message,e.code,e.stack]})})'
+  ], { type: "text/javascript" }))));
+  w2.onmessage = function(e2) {
+    var d2 = e2.data, ed = d2.$e$;
+    if (ed) {
+      var err2 = new Error(ed[0]);
+      err2["code"] = ed[1];
+      err2.stack = ed[2];
+      cb(err2, null);
+    } else
+      cb(null, d2);
+  };
+  w2.postMessage(msg, transfer);
+  return w2;
+};
+var u8 = Uint8Array, u16 = Uint16Array, i32 = Int32Array;
+var fleb = new u8([
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  1,
+  2,
+  2,
+  2,
+  2,
+  3,
+  3,
+  3,
+  3,
+  4,
+  4,
+  4,
+  4,
+  5,
+  5,
+  5,
+  5,
+  0,
+  /* unused */
+  0,
+  0,
+  /* impossible */
+  0
+]);
+var fdeb = new u8([
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  2,
+  2,
+  3,
+  3,
+  4,
+  4,
+  5,
+  5,
+  6,
+  6,
+  7,
+  7,
+  8,
+  8,
+  9,
+  9,
+  10,
+  10,
+  11,
+  11,
+  12,
+  12,
+  13,
+  13,
+  /* unused */
+  0,
+  0
+]);
+var clim = new u8([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
+var freb = function(eb, start2) {
+  var b2 = new u16(31);
+  for (var i = 0; i < 31; ++i) {
+    b2[i] = start2 += 1 << eb[i - 1];
+  }
+  var r2 = new i32(b2[30]);
+  for (var i = 1; i < 30; ++i) {
+    for (var j2 = b2[i]; j2 < b2[i + 1]; ++j2) {
+      r2[j2] = j2 - b2[i] << 5 | i;
+    }
+  }
+  return { b: b2, r: r2 };
+};
+var _a = freb(fleb, 2), fl = _a.b, revfl = _a.r;
+fl[28] = 258, revfl[258] = 28;
+var _b = freb(fdeb, 0), fd = _b.b;
+var rev = new u16(32768);
+for (var i = 0; i < 32768; ++i) {
+  var x = (i & 43690) >> 1 | (i & 21845) << 1;
+  x = (x & 52428) >> 2 | (x & 13107) << 2;
+  x = (x & 61680) >> 4 | (x & 3855) << 4;
+  rev[i] = ((x & 65280) >> 8 | (x & 255) << 8) >> 1;
+}
+var hMap = function(cd, mb, r2) {
+  var s2 = cd.length;
+  var i = 0;
+  var l2 = new u16(mb);
+  for (; i < s2; ++i) {
+    if (cd[i])
+      ++l2[cd[i] - 1];
+  }
+  var le = new u16(mb);
+  for (i = 1; i < mb; ++i) {
+    le[i] = le[i - 1] + l2[i - 1] << 1;
+  }
+  var co;
+  if (r2) {
+    co = new u16(1 << mb);
+    var rvb = 15 - mb;
+    for (i = 0; i < s2; ++i) {
+      if (cd[i]) {
+        var sv = i << 4 | cd[i];
+        var r_1 = mb - cd[i];
+        var v2 = le[cd[i] - 1]++ << r_1;
+        for (var m2 = v2 | (1 << r_1) - 1; v2 <= m2; ++v2) {
+          co[rev[v2] >> rvb] = sv;
+        }
+      }
+    }
+  } else {
+    co = new u16(s2);
+    for (i = 0; i < s2; ++i) {
+      if (cd[i]) {
+        co[i] = rev[le[cd[i] - 1]++] >> 15 - cd[i];
+      }
+    }
+  }
+  return co;
+};
+var flt = new u8(288);
+for (var i = 0; i < 144; ++i)
+  flt[i] = 8;
+for (var i = 144; i < 256; ++i)
+  flt[i] = 9;
+for (var i = 256; i < 280; ++i)
+  flt[i] = 7;
+for (var i = 280; i < 288; ++i)
+  flt[i] = 8;
+var fdt = new u8(32);
+for (var i = 0; i < 32; ++i)
+  fdt[i] = 5;
+var flrm = /* @__PURE__ */ hMap(flt, 9, 1);
+var fdrm = /* @__PURE__ */ hMap(fdt, 5, 1);
+var max = function(a2) {
+  var m2 = a2[0];
+  for (var i = 1; i < a2.length; ++i) {
+    if (a2[i] > m2)
+      m2 = a2[i];
+  }
+  return m2;
+};
+var bits = function(d2, p2, m2) {
+  var o2 = p2 / 8 | 0;
+  return (d2[o2] | d2[o2 + 1] << 8) >> (p2 & 7) & m2;
+};
+var bits16 = function(d2, p2) {
+  var o2 = p2 / 8 | 0;
+  return (d2[o2] | d2[o2 + 1] << 8 | d2[o2 + 2] << 16) >> (p2 & 7);
+};
+var shft = function(p2) {
+  return (p2 + 7) / 8 | 0;
+};
+var slc = function(v2, s2, e2) {
+  if (s2 == null || s2 < 0)
+    s2 = 0;
+  if (e2 == null || e2 > v2.length)
+    e2 = v2.length;
+  return new u8(v2.subarray(s2, e2));
+};
+var ec = [
+  "unexpected EOF",
+  "invalid block type",
+  "invalid length/literal",
+  "invalid distance",
+  "stream finished",
+  "no stream handler",
+  ,
+  "no callback",
+  "invalid UTF-8 data",
+  "extra field too long",
+  "date not in range 1980-2099",
+  "filename too long",
+  "stream finishing",
+  "invalid zip data"
+  // determined by unknown compression method
+];
+var err = function(ind, msg, nt) {
+  var e2 = new Error(msg || ec[ind]);
+  e2.code = ind;
+  if (Error.captureStackTrace)
+    Error.captureStackTrace(e2, err);
+  if (!nt)
+    throw e2;
+  return e2;
+};
+var inflt = function(dat, st, buf, dict) {
+  var sl = dat.length, dl = dict ? dict.length : 0;
+  if (!sl || st.f && !st.l)
+    return buf || new u8(0);
+  var noBuf = !buf;
+  var resize = noBuf || st.i != 2;
+  var noSt = st.i;
+  if (noBuf)
+    buf = new u8(sl * 3);
+  var cbuf = function(l3) {
+    var bl = buf.length;
+    if (l3 > bl) {
+      var nbuf = new u8(Math.max(bl * 2, l3));
+      nbuf.set(buf);
+      buf = nbuf;
+    }
+  };
+  var final = st.f || 0, pos2 = st.p || 0, bt = st.b || 0, lm = st.l, dm = st.d, lbt = st.m, dbt = st.n;
+  var tbts = sl * 8;
+  do {
+    if (!lm) {
+      final = bits(dat, pos2, 1);
+      var type = bits(dat, pos2 + 1, 3);
+      pos2 += 3;
+      if (!type) {
+        var s2 = shft(pos2) + 4, l2 = dat[s2 - 4] | dat[s2 - 3] << 8, t2 = s2 + l2;
+        if (t2 > sl) {
+          if (noSt)
+            err(0);
+          break;
+        }
+        if (resize)
+          cbuf(bt + l2);
+        buf.set(dat.subarray(s2, t2), bt);
+        st.b = bt += l2, st.p = pos2 = t2 * 8, st.f = final;
+        continue;
+      } else if (type == 1)
+        lm = flrm, dm = fdrm, lbt = 9, dbt = 5;
+      else if (type == 2) {
+        var hLit = bits(dat, pos2, 31) + 257, hcLen = bits(dat, pos2 + 10, 15) + 4;
+        var tl = hLit + bits(dat, pos2 + 5, 31) + 1;
+        pos2 += 14;
+        var ldt = new u8(tl);
+        var clt = new u8(19);
+        for (var i = 0; i < hcLen; ++i) {
+          clt[clim[i]] = bits(dat, pos2 + i * 3, 7);
+        }
+        pos2 += hcLen * 3;
+        var clb = max(clt), clbmsk = (1 << clb) - 1;
+        var clm = hMap(clt, clb, 1);
+        for (var i = 0; i < tl; ) {
+          var r2 = clm[bits(dat, pos2, clbmsk)];
+          pos2 += r2 & 15;
+          var s2 = r2 >> 4;
+          if (s2 < 16) {
+            ldt[i++] = s2;
+          } else {
+            var c2 = 0, n2 = 0;
+            if (s2 == 16)
+              n2 = 3 + bits(dat, pos2, 3), pos2 += 2, c2 = ldt[i - 1];
+            else if (s2 == 17)
+              n2 = 3 + bits(dat, pos2, 7), pos2 += 3;
+            else if (s2 == 18)
+              n2 = 11 + bits(dat, pos2, 127), pos2 += 7;
+            while (n2--)
+              ldt[i++] = c2;
+          }
+        }
+        var lt = ldt.subarray(0, hLit), dt = ldt.subarray(hLit);
+        lbt = max(lt);
+        dbt = max(dt);
+        lm = hMap(lt, lbt, 1);
+        dm = hMap(dt, dbt, 1);
+      } else
+        err(1);
+      if (pos2 > tbts) {
+        if (noSt)
+          err(0);
+        break;
+      }
+    }
+    if (resize)
+      cbuf(bt + 131072);
+    var lms = (1 << lbt) - 1, dms = (1 << dbt) - 1;
+    var lpos = pos2;
+    for (; ; lpos = pos2) {
+      var c2 = lm[bits16(dat, pos2) & lms], sym = c2 >> 4;
+      pos2 += c2 & 15;
+      if (pos2 > tbts) {
+        if (noSt)
+          err(0);
+        break;
+      }
+      if (!c2)
+        err(2);
+      if (sym < 256)
+        buf[bt++] = sym;
+      else if (sym == 256) {
+        lpos = pos2, lm = null;
+        break;
+      } else {
+        var add = sym - 254;
+        if (sym > 264) {
+          var i = sym - 257, b2 = fleb[i];
+          add = bits(dat, pos2, (1 << b2) - 1) + fl[i];
+          pos2 += b2;
+        }
+        var d2 = dm[bits16(dat, pos2) & dms], dsym = d2 >> 4;
+        if (!d2)
+          err(3);
+        pos2 += d2 & 15;
+        var dt = fd[dsym];
+        if (dsym > 3) {
+          var b2 = fdeb[dsym];
+          dt += bits16(dat, pos2) & (1 << b2) - 1, pos2 += b2;
+        }
+        if (pos2 > tbts) {
+          if (noSt)
+            err(0);
+          break;
+        }
+        if (resize)
+          cbuf(bt + 131072);
+        var end2 = bt + add;
+        if (bt < dt) {
+          var shift = dl - dt, dend = Math.min(dt, end2);
+          if (shift + bt < 0)
+            err(3);
+          for (; bt < dend; ++bt)
+            buf[bt] = dict[shift + bt];
+        }
+        for (; bt < end2; ++bt)
+          buf[bt] = buf[bt - dt];
+      }
+    }
+    st.l = lm, st.p = lpos, st.b = bt, st.f = final;
+    if (lm)
+      final = 1, st.m = lbt, st.d = dm, st.n = dbt;
+  } while (!final);
+  return bt != buf.length && noBuf ? slc(buf, 0, bt) : buf.subarray(0, bt);
+};
+var et = /* @__PURE__ */ new u8(0);
+var mrg = function(a2, b2) {
+  var o2 = {};
+  for (var k2 in a2)
+    o2[k2] = a2[k2];
+  for (var k2 in b2)
+    o2[k2] = b2[k2];
+  return o2;
+};
+var wcln = function(fn2, fnStr, td2) {
+  var dt = fn2();
+  var st = fn2.toString();
+  var ks = st.slice(st.indexOf("[") + 1, st.lastIndexOf("]")).replace(/\s+/g, "").split(",");
+  for (var i = 0; i < dt.length; ++i) {
+    var v2 = dt[i], k2 = ks[i];
+    if (typeof v2 == "function") {
+      fnStr += ";" + k2 + "=";
+      var st_1 = v2.toString();
+      if (v2.prototype) {
+        if (st_1.indexOf("[native code]") != -1) {
+          var spInd = st_1.indexOf(" ", 8) + 1;
+          fnStr += st_1.slice(spInd, st_1.indexOf("(", spInd));
+        } else {
+          fnStr += st_1;
+          for (var t2 in v2.prototype)
+            fnStr += ";" + k2 + ".prototype." + t2 + "=" + v2.prototype[t2].toString();
+        }
+      } else
+        fnStr += st_1;
+    } else
+      td2[k2] = v2;
+  }
+  return fnStr;
+};
+var ch = [];
+var cbfs = function(v2) {
+  var tl = [];
+  for (var k2 in v2) {
+    if (v2[k2].buffer) {
+      tl.push((v2[k2] = new v2[k2].constructor(v2[k2])).buffer);
+    }
+  }
+  return tl;
+};
+var wrkr = function(fns, init, id, cb) {
+  if (!ch[id]) {
+    var fnStr = "", td_1 = {}, m2 = fns.length - 1;
+    for (var i = 0; i < m2; ++i)
+      fnStr = wcln(fns[i], fnStr, td_1);
+    ch[id] = { c: wcln(fns[m2], fnStr, td_1), e: td_1 };
+  }
+  var td2 = mrg({}, ch[id].e);
+  return wk(ch[id].c + ";onmessage=function(e){for(var k in e.data)self[k]=e.data[k];onmessage=" + init.toString() + "}", id, td2, cbfs(td2), cb);
+};
+var bInflt = function() {
+  return [u8, u16, i32, fleb, fdeb, clim, fl, fd, flrm, fdrm, rev, ec, hMap, max, bits, bits16, shft, slc, err, inflt, inflateSync, pbf, gopt];
+};
+var guze = function() {
+  return [gzs, gzl];
+};
+var zule = function() {
+  return [zls];
+};
+var pbf = function(msg) {
+  return postMessage(msg, [msg.buffer]);
+};
+var gopt = function(o2) {
+  return o2 && {
+    out: o2.size && new u8(o2.size),
+    dictionary: o2.dictionary
+  };
+};
+var cbify = function(dat, opts, fns, init, id, cb) {
+  var w2 = wrkr(fns, init, id, function(err2, dat2) {
+    w2.terminate();
+    cb(err2, dat2);
+  });
+  w2.postMessage([dat, opts], opts.consume ? [dat.buffer] : []);
+  return function() {
+    w2.terminate();
+  };
+};
+var gzs = function(d2) {
+  if (d2[0] != 31 || d2[1] != 139 || d2[2] != 8)
+    err(6, "invalid gzip data");
+  var flg = d2[3];
+  var st = 10;
+  if (flg & 4)
+    st += (d2[10] | d2[11] << 8) + 2;
+  for (var zs = (flg >> 3 & 1) + (flg >> 4 & 1); zs > 0; zs -= !d2[st++])
+    ;
+  return st + (flg & 2);
+};
+var gzl = function(d2) {
+  var l2 = d2.length;
+  return (d2[l2 - 4] | d2[l2 - 3] << 8 | d2[l2 - 2] << 16 | d2[l2 - 1] << 24) >>> 0;
+};
+var zls = function(d2, dict) {
+  if ((d2[0] & 15) != 8 || d2[0] >> 4 > 7 || (d2[0] << 8 | d2[1]) % 31)
+    err(6, "invalid zlib data");
+  if ((d2[1] >> 5 & 1) == +!dict)
+    err(6, "invalid zlib data: " + (d2[1] & 32 ? "need" : "unexpected") + " dictionary");
+  return (d2[1] >> 3 & 4) + 2;
+};
+function inflate(data, opts, cb) {
+  if (!cb)
+    cb = opts, opts = {};
+  if (typeof cb != "function")
+    err(7);
+  return cbify(data, opts, [
+    bInflt
+  ], function(ev) {
+    return pbf(inflateSync(ev.data[0], gopt(ev.data[1])));
+  }, 1, cb);
+}
+function inflateSync(data, opts) {
+  return inflt(data, { i: 2 }, opts && opts.out, opts && opts.dictionary);
+}
+function gunzip(data, opts, cb) {
+  if (!cb)
+    cb = opts, opts = {};
+  if (typeof cb != "function")
+    err(7);
+  return cbify(data, opts, [
+    bInflt,
+    guze,
+    function() {
+      return [gunzipSync];
+    }
+  ], function(ev) {
+    return pbf(gunzipSync(ev.data[0], ev.data[1]));
+  }, 3, cb);
+}
+function gunzipSync(data, opts) {
+  var st = gzs(data);
+  if (st + 8 > data.length)
+    err(6, "invalid gzip data");
+  return inflt(data.subarray(st, -8), { i: 2 }, opts && opts.out || new u8(gzl(data)), opts && opts.dictionary);
+}
+function unzlib(data, opts, cb) {
+  if (!cb)
+    cb = opts, opts = {};
+  if (typeof cb != "function")
+    err(7);
+  return cbify(data, opts, [
+    bInflt,
+    zule,
+    function() {
+      return [unzlibSync];
+    }
+  ], function(ev) {
+    return pbf(unzlibSync(ev.data[0], gopt(ev.data[1])));
+  }, 5, cb);
+}
+function unzlibSync(data, opts) {
+  return inflt(data.subarray(zls(data, opts && opts.dictionary), -4), { i: 2 }, opts && opts.out, opts && opts.dictionary);
+}
+function decompress(data, opts, cb) {
+  if (!cb)
+    cb = opts, opts = {};
+  if (typeof cb != "function")
+    err(7);
+  return data[0] == 31 && data[1] == 139 && data[2] == 8 ? gunzip(data, opts, cb) : (data[0] & 15) != 8 || data[0] >> 4 > 7 || (data[0] << 8 | data[1]) % 31 ? inflate(data, opts, cb) : unzlib(data, opts, cb);
+}
+var td = typeof TextDecoder != "undefined" && /* @__PURE__ */ new TextDecoder();
+var tds = 0;
+try {
+  td.decode(et, { stream: true });
+  tds = 1;
+} catch (e2) {
+}
+const openRemoteZipFile = async (url, fetchContentLength = fetchSize, fetchBytes = fetchRange) => {
+  const contentLength = await fetchContentLength(url);
+  const eocdrBuffer = await fetchBytes(
+    url,
+    contentLength - 22,
+    contentLength - 1
+  );
+  const eocdrView = new DataView(eocdrBuffer.buffer);
+  const centralDirOffset = eocdrView.getUint32(16, true);
+  const centralDirSize = eocdrView.getUint32(12, true);
+  const centralDirBuffer = await fetchBytes(
+    url,
+    centralDirOffset,
+    centralDirOffset + centralDirSize - 1
+  );
+  const centralDirectory = parseCentralDirectory(centralDirBuffer);
+  return {
+    centralDirectory,
+    readFile: async (file) => {
+      const entry = centralDirectory.get(file);
+      if (!entry) {
+        throw new Error(`File not found: ${file}`);
+      }
+      const headerSize = 30;
+      const headerData = await fetchBytes(
+        url,
+        entry.fileOffset,
+        entry.fileOffset + headerSize - 1
+      );
+      const filenameLength = headerData[26] + (headerData[27] << 8);
+      const extraFieldLength = headerData[28] + (headerData[29] << 8);
+      const totalSizeToFetch = headerSize + filenameLength + extraFieldLength + entry.compressedSize;
+      const fileData = await fetchBytes(
+        url,
+        entry.fileOffset,
+        entry.fileOffset + totalSizeToFetch - 1
+      );
+      const zipFileEntry = await parseZipFileEntry(file, fileData);
+      if (zipFileEntry.compressionMethod === 0) {
+        return zipFileEntry.data;
+      } else if (zipFileEntry.compressionMethod === 8) {
+        const results = await decompressAsync(zipFileEntry.data, {
+          size: zipFileEntry.uncompressedSize
+        });
+        return results;
+      } else {
+        throw new Error(`Unsupported compressionMethod for file ${file}`);
+      }
+    }
+  };
+};
+const fetchSize = async (url) => {
+  const response = await fetch(url, { method: "HEAD" });
+  const contentLength = Number(response.headers.get("Content-Length"));
+  return contentLength;
+};
+const fetchRange = async (url, start2, end2) => {
+  const response = await fetch(url, {
+    headers: { Range: `bytes=${start2}-${end2}` }
+  });
+  const arrayBuffer = await response.arrayBuffer();
+  return new Uint8Array(arrayBuffer);
+};
+const decompressAsync = async (data, opts) => {
+  return new Promise((resolve, reject) => {
+    decompress(data, opts, (err2, result) => {
+      if (err2) {
+        reject(err2);
+      } else {
+        resolve(result);
+      }
+    });
+  });
+};
+const parseZipFileEntry = async (file, rawData) => {
+  const view = new DataView(rawData.buffer);
+  let offset2 = 0;
+  const signature = view.getUint32(offset2, true);
+  if (signature !== 67324752) {
+    throw new Error(`Invalid ZIP entry signature for ${file}`);
+  }
+  offset2 += 4;
+  const versionNeeded = view.getUint16(offset2, true);
+  offset2 += 2;
+  const bitFlag = view.getUint16(offset2, true);
+  offset2 += 2;
+  const compressionMethod = view.getUint16(offset2, true);
+  offset2 += 2;
+  offset2 += 4;
+  const crc32 = view.getUint32(offset2, true);
+  offset2 += 4;
+  const compressedSize = view.getUint32(offset2, true);
+  offset2 += 4;
+  const uncompressedSize = view.getUint32(offset2, true);
+  offset2 += 4;
+  const filenameLength = view.getUint16(offset2, true);
+  offset2 += 2;
+  const extraFieldLength = view.getUint16(offset2, true);
+  offset2 += 2;
+  offset2 += filenameLength + extraFieldLength;
+  const data = rawData.subarray(offset2, offset2 + compressedSize);
+  return {
+    versionNeeded,
+    bitFlag,
+    compressionMethod,
+    crc32,
+    compressedSize,
+    uncompressedSize,
+    filenameLength,
+    extraFieldLength,
+    data
+  };
+};
+const parseCentralDirectory = (buffer2) => {
+  let offset2 = 0;
+  const view = new DataView(buffer2.buffer);
+  const entries = /* @__PURE__ */ new Map();
+  while (offset2 < buffer2.length) {
+    if (view.getUint32(offset2, true) !== 33639248) break;
+    const filenameLength = view.getUint16(offset2 + 28, true);
+    const extraFieldLength = view.getUint16(offset2 + 30, true);
+    const fileCommentLength = view.getUint16(offset2 + 32, true);
+    const filename2 = new TextDecoder().decode(
+      buffer2.subarray(offset2 + 46, offset2 + 46 + filenameLength)
+    );
+    const entry = {
+      filename: filename2,
+      compressionMethod: view.getUint16(offset2 + 10, true),
+      compressedSize: view.getUint32(offset2 + 20, true),
+      uncompressedSize: view.getUint32(offset2 + 24, true),
+      fileOffset: view.getUint32(offset2 + 42, true)
+    };
+    entries.set(filename2, entry);
+    offset2 += 46 + filenameLength + extraFieldLength + fileCommentLength;
+  }
+  return entries;
 };
 function simpleHttpApi(log_dir, log_file) {
   const resolved_log_dir = log_dir.replace(" ", "+");
@@ -21112,8 +21120,8 @@ function encodePathParts(url) {
   }
 }
 const resolveApi = () => {
-  if (window.acquireVsCodeApi) {
-    return vscodeApi$1;
+  if (getVscodeApi()) {
+    return vscodeApi;
   } else {
     const scriptEl = document.getElementById("log_dir_context");
     if (scriptEl) {
@@ -21725,64 +21733,68 @@ function App({ api: api2, pollForLogs = true }) {
   });
   const [showFind, setShowFind] = h(false);
   const mainAppRef = A();
-  y(async () => {
-    setHeadersLoading(true);
-    const chunkSize = 8;
-    const fileLists = [];
-    for (let i = 0; i < logs.files.length; i += chunkSize) {
-      let chunk = logs.files.slice(i, i + chunkSize).map((log) => {
-        return log.name;
-      });
-      fileLists.push(chunk);
-    }
-    try {
-      for (const fileList of fileLists) {
-        const headers = await api2.eval_log_headers(fileList);
-        setLogHeaders((prev) => {
-          const updatedHeaders = {};
-          headers.forEach((header, index) => {
-            const logFile = fileList[index];
-            updatedHeaders[logFile] = header;
-          });
-          return { ...prev, ...updatedHeaders };
-        });
-        if (headers.length === chunkSize) {
-          await sleep(5e3);
-        }
+  y(() => {
+    const loadHeaders = async () => {
+      setHeadersLoading(true);
+      const chunkSize = 8;
+      const fileLists = [];
+      for (let i = 0; i < logs.files.length; i += chunkSize) {
+        let chunk = logs.files.slice(i, i + chunkSize).map((log) => log.name);
+        fileLists.push(chunk);
       }
-    } catch (e2) {
-      console.log(e2);
-      setStatus({ loading: false, error: e2 });
-    }
-    setHeadersLoading(false);
-  }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
-  y(async () => {
-    const targetLog = logs.files[selected];
-    if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
       try {
-        setStatus({ loading: true, error: void 0 });
-        const logContents = await loadLog(targetLog.name);
-        if (logContents) {
-          const log = logContents.parsed;
-          setCurrentLog({
-            contents: log,
-            name: targetLog.name,
-            raw: logContents.raw
+        for (const fileList of fileLists) {
+          const headers = await api2.eval_log_headers(fileList);
+          setLogHeaders((prev) => {
+            const updatedHeaders = {};
+            headers.forEach((header, index) => {
+              const logFile = fileList[index];
+              updatedHeaders[logFile] = header;
+            });
+            return { ...prev, ...updatedHeaders };
           });
-          setStatus({ loading: false, error: void 0 });
+          if (headers.length === chunkSize) {
+            await sleep(5e3);
+          }
         }
       } catch (e2) {
         console.log(e2);
         setStatus({ loading: false, error: e2 });
       }
-    } else if (logs.log_dir && logs.files.length === 0) {
-      setStatus({
-        loading: false,
-        error: new Error(
-          `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`
-        )
-      });
-    }
+      setHeadersLoading(false);
+    };
+    loadHeaders();
+  }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
+  y(() => {
+    const loadSpecificLog = async () => {
+      const targetLog = logs.files[selected];
+      if (targetLog && (!currentLog || currentLog.name !== targetLog.name)) {
+        try {
+          setStatus({ loading: true, error: void 0 });
+          const logContents = await loadLog(targetLog.name);
+          if (logContents) {
+            const log = logContents.parsed;
+            setCurrentLog({
+              contents: log,
+              name: targetLog.name,
+              raw: logContents.raw
+            });
+            setStatus({ loading: false, error: void 0 });
+          }
+        } catch (e2) {
+          console.log(e2);
+          setStatus({ loading: false, error: e2 });
+        }
+      } else if (logs.log_dir && logs.files.length === 0) {
+        setStatus({
+          loading: false,
+          error: new Error(
+            `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`
+          )
+        });
+      }
+    };
+    loadSpecificLog();
   }, [selected, logs, capabilities, currentLog, setCurrentLog, setStatus]);
   const loadLogs = async () => {
     try {
@@ -21904,60 +21916,63 @@ function App({ api: api2, pollForLogs = true }) {
       window.removeEventListener("message", onMessage);
     };
   }, [onMessage]);
-  y(async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const extensionVersionEl = document.querySelector(
-      'meta[name="inspect-extension:version"]'
-    );
-    const extensionVersion = extensionVersionEl ? extensionVersionEl.getAttribute("content") : void 0;
-    if (isVscode()) {
-      if (!extensionVersion) {
-        setCapabilities({ downloadFiles: false, webWorkers: false });
-      }
-    }
-    setOffcanvas(true);
-    const logPath = urlParams.get("task_file");
-    const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
-    const load = resolvedLogPath ? async () => {
-      return {
-        log_dir: "",
-        files: [{ name: resolvedLogPath }]
-      };
-    } : loadLogs;
-    const embeddedState = document.getElementById("logview-state");
-    if (embeddedState) {
-      const state = JSON.parse(embeddedState.textContent);
-      onMessage({ data: state });
-    } else {
-      const result = await load();
-      setLogs(result);
-      const log_file = urlParams.get("log_file");
-      if (log_file) {
-        const index = result.files.findIndex((val) => {
-          return log_file.endsWith(val.name);
-        });
-        if (index > -1) {
-          setSelected(index);
+  y(() => {
+    const loadLogsAndState = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const extensionVersionEl = document.querySelector(
+        'meta[name="inspect-extension:version"]'
+      );
+      const extensionVersion = extensionVersionEl ? extensionVersionEl.getAttribute("content") : void 0;
+      if (isVscode()) {
+        if (!extensionVersion) {
+          setCapabilities({ downloadFiles: false, webWorkers: false });
         }
-      } else if (selected === -1) {
-        setSelected(0);
       }
-    }
-    new ClipboardJS(".clipboard-button,.copy-button");
-    if (pollForLogs) {
-      setInterval(() => {
-        api2.client_events().then(async (events) => {
-          if (events.includes("reload")) {
-            window.location.reload(true);
+      setOffcanvas(true);
+      const logPath = urlParams.get("task_file");
+      const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
+      const load = resolvedLogPath ? async () => {
+        return {
+          log_dir: "",
+          files: [{ name: resolvedLogPath }]
+        };
+      } : loadLogs;
+      const embeddedState = document.getElementById("logview-state");
+      if (embeddedState) {
+        const state = JSON.parse(embeddedState.textContent);
+        onMessage({ data: state });
+      } else {
+        const result = await load();
+        setLogs(result);
+        const log_file = urlParams.get("log_file");
+        if (log_file) {
+          const index = result.files.findIndex((val) => {
+            return log_file.endsWith(val.name);
+          });
+          if (index > -1) {
+            setSelected(index);
           }
-          if (events.includes("refresh-evals")) {
-            const logs2 = await load();
-            setLogs(logs2);
-            setSelected(0);
-          }
-        });
-      }, 1e3);
-    }
+        } else if (selected === -1) {
+          setSelected(0);
+        }
+      }
+      new ClipboardJS(".clipboard-button,.copy-button");
+      if (pollForLogs) {
+        setInterval(() => {
+          api2.client_events().then(async (events) => {
+            if (events.includes("reload")) {
+              window.location.reload();
+            }
+            if (events.includes("refresh-evals")) {
+              const logs2 = await load();
+              setLogs(logs2);
+              setSelected(0);
+            }
+          });
+        }, 1e3);
+      }
+    };
+    loadLogsAndState();
   }, []);
   const fullScreen = logs.files.length === 1 && !logs.log_dir;
   const sidebar = !fullScreen && currentLog.contents ? m$1`
@@ -22009,7 +22024,7 @@ function App({ api: api2, pollForLogs = true }) {
     <${AppErrorBoundary}>
     ${sidebar}
     <div ref=${mainAppRef} class="app-main-grid${fullScreenClz}${offcanvasClz}" tabIndex="0" onKeyDown=${(e2) => {
-    if (!window.acquireVsCodeApi) {
+    if (!getVscodeApi()) {
       return;
     }
     if ((e2.ctrlKey || e2.metaKey) && e2.key === "f") {
