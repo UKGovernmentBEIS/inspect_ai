@@ -46,6 +46,7 @@ from ._generate_config import (
 )
 from ._model_call import ModelCall
 from ._model_output import ModelOutput, ModelUsage
+from ._trace import trace_assistant_message
 
 logger = logging.getLogger(__name__)
 
@@ -157,16 +158,6 @@ class ModelAPI(abc.ABC):
 
     def tools_required(self) -> bool:
         """Any tool use in a message stream means that tools must be passed."""
-        return False
-
-    def provides_event(self) -> bool:
-        """Indicates that this model provider yields a ModelEvent.
-
-        This is done so the code that wraps ModelAPI calls knows that it
-        doesn't need to record a ModelEvent. A model provider would provide
-        its own model events if it wanted to populate the raw request
-        and response fields of the ModelEvent (which only it knows about)
-        """
         return False
 
 
@@ -333,7 +324,7 @@ class Model:
                 )
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
-                    await self._model_transcript(
+                    await self._record_model_interaction(
                         input=input,
                         tools=tools,
                         tool_choice=tool_choice,
@@ -357,7 +348,7 @@ class Model:
                 call = None
 
             # write to transcript
-            await self._model_transcript(
+            await self._record_model_interaction(
                 input=input,
                 tools=tools,
                 tool_choice=tool_choice,
@@ -411,7 +402,7 @@ class Model:
             key=f"Model{self.api.connection_key()}",
         )
 
-    async def _model_transcript(
+    async def _record_model_interaction(
         self,
         input: list[ChatMessage],
         tools: list[ToolInfo],
@@ -423,19 +414,20 @@ class Model:
     ) -> None:
         from inspect_ai.log._transcript import ModelEvent, transcript
 
-        if not self.api.provides_event():
-            transcript()._event(
-                ModelEvent(
-                    model=str(self),
-                    input=input,
-                    tools=tools,
-                    tool_choice=tool_choice,
-                    config=config,
-                    output=output,
-                    cache=cache,
-                    call=call,
-                )
+        trace_assistant_message(input, output.choices[0].message)
+
+        transcript()._event(
+            ModelEvent(
+                model=str(self),
+                input=input,
+                tools=tools,
+                tool_choice=tool_choice,
+                config=config,
+                output=output,
+                cache=cache,
+                call=call,
             )
+        )
 
 
 class ModelName:
@@ -723,8 +715,18 @@ def init_model_usage() -> None:
     model_usage_context_var.set({})
 
 
+def init_sample_model_usage() -> None:
+    sample_model_usage_context_var.set({})
+
+
 def record_model_usage(model: str, usage: ModelUsage) -> None:
-    model_usage = model_usage_context_var.get(None)
+    set_model_usage(model, usage, sample_model_usage_context_var.get(None))
+    set_model_usage(model, usage, model_usage_context_var.get(None))
+
+
+def set_model_usage(
+    model: str, usage: ModelUsage, model_usage: dict[str, ModelUsage] | None
+) -> None:
     if model_usage is not None:
         total_usage: ModelUsage | None = model_usage.get(model, None)
         if not total_usage:
@@ -750,4 +752,18 @@ def model_usage() -> dict[str, ModelUsage]:
 
 model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
     "model_usage", default={}
+)
+
+
+def sample_model_usage() -> dict[str, ModelUsage]:
+    return sample_model_usage_context_var.get()
+
+
+def sample_total_tokens() -> int:
+    total_tokens = [usage.total_tokens for usage in iter(sample_model_usage().values())]
+    return sum(total_tokens)
+
+
+sample_model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
+    "sample_model_usage", default={}
 )

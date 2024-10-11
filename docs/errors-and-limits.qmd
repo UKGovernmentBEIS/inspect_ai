@@ -56,9 +56,21 @@ eval("intercode_ctf.py", fail_on_error=False)
 
 You might choose to do this if you want to tolerate a certain proportion of errors during development but want to ensure there are never errors when running in production.
 
-## Messages Limit
+## Sample Limits {#sec-sample-limits}
 
-In open-ended model conversations (for example, an agent evalution with tool usage) it's possible that a model will get "stuck" attempting to perform a task with no realistic prospect of completing it. Sometimes models will "give up" but sometimes they won't! For this type of evaluation it's normally a good idea to set a limit on total messages. For example, here's an evaluation task that sets a limit of 30 messages:
+::: {.callout-note apperance="simple:"}
+Note that the sample limit features described below are currently only available in the development version of Inspect. You can install the development version with:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+In open-ended model conversations (for example, an agent evalution with tool usage) it's possible that a model will get "stuck" attempting to perform a task with no realistic prospect of completing it. Sometimes models will "give up" but sometimes they won't! For this type of evaluation it's normally a good idea to set a limit on either total messages or total tokens used by the sample.
+
+### Message Limit
+
+Here we set a `message_limit` of 30 for each sample within a task:
 
 ``` python
 @task
@@ -70,10 +82,73 @@ def intercode_ctf():
             use_tools([bash(timeout=120)]),
             generate(),
         ],
-        max_messages=30,
+        message_limit=30,
         scorer=includes(),
         sandbox="docker",
     )
 ```
 
-The `max_messages=30` argument sets a limit of 30 total messages in the conversation before the model is forced to give up. At that point, whatever `output` happens to be in the `TaskState` will be scored (presumably leading to a score of 9 or 'incorrect').
+This sets a limit of 30 total messages in a conversation before the model is forced to give up. At that point, whatever `output` happens to be in the `TaskState` will be scored (presumably leading to a score of incorrect).
+
+Note that its also possible for a solver to set the `message_limit` directly on the `TaskState` (this is often done by agent solvers which provide their own generate loop):
+
+```python
+@solver
+def agent_loop(message_limit: int = 50):
+    async def solve(state: TaskState, generate: Generate):
+
+        # establish message limit so we have a termination condition
+        state.message_limit = message_limit
+
+        ...
+```
+
+### Token Limit
+
+Here we set a `token_limit` of 500K for each sample within a task:
+
+``` python
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([bash(timeout=120)]),
+            generate(),
+        ],
+        token_limit=(1024*500),
+        scorer=includes(),
+        sandbox="docker",
+    )
+```
+
+
+As with `message_limit`, it's also possible for a solver to set the `token_limit` directly on the `TaskState`:
+
+```python
+@solver
+def agent_loop(token_limit: int = (1024 * 500)) -> Solver:
+    async def solve(state: TaskState, generate: Generate):
+
+        # establish token limit so we have a termination condition
+        state.token_limit = token_limit
+
+        ...
+```
+
+### Limit Checking
+
+How and when are sample limits checked? Limits are checked automatically when you access the `completed` property of `TaskState`. For example, most agents will use `state.completed` as their main loop condition:
+
+```python
+while not state.completed:
+    # call model
+    output = await model.generate(state.messages, state.tools)
+    
+    ...
+```
+
+If you are writing library code that calls a series of solvers in succession you should also check `state.completed` so that limits can be enforced. Note that this is done automatically by the `chain()` function that is used to compose together lists of solvers.
+
+

@@ -1,16 +1,11 @@
 // @ts-check
 
-export const asyncJsonParse = (text) => {
-  return new Promise((resolve, reject) => {
-    // Create a Blob from the worker code
-    const blob = new Blob([kWorkerCode], { type: "application/javascript" });
-
-    // Create a URL for the Blob
-    const blobURL = URL.createObjectURL(blob);
-
-    // Instantiate the worker using the Blob URL
-    const worker = new Worker(blobURL);
-    try {
+export const asyncJsonParse = async (text) => {
+  const blob = new Blob([kWorkerCode], { type: "application/javascript" });
+  const blobURL = URL.createObjectURL(blob);
+  const worker = new Worker(blobURL);
+  try {
+    const result = new Promise((resolve, reject) => {
       worker.onmessage = function (e) {
         if (e.data.success) {
           resolve(e.data.result);
@@ -21,14 +16,13 @@ export const asyncJsonParse = (text) => {
       worker.onerror = function (error) {
         reject(new Error(error.message));
       };
-      worker.postMessage({ scriptContent: kJson5ScriptBase64, text }); // Send the text to the worker for parsing
-    } finally {
-      // Don't forget to revoke the Blob URL when you're done
-      worker.onterminate = function () {
-        URL.revokeObjectURL(blobURL);
-      };
-    }
-  });
+    });
+    worker.postMessage({ scriptContent: kJson5ScriptBase64, text });
+    return await result;
+  } finally {
+    worker.terminate();
+    URL.revokeObjectURL(blobURL);
+  }
 };
 
 const kWorkerCode = `

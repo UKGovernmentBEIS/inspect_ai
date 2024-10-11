@@ -30,7 +30,7 @@ class ChatAPIHandler:
     ) -> list[ChatMessage]:
         return input
 
-    def parse_assistent_response(
+    def parse_assistant_response(
         self, response: str, tools: list[ToolInfo]
     ) -> ChatMessageAssistant:
         return ChatMessageAssistant(content=response)

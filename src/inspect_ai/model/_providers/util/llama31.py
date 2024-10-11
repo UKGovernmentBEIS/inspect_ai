@@ -70,7 +70,7 @@ class Llama31Handler(ChatAPIHandler):
         return [ChatMessageSystem(content=tool_prompt)] + input
 
     @override
-    def parse_assistent_response(
+    def parse_assistant_response(
         self, response: str, tools: list[ToolInfo]
     ) -> ChatMessageAssistant:
         """Parse content and tool calls from a model response.

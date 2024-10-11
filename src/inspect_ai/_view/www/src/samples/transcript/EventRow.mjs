@@ -22,7 +22,6 @@ export const EventRow = ({ title, icon, style, children }) => {
           gridTemplateColumns: "max-content max-content minmax(0, 1fr)",
           columnGap: "0.5em",
           fontSize: FontSize.small,
-          ...style,
         }}
       >
         <i class=${icon || ApplicationIcons.metadata} />
@@ -38,6 +37,7 @@ export const EventRow = ({ title, icon, style, children }) => {
       marginBottom: "0.4em",
       border: "solid 1px var(--bs-light-border-subtle)",
       borderRadius: "var(--bs-border-radius)",
+      ...style,
     }}
   >
     ${contentEl}

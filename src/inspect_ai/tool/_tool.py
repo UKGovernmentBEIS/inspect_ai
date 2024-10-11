@@ -19,6 +19,7 @@ from inspect_ai._util.registry import (
 )
 
 from . import Content
+from ._tool_call import ToolCallViewer
 
 logger = getLogger(__name__)
 
@@ -35,6 +36,11 @@ class ToolError(Exception):
 class ToolParsingError(ToolError):
     def __init__(self, message: str) -> None:
         super().__init__(message)
+
+
+class ToolApprovalError(ToolError):
+    def __init__(self, message: str | None) -> None:
+        super().__init__(message or "Tool call not approved.")
 
 
 @runtime_checkable
@@ -94,7 +100,11 @@ def tool() -> Callable[[ToolType], ToolType]: ...
 
 @overload
 def tool(
-    *, name: str | None = None, parallel: bool = True, prompt: str | None = None
+    *,
+    name: str | None = None,
+    viewer: ToolCallViewer | None = None,
+    parallel: bool = True,
+    prompt: str | None = None,
 ) -> Callable[[ToolType], ToolType]: ...
 
 
@@ -102,6 +112,7 @@ def tool(
     func: ToolType | None = None,
     *,
     name: str | None = None,
+    viewer: ToolCallViewer | None = None,
     parallel: bool = True,
     prompt: str | None = None,
 ) -> ToolType | Callable[[ToolType], ToolType]:
@@ -113,6 +124,8 @@ def tool(
             Optional name for tool. If the decorator has no name
             argument then the name of the tool creation function
             will be used as the name of the tool.
+        viewer (ToolCallViewer | None): Provide a custom view
+            of tool call and context.
         parallel (bool):
             Does this tool support parallel execution?
             (defaults to True).
@@ -150,14 +163,18 @@ def tool(
                 RegistryInfo(
                     type="tool",
                     name=tool_name,
-                    metadata={TOOL_PROMPT: prompt, TOOL_PARALLEL: parallel},
+                    metadata={
+                        TOOL_PROMPT: prompt,
+                        TOOL_PARALLEL: parallel,
+                        TOOL_VIEWER: viewer,
+                    },
                 ),
                 *args,
                 **kwargs,
             )
             return tool
 
-        # register the scorer
+        # register
         return tool_register(cast(ToolType, tool_wrapper), tool_name)
 
     if func is not None:
@@ -168,3 +185,4 @@ def tool(
 
 TOOL_PROMPT = "prompt"
 TOOL_PARALLEL = "parallel"
+TOOL_VIEWER = "viewer"

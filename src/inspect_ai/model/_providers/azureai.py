@@ -266,7 +266,7 @@ def chat_completion_choice(
 ) -> ChatCompletionChoice:
     content = choice["message"]["content"]
     return ChatCompletionChoice(
-        message=handler.parse_assistent_response(content, tools),
+        message=handler.parse_assistant_response(content, tools),
         stop_reason=choice_stop_reason(choice),
     )
 

@@ -2,13 +2,29 @@
 
 ## Overview
 
-In some cases you may wish to introduce user interaction into the implementation of solvers, scorers, or tools. For example, you may wish to:
+In some cases you may wish to introduce user interaction into the implementation of tasks. For example, you may wish to:
 
 -   Confirm consequential actions like requests made to web services
 -   Prompt the model dynamically based on the trajectory of the evaluation
 -   Score model output with human judges
 
 The `input_screen()` function provides a context manager that temporarily clears the task display for user input. Note that prompting the user is a synchronous operation that pauses other activity within the evaluation (pending model requests or subprocesses will continue to execute, but their results won't be processed until the input is complete).
+
+## Example
+
+Before diving into the details of how to add interactions to your tasks, you might want to check out the [Intervention Mode](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/intervention) example. 
+
+Intervention mode is a prototype of an Inspect agent with human intervention, meant to serve as a starting point for evaluations which need these features (e.g. manual open-ended probing). It implements the following:
+
+1) Sets up a Linux agent with `bash()` and `python()` tools.
+
+2) Prompts the user for a starting question for the agent.
+
+3) Displays all messages and prompts to approve tool calls.
+
+4) When the model stops calling tools, prompts the user for the next action (i.e. continue generating, ask a new question, or exit the task).
+
+After reviewing the example and the documentation below you'll be well equipped to write your own custom interactive evaluation tasks.
 
 ## Input Screen
 
@@ -41,6 +57,20 @@ with input_screen() as console:
 ```
 
 The `Prompt` class is designed to be subclassed for more specialized inputs. The `IntPrompt` and `FloatPrompt` classes are built-in, but you can also create your own more customised prompts (the `Confirm` class is another example of this). See the [prompt.py](https://github.com/Textualize/rich/blob/master/rich/prompt.py) source code for additional details.
+
+## Trace Mode {#sec-trace-mode}
+
+::: {.callout-note apperance="simple:"}
+Note that the trace mode feature described below is currently only available in the development version of Inspect. You can install the development version with:
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+When introducing interactions it's often useful to see a trace of message activity for additional context. You can do this via the `--trace` CLI option (or `trace` parameter of the `eval()` function). For example:
+
+{{< include _trace.md >}}
+
 
 ## Progress
 

@@ -63,6 +63,10 @@ export const ExpandablePanel = ({ collapse, border, lines = 15, children }) => {
     contentsStyle.border = "solid var(--bs-light-border-subtle) 1px";
   }
 
+  if (!showToggle) {
+    contentsStyle.marginBottom = "1em";
+  }
+
   return html`<div
       class="expandable-panel"
       ref=${contentsRef}

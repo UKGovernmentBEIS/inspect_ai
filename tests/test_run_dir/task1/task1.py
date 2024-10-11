@@ -12,4 +12,5 @@ def task1():
         dataset=[Sample(input="What is 1+1?", target="2")],
         solver=[file_check("task1.py"), generate()],
         scorer=includes(),
+        metadata={"task_idx": 1},
     )

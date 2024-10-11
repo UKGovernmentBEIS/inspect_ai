@@ -1,9 +1,23 @@
 from inspect_ai.util import sandbox
 
 from .._tool import Tool, tool
+from .._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
 
 
-@tool
+# custom viewer for bash and python code blocks
+def code_viewer(language: str, code_param: str) -> ToolCallViewer:
+    def viewer(tool_call: ToolCall) -> ToolCallView:
+        code = tool_call.arguments.get(code_param, tool_call.function).strip()
+        call = ToolCallContent(
+            format="markdown",
+            content=f"**{language}**\n\n```{language}\n" + code + "\n```\n",
+        )
+        return ToolCallView(call=call)
+
+    return viewer
+
+
+@tool(viewer=code_viewer("bash", "cmd"))
 def bash(timeout: int | None = None, user: str | None = None) -> Tool:
     """Bash shell command execution tool.
 
@@ -40,7 +54,7 @@ def bash(timeout: int | None = None, user: str | None = None) -> Tool:
     return execute
 
 
-@tool
+@tool(viewer=code_viewer("python", "code"))
 def python(timeout: int | None = None, user: str | None = None) -> Tool:
     """Python code execution tool.
 

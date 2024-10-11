@@ -1,7 +1,12 @@
+# ruff: noqa: F401
+
 from inspect_ai.model import modelapi
 from inspect_ai.util import sandboxenv
 
-from .solvers.cot import cot  # noqa: F401
+# import components so they are available in the registry
+from .approvers.renamer import renamer
+from .score.scorer import simple_score
+from .solvers.cot import cot
 
 # delayed import for the model and sandbox allows us to only resolve the imports
 # when they are actually requeasted (so that we don't end up requiring all

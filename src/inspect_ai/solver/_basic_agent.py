@@ -1,4 +1,7 @@
 from logging import getLogger
+from typing import cast
+
+from typing_extensions import TypedDict, Unpack
 
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._call_tools import call_tools
@@ -38,6 +41,10 @@ DEFAULT_SUBMIT_NAME = "submit"
 DEFAULT_SUBMIT_DESCRIPTION = "Submit an answer for evaluation."
 
 
+class BasicAgentDeprecatedArgs(TypedDict, total=False):
+    max_messages: int | None
+
+
 @solver
 def basic_agent(
     *,
@@ -45,12 +52,14 @@ def basic_agent(
     tools: list[Tool] | Solver | None = None,
     cache: bool | CachePolicy = False,
     max_attempts: int = 1,
-    max_messages: int | None = None,
+    message_limit: int | None = None,
+    token_limit: int | None = None,
     score_value: ValueToFloat | None = None,
     incorrect_message: str = DEFAULT_INCORRECT_MESSAGE,
     continue_message: str = DEFAULT_CONTINUE_MESSAGE,
     submit_name: str = DEFAULT_SUBMIT_NAME,
     submit_description: str = DEFAULT_SUBMIT_DESCRIPTION,
+    **kwargs: Unpack[BasicAgentDeprecatedArgs],
 ) -> Solver:
     """Basic ReAct agent.
 
@@ -73,8 +82,10 @@ def basic_agent(
        cache: (bool | CachePolicy): Caching behaviour for generate responses
          (defaults to no caching).
        max_attempts (int): Maximum number of submissions to accept before terminating.
-       max_messages (int): Maximum number of messages in history before terminating agent.
-         If not specified, will use max_messages defined for the task. If there is none defined for the task, 50 will be used as a default.
+       message_limit (int): Limit on messages in sample before terminating agent.
+          If not specified, will use limit_messages defined for the task. If there is none
+          defined for the task, 50 will be used as a default.
+       token_limit (int): Limit on tokens used in sample before terminating agent.
        score_value (ValueToFloat): Function used to extract float from scores (defaults
          to standard value_to_float())
        incorrect_message (str): User message reply for an incorrect submission from
@@ -85,10 +96,17 @@ def basic_agent(
         (defaults to 'submit')
        submit_description (str): Description of submit tool (defaults to
         'Submit an answer for evaluation')
+       **kwargs (Any): Deprecated arguments for backward compatibility.
 
     Returns:
         Plan for agent.
     """
+    # resolve deprecated
+    for arg, value in kwargs.items():
+        if arg == "max_messages":
+            # deprecated, don't warn yet
+            message_limit = int(cast(int, value))
+
     # resolve init
     if init is None:
         init = system_message(DEFAULT_SYSTEM_MESSAGE, submit=submit_name)
@@ -135,19 +153,18 @@ def basic_agent(
     @solver
     def basic_agent_loop() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            # resolve max_messages -- prefer parameter then fall back to task
-            # (if there is no max_messages then default to 50)
-            state.max_messages = max_messages or state.max_messages or 50
+            # resolve message_limit -- prefer parameter then fall back to task
+            # (if there is no message_limit then default to 50)
+            state.message_limit = message_limit or state.message_limit or 50
+
+            # resolve token limit
+            state.token_limit = token_limit or state.token_limit
 
             # track attempts
             attempts = 0
 
-            # main loop
-            while True:
-                # check for completed (if we hit a limit e.g. max_messages)
-                if state.completed:
-                    break
-
+            # main loop (state.completed checks message_limit and token_limit)
+            while not state.completed:
                 # generate output and append assistant message
                 state.output = await get_model().generate(
                     input=state.messages, tools=state.tools, cache=cache
