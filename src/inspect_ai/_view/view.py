@@ -50,9 +50,6 @@ def view(
     # acquire the requested port
     view_acquire_port(port)
 
-    # notify user
-    display().print(f"Inspect View: {log_dir}")
-
     # run server
     view_server(
         log_dir=log_dir,

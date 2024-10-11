@@ -7,6 +7,7 @@ from typing import Any
 from aiohttp import web
 from pydantic_core import to_jsonable_python
 
+from inspect_ai._display import display
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.file import file, filesystem, size_in_mb
 from inspect_ai.log._file import (
@@ -97,7 +98,8 @@ def view_server(
     app.router.register_resource(WWWResource())
 
     # run app
-    web.run_app(app=app, host=host, port=port, print=print)
+    display().print(f"Inspect View: {log_dir}")
+    web.run_app(app=app, host=host, port=port, print=display().print)
 
 
 def log_listing_response(logs: list[EvalLogInfo], log_dir: str) -> web.Response:
