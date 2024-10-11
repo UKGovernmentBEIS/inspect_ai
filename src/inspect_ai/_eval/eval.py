@@ -249,7 +249,7 @@ async def eval_async(
         log_buffer: (int | None): Number of samples to buffer before writing log file.
            If not specified, an appropriate default for the format and filesystem is
            chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
-       score (bool): Score output (defaults to True)
+        score (bool): Score output (defaults to True)
         **kwargs (GenerateConfigArgs): Model generation options.
 
     Returns:

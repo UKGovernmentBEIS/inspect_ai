@@ -142,7 +142,7 @@ def eval_set(
         log_buffer: (int | None): Number of samples to buffer before writing log file.
            If not specified, an appropriate default for the format and filesystem is
            chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
-       bundle_dir: (str | None): If specified, the log viewer and logs generated
+        bundle_dir: (str | None): If specified, the log viewer and logs generated
             by this eval set will be bundled into this directory.
         bundle_overwrite (bool): Whether to overwrite files in the bundle_dir.
             (defaults to False).
