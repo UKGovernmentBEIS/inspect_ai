@@ -8,7 +8,7 @@ from aiohttp import web
 from pydantic_core import to_jsonable_python
 
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
-from inspect_ai._util.file import size_in_mb
+from inspect_ai._util.file import file, filesystem, size_in_mb
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json,
@@ -41,6 +41,30 @@ def view_server(
         header_only = request.query.get("header-only", None)
         return log_file_response(file, header_only)
 
+    @routes.get("/api/log-size/{log}")
+    async def api_log_size(request: web.Request) -> web.Response:
+        # log file requested
+        file = request.match_info["log"]
+        file = urllib.parse.unquote(file)
+
+        return log_size_response(file)
+
+    @routes.get("/api/log-bytes/{log}")
+    async def api_log_bytes(request: web.Request) -> web.Response:
+        # log file requested
+        file = request.match_info["log"]
+        file = urllib.parse.unquote(file)
+
+        # header_only is based on a size threshold
+        start = request.query.get("start", None)
+        if start is None:
+            return web.HTTPBadRequest(reason="No 'start' query param.")
+        end = request.query.get("end", None)
+        if end is None:
+            return web.HTTPBadRequest(reason="No 'end' query param")
+
+        return log_bytes_response(file, int(start), int(end))
+
     @routes.get("/api/logs")
     async def api_logs(_: web.Request) -> web.Response:
         logs = list_eval_logs(
@@ -68,9 +92,6 @@ def view_server(
 
     # handlers for api routes
     app.router.add_routes(routes)
-
-    # handler for log files
-    app.router.add_static("/logs", log_dir)
 
     # handler for app assets www directory
     app.router.register_resource(WWWResource())
@@ -122,6 +143,28 @@ def log_file_response(file: str, header_only_param: str | None) -> web.Response:
     except Exception as error:
         logger.exception(error)
         return web.Response(status=500, reason="File not found")
+
+
+def log_size_response(log_file: str) -> web.Response:
+    info = filesystem(log_file).info(log_file)
+    return web.json_response(info.size)
+
+
+def log_bytes_response(log_file: str, start: int, end: int) -> web.Response:
+    with file(log_file, "rb") as f:
+        # read the bytes
+        f.seek(start)
+        bytes = f.read(end - start + 1)
+
+    # build headers
+    content_length = end - start + 1
+    headers = {
+        "Content-Type": "application/octet-stream",
+        "Content-Length": str(content_length),
+    }
+
+    # return response
+    return web.Response(status=200, body=bytes, headers=headers)
 
 
 def log_headers_response(files: list[str]) -> web.Response:

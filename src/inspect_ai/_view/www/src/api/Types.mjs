@@ -46,6 +46,7 @@
  * @property { () => Promise<any[]> } client_events - A function which can be polled to check for client events.
  * @property { () => Promise<LogFiles>} eval_logs - Read the list of files
  * @property { (log_file: string, headerOnly?: boolean, capabilities?: Capabilities) => Promise<LogContents> } eval_log - Read the log contents
+ * @property { (log_file: string) => Promise<number>} eval_log_size - Get log size
  * @property { (log_file: string, start: number, end: number) => Promise<Uint8Array>} eval_log_bytes - Read bytes
  * @property { (log_files: string[]) => Promise<import("../types/log").EvalLog[]>} eval_log_headers - Read the log headers
  * @property { (logFile: string, downloadFiles?: boolean, webWorkers?: boolean) => Promise<void> } download_file - Execute a file download

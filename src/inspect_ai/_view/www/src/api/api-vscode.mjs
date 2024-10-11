@@ -5,6 +5,7 @@ import {
   webViewJsonRpcClient,
   kMethodEvalLog,
   kMethodEvalLogs,
+  kMethodEvalLogSize,
   kMethodEvalLogBytes,
   kMethodEvalLogHeaders,
 } from "./jsonrpc.mjs";
@@ -55,6 +56,9 @@ async function eval_log(file, headerOnly, capabilities) {
   }
 }
 
+async function eval_log_size(file) {
+  return await vscodeClient(kMethodEvalLogSize, [file])
+}
 
 async function eval_log_bytes(file, start, end) {
   return await vscodeClient(kMethodEvalLogBytes, [file, start, end]);
@@ -88,6 +92,7 @@ export default {
   client_events,
   eval_logs,
   eval_log,
+  eval_log_size,
   eval_log_bytes,
   eval_log_headers,
   download_file,

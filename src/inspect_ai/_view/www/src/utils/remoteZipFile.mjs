@@ -35,12 +35,12 @@ import { decompress } from "fflate";
  *  - `readFile`: A function to read a specific file from the ZIP archive by name.
  * @throws {Error} If the file is not found or an unsupported compression method is encountered.
  */
-export const openRemoteZipFile = async (url) => {
-  const response = await fetch(url, { method: "HEAD" });
-  const contentLength = Number(response.headers.get("Content-Length"));
+export const openRemoteZipFile = async (url, fetchContentLength = fetchSize, fetchBytes = fetchRange) => {
+  
+  const contentLength = await fetchContentLength(url)
 
   // Read the end of central directory record
-  const eocdrBuffer = await fetchRange(
+  const eocdrBuffer = await fetchBytes(
     url,
     contentLength - 22,
     contentLength - 1,
@@ -51,7 +51,7 @@ export const openRemoteZipFile = async (url) => {
   const centralDirSize = eocdrView.getUint32(12, true);
 
   // Fetch and parse the central directory
-  const centralDirBuffer = await fetchRange(
+  const centralDirBuffer = await fetchBytes(
     url,
     centralDirOffset,
     centralDirOffset + centralDirSize - 1,
@@ -67,7 +67,7 @@ export const openRemoteZipFile = async (url) => {
 
       // Local file header is 30 bytes long by spec
       const headerSize = 30;
-      const headerData = await fetchRange(
+      const headerData = await fetchBytes(
         url,
         entry.fileOffset,
         entry.fileOffset + headerSize - 1,
@@ -83,7 +83,7 @@ export const openRemoteZipFile = async (url) => {
         headerSize + filenameLength + extraFieldLength + entry.compressedSize;
 
       // Use the total size to fetch the compressed data
-      const fileData = await fetchRange(
+      const fileData = await fetchBytes(
         url,
         entry.fileOffset,
         entry.fileOffset + totalSizeToFetch - 1,
@@ -106,6 +106,12 @@ export const openRemoteZipFile = async (url) => {
     },
   };
 };
+
+export const fetchSize = async (url) => {
+  const response = await fetch(url, { method: "HEAD" });
+  const contentLength = Number(response.headers.get("Content-Length"));
+  return contentLength
+}
 
 /**
  * Fetches a range of bytes from a remote resource and returns it as a `Uint8Array`.

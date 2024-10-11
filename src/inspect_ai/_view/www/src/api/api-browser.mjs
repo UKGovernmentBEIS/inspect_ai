@@ -22,8 +22,12 @@ async function eval_log(file, headerOnly) {
   return await api("GET", `/api/logs/${encodeURIComponent(file)}?header-only=${headerOnly}`);
 }
 
-async function eval_log_bytes(log_file, start, end) {
-  return await fetchRange(`/logs/${log_file}`, start, end)
+async function eval_log_size(file) {
+  return (await api("GET", `/api/log-size/${encodeURIComponent(file)}`)).parsed;
+}
+
+async function eval_log_bytes(file, start, end) {
+  return await api_bytes("GET", `/api/log-bytes/${encodeURIComponent(file)}?start=${start}&end=${end}`);
 }
 
 async function eval_log_headers(files) {
@@ -63,6 +67,32 @@ async function api(method, path, body) {
   }
 }
 
+
+async function api_bytes(method, path) {
+  // build headers
+  const headers = {
+    Accept: "application/octet-stream",
+    Pragma: "no-cache",
+    Expires: "0",
+    ["Cache-Control"]: "no-cache",
+  };
+
+  // make request
+  const response = await fetch(`${path}`, { method, headers });
+  if (response.ok) {
+    const buffer = await response.arrayBuffer();
+    return new Uint8Array(buffer)
+  } else if (response.status !== 200) {
+    const message = (await response.text()) || response.statusText;
+    const error = new Error(`Error: ${response.status}: ${message})`);
+    throw error;
+  } else {
+    throw new Error(`${response.status} - ${response.statusText} `);
+  }
+
+}
+
+
 async function open_log_file() {
   // No op
 }
@@ -71,6 +101,7 @@ export default {
   client_events,
   eval_logs,
   eval_log,
+  eval_log_size,
   eval_log_bytes,
   eval_log_headers,
   download_file,
