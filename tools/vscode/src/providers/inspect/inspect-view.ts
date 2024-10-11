@@ -92,9 +92,10 @@ export class InspectView implements Disposable {
   }
 
   private async ensureServer(): Promise<undefined> {
-    if (this.serverProcess_ === undefined) {
+    if (this.serverProcess_ === undefined || this.serverProcess_?.exitCode) {
 
       // find port
+      this.serverProcess_ == undefined;
       this.serverPort_ = await findOpenPort(7676);
 
       return new Promise((resolve, reject) => {
