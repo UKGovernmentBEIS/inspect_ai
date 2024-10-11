@@ -308,7 +308,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
   <li><a href="#sec-errors-and-retries" id="toc-sec-errors-and-retries" class="nav-link" data-scroll-target="#sec-errors-and-retries">Errors and Retries</a></li>
   <li><a href="#failure-threshold" id="toc-failure-threshold" class="nav-link" data-scroll-target="#failure-threshold">Failure Threshold</a></li>
-  <li><a href="#messages-limit" id="toc-messages-limit" class="nav-link" data-scroll-target="#messages-limit">Messages Limit</a></li>
+  <li><a href="#sec-sample-limits" id="toc-sec-sample-limits" class="nav-link" data-scroll-target="#sec-sample-limits">Sample Limits</a>
+  <ul class="collapse">
+  <li><a href="#message-limit" id="toc-message-limit" class="nav-link" data-scroll-target="#message-limit">Message Limit</a></li>
+  <li><a href="#token-limit" id="toc-token-limit" class="nav-link" data-scroll-target="#token-limit">Token Limit</a></li>
+  <li><a href="#limit-checking" id="toc-limit-checking" class="nav-link" data-scroll-target="#limit-checking">Limit Checking</a></li>
+  </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -410,9 +415,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"intercode_ctf.py"</span>, fail_on_error<span class="op">=</span><span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You might choose to do this if you want to tolerate a certain proportion of errors during development but want to ensure there are never errors when running in production.</p>
 </section>
-<section id="messages-limit" class="level2">
-<h2 class="anchored" data-anchor-id="messages-limit">Messages Limit</h2>
-<p>In open-ended model conversations (for example, an agent evalution with tool usage) it’s possible that a model will get “stuck” attempting to perform a task with no realistic prospect of completing it. Sometimes models will “give up” but sometimes they won’t! For this type of evaluation it’s normally a good idea to set a limit on total messages. For example, here’s an evaluation task that sets a limit of 30 messages:</p>
+<section id="sec-sample-limits" class="level2">
+<h2 class="anchored" data-anchor-id="sec-sample-limits">Sample Limits</h2>
+<p>In open-ended model conversations (for example, an agent evalution with tool usage) it’s possible that a model will get “stuck” attempting to perform a task with no realistic prospect of completing it. Sometimes models will “give up” but sometimes they won’t! For this type of evaluation it’s normally a good idea to set a limit on either total messages or total tokens used by the sample.</p>
+<section id="message-limit" class="level3">
+<h3 class="anchored" data-anchor-id="message-limit">Message Limit</h3>
+<p>Here we set a <code>message_limit</code> of 30 for each sample within a task:</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> intercode_ctf():</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
@@ -422,13 +430,59 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>            use_tools([bash(timeout<span class="op">=</span><span class="dv">120</span>)]),</span>
 <span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>            generate(),</span>
 <span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>        ],</span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        max_messages<span class="op">=</span><span class="dv">30</span>,</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        message_limit<span class="op">=</span><span class="dv">30</span>,</span>
 <span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>includes(),</span>
 <span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>        sandbox<span class="op">=</span><span class="st">"docker"</span>,</span>
 <span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The <code>max_messages=30</code> argument sets a limit of 30 total messages in the conversation before the model is forced to give up. At that point, whatever <code>output</code> happens to be in the <code>TaskState</code> will be scored (presumably leading to a score of 9 or ‘incorrect’).</p>
+<p>This sets a limit of 30 total messages in a conversation before the model is forced to give up. At that point, whatever <code>output</code> happens to be in the <code>TaskState</code> will be scored (presumably leading to a score of incorrect).</p>
+<p>Note that its also possible for a solver to set the <code>message_limit</code> directly on the <code>TaskState</code> (this is often done by agent solvers which provide their own generate loop):</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> agent_loop(message_limit: <span class="bu">int</span> <span class="op">=</span> <span class="dv">50</span>):</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate):</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>        <span class="co"># establish message limit so we have a termination condition</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>        state.message_limit <span class="op">=</span> message_limit</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>        ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="token-limit" class="level3">
+<h3 class="anchored" data-anchor-id="token-limit">Token Limit</h3>
+<p>Here we set a <code>token_limit</code> of 500K for each sample within a task:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> intercode_ctf():</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>read_dataset(),</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>[</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>            system_message(<span class="st">"system.txt"</span>),</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>            use_tools([bash(timeout<span class="op">=</span><span class="dv">120</span>)]),</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>            generate(),</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>        ],</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>        token_limit<span class="op">=</span>(<span class="dv">1024</span><span class="op">*</span><span class="dv">500</span>),</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>includes(),</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>        sandbox<span class="op">=</span><span class="st">"docker"</span>,</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>As with <code>message_limit</code>, it’s also possible for a solver to set the <code>token_limit</code> directly on the <code>TaskState</code>:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> agent_loop(token_limit: <span class="bu">int</span> <span class="op">=</span> (<span class="dv">1024</span> <span class="op">*</span> <span class="dv">500</span>)) <span class="op">-&gt;</span> Solver:</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate):</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>        <span class="co"># establish token limit so we have a termination condition</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>        state.token_limit <span class="op">=</span> token_limit</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>        ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="limit-checking" class="level3">
+<h3 class="anchored" data-anchor-id="limit-checking">Limit Checking</h3>
+<p>How and when are sample limits checked? Limits are checked automatically when you access the <code>completed</code> property of <code>TaskState</code>. For example, most agents will use <code>state.completed</code> as their main loop condition:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span> <span class="kw">not</span> state.completed:</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># call model</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    output <span class="op">=</span> <span class="cf">await</span> model.generate(state.messages, state.tools)</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>If you are writing library code that calls a series of solvers in succession you should also check <code>state.completed</code> so that limits can be enforced. Note that this is done automatically by the <code>chain()</code> function that is used to compose together lists of solvers.</p>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->
