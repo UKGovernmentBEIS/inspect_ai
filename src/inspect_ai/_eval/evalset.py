@@ -139,10 +139,10 @@ def eval_set(
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
-        log_buffer: (int | None): "Number of samples to buffer before writing log
-           file. If not specified, an appropriate default for the format and
-           filesystem is chosen (typically somewhere between 5 and 25 samples).
-        bundle_dir: (str | None): If specified, the log viewer and logs generated
+        log_buffer: (int | None): Number of samples to buffer before writing log file.
+           If not specified, an appropriate default for the format and filesystem is
+           chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
+       bundle_dir: (str | None): If specified, the log viewer and logs generated
             by this eval set will be bundled into this directory.
         bundle_overwrite (bool): Whether to overwrite files in the bundle_dir.
             (defaults to False).

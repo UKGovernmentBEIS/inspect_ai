@@ -33,7 +33,7 @@ NO_FAIL_ON_ERROR_HELP = "Do not fail the eval if errors occur within samples (in
 LOG_IMAGES_HELP = (
     "Include base64 encoded versions of filename or URL based images in the log file."
 )
-LOG_BUFFER_HELP = "Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (typically somewhere between 5 and 25 samples)."
+LOG_BUFFER_HELP = "Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems)."
 NO_SCORE_HELP = (
     "Do not score model output (use the inspect score command to score output later)"
 )

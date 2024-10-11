@@ -39,7 +39,7 @@ class JSONRecorder(FileRecorder):
         if self.is_local():
             return 10
         else:
-            return 25
+            return 100
 
     class JSONLogFile(BaseModel):
         file: str

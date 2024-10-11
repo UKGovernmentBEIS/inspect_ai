@@ -120,9 +120,9 @@ def eval(
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to False)
-        log_buffer: (int | None): "Number of samples to buffer before writing log
-           file. If not specified, an appropriate default for the format and
-           filesystem is chosen (typically somewhere between 5 and 25 samples).
+        log_buffer: (int | None): Number of samples to buffer before writing log file.
+           If not specified, an appropriate default for the format and filesystem is
+           chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
         score (bool): Score output (defaults to True)
         **kwargs (GenerateConfigArgs): Model generation options.
 
@@ -246,10 +246,10 @@ async def eval_async(
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
-        log_buffer: (int | None): "Number of samples to buffer before writing log
-           file. If not specified, an appropriate default for the format and
-           filesystem is chosen (typically somewhere between 5 and 25 samples).
-        score (bool): Score output (defaults to True)
+        log_buffer: (int | None): Number of samples to buffer before writing log file.
+           If not specified, an appropriate default for the format and filesystem is
+           chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
+       score (bool): Score output (defaults to True)
         **kwargs (GenerateConfigArgs): Model generation options.
 
     Returns:
@@ -453,9 +453,9 @@ def eval_retry(
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to False)
-        log_buffer: (int | None): "Number of samples to buffer before writing log
-           file. If not specified, an appropriate default for the format and
-           filesystem is chosen (typically somewhere between 5 and 25 samples).
+        log_buffer: (int | None): Number of samples to buffer before writing log file.
+           If not specified, an appropriate default for the format and filesystem is
+           chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
         score (bool): Score output (defaults to True)
         max_retries (int | None):
            Maximum number of times to retry request.
@@ -545,9 +545,9 @@ async def eval_retry_async(
         log_samples: (bool | None): Log detailed samples and scores (defaults to True)
         log_images: (bool | None): Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to False)
-        log_buffer: (int | None): "Number of samples to buffer before writing log
-           file. If not specified, an appropriate default for the format and
-           filesystem is chosen (typically somewhere between 5 and 25 samples).
+        log_buffer: (int | None): Number of samples to buffer before writing log file.
+           If not specified, an appropriate default for the format and filesystem is
+           chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
         score (bool): Score output (defaults to True)
         max_retries (int | None):
            Maximum number of times to retry request.

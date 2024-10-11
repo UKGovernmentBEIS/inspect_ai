@@ -64,10 +64,7 @@ class EvalRecorder(FileRecorder):
     def default_log_buffer(self) -> int:
         # .eval files are 5-8x smaller than .json files so we
         # are much less worried about flushing frequently
-        if self.is_local():
-            return 5
-        else:
-            return 10
+        return 10
 
     def __init__(self, log_dir: str, fs_options: dict[str, Any] = {}):
         super().__init__(log_dir, ".eval", fs_options)
