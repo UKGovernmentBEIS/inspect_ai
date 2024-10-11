@@ -20188,11 +20188,16 @@ function asJsonRpcResponse(data) {
     return null;
   }
 }
+let _vscodeApi = void 0;
 const getVscodeApi = () => {
-  return window.acquireVsCodeApi ? (
-    // @ts-ignore
-    window.acquireVsCodeApi()
-  ) : void 0;
+  if (window.acquireVsCodeApi) {
+    if (_vscodeApi == void 0) {
+      _vscodeApi = window.acquireVsCodeApi();
+    }
+    return _vscodeApi;
+  } else {
+    return void 0;
+  }
 };
 const vscodeClient = webViewJsonRpcClient(getVscodeApi());
 async function client_events() {

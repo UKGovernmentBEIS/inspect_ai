@@ -1,7 +1,6 @@
 import { readFileSync } from "fs";
 
 import {
-  Disposable,
   ExtensionContext,
   MessageItem,
   Uri,
@@ -14,27 +13,10 @@ import {
   InspectWebview,
   InspectWebviewManager,
 } from "../../components/webview";
-import {
-  JsonRpcPostMessageTarget,
-  JsonRpcServerMethod,
-  jsonRpcPostMessageServer,
-  kMethodEvalLog,
-  kMethodEvalLogSize,
-  kMethodEvalLogBytes,
-  kMethodEvalLogHeaders,
-  kMethodEvalLogs,
-} from "../../core/jsonrpc";
 import { getNonce } from "../../core/nonce";
-import { activeWorkspacePath, workspacePath } from "../../core/path";
+import { workspacePath } from "../../core/path";
 import { dirname } from "../../core/uri";
-import {
-  inspectEvalLog,
-  inspectEvalLogHeaders,
-  inspectEvalLogs,
-} from "../../inspect/logs";
 import { inspectViewPath } from "../../inspect/props";
-import { withMinimumInspectVersion } from "../../inspect/version";
-import { kInspectOpenInspectViewVersion } from "../inspect/inspect-constants";
 import {
   InspectChangedEvent,
   InspectManager,
@@ -42,6 +24,7 @@ import {
 import { LogviewState } from "./commands";
 import { ExtensionHost, HostWebviewPanel } from "../../hooks";
 import { showError } from "../../components/error";
+import { InspectView } from "../inspect/inspect-view";
 
 const kLogViewId = "inspect.logview";
 
@@ -206,7 +189,20 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
     }
   }
 
-  private lastState_: LogviewState | undefined;
+  protected onViewCreated() {
+    if (this.inspectView_) {
+      this.inspectView_?.dispose();
+    }
+    this.inspectView_ = new InspectView(this.activeView_!.webviewPanel(), this.lastState_!.log_dir);
+  }
+
+  protected onViewDestroyed() {
+    this.inspectView_?.dispose();
+    this.inspectView_ = undefined;
+  }
+
+  private lastState_?: LogviewState = undefined;
+  private inspectView_?: InspectView = undefined;
 }
 
 const logStateEquals = (a: LogviewState, b: LogviewState) => {
@@ -286,20 +282,7 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
       )
     );
 
-    // Note that when the logview is torn down, the state could be undefined
-    // even though the type system says otherwise
-    const disconnect = webviewPanelJsonRpcServer(this._webviewPanel, {
-      [kMethodEvalLogs]: evalLogs(state?.log_dir),
-      [kMethodEvalLog]: (params: unknown[]) =>
-        evalLog(params[0] as string, params[1] as boolean | number),
-      [kMethodEvalLogSize]: (params: unknown[]) =>
-        evalLogSize(params[0] as string),
-      [kMethodEvalLogBytes]: (params: unknown[]) =>
-        evalLogBytes(params[0] as string, params[1] as number, params[2] as number),
-      [kMethodEvalLogHeaders]: (params: unknown[]) =>
-        evalLogHeaders(params[0] as string[]),
-    });
-    this._register(new Disposable(disconnect));
+
   }
 
   public setManager(manager: InspectLogviewWebviewManager) {
@@ -454,87 +437,4 @@ Inspect not available.
 `;
     }
   }
-}
-
-// The eval commands below need to be coordinated in terms of their working directory
-// The evalLogs() call will return log files with relative paths to the working dir (if possible)
-// and subsequent calls like evalLog() need to be able to deal with these relative paths
-// by using the same working directory.
-//
-// So, we always use the workspace root as the working directory and will resolve
-// paths that way. Note that paths can be S3 urls, for example, in which case the paths
-// will be absolute (so cwd doesn't really matter so much in this case).
-function evalLogs(log_dir: Uri): () => Promise<string | undefined> {
-  // Return both the log_dir and the logs
-  return (): Promise<string | undefined> => {
-    const response = withMinimumInspectVersion<string | undefined>(
-      kInspectOpenInspectViewVersion,
-      () => {
-        const logs = inspectEvalLogs(activeWorkspacePath(), log_dir);
-        const logsJson = logs ? (JSON.parse(logs) as unknown) : [];
-        return JSON.stringify({ log_dir: log_dir.toString(), files: logsJson });
-      },
-      () => {
-        // Return the original log content
-        return inspectEvalLogs(activeWorkspacePath());
-      }
-    );
-    return Promise.resolve(response);
-  };
-}
-
-function evalLog(
-  file: string,
-  headerOnly: boolean | number
-): Promise<string | undefined> {
-  // Old clients pass a boolean value which we need to resolve
-  // into the max number of MB the log can be before samples are excluded
-  // and it becomes header_only
-  if (typeof headerOnly === "boolean") {
-    headerOnly = headerOnly ? 0 : Number.MAX_SAFE_INTEGER;
-  }
-
-  return Promise.resolve(
-    inspectEvalLog(activeWorkspacePath(), file, headerOnly)
-  );
-}
-
-function evalLogSize(
-  file: string
-) : Promise<number> {
-  return Promise.resolve(1)
-}
-
-function evalLogBytes(
-  file: string,
-  start: number,
-  end: number
-) : Promise<Uint8Array> {
-  return Promise.resolve(Uint8Array.from([]))
-}
-
-function evalLogHeaders(files: string[]) {
-  return Promise.resolve(inspectEvalLogHeaders(activeWorkspacePath(), files));
-}
-
-export function webviewPanelJsonRpcServer(
-  webviewPanel: HostWebviewPanel,
-  methods:
-    | Record<string, JsonRpcServerMethod>
-    | ((name: string) => JsonRpcServerMethod | undefined)
-): () => void {
-  const target: JsonRpcPostMessageTarget = {
-    postMessage: (data: unknown) => {
-      void webviewPanel.webview.postMessage(data);
-    },
-    onMessage: (handler: (data: unknown) => void) => {
-      const disposable = webviewPanel.webview.onDidReceiveMessage((ev) => {
-        handler(ev);
-      });
-      return () => {
-        disposable.dispose();
-      };
-    },
-  };
-  return jsonRpcPostMessageServer(target, methods);
 }

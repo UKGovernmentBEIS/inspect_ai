@@ -65,6 +65,7 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
       const view = this.createWebview(this.context, state, options);
       this.registerWebviewListeners(view);
       this.activeView_ = view;
+      this.onViewCreated();
     }
     this.resolveOnShow();
 
@@ -96,6 +97,15 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
   }
 
   protected onViewStateChanged() { }
+
+
+  protected onViewCreated() {
+
+  }
+
+  protected onViewDestroyed() {
+
+  }
 
   private resolveOnShow() {
     if (this.onShow_) {
@@ -180,6 +190,7 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
     view.onDispose(() => {
       if (this.activeView_ === view) {
         this.activeView_ = undefined;
+        this.onViewDestroyed();
         this.onViewStateChanged();
         if (this.onClose_) {
           this.onClose_();

@@ -1,9 +1,17 @@
 //@ts-check
 
+
+let _vscodeApi = undefined;
+
 export const getVscodeApi = () => {
   // @ts-ignore
-  return window.acquireVsCodeApi
-    ? // @ts-ignore
-      window.acquireVsCodeApi()
-    : undefined;
+  if (window.acquireVsCodeApi) { 
+    if (_vscodeApi == undefined) {
+      // @ts-ignore
+      _vscodeApi = window.acquireVsCodeApi();
+    }
+    return _vscodeApi;
+  } else {
+    return undefined
+  }
 };

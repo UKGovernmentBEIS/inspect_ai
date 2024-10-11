@@ -4,11 +4,18 @@ export function withMinimumInspectVersion(version: string, hasVersion: () => voi
 export function withMinimumInspectVersion<T>(version: string, hasVersion: () => T, doesntHaveVersion: () => T): T;
 
 export function withMinimumInspectVersion<T>(version: string, hasVersion: () => T, doesntHaveVersion: () => T): T | void {
-  const descriptor = inspectVersionDescriptor();
-  if (descriptor && (descriptor.version.compare(version) >= 0 || descriptor.isDeveloperBuild)) {
+  if (hasMinimumInspectVersion(version)) {
     return hasVersion();
   } else {
     return doesntHaveVersion();
   }
 }
 
+export function hasMinimumInspectVersion(version: string): boolean {
+  const descriptor = inspectVersionDescriptor();
+  if (descriptor && (descriptor.version.compare(version) >= 0 || descriptor.isDeveloperBuild)) {
+    return true;
+  } else {
+    return false;
+  }
+}
