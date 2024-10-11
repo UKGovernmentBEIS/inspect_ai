@@ -2,7 +2,7 @@ import errno
 import os
 import tempfile
 from logging import getLogger
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Literal, Union, cast, overload
 
 import aiofiles
@@ -212,7 +212,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # additional args
         args = []
 
-        final_cwd = Path(self._working_dir if cwd is None else cwd)
+        final_cwd = PurePosixPath(self._working_dir if cwd is None else cwd)
         if not final_cwd.is_absolute():
             final_cwd = self._working_dir / final_cwd
 

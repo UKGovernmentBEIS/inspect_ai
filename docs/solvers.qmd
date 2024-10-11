@@ -459,9 +459,9 @@ def complete_task():
     return solve
 ```
 
-Early termination might also occur if you specify the `max_messages` option and the conversation exceeds that limit:
+Early termination might also occur if you specify the `message_limit` option and the conversation exceeds that limit:
 
 ``` python
 # could terminate early
-eval(my_task, max_messages = 10)
+eval(my_task, message_limit = 10)
 ```

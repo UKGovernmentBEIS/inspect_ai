@@ -149,7 +149,7 @@ def test_docker_compose_multiple_services_write_file():
     result = eval(
         task,
         model=get_model("mockllm/model", custom_outputs=tool_calls()),
-        max_messages=10,  # otherwise we can get into an infinite loop if the tools error
+        message_limit=10,  # otherwise we can get into an infinite loop if the tools error
     )[0]
 
     assert result.status == "success"

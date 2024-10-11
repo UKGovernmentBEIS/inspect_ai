@@ -1,0 +1,12 @@
+approvers:
+  - name: bash_allowlist
+    tools: "*bash*"
+    allowed_commands: ["ls", "echo", "cat"]
+
+  - name: python_allowlist
+    tools: "*python*"
+    allowed_functions: ["print"]
+    allowed_modules: ["math"]
+
+  - name: human
+    tools: "*"

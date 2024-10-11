@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.3.41 (11 October 2024)
+
+- [Approval mode](https://inspect.ai-safety-institute.org.uk/approval.html) for extensible approvals of tool calls (human and auto-approvers built in,  arbitrary other approval schemes via extensions).
+- [Trace mode](https://inspect.ai-safety-institute.org.uk/interactivity.html#sec-trace-mode) for printing model interactions to the terminal.
+- Add `as_dict()` utility method to `Score`
+- [Sample limits](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sec-sample-limits) (`token_limit` and `message_limit`) for capping the number of tokens or messages used per sample ( `message_limit` replaces deprecated `max_messages`).
+- Add `metadata` field to `Task` and record in log `EvalSpec`.
+- Include datetime and level in file logger.
+- Correct llama3 and o1 tool calling when empty arguments passed.
+- Allow resolution of any sandbox name when there is only a single environment.
+- Introduce `--log-level-transcript` option for separate control of log entries recorded in the eval log file
+- Improve mime type detection for image content encoding (fixes issues w/ webp images). 
+- Fix memory leak in Inspect View worker-based JSON parsing.
+- Add `fail_on_error` option for `eval_retry()` and `inspect eval-retry`.
+- Defer resolving helper models in `self_critique()` and `model_graded_qa()`.
+- Fix Docker relative path resolution on Windows (use PurePosixPath not Path)
+- Restore support for `--port` and `--host` on Inspect View.
+
 ## v0.3.40 (6 October 2024)
 
 - Add `interactive` option to `web_browser()` for disabling interactive tools (clicking, typing, and submitting forms).

@@ -81,7 +81,7 @@ def test_tool_store():
             "mockllm/model",
             custom_outputs=custom_outputs(),
         ),
-        max_messages=5,
+        message_limit=5,
     )[0]
     assert (
         get_tool_response(

@@ -29,7 +29,9 @@ MAX_SUBPROCESSES_HELP = (
     "Maximum number of subprocesses to run in parallel (default is os.cpu_count())"
 )
 NO_SANDBOX_CLEANUP_HELP = "Do not cleanup sandbox environments after task completes"
+FAIL_ON_ERROR_HELP = "Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count."
 NO_LOG_SAMPLES_HELP = "Do not include samples in the log file."
+NO_FAIL_ON_ERROR_HELP = "Do not fail the eval if errors occur within samples (instead, continue running other samples)"
 LOG_IMAGES_HELP = (
     "Include base64 encoded versions of filename or URL based images in the log file."
 )
@@ -83,6 +85,19 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         envvar="INSPECT_EVAL_SOLVER_ARGS",
         help="One or more solver arguments (e.g. -S arg=value)",
+    )
+    @click.option(
+        "--trace",
+        type=bool,
+        is_flag=True,
+        envvar="INSPECT_EVAL_TRACE",
+        help="Trace message interactions with evaluated model to terminal.",
+    )
+    @click.option(
+        "--approval",
+        type=str,
+        envvar="INSPECT_EVAL_APPROVAL",
+        help="Config file for tool call approval.",
     )
     @click.option(
         "--sandbox",
@@ -146,17 +161,23 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_MAX_SUBPROCESSES",
     )
     @click.option(
-        "--max-messages",
+        "--message-limit",
         type=int,
-        help="Maximum number of messages to allow in a task conversation.",
-        envvar="INSPECT_EVAL_MAX_MESSAGES",
+        help="Limit on total messages used for each sample.",
+        envvar="INSPECT_EVAL_MESSAGE_LIMIT",
+    )
+    @click.option(
+        "--token-limit",
+        type=int,
+        help="Limit on total tokens used for each sample.",
+        envvar="INSPECT_EVAL_TOKEN_LIMIT",
     )
     @click.option(
         "--fail-on-error",
         type=float,
         is_flag=False,
         flag_value=0.0,
-        help="Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count.",
+        help=FAIL_ON_ERROR_HELP,
         envvar="INSPECT_EVAL_FAIL_ON_ERROR",
     )
     @click.option(
@@ -164,7 +185,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=bool,
         is_flag=True,
         default=False,
-        help="Do not fail the eval if errors occur within samples (instead, continue running other samples)",
+        help=NO_FAIL_ON_ERROR_HELP,
         envvar="INSPECT_EVAL_NO_FAIL_ON_ERROR",
     )
     @click.option(
@@ -318,6 +339,8 @@ def eval_command(
     m: tuple[str] | None,
     t: tuple[str] | None,
     s: tuple[str] | None,
+    trace: bool | None,
+    approval: str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     epochs: int | None,
@@ -344,7 +367,8 @@ def eval_command(
     parallel_tool_calls: bool | None,
     max_tool_output: int | None,
     cache_prompt: str | None,
-    max_messages: int | None,
+    message_limit: int | None,
+    token_limit: int | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -361,25 +385,29 @@ def eval_command(
     config = config_from_locals(dict(locals()))
 
     # resolve common options
-    (log_dir, log_level) = resolve_common_options(kwargs)
+    (log_dir, log_level, log_level_transcript) = resolve_common_options(kwargs)
 
     # exec eval
     eval_exec(
         tasks=tasks,
         solver=solver,
         log_level=log_level,
+        log_level_transcript=log_level_transcript,
         log_dir=log_dir,
         model=model,
         model_base_url=model_base_url,
         m=m,
         t=t,
         s=s,
+        trace=trace,
+        approval=approval,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
         epochs=epochs,
         epochs_reducer=epochs_reducer,
         limit=limit,
-        max_messages=max_messages,
+        message_limit=message_limit,
+        token_limit=token_limit,
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
@@ -446,6 +474,8 @@ def eval_set_command(
     retry_connections: float | None,
     no_retry_cleanup: bool | None,
     solver: str | None,
+    trace: bool | None,
+    approval: str | None,
     model: str,
     model_base_url: str | None,
     m: tuple[str] | None,
@@ -477,7 +507,8 @@ def eval_set_command(
     parallel_tool_calls: bool | None,
     max_tool_output: int | None,
     cache_prompt: str | None,
-    max_messages: int | None,
+    message_limit: int | None,
+    token_limit: int | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -496,25 +527,29 @@ def eval_set_command(
     config = config_from_locals(dict(locals()))
 
     # resolve common options
-    (log_dir, log_level) = resolve_common_options(kwargs)
+    (log_dir, log_level, log_level_transcript) = resolve_common_options(kwargs)
 
     # exec eval
     success = eval_exec(
         tasks=tasks,
         solver=solver,
         log_level=log_level,
+        log_level_transcript=log_level_transcript,
         log_dir=log_dir,
         model=model,
         model_base_url=model_base_url,
         m=m,
         t=t,
         s=s,
+        trace=trace,
+        approval=approval,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
         epochs=epochs,
         epochs_reducer=epochs_reducer,
         limit=limit,
-        max_messages=max_messages,
+        message_limit=message_limit,
+        token_limit=token_limit,
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
@@ -543,18 +578,22 @@ def eval_exec(
     tasks: tuple[str] | None,
     solver: str | None,
     log_level: str,
+    log_level_transcript: str,
     log_dir: str,
     model: str,
     model_base_url: str | None,
     m: tuple[str] | None,
     t: tuple[str] | None,
     s: tuple[str] | None,
+    trace: bool | None,
+    approval: str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     epochs: int | None,
     epochs_reducer: str | None,
     limit: str | None,
-    max_messages: int | None,
+    message_limit: int | None,
+    token_limit: int | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -599,6 +638,7 @@ def eval_exec(
     sandbox_cleanup = False if no_sandbox_cleanup else None
     log_samples = False if no_log_samples else None
     log_images = True if log_images else None
+    trace = True if trace else None
     score = False if no_score else True
 
     # build params
@@ -610,15 +650,19 @@ def eval_exec(
             model_args=model_args,
             task_args=task_args,
             solver=SolverSpec(solver, solver_args) if solver else None,
+            trace=trace,
+            approval=approval,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,
             log_level=log_level,
+            log_level_transcript=log_level_transcript,
             log_dir=log_dir,
             limit=eval_limit,
             epochs=eval_epochs,
             fail_on_error=fail_on_error,
             debug_errors=debug_errors,
-            max_messages=max_messages,
+            message_limit=message_limit,
+            token_limit=token_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -707,6 +751,29 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     help=NO_SANDBOX_CLEANUP_HELP,
 )
 @click.option(
+    "--trace",
+    type=bool,
+    is_flag=True,
+    help="Trace message interactions with evaluated model to terminal.",
+    envvar="INSPECT_EVAL_TRACE",
+)
+@click.option(
+    "--fail-on-error",
+    type=float,
+    is_flag=False,
+    flag_value=0.0,
+    help=FAIL_ON_ERROR_HELP,
+    envvar="INSPECT_EVAL_FAIL_ON_ERROR",
+)
+@click.option(
+    "--no-fail-on-error",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help=NO_FAIL_ON_ERROR_HELP,
+    envvar="INSPECT_EVAL_NO_FAIL_ON_ERROR",
+)
+@click.option(
     "--no-log-samples",
     type=bool,
     is_flag=True,
@@ -748,6 +815,9 @@ def eval_retry_command(
     max_tasks: int | None,
     max_subprocesses: int | None,
     no_sandbox_cleanup: bool | None,
+    trace: bool | None,
+    fail_on_error: bool | float | None,
+    no_fail_on_error: bool | None,
     no_log_samples: bool | None,
     log_images: bool | None,
     log_buffer: int | None,
@@ -759,13 +829,19 @@ def eval_retry_command(
 ) -> None:
     """Retry failed evaluation(s)"""
     # resolve common options
-    (log_dir, log_level) = resolve_common_options(kwargs)
+    (log_dir, log_level, log_level_transcript) = resolve_common_options(kwargs)
 
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
     log_samples = False if no_log_samples else None
     log_images = True if log_images else None
     score = False if no_score else True
+
+    # resolve fail_on_error
+    if no_fail_on_error is True:
+        fail_on_error = False
+    elif fail_on_error == 0.0:
+        fail_on_error = True
 
     # resolve log file
     retry_log_files = [
@@ -776,11 +852,14 @@ def eval_retry_command(
     eval_retry(
         retry_log_files,
         log_level=log_level,
+        log_level_transcript=log_level_transcript,
         log_dir=log_dir,
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
         sandbox_cleanup=sandbox_cleanup,
+        trace=trace,
+        fail_on_error=fail_on_error,
         debug_errors=kwargs["debug_errors"],
         log_samples=log_samples,
         log_images=log_images,

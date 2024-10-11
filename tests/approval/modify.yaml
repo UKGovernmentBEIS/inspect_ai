@@ -1,0 +1,4 @@
+approvers:
+  - name: inspect_package/renamer
+    tools: "add*"
+    function_name: newname
