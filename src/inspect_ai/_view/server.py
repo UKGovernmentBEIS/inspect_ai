@@ -103,7 +103,9 @@ def view_server(
 
     # run app
     display().print(f"Inspect View: {log_dir}")
-    web.run_app(app=app, host=host, port=port, print=display().print)
+    web.run_app(
+        app=app, host=host, port=port, print=display().print, shutdown_timeout=1
+    )
 
 
 def log_listing_response(logs: list[EvalLogInfo], log_dir: str) -> web.Response:
