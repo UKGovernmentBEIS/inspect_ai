@@ -58,14 +58,6 @@ You might choose to do this if you want to tolerate a certain proportion of erro
 
 ## Sample Limits {#sec-sample-limits}
 
-::: {.callout-note apperance="simple:"}
-Note that the sample limit features described below are currently only available in the development version of Inspect. You can install the development version with:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 In open-ended model conversations (for example, an agent evalution with tool usage) it's possible that a model will get "stuck" attempting to perform a task with no realistic prospect of completing it. Sometimes models will "give up" but sometimes they won't! For this type of evaluation it's normally a good idea to set a limit on either total messages or total tokens used by the sample.
 
 ### Message Limit
