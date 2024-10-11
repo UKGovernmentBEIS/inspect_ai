@@ -1,6 +1,7 @@
+import logging
 import os
 import urllib.parse
-from logging import getLogger
+from logging import LogRecord, getLogger
 from pathlib import Path
 from typing import Any
 
@@ -96,6 +97,9 @@ def view_server(
 
     # handler for app assets www directory
     app.router.register_resource(WWWResource())
+
+    # filter request log
+    filter_aiohttp_log()
 
     # run app
     display().print(f"Inspect View: {log_dir}")
@@ -220,3 +224,19 @@ def resolve_header_only(path: str, header_only: int | None) -> bool:
         return True
     else:
         return False
+
+
+def filter_aiohttp_log() -> None:
+    #  filter overly chatty /api/events messages
+    class RequestFilter(logging.Filter):
+        def filter(self, record: LogRecord) -> bool:
+            return "/api/events" not in record.getMessage()
+
+    # don't add if we already have
+    access_logger = getLogger("aiohttp.access")
+    for existing_filter in access_logger.filters:
+        if isinstance(existing_filter, RequestFilter):
+            return
+
+    # add the filter
+    access_logger.addFilter(RequestFilter())

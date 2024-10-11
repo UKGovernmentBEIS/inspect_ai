@@ -108,6 +108,9 @@ export class InspectView implements Disposable {
 
         // launch process
         const options: SpawnOptions = {
+          env: {
+            "COLUMNS": "150"
+          },
           shell: os.platform() === "win32"
         };
 
@@ -123,7 +126,12 @@ export class InspectView implements Disposable {
 
         // run server
         const quote = os.platform() === "win32" ? shQuote : (arg: string) => arg;
-        const args = ["view", "start", "--port", String(this.serverPort_), "--log-dir", this.log_dir_.toString()];
+        const args = [
+          "view", "start", 
+          "--port", String(this.serverPort_), 
+          "--log-dir", this.log_dir_.toString(),
+          "--log-level", "info", "--no-ansi"
+        ];
         this.serverProcess_ = spawnProcess(quote(inspect.path), args.map(quote), options, {
           stdout: onOutput,
           stderr: onOutput,
