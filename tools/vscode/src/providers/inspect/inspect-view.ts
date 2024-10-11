@@ -1,4 +1,7 @@
-import { Disposable, Uri } from "vscode";
+import { ChildProcess, SpawnOptions } from "child_process";
+import * as os from "os";
+
+import { Disposable, OutputChannel, Uri } from "vscode";
 import { HostWebviewPanel } from "../../hooks";
 import { jsonRpcPostMessageServer, JsonRpcPostMessageTarget, JsonRpcServerMethod, kMethodEvalLog, kMethodEvalLogBytes, kMethodEvalLogHeaders, kMethodEvalLogs, kMethodEvalLogSize } from "../../core/jsonrpc";
 import { findOpenPort } from "../../core/port";
@@ -6,11 +9,15 @@ import { hasMinimumInspectVersion, withMinimumInspectVersion } from "../../inspe
 import { kInspectEvalLogFormatVersion, kInspectOpenInspectViewVersion } from "./inspect-constants";
 import { inspectEvalLog, inspectEvalLogHeaders, inspectEvalLogs } from "../../inspect/logs";
 import { activeWorkspacePath } from "../../core/path";
+import { inspectBinPath } from "../../inspect/props";
+import { shQuote } from "../../core/string";
+import { spawnProcess } from "../../core/process";
 
 
 export class InspectView implements Disposable {
   constructor(
     webviewPanel: HostWebviewPanel,
+    private outputChannel_: OutputChannel,
     private log_dir_: Uri
   ) {
     this.disconnect_ = webviewPanelJsonRpcServer(webviewPanel, {
@@ -22,12 +29,10 @@ export class InspectView implements Disposable {
     });
   }
 
-
   private async evalLogs(): Promise<string | undefined> {
     if (this.haveInspectEvalLogFormat()) {
-      // TODO: implement
       await this.ensureServer();
-      return Promise.resolve(undefined);
+      return this.api_json(`/api/logs`);
     } else {
       return evalLogs(this.log_dir_);
     }
@@ -37,15 +42,12 @@ export class InspectView implements Disposable {
     file: string,
     headerOnly: boolean | number
   ): Promise<string | undefined> {
-
     if (this.haveInspectEvalLogFormat()) {
-      // TODO: implement
       await this.ensureServer();
-      return Promise.resolve(undefined);
+      return await this.api_json(`/api/logs/${encodeURIComponent(file)}?header-only=${headerOnly}`);
     } else {
       return evalLog(file, headerOnly);
     }
-
   }
 
 
@@ -54,9 +56,8 @@ export class InspectView implements Disposable {
   ): Promise<number> {
 
     if (this.haveInspectEvalLogFormat()) {
-      // TODO: implement
       await this.ensureServer();
-      return Promise.resolve(1);
+      return Number(await this.api_json(`/api/log-size/${encodeURIComponent(file)}`));
     } else {
       throw new Error("evalLogSize not implemented");
     }
@@ -67,12 +68,9 @@ export class InspectView implements Disposable {
     start: number,
     end: number
   ): Promise<Uint8Array> {
-
-
     if (this.haveInspectEvalLogFormat()) {
-      // TODO: implement
       await this.ensureServer();
-      return Promise.resolve(Uint8Array.from([]));
+      return this.api_bytes(`/api/log-bytes/${encodeURIComponent(file)}?start=${start}&end=${end}`);
     } else {
       throw new Error("evalLogBytes not implemented");
     }
@@ -81,40 +79,117 @@ export class InspectView implements Disposable {
   private async evalLogHeaders(files: string[]): Promise<string | undefined> {
 
     if (this.haveInspectEvalLogFormat()) {
-      // TODO: implement
       await this.ensureServer();
-
-      return Promise.resolve(undefined);
+      const params = new URLSearchParams();
+      for (const file of files) {
+        params.append("file", file);
+      }
+      return this.api_json(`/api/log-headers?${params.toString()}`);
     } else {
       return evalLogHeaders(files);
     }
 
   }
 
-  private async ensureServer() {
-    if (this.serverPort_ === undefined) {
+  private async ensureServer(): Promise<undefined> {
+    if (this.serverProcess_ === undefined) {
+
+      // find port
       this.serverPort_ = await findOpenPort(7676);
 
-      // TODO: launch the server
+      return new Promise((resolve, reject) => {
+
+
+        // find inspect
+        const inspect = inspectBinPath();
+        if (!inspect) {
+          throw new Error("inspect view: inspect installation not found");
+        }
+
+        // launch process
+        const options: SpawnOptions = {
+          shell: os.platform() === "win32"
+        };
+
+        // forward output to channel and resolve promise
+        let resolved = false;
+        const onOutput = (output: string) => {
+          this.outputChannel_.append(output);
+          if (!resolved) {
+            resolved = true;
+            resolve(undefined);
+          }
+        };
+
+        // run server
+        const quote = os.platform() === "win32" ? shQuote : (arg: string) => arg;
+        const args = ["view", "start", "--port", String(this.serverPort_), "--log-dir", this.log_dir_.toString()];
+        this.serverProcess_ = spawnProcess(quote(inspect.path), args.map(quote), options, {
+          stdout: onOutput,
+          stderr: onOutput,
+        }, {
+          onClose: (code: number) => {
+            this.outputChannel_.appendLine(`Inspect View exited with code ${code} (pid=${this.serverProcess_?.pid})`);
+          },
+          onError: (error: Error) => {
+            this.outputChannel_.appendLine(`Error starting Inspect View ${error.message}`);
+            reject(error);
+          },
+        });
+        this.outputChannel_.appendLine(`Starting Inspect View on port ${this.serverPort_} (pid=${this.serverProcess_?.pid})`);
+      });
+
     }
   }
 
 
   private haveInspectEvalLogFormat() {
-    return false;
-    // return hasMinimumInspectVersion(kInspectEvalLogFormatVersion);
+    return hasMinimumInspectVersion(kInspectEvalLogFormatVersion);
   }
 
+  private async api_json(path: string): Promise<string> {
+    return await this.api(path, false) as string
+  }
+
+  private async api_bytes(path: string): Promise<Uint8Array> {
+    return await this.api(path, false) as Uint8Array
+  }
+
+  private async api(path: string, binary: boolean = false): Promise<string | Uint8Array> {
+    // build headers
+    const headers = {
+      Accept: binary ? "application/octet-stream" : "application/json",
+      Pragma: "no-cache",
+      Expires: "0",
+      ["Cache-Control"]: "no-cache",
+    };
+
+    // make request
+    const response = await fetch(`http://localhost:${this.serverPort_}${path}`, { method: "GET", headers });
+    if (response.ok) {
+      if (binary) {
+        const buffer = await response.arrayBuffer();
+        return new Uint8Array(buffer)
+      } else {
+        return await response.text();
+      }
+    } else if (response.status !== 200) {
+      const message = (await response.text()) || response.statusText;
+      const error = new Error(`Error: ${response.status}: ${message})`);
+      throw error;
+    } else {
+      throw new Error(`${response.status} - ${response.statusText} `);
+    }
+  }
+
+
   dispose() {
-
-    // TODO: kill the server
-
+    this.serverProcess_?.kill();
     this.disconnect_();
   }
 
-
-
   private disconnect_: VoidFunction;
+  private serverProcess_?: ChildProcess = undefined;
   private serverPort_?: number = undefined;
 
 }

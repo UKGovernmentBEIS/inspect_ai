@@ -3,6 +3,7 @@ import { readFileSync } from "fs";
 import {
   ExtensionContext,
   MessageItem,
+  OutputChannel,
   Uri,
   ViewColumn,
   env,
@@ -60,6 +61,8 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
       InspectLogviewWebview,
       host
     );
+
+    this.outputChannel_ = window.createOutputChannel("Inspect View");
   }
   private activeLogDir_: Uri | null = null;
 
@@ -193,7 +196,7 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
     if (this.inspectView_) {
       this.inspectView_?.dispose();
     }
-    this.inspectView_ = new InspectView(this.activeView_!.webviewPanel(), this.lastState_!.log_dir);
+    this.inspectView_ = new InspectView(this.activeView_!.webviewPanel(), this.outputChannel_, this.lastState_!.log_dir);
   }
 
   protected onViewDestroyed() {
@@ -203,6 +206,7 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
 
   private lastState_?: LogviewState = undefined;
   private inspectView_?: InspectView = undefined;
+  private outputChannel_: OutputChannel;
 }
 
 const logStateEquals = (a: LogviewState, b: LogviewState) => {
