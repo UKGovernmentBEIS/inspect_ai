@@ -1,3 +1,6 @@
+import functools
+from typing import Any, Callable, cast
+
 import click
 from typing_extensions import Unpack
 
@@ -8,8 +11,30 @@ from inspect_ai.log._bundle import bundle_log_dir
 from .common import CommonOptions, common_options, resolve_common_options
 
 
+def start_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
+    @click.option(
+        "--recursive",
+        type=bool,
+        is_flag=True,
+        default=True,
+        help="Include all logs in log_dir recursively.",
+    )
+    @click.option(
+        "--host",
+        default=DEFAULT_SERVER_HOST,
+        help="Tcp/Ip host",
+    )
+    @click.option("--port", default=DEFAULT_VIEW_PORT, help="TCP/IP port")
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> click.Context:
+        return cast(click.Context, func(*args, **kwargs))
+
+    return wrapper
+
+
 # Define the base command group
 @click.group(name="view", invoke_without_command=True)
+@start_options
 @common_options
 @click.pass_context
 def view_command(ctx: click.Context, **kwargs: Unpack[CommonOptions]) -> None:
@@ -21,20 +46,8 @@ def view_command(ctx: click.Context, **kwargs: Unpack[CommonOptions]) -> None:
 
 
 @view_command.command("start")
+@start_options
 @common_options
-@click.option(
-    "--recursive",
-    type=bool,
-    is_flag=True,
-    default=True,
-    help="Include all logs in log_dir recursively.",
-)
-@click.option(
-    "--host",
-    default=DEFAULT_SERVER_HOST,
-    help="Tcp/Ip host",
-)
-@click.option("--port", default=DEFAULT_VIEW_PORT, help="TCP/IP port")
 def start(
     recursive: bool,
     host: str,
