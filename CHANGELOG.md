@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Open log files in binary mode when reading headers (fixes ijson deprecation warning).
+
 ## v0.3.41 (11 October 2024)
 
 - [Approval mode](https://inspect.ai-safety-institute.org.uk/approval.html) for extensible approvals of tool calls (human and auto-approvers built in,  arbitrary other approval schemes via extensions).

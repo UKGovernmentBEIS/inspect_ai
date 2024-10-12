@@ -159,7 +159,7 @@ def _validate_version(ver: int) -> None:
 
 
 def _read_header_streaming(log_file: str) -> EvalLog:
-    with file(log_file, "r") as f:
+    with file(log_file, "rb") as f:
         # Do low-level parsing to get the version number and also
         # detect the presence of results or error sections
         version: int | None = None
