@@ -92,10 +92,10 @@ export class InspectView implements Disposable {
   }
 
   private async ensureServer(): Promise<undefined> {
-    if (this.serverProcess_ === undefined || this.serverProcess_?.exitCode) {
+    if (this.serverProcess_ === undefined || this.serverProcess_.exitCode !== null) {
 
       // find port
-      this.serverProcess_ == undefined;
+      this.serverProcess_ = undefined;
       this.serverPort_ = await findOpenPort(7676);
 
       return new Promise((resolve, reject) => {
@@ -128,8 +128,8 @@ export class InspectView implements Disposable {
         // run server
         const quote = os.platform() === "win32" ? shQuote : (arg: string) => arg;
         const args = [
-          "view", "start", 
-          "--port", String(this.serverPort_), 
+          "view", "start",
+          "--port", String(this.serverPort_),
           "--log-dir", this.log_dir_.toString(),
           "--log-level", "info", "--no-ansi"
         ];
@@ -178,7 +178,7 @@ export class InspectView implements Disposable {
     if (response.ok) {
       if (binary) {
         const buffer = await response.arrayBuffer();
-        return new Uint8Array(buffer)
+        return new Uint8Array(buffer);
       } else {
         return await response.text();
       }
