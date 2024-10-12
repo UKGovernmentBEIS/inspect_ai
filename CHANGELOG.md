@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.41 (11 October 2024)
 
 - [Approval mode](https://inspect.ai-safety-institute.org.uk/approval.html) for extensible approvals of tool calls (human and auto-approvers built in,  arbitrary other approval schemes via extensions).
 - [Trace mode](https://inspect.ai-safety-institute.org.uk/interactivity.html#sec-trace-mode) for printing model interactions to the terminal.
@@ -16,6 +16,7 @@
 - Add `fail_on_error` option for `eval_retry()` and `inspect eval-retry`.
 - Defer resolving helper models in `self_critique()` and `model_graded_qa()`.
 - Fix Docker relative path resolution on Windows (use PurePosixPath not Path)
+- Restore support for `--port` and `--host` on Inspect View.
 
 ## v0.3.40 (6 October 2024)
 

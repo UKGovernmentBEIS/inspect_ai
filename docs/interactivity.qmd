@@ -60,13 +60,6 @@ The `Prompt` class is designed to be subclassed for more specialized inputs. The
 
 ## Trace Mode {#sec-trace-mode}
 
-::: {.callout-note apperance="simple:"}
-Note that the trace mode feature described below is currently only available in the development version of Inspect. You can install the development version with:
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 When introducing interactions it's often useful to see a trace of message activity for additional context. You can do this via the `--trace` CLI option (or `trace` parameter of the `eval()` function). For example:
 
 {{< include _trace.md >}}
