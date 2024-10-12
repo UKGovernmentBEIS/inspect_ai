@@ -62,7 +62,8 @@ def test_fail_version():
 
 
 def test_valid_log_header():
-    read_eval_log(log_path("log_valid"), header_only=True)
+    log = read_eval_log(log_path("log_valid"), header_only=True)
+    assert log.eval.metadata["meaning_of_life"] == 42
 
 
 def test_migrate_length_stop_reason():

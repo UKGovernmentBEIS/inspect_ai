@@ -16,6 +16,7 @@ from rich.traceback import Traceback
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, PKG_NAME
 from inspect_ai._util.error import EvalError, exception_message
 from inspect_ai._util.logger import warn_once
+from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.model import (
     ChatMessage,
     GenerateConfig,
@@ -42,6 +43,12 @@ class EvalConfig(BaseModel):
     epochs_reducer: list[str] | None = Field(default=None)
     """Reducers for aggregating per-sample scores."""
 
+    trace: bool | None = Field(default=None)
+    """Trace message interactions with evaluated model to terminal."""
+
+    approval: ApprovalPolicyConfig | None = Field(default=None)
+    """Approval policy for tool use."""
+
     fail_on_error: bool | float | None = Field(default=None)
     """Fail eval when sample errors occur.
 
@@ -51,8 +58,11 @@ class EvalConfig(BaseModel):
     of samples fails.
     """
 
-    max_messages: int | None = Field(default=None)
+    message_limit: int | None = Field(default=None)
     """Maximum messages to allow in a chat conversation."""
+
+    token_limit: int | None = Field(default=None)
+    """Maximum tokens to allow in a chat conversation."""
 
     max_samples: int | None = Field(default=None)
     """Maximum number of samples to run in parallel."""
@@ -74,6 +84,22 @@ class EvalConfig(BaseModel):
 
     log_buffer: int | None = Field(default=None)
     """Number of samples to buffer before writing log file."""
+
+    @property
+    def max_messages(self) -> int | None:
+        """Deprecated max_messages property."""
+        return self.message_limit
+
+    @model_validator(mode="before")
+    @classmethod
+    def convert_max_messages_to_message_limit(
+        cls: Type["EvalConfig"], values: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Migrate deprecated max_messages property."""
+        max_messages = values.get("max_messages", None)
+        if max_messages:
+            values["message_limit"] = max_messages
+        return values
 
 
 class EvalSample(BaseModel):

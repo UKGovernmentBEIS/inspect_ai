@@ -22,7 +22,8 @@ class Plan(Solver):
     """Task plan: List of solvers with an optional finishing solver.
 
     The optional `finish` solver is called after executing the steps (including in the case
-    where the steps were exited early due to `TaskState.completed = True` or `max_messages`).
+    where the steps were exited early due to `TaskState.completed = True`, `message_limit`,
+    or `token_limit`).
 
     The optional `cleanup` function is called when the plan is complete (even if the plan
     is terminated due to an exception).

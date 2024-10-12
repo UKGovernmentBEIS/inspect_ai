@@ -21,6 +21,7 @@ RegistryType = Literal[
     "tool",
     "sandboxenv",
     "score_reducer",
+    "approver",
 ]
 
 
@@ -238,7 +239,7 @@ def registry_info(o: object) -> RegistryInfo:
         return cast(RegistryInfo, info)
     else:
         name = getattr(o, "__name__", "unknown")
-        decorator = " @solver " if name == "solve" else ""
+        decorator = " @solver " if name == "solve" else " "
         raise ValueError(
             f"Object '{name}' does not have registry info. Did you forget to add a{decorator}decorator somewhere?"
         )

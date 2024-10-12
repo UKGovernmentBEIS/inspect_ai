@@ -48,7 +48,7 @@ def test_sandbox_environment_read_file():
                 ),
             ],
         ),
-        max_messages=5,  # otherwise we can get into an infinite loop if the tools error
+        message_limit=5,  # otherwise we can get into an infinite loop if the tools error
     )[0]
 
     chat_message_tool = find_tool_call(result, "read_file")
@@ -85,7 +85,7 @@ def test_sandbox_environment_list_files():
                 ),
             ],
         ),
-        max_messages=5,  # otherwise we can get into an infinite loop if the tools error
+        message_limit=5,  # otherwise we can get into an infinite loop if the tools error
     )[0]
 
     chat_message_tool = find_tool_call(result, "list_files")
@@ -131,7 +131,7 @@ def test_sandbox_environment_read_file_error():
                 ),
             ),
         ),
-        max_messages=5,  # otherwise we can get into an infinite loop if the tools error
+        message_limit=5,  # otherwise we can get into an infinite loop if the tools error
     )[0]
 
     chat_message_tool = find_tool_call(result, "read_file")
@@ -188,7 +188,7 @@ def test_sandbox_environment_nonroot_files():
             "mockllm/model",
             custom_outputs=custom_outputs(),
         ),
-        max_messages=5,
+        message_limit=5,
         sandbox_cleanup=False,
     )[0]
 

@@ -253,7 +253,7 @@ def together_chat_message(
     message: dict[str, str], tools: list[ToolInfo], handler: ChatAPIHandler
 ) -> ChatMessageAssistant:
     content: str = message.get("content", "")
-    return handler.parse_assistent_response(content, tools)
+    return handler.parse_assistant_response(content, tools)
 
 
 def together_stop_reason(reason: str) -> StopReason:

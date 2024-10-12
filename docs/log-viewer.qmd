@@ -119,9 +119,8 @@ logger = logging.getLogger(__name__)
 logger.info(f"web query: {query}")
 ```
 
-You can see all of these log entries in the **Logging** tab:
+All of these log entries will be included in the sample transcript.
 
-![](images/inspect-view-logging.png){.border .lightbox fig-alt="The Logging panel of the Inspect log viewer, displaying several info log messages from the web search tool indicating what queries were executed by the tool."}
 
 ### Log Levels
 
@@ -137,7 +136,12 @@ The log levels and their applicability are described below (in increasing order 
 | `error` | Due to a more serious problem, the software has not been able to perform some function |
 | `critical` | A serious error, indicating that the program itself may be unable to continue running. |
 
-: Inspect View will show all log entries level `info` or higher. However, printing every `info` message to the console during an eval might be too distracting, so the default log level for the console is `warning`. If you change it to `info` then you'll also see these log messages in the console:
+#### Default Levels
+
+By default, messages of log level `warning` and higher are printed to the console, and messages of log level `info` and higher are included in the sample transcript. This enables you to include many calls to `logger.info()` in your code without having them show by default, while also making them available in the log viewer should you need them.
+
+If you'd like to see 'info' messages in the console as well, use the `--log-level info` option:
+
 
 ``` bash
 $ inspect eval biology_qa.py --log-level info
@@ -145,9 +149,14 @@ $ inspect eval biology_qa.py --log-level info
 
 ![](images/inspect-view-logging-console.png){.lightbox fig-alt="This Inspect task display in the terminal, with several info log messages from the web search tool printed above the task display."}
 
-A default log level of `warning` enables you to include many calls to `logger.info()` in your code without having them show by default, while also making them available in the log viewer should you need them.
+You can use the `--log-level-transcript` option to control what level is written to the sample transcript:
 
-Note that you can also set the log level using the `INSPECT_LOG_LEVEL` environment variable (which is often included in a [.env configuration file](#sec-workflow-configuration)).
+``` bash
+$ inspect eval biology_qa.py --log-level-transcript http
+```
+
+
+Note that you can also set the log levels using the `INSPECT_LOG_LEVEL` and `INSPECT_LOG_LEVEL_TRANSCRIPT` environment variables (which are often included in a [.env configuration file](#sec-workflow-configuration)).
 
 ### External File {#sec-external-file}
 

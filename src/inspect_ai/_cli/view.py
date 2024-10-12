@@ -1,3 +1,6 @@
+import functools
+from typing import Any, Callable, cast
+
 import click
 from typing_extensions import Unpack
 
@@ -8,8 +11,30 @@ from inspect_ai.log._bundle import bundle_log_dir
 from .common import CommonOptions, common_options, resolve_common_options
 
 
+def start_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
+    @click.option(
+        "--recursive",
+        type=bool,
+        is_flag=True,
+        default=True,
+        help="Include all logs in log_dir recursively.",
+    )
+    @click.option(
+        "--host",
+        default=DEFAULT_SERVER_HOST,
+        help="Tcp/Ip host",
+    )
+    @click.option("--port", default=DEFAULT_VIEW_PORT, help="TCP/IP port")
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> click.Context:
+        return cast(click.Context, func(*args, **kwargs))
+
+    return wrapper
+
+
 # Define the base command group
 @click.group(name="view", invoke_without_command=True)
+@start_options
 @common_options
 @click.pass_context
 def view_command(ctx: click.Context, **kwargs: Unpack[CommonOptions]) -> None:
@@ -21,20 +46,8 @@ def view_command(ctx: click.Context, **kwargs: Unpack[CommonOptions]) -> None:
 
 
 @view_command.command("start")
+@start_options
 @common_options
-@click.option(
-    "--recursive",
-    type=bool,
-    is_flag=True,
-    default=True,
-    help="Include all logs in log_dir recursively.",
-)
-@click.option(
-    "--host",
-    default=DEFAULT_SERVER_HOST,
-    help="Tcp/Ip host",
-)
-@click.option("--port", default=DEFAULT_VIEW_PORT, help="TCP/IP port")
 def start(
     recursive: bool,
     host: str,
@@ -43,11 +56,16 @@ def start(
 ) -> None:
     """View evaluation logs."""
     # read common options
-    (log_dir, log_level) = resolve_common_options(kwargs)
+    (log_dir, log_level, log_level_transcript) = resolve_common_options(kwargs)
 
     # run the viewer
     view(
-        log_dir=log_dir, recursive=recursive, host=host, port=port, log_level=log_level
+        log_dir=log_dir,
+        recursive=recursive,
+        host=host,
+        port=port,
+        log_level=log_level,
+        log_level_transcript=log_level_transcript,
     )
 
 
@@ -72,6 +90,6 @@ def bundle_command(
 ) -> None:
     """Bundle evaluation logs"""
     # read common options
-    (log_dir, log_level) = resolve_common_options(kwargs)
+    (log_dir, _, _) = resolve_common_options(kwargs)
 
     bundle_log_dir(output_dir=output_dir, log_dir=log_dir, overwrite=overwrite)

@@ -22,9 +22,16 @@ from pydantic import BaseModel
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.registry import registry_info
 from inspect_ai._util.text import truncate_string_to_bytes
+from inspect_ai.model._trace import trace_tool_mesage
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
-from inspect_ai.tool._tool import TOOL_PARALLEL, TOOL_PROMPT, ToolParsingError
-from inspect_ai.tool._tool_call import ToolCallError
+from inspect_ai.tool._tool import (
+    TOOL_PARALLEL,
+    TOOL_PROMPT,
+    TOOL_VIEWER,
+    ToolApprovalError,
+    ToolParsingError,
+)
+from inspect_ai.tool._tool_call import ToolCallError, ToolCallViewer
 from inspect_ai.tool._tool_info import (
     ToolParams,
     parse_docstring,
@@ -72,7 +79,7 @@ async def call_tools(
             tool_error: ToolCallError | None = None
             try:
                 with track_store_changes():
-                    result = await call_tool(tdefs, call)
+                    result = await call_tool(tdefs, message.text, call)
             except TimeoutError:
                 tool_error = ToolCallError(
                     "timeout", "Command timed out before completing."
@@ -83,22 +90,24 @@ async def call_tools(
                     f"Error decoding bytes to {ex.encoding}: {ex.reason}",
                 )
             except PermissionError as ex:
-                message = f"{ex.strerror}."
+                err = f"{ex.strerror}."
                 if isinstance(ex.filename, str):
-                    message = f"{message} Filename '{ex.filename}'."
-                tool_error = ToolCallError("permission", message)
+                    err = f"{err} Filename '{ex.filename}'."
+                tool_error = ToolCallError("permission", err)
             except FileNotFoundError as ex:
                 tool_error = ToolCallError(
                     "file_not_found",
                     f"File '{ex.filename}' was not found.",
                 )
             except IsADirectoryError as ex:
-                message = f"{ex.strerror}."
+                err = f"{ex.strerror}."
                 if isinstance(ex.filename, str):
-                    message = f"{message} Filename '{ex.filename}'."
-                tool_error = ToolCallError("is_a_directory", message)
+                    err = f"{err} Filename '{ex.filename}'."
+                tool_error = ToolCallError("is_a_directory", err)
             except ToolParsingError as ex:
                 tool_error = ToolCallError("parsing", ex.message)
+            except ToolApprovalError as ex:
+                tool_error = ToolCallError("approval", ex.message)
             except ToolError as ex:
                 tool_error = ToolCallError("unknown", ex.message)
 
@@ -146,8 +155,9 @@ async def call_tools(
         tasks = [call_tool_task(call) for call in message.tool_calls]
         results = await asyncio.gather(*tasks)
 
-        # fire tool events for each result
-        for event in [result[1] for result in results]:
+        # trace and fire tool events for each result
+        for tool_message, event in [result for result in results]:
+            trace_tool_mesage(tool_message)
             transcript()._event(event)
 
         # return tool messages
@@ -171,11 +181,14 @@ class ToolDef:
     parallel: bool
     """Supports parallel execution."""
 
+    viewer: ToolCallViewer | None
+    """Custom viewer for tool call"""
+
     tool: Callable[..., Any]
     """Callable to execute tool."""
 
 
-async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
+async def call_tool(tools: list[ToolDef], message: str, call: ToolCall) -> Any:
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
         raise ToolParsingError(call.parse_error)
@@ -184,6 +197,15 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
     tool_def = next((tool for tool in tools if tool.name == call.function), None)
     if tool_def is None:
         raise ToolParsingError(f"Tool {call.function} not found")
+
+    # if we have a tool approver, apply it now
+    from inspect_ai.approval._apply import apply_tool_approval
+
+    approved, approval = await apply_tool_approval(message, call, tool_def.viewer)
+    if not approved:
+        raise ToolApprovalError(approval.explanation if approval else None)
+    if approval and approval.modified:
+        call = approval.modified
 
     # validate the schema of the passed object
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
@@ -196,7 +218,7 @@ async def call_tool(tools: list[ToolDef], call: ToolCall) -> Any:
     # call the tool
     result = await tool_def.tool(**arguments)
 
-    # return result + events
+    # return result
     return result
 
 
@@ -221,7 +243,7 @@ def tools_info(tools: list[Tool] | list[ToolInfo]) -> list[ToolInfo]:
 def disable_parallel_tools(tools: list[Tool] | list[ToolInfo]) -> bool:
     for tool in tools:
         if isinstance(tool, Tool):
-            _, _, parallel = tool_registry_info(tool)
+            _, _, parallel, _ = tool_registry_info(tool)
             if not parallel:
                 return True
     return False
@@ -233,7 +255,7 @@ def tool_defs(tools: list[Tool]) -> list[ToolDef]:
 
 def tool_def(tool: Tool) -> ToolDef:
     # get tool_info
-    name, prompt, parallel = tool_registry_info(tool)
+    name, prompt, parallel, viewer = tool_registry_info(tool)
     tool_info = parse_tool_info(tool)
 
     # if there is a description then append any prompt to the
@@ -282,16 +304,20 @@ def tool_def(tool: Tool) -> ToolDef:
         description=tool_info.description,
         parameters=tool_info.parameters,
         parallel=parallel,
+        viewer=viewer,
         tool=tool,
     )
 
 
-def tool_registry_info(tool: Tool) -> tuple[str, str | None, bool]:
+def tool_registry_info(
+    tool: Tool,
+) -> tuple[str, str | None, bool, ToolCallViewer | None]:
     info = registry_info(tool)
     name = info.name.split("/")[-1]
     prompt = info.metadata.get(TOOL_PROMPT, None)
     parallel = info.metadata.get(TOOL_PARALLEL, True)
-    return name, prompt, parallel
+    viewer = info.metadata.get(TOOL_VIEWER, None)
+    return name, prompt, parallel, viewer
 
 
 def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, Any]:
