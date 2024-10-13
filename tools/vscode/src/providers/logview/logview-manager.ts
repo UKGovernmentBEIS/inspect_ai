@@ -29,23 +29,8 @@ export class InspectLogviewManager {
   }
 
   public async showInspectView() {
-    // See if there is a log dir
-    const envVals = this.envMgr_.getValues();
-    const env_log = envVals[kInspectEnvValues.logDir];
-
-    // If there is a log dir, try to parse and use it
-    let log_uri;
-    try {
-      log_uri = Uri.parse(env_log, true);
-    } catch {
-      // This isn't a uri, bud
-      const logDir = env_log ? workspacePath(env_log).path : join(workspacePath().path, "logs");
-      log_uri = Uri.file(logDir);
-    }
-
-    // Show the log view for the log dir (or the workspace)
-    const log_dir = log_uri || activeWorkspaceFolder().uri;
-    await this.webViewManager_.showLogview({ log_dir }, "activate");
+    // Show the log view for the default log dir (or the workspace)
+    await this.webViewManager_.showLogview({ log_dir: this.envMgr_.getDefaultLogDir() }, "activate");
   }
 
   public viewColumn() {
