@@ -1,4 +1,5 @@
 import { ChildProcess, SpawnOptions } from "child_process";
+import { randomUUID } from "crypto";
 import * as os from "os";
 
 import { Disposable, OutputChannel, Uri } from "vscode";
@@ -94,12 +95,13 @@ export class InspectView implements Disposable {
   private async ensureServer(): Promise<undefined> {
     if (this.serverProcess_ === undefined || this.serverProcess_.exitCode !== null) {
 
-      // find port
+      // find port and establish auth token
       this.serverProcess_ = undefined;
       this.serverPort_ = await findOpenPort(7676);
+      this.serverAuthToken_ = randomUUID();
 
+      // launch server and wait to resolve/return until it produces output
       return new Promise((resolve, reject) => {
-
 
         // find inspect
         const inspect = inspectBinPath();
@@ -110,7 +112,8 @@ export class InspectView implements Disposable {
         // launch process
         const options: SpawnOptions = {
           env: {
-            "COLUMNS": "150"
+            "COLUMNS": "150",
+            "INSPECT_VIEW_AUTHORIZATION_TOKEN": this.serverAuthToken_,
           },
           shell: os.platform() === "win32"
         };
@@ -157,16 +160,17 @@ export class InspectView implements Disposable {
   }
 
   private async api_json(path: string): Promise<string> {
-    return await this.api(path, false) as string
+    return await this.api(path, false) as string;
   }
 
   private async api_bytes(path: string): Promise<Uint8Array> {
-    return await this.api(path, false) as Uint8Array
+    return await this.api(path, false) as Uint8Array;
   }
 
   private async api(path: string, binary: boolean = false): Promise<string | Uint8Array> {
     // build headers
     const headers = {
+      Authorization: this.serverAuthToken_,
       Accept: binary ? "application/octet-stream" : "application/json",
       Pragma: "no-cache",
       Expires: "0",
@@ -200,6 +204,7 @@ export class InspectView implements Disposable {
   private disconnect_: VoidFunction;
   private serverProcess_?: ChildProcess = undefined;
   private serverPort_?: number = undefined;
+  private serverAuthToken_: string = "";
 
 }
 

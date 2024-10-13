@@ -30,6 +30,7 @@ def view(
     recursive: bool = True,
     host: str = DEFAULT_SERVER_HOST,
     port: int = DEFAULT_VIEW_PORT,
+    authorization: str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     fs_options: dict[str, Any] = {},
@@ -56,6 +57,7 @@ def view(
         recursive=recursive,
         host=host,
         port=port,
+        authorization=authorization,
         fs_options=fs_options,
     )
 

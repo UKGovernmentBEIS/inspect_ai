@@ -1,4 +1,5 @@
 import functools
+import os
 from typing import Any, Callable, cast
 
 import click
@@ -58,12 +59,20 @@ def start(
     # read common options
     process_common_options(common)
 
+    # resolve optional auth token
+    INSPECT_VIEW_AUTHORIZATION_TOKEN = "INSPECT_VIEW_AUTHORIZATION_TOKEN"
+    authorization = os.environ.get(INSPECT_VIEW_AUTHORIZATION_TOKEN, None)
+    if authorization:
+        del os.environ[INSPECT_VIEW_AUTHORIZATION_TOKEN]
+        os.unsetenv(INSPECT_VIEW_AUTHORIZATION_TOKEN)
+
     # run the viewer
     view(
         log_dir=common["log_dir"],
         recursive=recursive,
         host=host,
         port=port,
+        authorization=authorization,
         log_level=common["log_level"],
         log_level_transcript=common["log_level_transcript"],
     )

@@ -3,7 +3,7 @@ import os
 import urllib.parse
 from logging import LogRecord, getLogger
 from pathlib import Path
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from aiohttp import web
 from pydantic_core import to_jsonable_python
@@ -29,8 +29,10 @@ def view_server(
     recursive: bool = True,
     host: str = DEFAULT_SERVER_HOST,
     port: int = DEFAULT_VIEW_PORT,
+    authorization: str | None = None,
     fs_options: dict[str, Any] = {},
 ) -> None:
+    # route table
     routes = web.RouteTableDef()
 
     @routes.get("/api/logs/{log}")
@@ -89,16 +91,23 @@ def view_server(
         )
         return web.json_response(actions)
 
-    # setup app and routes
-    app = web.Application()
+    # optional auth middleware
+    @web.middleware
+    async def authorize(
+        request: web.Request,
+        handler: Callable[[web.Request], Awaitable[web.StreamResponse]],
+    ) -> web.StreamResponse:
+        if request.headers.get("Authorization", None) != authorization:
+            return web.HTTPUnauthorized()
+        else:
+            return await handler(request)
 
-    # handlers for api routes
+    # setup server
+    app = web.Application(middlewares=[authorize] if authorization else [])
     app.router.add_routes(routes)
-
-    # handler for app assets www directory
     app.router.register_resource(WWWResource())
 
-    # filter request log
+    # filter request log (remove /api/events)
     filter_aiohttp_log()
 
     # run app
