@@ -16,7 +16,7 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
     return providerRegistration;
   }
 
-  private static readonly viewType = 'inspect-ai.logViewer';
+  private static readonly viewType = 'inspect-ai.log-editor';
 
   constructor(private readonly context: vscode.ExtensionContext) { }
 

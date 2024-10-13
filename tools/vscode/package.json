@@ -55,7 +55,7 @@
     ],
     "customEditors": [
       {
-        "viewType": "inspect-ai.logViewer",
+        "viewType": "inspect-ai.log-editor",
         "displayName": "Inspect Log Viewer",
         "selector": [
           {
