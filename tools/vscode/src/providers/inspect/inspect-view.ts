@@ -2,7 +2,7 @@ import { ChildProcess, SpawnOptions } from "child_process";
 import { randomUUID } from "crypto";
 import * as os from "os";
 
-import { Disposable, OutputChannel, Uri } from "vscode";
+import { Disposable, OutputChannel, Uri, workspace } from "vscode";
 import { HostWebviewPanel } from "../../hooks";
 import { jsonRpcPostMessageServer, JsonRpcPostMessageTarget, JsonRpcServerMethod, kMethodEvalLog, kMethodEvalLogBytes, kMethodEvalLogHeaders, kMethodEvalLogs, kMethodEvalLogSize } from "../../core/jsonrpc";
 import { findOpenPort } from "../../core/port";
@@ -111,6 +111,7 @@ export class InspectView implements Disposable {
 
         // launch process
         const options: SpawnOptions = {
+          cwd: activeWorkspacePath().path,
           env: {
             "COLUMNS": "150",
             "INSPECT_VIEW_AUTHORIZATION_TOKEN": this.serverAuthToken_,
