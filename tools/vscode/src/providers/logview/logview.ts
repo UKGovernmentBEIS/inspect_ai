@@ -8,9 +8,11 @@ import { InspectSettingsManager } from "../settings/inspect-settings";
 import { InspectManager } from "../inspect/inspect-manager";
 import { WorkspaceEnvManager } from "../workspace/workspace-env-provider";
 import { ExtensionHost } from "../../hooks";
+import { InspectViewServer } from "../inspect/inspect-view-server";
 
 export async function activateLogview(
   inspectManager: InspectManager,
+  inspectViewServer: InspectViewServer,
   settingsMgr: InspectSettingsManager,
   envMgr: WorkspaceEnvManager,
   context: ExtensionContext,
@@ -19,6 +21,7 @@ export async function activateLogview(
   // initilize manager
   const logviewWebManager = new InspectLogviewWebviewManager(
     inspectManager,
+    inspectViewServer,
     context,
     host
   );

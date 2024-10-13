@@ -3,7 +3,6 @@ import { readFileSync } from "fs";
 import {
   ExtensionContext,
   MessageItem,
-  OutputChannel,
   Uri,
   ViewColumn,
   env,
@@ -25,7 +24,8 @@ import {
 import { LogviewState } from "./commands";
 import { ExtensionHost, HostWebviewPanel } from "../../hooks";
 import { showError } from "../../components/error";
-import { InspectView } from "../inspect/inspect-view";
+import { InspectViewServer } from "../inspect/inspect-view-server";
+import { jsonRpcPostMessageServer, JsonRpcPostMessageTarget, JsonRpcServerMethod, kMethodEvalLog, kMethodEvalLogBytes, kMethodEvalLogHeaders, kMethodEvalLogs, kMethodEvalLogSize } from "../../core/jsonrpc";
 
 const kLogViewId = "inspect.logview";
 
@@ -35,6 +35,7 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
 > {
   constructor(
     inspectManager: InspectManager,
+    viewServer: InspectViewServer,
     context: ExtensionContext,
     host: ExtensionHost
   ) {
@@ -62,7 +63,9 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
       host
     );
 
-    this.outputChannel_ = window.createOutputChannel("Inspect View");
+    // ref to view server
+    this.viewServer_ = viewServer;
+
   }
   private activeLogDir_: Uri | null = null;
 
@@ -193,20 +196,26 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
   }
 
   protected onViewCreated() {
-    if (this.inspectView_) {
-      this.inspectView_?.dispose();
-    }
-    this.inspectView_ = new InspectView(this.activeView_!.webviewPanel(), this.outputChannel_, this.lastState_!.log_dir);
+    this.viewDisconnect_ = webviewPanelJsonRpcServer(this.activeView_!.webviewPanel(), {
+      [kMethodEvalLogs]: async () => this.viewServer_.evalLogs(this.lastState_!.log_dir),
+      [kMethodEvalLog]: (params: unknown[]) => this.viewServer_.evalLog(params[0] as string, params[1] as number | boolean),
+      [kMethodEvalLogSize]: (params: unknown[]) => this.viewServer_.evalLogSize(params[0] as string),
+      [kMethodEvalLogBytes]: (params: unknown[]) => this.viewServer_.evalLogBytes(params[0] as string, params[1] as number, params[2] as number),
+      [kMethodEvalLogHeaders]: (params: unknown[]) => this.viewServer_.evalLogHeaders(params[0] as string[])
+    });
   }
 
   protected onViewDestroyed() {
-    this.inspectView_?.dispose();
-    this.inspectView_ = undefined;
+    // disconnect previous view if we had one
+    if (this.viewDisconnect_) {
+      this.viewDisconnect_();
+      this.viewDisconnect_ = undefined;
+    }
   }
 
+  private viewServer_: InspectViewServer;
   private lastState_?: LogviewState = undefined;
-  private inspectView_?: InspectView = undefined;
-  private outputChannel_: OutputChannel;
+  private viewDisconnect_?: VoidFunction = undefined;
 }
 
 const logStateEquals = (a: LogviewState, b: LogviewState) => {
@@ -442,3 +451,31 @@ Inspect not available.
     }
   }
 }
+
+
+
+
+function webviewPanelJsonRpcServer(
+  webviewPanel: HostWebviewPanel,
+  methods:
+    | Record<string, JsonRpcServerMethod>
+    | ((name: string) => JsonRpcServerMethod | undefined)
+): () => void {
+  const target: JsonRpcPostMessageTarget = {
+    postMessage: (data: unknown) => {
+      void webviewPanel.webview.postMessage(data);
+    },
+    onMessage: (handler: (data: unknown) => void) => {
+      const disposable = webviewPanel.webview.onDidReceiveMessage((ev) => {
+        handler(ev);
+      });
+      return () => {
+        disposable.dispose();
+      };
+    },
+  };
+  return jsonRpcPostMessageServer(target, methods);
+}
+
+
+

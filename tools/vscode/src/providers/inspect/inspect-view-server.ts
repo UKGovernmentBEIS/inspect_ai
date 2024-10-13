@@ -2,9 +2,8 @@ import { ChildProcess, SpawnOptions } from "child_process";
 import { randomUUID } from "crypto";
 import * as os from "os";
 
-import { Disposable, OutputChannel, Uri, workspace } from "vscode";
-import { HostWebviewPanel } from "../../hooks";
-import { jsonRpcPostMessageServer, JsonRpcPostMessageTarget, JsonRpcServerMethod, kMethodEvalLog, kMethodEvalLogBytes, kMethodEvalLogHeaders, kMethodEvalLogs, kMethodEvalLogSize } from "../../core/jsonrpc";
+import { Disposable, OutputChannel, Uri, window } from "vscode";
+
 import { findOpenPort } from "../../core/port";
 import { hasMinimumInspectVersion, withMinimumInspectVersion } from "../../inspect/version";
 import { kInspectEvalLogFormatVersion, kInspectOpenInspectViewVersion } from "./inspect-constants";
@@ -15,31 +14,21 @@ import { shQuote } from "../../core/string";
 import { spawnProcess } from "../../core/process";
 
 
-export class InspectView implements Disposable {
-  constructor(
-    webviewPanel: HostWebviewPanel,
-    private outputChannel_: OutputChannel,
-    private log_dir_: Uri
-  ) {
-    this.disconnect_ = webviewPanelJsonRpcServer(webviewPanel, {
-      [kMethodEvalLogs]: () => this.evalLogs(),
-      [kMethodEvalLog]: (params: unknown[]) => this.evalLog(params[0] as string, params[1] as number | boolean),
-      [kMethodEvalLogSize]: (params: unknown[]) => this.evalLogSize(params[0] as string),
-      [kMethodEvalLogBytes]: (params: unknown[]) => this.evalLogBytes(params[0] as string, params[1] as number, params[2] as number),
-      [kMethodEvalLogHeaders]: (params: unknown[]) => this.evalLogHeaders(params[0] as string[])
-    });
+export class InspectViewServer implements Disposable {
+  constructor() {
+    this.outputChannel_ = window.createOutputChannel("Inspect View");
   }
 
-  private async evalLogs(): Promise<string | undefined> {
+  public async evalLogs(log_dir: Uri): Promise<string | undefined> {
     if (this.haveInspectEvalLogFormat()) {
       await this.ensureServer();
-      return this.api_json(`/api/logs?log_dir=${encodeURIComponent(this.log_dir_.toString())}`);
+      return this.api_json(`/api/logs?log_dir=${encodeURIComponent(log_dir.toString())}`);
     } else {
-      return evalLogs(this.log_dir_);
+      return evalLogs(log_dir);
     }
   }
 
-  private async evalLog(
+  public async evalLog(
     file: string,
     headerOnly: boolean | number
   ): Promise<string | undefined> {
@@ -52,7 +41,7 @@ export class InspectView implements Disposable {
   }
 
 
-  private async evalLogSize(
+  public async evalLogSize(
     file: string
   ): Promise<number> {
 
@@ -64,7 +53,7 @@ export class InspectView implements Disposable {
     }
   }
 
-  private async evalLogBytes(
+  public async evalLogBytes(
     file: string,
     start: number,
     end: number
@@ -77,7 +66,7 @@ export class InspectView implements Disposable {
     }
   }
 
-  private async evalLogHeaders(files: string[]): Promise<string | undefined> {
+  public async evalLogHeaders(files: string[]): Promise<string | undefined> {
 
     if (this.haveInspectEvalLogFormat()) {
       await this.ensureServer();
@@ -134,7 +123,6 @@ export class InspectView implements Disposable {
         const args = [
           "view", "start",
           "--port", String(this.serverPort_),
-          "--log-dir", this.log_dir_.toString(),
           "--log-level", "info", "--no-ansi"
         ];
         this.serverProcess_ = spawnProcess(quote(inspect.path), args.map(quote), options, {
@@ -153,6 +141,7 @@ export class InspectView implements Disposable {
       });
 
     }
+
   }
 
 
@@ -169,6 +158,10 @@ export class InspectView implements Disposable {
   }
 
   private async api(path: string, binary: boolean = false): Promise<string | Uint8Array> {
+
+    // ensure the server is started and ready
+    await this.ensureServer();
+
     // build headers
     const headers = {
       Authorization: this.serverAuthToken_,
@@ -199,41 +192,15 @@ export class InspectView implements Disposable {
 
   dispose() {
     this.serverProcess_?.kill();
-    this.disconnect_();
+    this.outputChannel_.dispose();
   }
 
-  private disconnect_: VoidFunction;
+  private outputChannel_: OutputChannel;
   private serverProcess_?: ChildProcess = undefined;
   private serverPort_?: number = undefined;
   private serverAuthToken_: string = "";
 
 }
-
-
-
-export function webviewPanelJsonRpcServer(
-  webviewPanel: HostWebviewPanel,
-  methods:
-    | Record<string, JsonRpcServerMethod>
-    | ((name: string) => JsonRpcServerMethod | undefined)
-): () => void {
-  const target: JsonRpcPostMessageTarget = {
-    postMessage: (data: unknown) => {
-      void webviewPanel.webview.postMessage(data);
-    },
-    onMessage: (handler: (data: unknown) => void) => {
-      const disposable = webviewPanel.webview.onDidReceiveMessage((ev) => {
-        handler(ev);
-      });
-      return () => {
-        disposable.dispose();
-      };
-    },
-  };
-  return jsonRpcPostMessageServer(target, methods);
-}
-
-
 
 
 

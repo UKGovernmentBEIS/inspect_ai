@@ -21,6 +21,7 @@ import { activateWorkspaceEnv } from "./providers/workspace/workspace-env-provid
 import { initPythonInterpreter } from "./core/python";
 import { initInspectProps } from "./inspect";
 import { activateInspectManager } from "./providers/inspect/inspect-manager";
+import { InspectViewServer } from "./providers/inspect/inspect-view-server";
 import { checkActiveWorkspaceFolder } from "./core/workspace";
 import { inspectBinPath, inspectVersionDescriptor } from "./inspect/props";
 import { extensionHost } from "./hooks";
@@ -96,9 +97,13 @@ export async function activate(context: ExtensionContext) {
     }
   });
 
+  // initialiaze view server
+  const inspectViewServer = new InspectViewServer();
+
   // Activate the log view
   const [logViewCommands, logviewWebviewManager] = await activateLogview(
     inspectManager,
+    inspectViewServer,
     settingsMgr,
     workspaceEnvManager,
     context,
