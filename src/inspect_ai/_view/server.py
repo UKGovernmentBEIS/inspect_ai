@@ -35,11 +35,21 @@ def view_server(
     # route table
     routes = web.RouteTableDef()
 
+    # resolve log_dir to full path
+    log_dir = filesystem(log_dir).info(log_dir).name
+
+    # validate log file requests (must be in the log_dir
+    # unless authorization has been provided)
+    def validate_log_file_request(log_file: str) -> None:
+        if not authorization and (not log_file.startswith(log_dir) or ".." in log_file):
+            raise web.HTTPUnauthorized()
+
     @routes.get("/api/logs/{log}")
     async def api_log(request: web.Request) -> web.Response:
         # log file requested
         file = request.match_info["log"]
         file = urllib.parse.unquote(file)
+        validate_log_file_request(file)
 
         # header_only is based on a size threshold
         header_only = request.query.get("header-only", None)
@@ -50,6 +60,7 @@ def view_server(
         # log file requested
         file = request.match_info["log"]
         file = urllib.parse.unquote(file)
+        validate_log_file_request(file)
 
         return log_size_response(file)
 
@@ -58,6 +69,7 @@ def view_server(
         # log file requested
         file = request.match_info["log"]
         file = urllib.parse.unquote(file)
+        validate_log_file_request(file)
 
         # header_only is based on a size threshold
         start = request.query.get("start", None)
@@ -90,6 +102,7 @@ def view_server(
     @routes.get("/api/log-headers")
     async def api_log_headers(request: web.Request) -> web.Response:
         files = request.query.getall("file", [])
+        map(validate_log_file_request, files)
         return log_headers_response(files)
 
     @routes.get("/api/events")
