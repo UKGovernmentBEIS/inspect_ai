@@ -1,7 +1,6 @@
 import atexit
 import logging
 import os
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -16,9 +15,6 @@ from inspect_ai._util.constants import (
 from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import exception_message
 from inspect_ai._view.server import view_server
-from inspect_ai.log._file import (
-    list_eval_logs,
-)
 
 from .notify import view_runtime_dir
 
@@ -40,13 +36,6 @@ def view(
 
     # initialize the log_dir
     log_dir = log_dir if log_dir else os.getenv("INSPECT_LOG_DIR", "./logs")
-
-    # list the logs and confirm that there are logs to view (this also ensures
-    # that the right e.g. S3 credentials are present before we run the server)
-    files = list_eval_logs(log_dir, recursive=recursive, fs_options=fs_options)
-    if len(files) == 0:
-        print(f"No log files currently available in {log_dir}")
-        sys.exit(0)
 
     # acquire the requested port
     view_acquire_port(port)
