@@ -38,6 +38,36 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "languages": [
+      {
+        "id": "eval-log",
+        "aliases": [
+          "Eval Log"
+        ],
+        "extensions": [
+          ".eval"
+        ],
+        "icon": {
+          "light": "./assets/logo/inspect.svg",
+          "dark": "./assets/logo/inspect.svg"
+        }
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "inspect-ai.logViewer",
+        "displayName": "Inspect Log Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.eval"
+          },
+          {
+            "filenamePattern": "{[0-9][0-9][0-9][0-9]}-{[0-9][0-9]}-{[0-9][0-9]}T{[0-9][0-9]}[:-]{[0-9][0-9]}[:-]{[0-9][0-9]}*{[A-Za-z0-9]{21}}*.json"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
     "commands": [
       {
         "command": "inspect.showLogview",
