@@ -70,11 +70,22 @@ def view_server(
         return log_bytes_response(file, int(start), int(end))
 
     @routes.get("/api/logs")
-    async def api_logs(_: web.Request) -> web.Response:
+    async def api_logs(request: web.Request) -> web.Response:
+        # log dir can optionally be overridden by the request
+        if authorization:
+            request_log_dir = request.query.getone("log_dir", None)
+            if request_log_dir:
+                request_log_dir = urllib.parse.unquote(request_log_dir)
+            else:
+                request_log_dir = log_dir
+        else:
+            request_log_dir = log_dir
+
+        # list logs
         logs = list_eval_logs(
-            log_dir=log_dir, recursive=recursive, fs_options=fs_options
+            log_dir=request_log_dir, recursive=recursive, fs_options=fs_options
         )
-        return log_listing_response(logs, log_dir)
+        return log_listing_response(logs, request_log_dir)
 
     @routes.get("/api/log-headers")
     async def api_log_headers(request: web.Request) -> web.Response:

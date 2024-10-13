@@ -33,7 +33,7 @@ export class InspectView implements Disposable {
   private async evalLogs(): Promise<string | undefined> {
     if (this.haveInspectEvalLogFormat()) {
       await this.ensureServer();
-      return this.api_json(`/api/logs`);
+      return this.api_json(`/api/logs?log_dir=${encodeURIComponent(this.log_dir_.toString())}`);
     } else {
       return evalLogs(this.log_dir_);
     }
