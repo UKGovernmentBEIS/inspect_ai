@@ -4,9 +4,7 @@ import { Uri } from 'vscode';
 import { inspectViewPath } from '../../inspect/props';
 import { LogviewPanel } from './logview-panel';
 import { InspectViewServer } from '../inspect/inspect-view-server';
-import { LogviewState } from './logview-state';
 import { HostWebviewPanel } from '../../hooks';
-import { WorkspaceEnvManager } from '../workspace/workspace-env-provider';
 
 class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
