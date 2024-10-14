@@ -945,7 +945,6 @@
           "title": "Value"
         },
         "options": {
-          "default": {},
           "title": "Options",
           "type": "object"
         },
@@ -1042,7 +1041,6 @@
           "type": "string"
         },
         "params": {
-          "default": {},
           "title": "Params",
           "type": "object"
         }
@@ -1314,12 +1312,18 @@
           "type": "object"
         },
         "store": {
-          "default": {},
           "title": "Store",
           "type": "object"
         },
         "transcript": {
           "$ref": "#/$defs/EvalEvents"
+        },
+        "model_usage": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ModelUsage"
+          },
+          "title": "Model Usage",
+          "type": "object"
         },
         "error": {
           "anyOf": [
@@ -1348,6 +1352,7 @@
         "metadata",
         "store",
         "transcript",
+        "model_usage",
         "error"
       ],
       "title": "EvalSample",
@@ -1412,7 +1417,6 @@
           "title": "Reducer"
         },
         "params": {
-          "default": {},
           "title": "Params",
           "type": "object"
         },
@@ -1420,7 +1424,6 @@
           "additionalProperties": {
             "$ref": "#/$defs/EvalMetric"
           },
-          "default": [],
           "title": "Metrics",
           "type": "object"
         },
@@ -1452,7 +1455,6 @@
     "EvalSpec": {
       "properties": {
         "run_id": {
-          "default": "",
           "title": "Run Id",
           "type": "string"
         },
@@ -1465,7 +1467,6 @@
           "type": "string"
         },
         "task_id": {
-          "default": "",
           "title": "Task Id",
           "type": "string"
         },
@@ -1487,12 +1488,10 @@
           "title": "Task File"
         },
         "task_attribs": {
-          "default": {},
           "title": "Task Attribs",
           "type": "object"
         },
         "task_args": {
-          "default": {},
           "title": "Task Args",
           "type": "object"
         },
@@ -1569,7 +1568,6 @@
           "title": "Model Base Url"
         },
         "model_args": {
-          "default": {},
           "title": "Model Args",
           "type": "object"
         },
@@ -1591,7 +1589,6 @@
           "additionalProperties": {
             "type": "string"
           },
-          "default": {},
           "title": "Packages",
           "type": "object"
         },
@@ -1636,12 +1633,10 @@
     "EvalStats": {
       "properties": {
         "started_at": {
-          "default": "",
           "title": "Started At",
           "type": "string"
         },
         "completed_at": {
-          "default": "",
           "title": "Completed At",
           "type": "string"
         },
@@ -1649,7 +1644,6 @@
           "additionalProperties": {
             "$ref": "#/$defs/ModelUsage"
           },
-          "default": {},
           "title": "Model Usage",
           "type": "object"
         }
@@ -2384,7 +2378,6 @@
     "ModelOutput": {
       "properties": {
         "model": {
-          "default": "",
           "title": "Model",
           "type": "string"
         },
@@ -2540,7 +2533,6 @@
               "type": "array"
             }
           ],
-          "default": "",
           "title": "Target"
         },
         "id": {

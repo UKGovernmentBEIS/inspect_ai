@@ -182,6 +182,9 @@ class EvalSample(BaseModel):
 
         return values
 
+    # allow field model_usage
+    model_config = ConfigDict(protected_namespaces=())
+
 
 class EvalPlanStep(BaseModel):
     solver: str
