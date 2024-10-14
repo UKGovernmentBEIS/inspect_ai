@@ -12,10 +12,9 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
   static register(
     context: vscode.ExtensionContext,
-    envMgr: WorkspaceEnvManager,
     server: InspectViewServer
   ): vscode.Disposable {
-    const provider = new InspectLogReadonlyEditor(context, envMgr, server);
+    const provider = new InspectLogReadonlyEditor(context, server);
     const providerRegistration = vscode.window.registerCustomEditorProvider(
       InspectLogReadonlyEditor.viewType,
       provider,
@@ -33,7 +32,6 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
   constructor(
     private readonly context_: vscode.ExtensionContext,
-    private readonly envMgr_: WorkspaceEnvManager,
     private readonly server_: InspectViewServer
   ) { }
 
@@ -69,11 +67,6 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
     };
 
     // editor panel implementation
-    const log_dir = this.envMgr_.getDefaultLogDir();
-    const state: LogviewState = {
-      log_file: document.uri,
-      log_dir: log_dir
-    };
     this.logviewPanel_ = new LogviewPanel(
       webviewPanel as HostWebviewPanel,
       this.context_,
@@ -83,7 +76,7 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
     );
 
     // set html
-    webviewPanel.webview.html = this.logviewPanel_.getHtml(state);
+    webviewPanel.webview.html = this.logviewPanel_.getHtml(document.uri);
   }
 
   dispose() {
@@ -96,7 +89,6 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
 export function activateLogviewEditor(
   context: vscode.ExtensionContext,
-  envMgr: WorkspaceEnvManager,
   server: InspectViewServer) {
-  context.subscriptions.push(InspectLogReadonlyEditor.register(context, envMgr, server));
+  context.subscriptions.push(InspectLogReadonlyEditor.register(context, server));
 }

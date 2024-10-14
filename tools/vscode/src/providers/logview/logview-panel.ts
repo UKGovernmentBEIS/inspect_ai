@@ -3,7 +3,6 @@ import { env, ExtensionContext, MessageItem, Uri, window } from "vscode";
 import { getNonce } from "../../core/nonce";
 import { HostWebviewPanel } from "../../hooks";
 import { inspectViewPath } from "../../inspect/props";
-import { LogviewState } from "./logview-state";
 import { readFileSync } from "fs";
 import { Disposable } from "../../core/dispose";
 import { jsonRpcPostMessageServer, JsonRpcPostMessageTarget, JsonRpcServerMethod, kMethodEvalLog, kMethodEvalLogBytes, kMethodEvalLogHeaders, kMethodEvalLogs, kMethodEvalLogSize } from "../../core/jsonrpc";
@@ -24,9 +23,9 @@ export class LogviewPanel extends Disposable {
 
     // serve eval log api to webview
     this._rpcDisconnect = webviewPanelJsonRpcServer(panel_, {
-      [kMethodEvalLogs]: async () => type === "dir" 
-           ? server.evalLogs(uri)
-           : JSON.stringify({ log_dir: "", files: [{ name: uri.toString() }] }),
+      [kMethodEvalLogs]: async () => type === "dir"
+        ? server.evalLogs(uri)
+        : JSON.stringify({ log_dir: "", files: [{ name: uri.toString() }] }),
       [kMethodEvalLog]: (params: unknown[]) => server.evalLog(params[0] as string, params[1] as number | boolean),
       [kMethodEvalLogSize]: (params: unknown[]) => server.evalLogSize(params[0] as string),
       [kMethodEvalLogBytes]: (params: unknown[]) => server.evalLogBytes(params[0] as string, params[1] as number, params[2] as number),
@@ -78,7 +77,7 @@ export class LogviewPanel extends Disposable {
     this._pmUnsubcribe.dispose();
   }
 
-  public getHtml(state: LogviewState): string {
+  public getHtml(log_file?: Uri): string {
     // read the index.html from the log view directory
     const viewDir = inspectViewPath();
     if (viewDir) {
@@ -112,10 +111,10 @@ export class LogviewPanel extends Disposable {
       // message being sent before the view itself is configured to receive messages)
       const stateMsg = {
         type: "updateState",
-        url: state?.log_file?.toString(),
+        url: log_file?.toString(),
       };
       const stateScript =
-        state && state.log_file
+        log_file
           ? `<script id="logview-state" type="application/json">${JSON.stringify(
             stateMsg
           )}</script>`

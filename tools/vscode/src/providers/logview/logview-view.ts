@@ -316,7 +316,7 @@ class InspectViewWebview extends InspectWebview<LogviewState> {
   }
 
   protected getHtml(state: LogviewState): string {
-    return this.logviewPanel_.getHtml(state);
+    return this.logviewPanel_.getHtml(state.log_file);
   }
 }
 
