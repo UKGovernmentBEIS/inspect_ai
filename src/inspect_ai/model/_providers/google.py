@@ -354,7 +354,7 @@ def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
         )
         for tool in tools
     ]
-    return [Tool(declarations)]
+    return [Tool(function_declarations=declarations)]
 
 
 # https://ai.google.dev/gemini-api/tutorials/extract_structured_data#define_the_schema
