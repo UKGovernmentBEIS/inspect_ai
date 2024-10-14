@@ -25,7 +25,7 @@ export class LogviewPanel extends Disposable {
     this._rpcDisconnect = webviewPanelJsonRpcServer(panel_, {
       [kMethodEvalLogs]: async () => type === "dir"
         ? server.evalLogs(uri)
-        : JSON.stringify({ log_dir: "", files: [{ name: uri.toString() }] }),
+        : this.singleFileEvalLogs(server, uri),
       [kMethodEvalLog]: (params: unknown[]) => server.evalLog(params[0] as string, params[1] as number | boolean),
       [kMethodEvalLogSize]: (params: unknown[]) => server.evalLogSize(params[0] as string),
       [kMethodEvalLogBytes]: (params: unknown[]) => server.evalLogBytes(params[0] as string, params[1] as number, params[2] as number),
@@ -70,6 +70,11 @@ export class LogviewPanel extends Disposable {
         }
       }
     );
+  }
+
+  private async singleFileEvalLogs(server: InspectViewServer, uri: Uri) {
+    await server.ensureRunning();
+    return JSON.stringify({ log_dir: "", files: [{ name: uri.toString() }] });
   }
 
   public dispose() {

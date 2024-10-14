@@ -21,7 +21,7 @@ export class InspectViewServer implements Disposable {
 
   public async evalLogs(log_dir: Uri): Promise<string | undefined> {
     if (this.haveInspectEvalLogFormat()) {
-      await this.ensureServer();
+      await this.ensureRunning();
       return this.api_json(`/api/logs?log_dir=${encodeURIComponent(log_dir.toString())}`);
     } else {
       return evalLogs(log_dir);
@@ -33,7 +33,7 @@ export class InspectViewServer implements Disposable {
     headerOnly: boolean | number
   ): Promise<string | undefined> {
     if (this.haveInspectEvalLogFormat()) {
-      await this.ensureServer();
+      await this.ensureRunning();
       return await this.api_json(`/api/logs/${encodeURIComponent(file)}?header-only=${headerOnly}`);
     } else {
       return evalLog(file, headerOnly);
@@ -46,7 +46,7 @@ export class InspectViewServer implements Disposable {
   ): Promise<number> {
 
     if (this.haveInspectEvalLogFormat()) {
-      await this.ensureServer();
+      await this.ensureRunning();
       return Number(await this.api_json(`/api/log-size/${encodeURIComponent(file)}`));
     } else {
       throw new Error("evalLogSize not implemented");
@@ -59,7 +59,7 @@ export class InspectViewServer implements Disposable {
     end: number
   ): Promise<Uint8Array> {
     if (this.haveInspectEvalLogFormat()) {
-      await this.ensureServer();
+      await this.ensureRunning();
       return this.api_bytes(`/api/log-bytes/${encodeURIComponent(file)}?start=${start}&end=${end}`);
     } else {
       throw new Error("evalLogBytes not implemented");
@@ -69,7 +69,7 @@ export class InspectViewServer implements Disposable {
   public async evalLogHeaders(files: string[]): Promise<string | undefined> {
 
     if (this.haveInspectEvalLogFormat()) {
-      await this.ensureServer();
+      await this.ensureRunning();
       const params = new URLSearchParams();
       for (const file of files) {
         params.append("file", file);
@@ -81,7 +81,7 @@ export class InspectViewServer implements Disposable {
 
   }
 
-  private async ensureServer(): Promise<undefined> {
+  public async ensureRunning(): Promise<undefined> {
     if (this.serverProcess_ === undefined || this.serverProcess_.exitCode !== null) {
 
       // find port and establish auth token
@@ -160,7 +160,7 @@ export class InspectViewServer implements Disposable {
   private async api(path: string, binary: boolean = false): Promise<string | Uint8Array> {
 
     // ensure the server is started and ready
-    await this.ensureServer();
+    await this.ensureRunning();
 
     // build headers
     const headers = {
