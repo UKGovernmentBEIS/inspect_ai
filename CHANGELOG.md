@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Google: compatibility with google-generativeai v0.8.3
 - Open log files in binary mode when reading headers (fixes ijson deprecation warning).
 
 ## v0.3.41 (11 October 2024)
