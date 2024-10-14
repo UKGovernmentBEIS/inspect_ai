@@ -234,8 +234,6 @@ export abstract class InspectWebview<T> extends Disposable {
         this.dispose();
       })
     );
-
-    this.show(state);
   }
 
   public override dispose() {
