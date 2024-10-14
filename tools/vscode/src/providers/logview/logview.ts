@@ -20,15 +20,15 @@ export async function activateLogview(
 ): Promise<[Command[], InspectViewManager]> {
 
   // initialiaze view server
-  const inspectViewServer = new InspectViewServer();
+  const server = new InspectViewServer();
 
   // activate the log viewer editor
-  activateLogviewEditor(context, envMgr, inspectViewServer);
+  activateLogviewEditor(context, envMgr, server);
 
   // initilize manager
   const logviewWebManager = new InspectViewWebviewManager(
     inspectManager,
-    inspectViewServer,
+    server,
     context,
     host
   );
