@@ -2,11 +2,20 @@
 import * as vscode from 'vscode';
 import { Uri } from 'vscode';
 import { inspectViewPath } from '../../inspect/props';
+import { LogviewPanel } from './logview-panel';
+import { InspectViewServer } from '../inspect/inspect-view-server';
+import { LogviewState } from './logview-state';
+import { HostWebviewPanel } from '../../hooks';
+import { WorkspaceEnvManager } from '../workspace/workspace-env-provider';
 
 class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
-  static register(context: vscode.ExtensionContext): vscode.Disposable {
-    const provider = new InspectLogReadonlyEditor(context);
+  static register(
+    context: vscode.ExtensionContext,
+    envMgr: WorkspaceEnvManager,
+    server: InspectViewServer
+  ): vscode.Disposable {
+    const provider = new InspectLogReadonlyEditor(context, envMgr, server);
     const providerRegistration = vscode.window.registerCustomEditorProvider(
       InspectLogReadonlyEditor.viewType,
       provider,
@@ -22,7 +31,11 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
 
   private static readonly viewType = 'inspect-ai.log-editor';
 
-  constructor(private readonly _context: vscode.ExtensionContext) { }
+  constructor(
+    private readonly context_: vscode.ExtensionContext,
+    private readonly envMgr_: WorkspaceEnvManager,
+    private readonly server_: InspectViewServer
+  ) { }
 
   // eslint-disable-next-line @typescript-eslint/require-await
   async openCustomDocument(
@@ -46,38 +59,43 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
     if (viewDir) {
       localResourceRoots.push(Uri.file(viewDir.path));
     }
-    Uri.joinPath(this._context.extensionUri, "assets", "www");
+    Uri.joinPath(this.context_.extensionUri, "assets", "www");
 
-    // set webview  options
+    // set webview options
     webviewPanel.webview.options = {
       enableScripts: true,
       enableForms: true,
       localResourceRoots
     };
 
-    webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, document.uri);
+    // editor panel implementation
+    const log_dir = this.envMgr_.getDefaultLogDir();
+    const state: LogviewState = {
+      log_file: document.uri,
+      log_dir: log_dir
+    };
+    this.logviewPanel_ = new LogviewPanel(
+      webviewPanel as HostWebviewPanel,
+      this.server_,
+      this.context_,
+      state.log_dir
+    );
+
+    // set html
+    webviewPanel.webview.html = this.logviewPanel_.getHtml(state);
   }
 
-  private getHtmlForWebview(webview: vscode.Webview, uri: vscode.Uri): string {
-    const content = 'File content goes here'; // In a real scenario, you'd read the file content
-
-    return `
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Custom Readonly Editor</title>
-            </head>
-            <body>
-                <h1>Custom Readonly View</h1>
-                <pre>${content}</pre>
-            </body>
-            </html>
-        `;
+  dispose() {
+    this.logviewPanel_?.dispose();
   }
+
+  private logviewPanel_?: LogviewPanel;
+
 }
 
-export function activateLogviewEditor(context: vscode.ExtensionContext) {
-  context.subscriptions.push(InspectLogReadonlyEditor.register(context));
+export function activateLogviewEditor(
+  context: vscode.ExtensionContext,
+  envMgr: WorkspaceEnvManager,
+  server: InspectViewServer) {
+  context.subscriptions.push(InspectLogReadonlyEditor.register(context, envMgr, server));
 }

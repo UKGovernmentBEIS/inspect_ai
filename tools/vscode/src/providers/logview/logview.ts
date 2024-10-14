@@ -23,7 +23,7 @@ export async function activateLogview(
   const inspectViewServer = new InspectViewServer();
 
   // activate the log viewer editor
-  activateLogviewEditor(context);
+  activateLogviewEditor(context, envMgr, inspectViewServer);
 
   // initilize manager
   const logviewWebManager = new InspectViewWebviewManager(
