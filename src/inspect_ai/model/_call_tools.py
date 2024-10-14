@@ -380,7 +380,7 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             dataclass_data: dict[str, Any] = {}
             fields = type_hint.__dataclass_fields__  # type: ignore
             for name, field in fields.items():
-                dataclass_data[name] = tool_param(field.type, input.get(name))
+                dataclass_data[name] = tool_param(field.type, input.get(name))  # type: ignore
             return type_hint(**dataclass_data)
         elif issubclass(type_hint, BaseModel):
             return type_hint(**input)
