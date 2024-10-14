@@ -7,6 +7,7 @@ import {
   ViewColumn,
   env,
   window,
+  workspace,
 } from "vscode";
 
 import {
@@ -26,11 +27,65 @@ import { ExtensionHost, HostWebviewPanel } from "../../hooks";
 import { showError } from "../../components/error";
 import { InspectViewServer } from "../inspect/inspect-view-server";
 import { jsonRpcPostMessageServer, JsonRpcPostMessageTarget, JsonRpcServerMethod, kMethodEvalLog, kMethodEvalLogBytes, kMethodEvalLogHeaders, kMethodEvalLogs, kMethodEvalLogSize } from "../../core/jsonrpc";
+import { join } from "path/posix";
+import { activeWorkspaceFolder } from "../../core/workspace";
+import { kInspectEnvValues } from "../inspect/inspect-constants";
+import { InspectSettingsManager } from "../settings/inspect-settings";
+import { WorkspaceEnvManager } from "../workspace/workspace-env-provider";
 
 const kLogViewId = "inspect.logview";
 
-export class InspectLogviewWebviewManager extends InspectWebviewManager<
-  InspectLogviewWebview,
+
+export class InspectViewManager {
+  constructor(
+    private readonly webViewManager_: InspectViewWebviewManager,
+    private readonly settingsMgr_: InspectSettingsManager,
+    private readonly envMgr_: WorkspaceEnvManager
+  ) { }
+
+  public async showLogFile(logFile: Uri, activation?: "open" | "activate") {
+    const settings = this.settingsMgr_.getSettings();
+    if (settings.logViewType === "text" && logFile.scheme === "file") {
+      await workspace.openTextDocument(logFile).then(async (doc) => {
+        await window.showTextDocument(doc, {
+          preserveFocus: true,
+          viewColumn: ViewColumn.Two,
+        });
+      });
+    } else {
+      await this.webViewManager_.showLogFile(logFile, activation);
+    }
+  }
+
+  public async showInspectView() {
+    // See if there is a log dir
+    const envVals = this.envMgr_.getValues();
+    const env_log = envVals[kInspectEnvValues.logDir];
+
+    // If there is a log dir, try to parse and use it
+    let log_uri;
+    try {
+      log_uri = Uri.parse(env_log, true);
+    } catch {
+      // This isn't a uri, bud
+      const logDir = env_log ? workspacePath(env_log).path : join(workspacePath().path, "logs");
+      log_uri = Uri.file(logDir);
+    }
+
+    // Show the log view for the log dir (or the workspace)
+    const log_dir = log_uri || activeWorkspaceFolder().uri;
+    await this.webViewManager_.showLogview({ log_dir }, "activate");
+  }
+
+  public viewColumn() {
+    return this.webViewManager_.viewColumn();
+  }
+}
+
+
+
+export class InspectViewWebviewManager extends InspectWebviewManager<
+  InspectViewWebview,
   LogviewState
 > {
   constructor(
@@ -59,7 +114,7 @@ export class InspectLogviewWebviewManager extends InspectWebviewManager<
       kLogViewId,
       "Inspect View",
       localResourceRoots,
-      InspectLogviewWebview,
+      InspectViewWebview,
       host
     );
 
@@ -233,7 +288,7 @@ const logStateEquals = (a: LogviewState, b: LogviewState) => {
   return true;
 };
 
-class InspectLogviewWebview extends InspectWebview<LogviewState> {
+class InspectViewWebview extends InspectWebview<LogviewState> {
   public constructor(
     context: ExtensionContext,
     state: LogviewState,
@@ -298,12 +353,12 @@ class InspectLogviewWebview extends InspectWebview<LogviewState> {
 
   }
 
-  public setManager(manager: InspectLogviewWebviewManager) {
+  public setManager(manager: InspectViewWebviewManager) {
     if (this._manager !== manager) {
       this._manager = manager;
     }
   }
-  _manager: InspectLogviewWebviewManager | undefined;
+  _manager: InspectViewWebviewManager | undefined;
 
   public async update(state: LogviewState) {
     await this._webviewPanel.webview.postMessage({
@@ -476,6 +531,4 @@ function webviewPanelJsonRpcServer(
   };
   return jsonRpcPostMessageServer(target, methods);
 }
-
-
 

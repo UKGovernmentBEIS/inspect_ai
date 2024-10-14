@@ -2,8 +2,8 @@ import { ExtensionContext } from "vscode";
 
 import { Command } from "../../core/command";
 import { logviewCommands } from "./commands";
-import { InspectLogviewWebviewManager } from "./logview-webview";
-import { InspectLogviewManager } from "./logview-manager";
+import { InspectViewWebviewManager } from "./logview-view";
+import { InspectViewManager } from "./logview-view";
 import { InspectSettingsManager } from "../settings/inspect-settings";
 import { InspectManager } from "../inspect/inspect-manager";
 import { WorkspaceEnvManager } from "../workspace/workspace-env-provider";
@@ -17,7 +17,7 @@ export async function activateLogview(
   envMgr: WorkspaceEnvManager,
   context: ExtensionContext,
   host: ExtensionHost
-): Promise<[Command[], InspectLogviewManager]> {
+): Promise<[Command[], InspectViewManager]> {
 
   // initialiaze view server
   const inspectViewServer = new InspectViewServer();
@@ -26,13 +26,13 @@ export async function activateLogview(
   activateLogviewEditor(context);
 
   // initilize manager
-  const logviewWebManager = new InspectLogviewWebviewManager(
+  const logviewWebManager = new InspectViewWebviewManager(
     inspectManager,
     inspectViewServer,
     context,
     host
   );
-  const logviewManager = new InspectLogviewManager(
+  const logviewManager = new InspectViewManager(
     logviewWebManager,
     settingsMgr,
     envMgr
